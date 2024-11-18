@@ -1,0 +1,5 @@
+[
+  {"name": "Hydrogen", "geometry": "H 0 0 0", "basis_set": "sto3g"},
+  {"name": "Helium", "geometry": "He 0 0 0", "basis_set": "sto3g"}
+]
+
