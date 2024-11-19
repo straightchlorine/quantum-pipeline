@@ -5,7 +5,6 @@ from quantum_simulation.solvers.vqe_solver import solve_vqe
 from quantum_simulation.mappers.jordan_winger_mapper import map_to_qubits
 from quantum_simulation.utils.logger import get_logger
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
-from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 from qiskit_nature.second_q.problems.electronic_structure_problem import (
     ElectronicStructureProblem,
 )
@@ -20,13 +19,13 @@ def main(molecule_file, basis_set):
         molecules = load_molecule(molecule_file)
 
         for molecule in molecules:
-            logger.info(f"Processing molecule: {molecule['name']}")
+            logger.info(f"Processing:\n {molecule}")
             validate_basis_set(basis_set)
 
             driver = PySCFDriver.from_molecule(molecule, basis=basis_set)
 
             # Build problem and fermionic operator
-            problem = ElectronicStructureProblem(driver)
+            problem: ElectronicStructureProblem = driver.run()
             second_q_op = problem.second_q_ops()[0]
 
             # Map fermionic operator to qubits
@@ -38,7 +37,7 @@ def main(molecule_file, basis_set):
             energy = solve_vqe(qubit_op)
 
             logger.info(
-                f"Ground state energy for {molecule['name']}: {energy:.6f} Hartree"
+                f"Ground state energy for:\n {molecule}\n Energy: {energy:.6f} Hartree"
             )
     except Exception as e:
         logger.error(f"Error encountered: {str(e)}")
