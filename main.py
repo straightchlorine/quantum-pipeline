@@ -12,6 +12,8 @@ from qiskit_nature.second_q.problems.electronic_structure_problem import (
     ElectronicStructureProblem,
 )
 
+from quantum_simulation.visual.energy import EnergyPlotter
+
 logger = get_logger('QuantumAtomicSim')
 
 
@@ -35,12 +37,16 @@ def prepare_simulation(molecule, basis_set: str):
     return problem.second_q_ops()[0]
 
 
-def run_vqe_simulation(qubit_op, report_gen: ReportGenerator, symbols):
+def run_vqe_simulation(
+    qubit_op, report_gen: ReportGenerator, energy_plotter: EnergyPlotter
+):
     """
     Run the VQE simulation and generate insights.
     """
     logger.info('Solving using VQE')
-    return VQESolver(qubit_op, report_generator=report_gen).solve()
+    return VQESolver(
+        qubit_op, report_generator=report_gen, energy_plotter=energy_plotter
+    ).solve()
 
 
 def process_molecule(molecule, basis_set: str, report: ReportGenerator):
@@ -58,7 +64,9 @@ def process_molecule(molecule, basis_set: str, report: ReportGenerator):
     logger.info('Mapping fermionic operator to qubits')
     qubit_op = JordanWignerMapper().map(second_q_op)
 
-    energy = run_vqe_simulation(qubit_op, report, molecule.symbols)
+    energy_plotter = EnergyPlotter()
+
+    energy = run_vqe_simulation(qubit_op, report, energy_plotter)
 
     report.new_page()
     report.add_header('Real coefficients of the operators')
@@ -66,6 +74,13 @@ def process_molecule(molecule, basis_set: str, report: ReportGenerator):
 
     report.add_header('Complex coefficients of the operators')
     report.add_complex_operator_coefficients_plot(qubit_op, molecule.symbols)
+
+    report.new_page()
+    report.add_insight(
+        'Energy convergence of the algorithm',
+        'Energy levels for each iteration:',
+    )
+    report.add_convergence_plot(molecule, energy_plotter)
 
     return energy
 
