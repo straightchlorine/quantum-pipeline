@@ -14,6 +14,8 @@ from qiskit_algorithms.optimizers import COBYLA, SPSA
 from quantum_simulation.configs import settings
 from quantum_simulation.report.report_generator import ReportGenerator
 from quantum_simulation.utils.logger import get_logger
+from quantum_simulation.visual.ansatz import AnsatzViewer
+from quantum_simulation.visual.energy import EnergyPlotter
 
 logger = get_logger('VQESolver')
 
@@ -25,6 +27,8 @@ class VQESolver:
         'SPSA': SPSA(maxiter=50),
     }
 
+    energy_plotter: EnergyPlotter
+
     def __init__(
         self,
         qubit_op,
@@ -35,6 +39,8 @@ class VQESolver:
         report_generator=None,
         report_name='vqe_report.pdf',
         report_description='VQE Results',
+        plot_convergence=True,
+        symbols=None,
     ):
         self.report_name = report_name
         self.report_description = report_description
@@ -47,6 +53,11 @@ class VQESolver:
         self.optimizer_name = optimizer_name
         self.max_iterations = max_iterations
         self.custom_optimizer = custom_optimizer
+        self.plot_convergence = plot_convergence
+        self.symbols = symbols
+
+        if self.plot_convergence:
+            self.energy_plotter = EnergyPlotter()
 
     def solve(self):
         """
@@ -92,9 +103,19 @@ class VQESolver:
         ansatz = TwoLocal(
             rotation_blocks='ry', entanglement_blocks='cz', reps=ansatz_reps
         )
+
         logger.debug(f'Created ansatz with {ansatz_reps} repetitions.')
 
-        vqe = VQE(estimator=Estimator(), ansatz=ansatz, optimizer=optimizer)
+        def callback(iteration, parameters, energy, *args):
+            """Callback function to log and track energy values during optimization."""
+            self.energy_plotter.add_iteration(iteration, energy)
+
+        vqe = VQE(
+            estimator=Estimator(),
+            ansatz=ansatz,
+            optimizer=optimizer,
+            callback=callback,
+        )
         logger.info('VQE instance configured.')
 
         logger.info('Starting VQE computation...')
@@ -113,6 +134,8 @@ class VQESolver:
 
         # add the metrics to the report
         try:
+            AnsatzViewer().save_circuit(ansatz, self.symbols)
+            self.energy_plotter.plot_convergence(self.symbols)
             self.report.add_insight(
                 'Energy analysis', 'Results of VQE algorihtm:'
             )

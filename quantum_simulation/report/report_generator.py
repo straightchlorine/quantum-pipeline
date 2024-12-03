@@ -5,6 +5,7 @@ Generates PDF reports with improved modularity and flexibility.
 """
 
 import os
+from pathlib import Path
 from typing import List, Dict, Union, Optional, Tuple
 
 from reportlab.lib.pagesizes import letter
@@ -16,8 +17,12 @@ from reportlab.lib.units import cm
 from reportlab.lib.pagesizes import A4
 
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
+from quantum_simulation.configs import settings
+from quantum_simulation.utils.dir import getGraphPath
+from quantum_simulation.visual.energy import EnergyPlotter
 from quantum_simulation.visual.molecule import MoleculePlotter
 from quantum_simulation.utils.logger import get_logger
+from quantum_simulation.visual.operator import OperatorViewer
 
 
 class ReportConfiguration:
@@ -33,10 +38,14 @@ class ReportConfiguration:
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 2),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
         ]
+        self.molecule_size = (500, 400)
+        self.op_coeff_size = (415, 244)
+        self.complex_op_coeff_size = (420, 300)
+        self.convergence_size = (600, 360)
 
 
 class ReportContentBuilder:
@@ -49,6 +58,7 @@ class ReportContentBuilder:
         Args:
             styles (dict, optional): Custom paragraph styles.
         """
+        self.report_config = ReportConfiguration()
         self.content: List[Union[Paragraph, Spacer, Table, Tuple]] = []
         self.styles = styles or getSampleStyleSheet()
         self._add_custom_styles()
@@ -77,7 +87,20 @@ class ReportContentBuilder:
                 Paragraph(title, self.styles['CustomHeading']),
                 Spacer(1, 10),
                 Paragraph(insight, self.styles['BodyText']),
-                Spacer(1, 20),
+                Spacer(1, 5),
+            ]
+        )
+
+    def add_header(self, header: str):
+        """
+        Add a textual header section to the report.
+
+        Args:
+            header (str): Header of the section.
+        """
+        self.content.extend(
+            [
+                Paragraph(header, self.styles['CustomHeading']),
             ]
         )
 
@@ -95,19 +118,11 @@ class ReportContentBuilder:
             col_widths (List[float], optional): Column widths.
             custom_styles (List[Tuple], optional): Custom table styles.
         """
-        col_widths = col_widths or [4 * cm, 8 * cm]
+        col_widths = col_widths or [4 * cm, 5 * cm]
         table = Table(data, colWidths=col_widths)
 
         # Use custom styles if provided, otherwise use default
-        styles = custom_styles or [
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ]
+        styles = custom_styles or self.report_config.table_styles
         table.setStyle(TableStyle(styles))
 
         self.content.extend([table, Spacer(1, 20)])
@@ -124,6 +139,12 @@ class ReportContentBuilder:
         ]
         self.add_table(data)
 
+    def append_plot_path(self, plot_path: str | Path, sizes: Tuple[int, int]):
+        if os.path.exists(plot_path):
+            self.content.append(('plot', plot_path, sizes))
+        else:
+            raise FileNotFoundError(f'Plot path {plot_path} does not exist.')
+
     def add_molecule_plot(
         self, molecule: MoleculeInfo, plotter: Optional[MoleculePlotter] = None
     ):
@@ -136,11 +157,53 @@ class ReportContentBuilder:
         """
         plotter = plotter or MoleculePlotter()
         plot_path = plotter.plot_molecule(molecule)
+        self.append_plot_path(plot_path, self.report_config.molecule_size)
 
-        if os.path.exists(plot_path):
-            self.content.append(('plot', plot_path))
-        else:
-            raise FileNotFoundError(f'Plot path {plot_path} does not exist.')
+    def add_convergence_plot(self, molecule: MoleculeInfo):
+        """
+        Add a molecule visualization to the report.
+
+        Args:
+            molecule (MoleculeInfo): Molecule to visualize.
+            plotter (MoleculePlotter, optional): Custom molecule plotter.
+        """
+        plot_path = getGraphPath(
+            settings.ENERGY_CONVERGENCE_PLOT_DIR,
+            settings.ENERGY_CONVERGENCE_PLOT,
+            molecule.symbols,
+        )
+        self.append_plot_path(plot_path, self.report_config.convergence_size)
+
+    def add_operator_coeff_plot(
+        self, qubit_op, symbols, title='Real Operator Coefficients'
+    ):
+        """
+        Add a plot of the operator coefficients to the report.
+        Args:
+            qubit_op: Qiskit's PauliSumOp or similar operator.
+            title (str, optional): Title of the plot.
+        """
+        plot_path = OperatorViewer().plot_operator_coefficients(
+            qubit_op, symbols, title
+        )
+        self.append_plot_path(plot_path, self.report_config.op_coeff_size)
+
+    def add_complex_coeff_plot(
+        self, qubit_op, symbols, title='Polar Operator Coefficients'
+    ):
+        """
+        Add a plot of the operator coefficients in polar coordinates to
+        the report.
+        Args:
+            qubit_op: Qiskit's PauliSumOp or similar operator.
+            title (str, optional): Title of the plot.
+        """
+        plot_path = OperatorViewer().plot_complex_coefficients_polar(
+            qubit_op, symbols, title
+        )
+        self.append_plot_path(
+            plot_path, self.report_config.complex_op_coeff_size
+        )
 
     def new_page(self):
         """Insert a new page marker in the report content."""
@@ -212,8 +275,13 @@ class PDFRenderer:
             return self._render_table(canvas_obj, item, y_position, max_height)
 
         if isinstance(item, tuple) and item[0] == 'plot':
+            try:
+                size = item[2]
+            except IndexError:
+                size = (self.config.image_width, self.config.image_height)
+
             return self._render_image(
-                canvas_obj, item[1], y_position, max_height
+                canvas_obj, item[1], y_position, max_height, size
             )
 
         return y_position
@@ -255,7 +323,9 @@ class PDFRenderer:
         table.drawOn(canvas_obj, table_x, y_position - table_height)
         return y_position - table_height - 20
 
-    def _render_image(self, canvas_obj, plot_path, y_position, max_height):
+    def _render_image(
+        self, canvas_obj, plot_path, y_position, max_height, size
+    ):
         """
         Render an image to the PDF.
 
@@ -272,14 +342,17 @@ class PDFRenderer:
             canvas_obj.showPage()
             y_position = max_height - self.config.margin
 
+        page_width = A4[0]
+        x_position = (page_width - size[0]) / 2
+
         canvas_obj.drawImage(
             plot_path,
-            self.config.margin,
-            y_position - self.config.image_height,
-            self.config.image_width,
-            self.config.image_height,
+            x_position,
+            y_position - size[1],
+            size[0],
+            size[1],
         )
-        return y_position - self.config.image_height - 20
+        return y_position - size[1] - 10
 
 
 class ReportGenerator:
@@ -311,6 +384,10 @@ class ReportGenerator:
         """Add an insight to the report."""
         self.content_builder.add_insight(title, insight)
 
+    def add_header(self, header: str):
+        """Add a header to the report."""
+        self.content_builder.add_header(header)
+
     def add_table(self, data: List[List], col_widths=None):
         """Add a table to the report."""
         self.content_builder.add_table(data, col_widths)
@@ -322,6 +399,22 @@ class ReportGenerator:
     def add_molecule_plot(self, molecule: MoleculeInfo):
         """Add a molecule plot to the report."""
         self.content_builder.add_molecule_plot(molecule)
+
+    def add_convergence_plot(self, molecule: MoleculeInfo):
+        """Add a convergence plot to the report."""
+        self.content_builder.add_convergence_plot(molecule)
+
+    def add_operator_coefficients_plot(
+        self, qubit_op, symbols, title='Operator Coefficients'
+    ):
+        """Add an operator coefficients plot to the report."""
+        self.content_builder.add_operator_coeff_plot(qubit_op, symbols, title)
+
+    def add_complex_operator_coefficients_plot(
+        self, qubit_op, symbols, title='Operator Coefficients'
+    ):
+        """Add a operator coefficients plot in polar coordinates to the report."""
+        self.content_builder.add_complex_coeff_plot(qubit_op, symbols, title)
 
     def new_page(self):
         """Insert a new page in the report."""

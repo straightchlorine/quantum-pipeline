@@ -1,17 +1,18 @@
 import argparse
-from quantum_simulation.configs import settings
-from quantum_simulation.drivers.molecule_loader import load_molecule
-from quantum_simulation.drivers.basis_sets import validate_basis_set
-from quantum_simulation.report.report_generator import ReportGenerator
-from quantum_simulation.solvers.vqe_solver import VQESolver
-from quantum_simulation.mappers.jordan_winger_mapper import JordanWignerMapper
-from quantum_simulation.utils.logger import get_logger
-from quantum_simulation.utils.dir import ensureDirExists
+
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
 from qiskit_nature.second_q.problems.electronic_structure_problem import (
     ElectronicStructureProblem,
 )
 
+from quantum_simulation.configs import settings
+from quantum_simulation.drivers.basis_sets import validate_basis_set
+from quantum_simulation.drivers.molecule_loader import load_molecule
+from quantum_simulation.mappers.jordan_winger_mapper import JordanWignerMapper
+from quantum_simulation.report.report_generator import ReportGenerator
+from quantum_simulation.solvers.vqe_solver import VQESolver
+from quantum_simulation.utils.dir import ensureDirExists
+from quantum_simulation.utils.logger import get_logger
 from quantum_simulation.visual.energy import EnergyPlotter
 
 logger = get_logger('QuantumAtomicSim')
@@ -37,15 +38,13 @@ def prepare_simulation(molecule, basis_set: str):
     return problem.second_q_ops()[0]
 
 
-def run_vqe_simulation(
-    qubit_op, report_gen: ReportGenerator, energy_plotter: EnergyPlotter
-):
+def run_vqe_simulation(qubit_op, report_gen: ReportGenerator, symbols):
     """
     Run the VQE simulation and generate insights.
     """
     logger.info('Solving using VQE')
     return VQESolver(
-        qubit_op, report_generator=report_gen, energy_plotter=energy_plotter
+        qubit_op, report_generator=report_gen, symbols=symbols
     ).solve()
 
 
@@ -64,9 +63,7 @@ def process_molecule(molecule, basis_set: str, report: ReportGenerator):
     logger.info('Mapping fermionic operator to qubits')
     qubit_op = JordanWignerMapper().map(second_q_op)
 
-    energy_plotter = EnergyPlotter()
-
-    energy = run_vqe_simulation(qubit_op, report, energy_plotter)
+    energy = run_vqe_simulation(qubit_op, report, molecule.symbols)
 
     report.new_page()
     report.add_header('Real coefficients of the operators')
@@ -80,7 +77,12 @@ def process_molecule(molecule, basis_set: str, report: ReportGenerator):
         'Energy convergence of the algorithm',
         'Energy levels for each iteration:',
     )
-    report.add_convergence_plot(molecule, energy_plotter)
+    report.add_convergence_plot(molecule)
+
+    report.add_insight(
+        'Ansatz circuit for the molecule was generated in the project directory.',
+        'They often take too much space to display. See graph/ansatz and graph/ansatz_decomposed.',
+    )
 
     return energy
 

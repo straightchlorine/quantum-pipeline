@@ -1,3 +1,9 @@
+# ignore generated pdfs
+*.pdf
+
+# ignore directory with generated graphs
+graphs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

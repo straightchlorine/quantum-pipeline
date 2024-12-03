@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import os
 from pathlib import Path
 
@@ -10,7 +11,7 @@ def ensureDirExists(dir_path: str | Path):
     return dir_path
 
 
-def buildGraphName(prefix: str, symbols: list[str]):
+def buildGraphName(prefix: str, symbols: list[str] | Sequence[str]):
     graph_name = prefix + '_' + ''.join(str(symbol) for symbol in symbols)
     return graph_name
 
@@ -26,4 +27,14 @@ def savePlot(
         buildGraphName(prefix, symbols),
     )
     plt.savefig(path)
+    return path.parent / (path.stem + '.png')
+
+
+def getGraphPath(
+    path: str | Path, prefix: str, symbols: list[str] | Sequence[str]
+):
+    path = Path(
+        ensureDirExists(path),
+        buildGraphName(prefix, symbols),
+    )
     return path.parent / (path.stem + '.png')
