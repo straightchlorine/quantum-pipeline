@@ -64,6 +64,21 @@ class EnergyPlotter:
 
         return filtered_iterations, filtered_energy_values
 
+    def summary(self):
+        """
+        Get a summary of optimization metrics.
+
+        Returns:
+            dict: Summary including convergence metrics.
+        """
+        return {
+            'iterations': len(self.iterations),
+            'min_energy': min(self.energy_values)
+            if self.energy_values
+            else None,
+            'energy_convergence': self.energy_values,
+        }
+
     def plot_convergence(self, symbols, title='Energy Convergence'):
         """
         Plots the energy convergence.
