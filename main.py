@@ -13,7 +13,6 @@ from quantum_simulation.report.report_generator import ReportGenerator
 from quantum_simulation.solvers.vqe_solver import VQESolver
 from quantum_simulation.utils.dir import ensureDirExists
 from quantum_simulation.utils.logger import get_logger
-from quantum_simulation.visual.energy import EnergyPlotter
 
 logger = get_logger('QuantumAtomicSim')
 

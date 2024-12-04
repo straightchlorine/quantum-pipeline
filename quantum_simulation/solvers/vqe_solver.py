@@ -21,7 +21,6 @@ logger = get_logger('VQESolver')
 
 
 class VQESolver:
-    # Predefined optimizer configurations
     SUPPORTED_OPTIMIZERS = {
         'COBYLA': COBYLA(maxiter=100),
         'SPSA': SPSA(maxiter=50),
@@ -46,7 +45,6 @@ class VQESolver:
         self.report_description = report_description
 
         self.report: ReportGenerator = report_generator
-        # self.report.add_summary(self.report_description)
 
         self.qubit_op = qubit_op
         self.ansatz_reps = ansatz_reps
