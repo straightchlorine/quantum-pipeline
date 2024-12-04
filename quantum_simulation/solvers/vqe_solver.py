@@ -1,9 +1,9 @@
 """
 vqe_solver.py
 
-This module contains a function to solve a quantum operator using the Variational
-Quantum Eigensolver (VQE). The VQE algorithm combines quantum and classical
-optimization to find the minimum eigenvalue of a Hamiltonian.
+This module contains a function to solve a quantum operator using the
+Variational Quantum Eigensolver (VQE). The VQE algorithm combines quantum and
+classical optimization to find the minimum eigenvalue of a Hamiltonian.
 """
 
 from qiskit.circuit.library import TwoLocal
@@ -37,12 +37,10 @@ class VQESolver:
         custom_optimizer=None,
         report_generator=None,
         report_name='vqe_report.pdf',
-        report_description='VQE Results',
         plot_convergence=True,
         symbols=None,
     ):
         self.report_name = report_name
-        self.report_description = report_description
 
         self.report: ReportGenerator = report_generator
 
@@ -62,20 +60,25 @@ class VQESolver:
         Solves the given qubit operator using VQE and generates a report.
 
         Args:
-            qubit_op: The operator to minimize (Qiskit's PauliSumOp or similar).
-            ansatz_reps: (Optional) Number of repetitions in the variational ansatz.
-            optimizer_name: (Optional) The optimizer to use ('COBYLA' or 'SPSA').
-            max_iterations: (Optional) Maximum number of iterations for the optimizer.
-            custom_optimizer: (Optional) A custom optimizer instance.
-            report_name: (Optional) The name of the report file to generate.
-            report_description: (Optional) Description for the generated report.
+            qubit_op (QubitOperator): The qubit operator to solve.
+            ansatz_reps (int): Number of repetitions for the ansatz.
+            optimizer_name (str): Name of the optimizer to use.
+            max_iterations (int): Maximum number of iterations for the
+                optimizer.
+            custom_optimizer (Optimizer): Custom optimizer to use.
+            report_generator (ReportGenerator): Report generator instance.
+            report_name (str): Name of the report file.
+            plot_convergence (bool): Whether to plot the energy convergence.
+            symbols (list): List of symbols to use for the ansatz.
 
         Returns:
             float: The minimum eigenvalue found by VQE.
 
         Raises:
-            ValueError: If an unsupported optimizer is passed and no custom optimizer is provided.
-            RuntimeError: If VQE fails to converge or produces an invalid result.
+            ValueError: If an unsupported optimizer is passed and no custom
+                optimizer is provided.
+            RuntimeError: If VQE fails to converge or produces an invalid
+                result.
         """
         # set to default if not provided
         ansatz_reps = self.ansatz_reps or settings.ANSATZ_REPS
@@ -95,17 +98,20 @@ class VQESolver:
         else:
             supported = list(predefined_optimizers.keys())
             raise ValueError(
-                f'Unsupported optimizer: {optimizer_name}. Supported: {supported}'
+                f'Unsupported optimizer: {optimizer_name}'
+                + f' Expected: [{supported}]'
             )
 
         ansatz = TwoLocal(
             rotation_blocks='ry', entanglement_blocks='cz', reps=ansatz_reps
         )
-
         logger.debug(f'Created ansatz with {ansatz_reps} repetitions.')
 
         def callback(iteration, parameters, energy, *args):
-            """Callback function to log and track energy values during optimization."""
+            """
+            Callback function to log and track energy values during
+            optimization.
+            """
             self.energy_plotter.add_iteration(iteration, energy)
 
         vqe = VQE(
@@ -116,8 +122,8 @@ class VQESolver:
         )
         logger.info('VQE instance configured.')
 
-        logger.info('Starting VQE computation...')
         try:
+            logger.info('Starting VQE computation...')
             result = vqe.compute_minimum_eigenvalue(self.qubit_op)
         except Exception as e:
             logger.error(f'VQE execution failed: {str(e)}')
@@ -130,7 +136,6 @@ class VQESolver:
         min_energy = result.eigenvalue.real
         logger.info(f'VQE Converged. Minimum energy: {min_energy:.6f}')
 
-        # add the metrics to the report
         try:
             AnsatzViewer().save_circuit(ansatz, self.symbols)
             self.energy_plotter.plot_convergence(self.symbols)
