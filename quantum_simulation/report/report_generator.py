@@ -424,7 +424,9 @@ class ReportGenerator:
         """Generate the final PDF report."""
         try:
             content = self.content_builder.get_content()
-            self.pdf_renderer.render(content, self.report_name)
+            self.pdf_renderer.render(
+                content, str(Path(settings.GEN_DIR, self.report_name))
+            )
             self.logger.info(
                 f'Report successfully generated: {self.report_name}'
             )

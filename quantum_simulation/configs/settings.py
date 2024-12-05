@@ -4,7 +4,10 @@ BASIS_SET = 'sto3g'
 OPTIMIZER = 'COBYLA'
 ANSATZ_REPS = 2
 
-GRAPH_DIR = 'graphs'
+GEN_DIR = 'gen'
+
+GRAPH_DIR = Path(GEN_DIR, 'graphs')
+REPORT_DIR = GEN_DIR
 
 # molecule graph settings
 MOLECULE_PLOT_DIR = Path(GRAPH_DIR, 'molecule_plots')

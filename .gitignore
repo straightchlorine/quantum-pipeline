@@ -2,7 +2,7 @@
 *.pdf
 
 # ignore directory with generated graphs
-graphs/
+gen/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
