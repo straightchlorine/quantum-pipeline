@@ -6,10 +6,16 @@ Variational Quantum Eigensolver (VQE). The VQE algorithm combines quantum and
 classical optimization to find the minimum eigenvalue of a Hamiltonian.
 """
 
-from qiskit.circuit.library import TwoLocal
+import json
+import numpy as np
+from qiskit.circuit.library import EfficientSU2, TwoLocal
 from qiskit.primitives import Estimator
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
+from qiskit_aer import AerSimulator
 from qiskit_algorithms import VQE
 from qiskit_algorithms.optimizers import COBYLA, SPSA
+from qiskit_ibm_runtime import EstimatorV2, Session
+from scipy.optimize import minimize
 
 from quantum_simulation.configs import settings
 from quantum_simulation.report.report_generator import ReportGenerator
@@ -18,6 +24,12 @@ from quantum_simulation.visual.ansatz import AnsatzViewer
 from quantum_simulation.visual.energy import EnergyPlotter
 
 logger = get_logger('VQESolver')
+
+cost_history_dict = {
+    'prev_vector': None,
+    'iters': 0,
+    'cost_history': [],
+}
 
 
 class VQESolver:
@@ -39,6 +51,8 @@ class VQESolver:
         report_name='vqe_report.pdf',
         plot_convergence=True,
         symbols=None,
+        provider=None,
+        backend_name='qasm_simulator',
     ):
         self.report_name = report_name
 
@@ -51,9 +65,46 @@ class VQESolver:
         self.custom_optimizer = custom_optimizer
         self.plot_convergence = plot_convergence
         self.symbols = symbols
+        self.provider = provider
+        self.backend_name = backend_name
 
         if self.plot_convergence:
             self.energy_plotter = EnergyPlotter()
+
+    def _prepare_circuits(self, ansatz, hamiltonian, backend):
+        """Prepare ISA-compatible circuits and observables"""
+        target = backend.target
+        pm = generate_preset_pass_manager(target=target, optimization_level=3)
+        ansatz_isa = pm.run(ansatz)
+
+        AnsatzViewer.save_circuit(ansatz_isa, self.symbols)
+
+        hamiltonian_isa = hamiltonian.apply_layout(layout=ansatz_isa.layout)
+        return ansatz_isa, hamiltonian_isa
+
+    def cost_func(self, params, ansatz, hamiltonian, estimator):
+        """Return estimate of energy from estimator
+
+        Parameters:
+            params (ndarray): Array of ansatz parameters
+            ansatz (QuantumCircuit): Parameterized ansatz circuit
+            hamiltonian (SparsePauliOp): Operator representation of Hamiltonian
+            estimator (EstimatorV2): Estimator primitive instance
+            cost_history_dict: Dictionary for storing intermediate results
+
+        Returns:
+            float: Energy estimate
+        """
+        pub = (ansatz, [hamiltonian], [params])
+        result = estimator.run(pubs=[pub]).result()
+        energy = result[0].data.evs[0]
+
+        cost_history_dict['iters'] += 1
+        cost_history_dict['prev_vector'] = params
+        cost_history_dict['cost_history'].append(energy)
+        print(f"Iters. done: {cost_history_dict['iters']} [Current cost: {energy}]")
+
+        return energy
 
     def solve(self):
         """
@@ -98,13 +149,10 @@ class VQESolver:
         else:
             supported = list(predefined_optimizers.keys())
             raise ValueError(
-                f'Unsupported optimizer: {optimizer_name}'
-                + f' Expected: [{supported}]'
+                f'Unsupported optimizer: {optimizer_name}' + f' Expected: [{supported}]'
             )
 
-        ansatz = TwoLocal(
-            rotation_blocks='ry', entanglement_blocks='cz', reps=ansatz_reps
-        )
+        ansatz = TwoLocal(rotation_blocks='ry', entanglement_blocks='cz', reps=ansatz_reps)
         logger.debug(f'Created ansatz with {ansatz_reps} repetitions.')
 
         def callback(iteration, parameters, energy, *args):
@@ -114,43 +162,82 @@ class VQESolver:
             """
             self.energy_plotter.add_iteration(iteration, energy)
 
-        vqe = VQE(
-            estimator=Estimator(),
-            ansatz=ansatz,
-            optimizer=optimizer,
-            callback=callback,
-        )
-        logger.info('VQE instance configured.')
+        if self.provider:
+            logger.info('Attempting to find least busy backend...')
+            backend = self.provider.least_busy(operational=True, simulator=False)
+            logger.info(f'Backend {backend.name} found.')
 
-        try:
-            logger.info('Starting VQE computation...')
-            result = vqe.compute_minimum_eigenvalue(self.qubit_op)
-        except Exception as e:
-            logger.error(f'VQE execution failed: {str(e)}')
-            raise RuntimeError('VQE execution encountered an error.') from e
+            hamiltonian = self.qubit_op
+            num_qubits = hamiltonian.num_qubits
 
-        if result.eigenvalue is None:
-            logger.error('VQE did not converge to a valid result.')
-            raise RuntimeError('VQE did not produce a valid eigenvalue.')
+            ansatz = EfficientSU2(hamiltonian.num_qubits)
 
-        min_energy = result.eigenvalue.real
-        logger.info(f'VQE Converged. Minimum energy: {min_energy:.6f}')
+            AnsatzViewer.save_circuit(ansatz, self.symbols)
 
-        try:
-            AnsatzViewer().save_circuit(ansatz, self.symbols)
-            self.energy_plotter.plot_convergence(self.symbols)
-            self.report.add_insight(
-                'Energy analysis', 'Results of VQE algorihtm:'
-            )
-            self.report.add_metrics(
-                {
-                    'Minimum Energy': str(round(min_energy, 4)) + ' Heartree',
-                    'Optimizer': optimizer_name,
-                    'Iterations': self.max_iterations,
-                    'Ansatz Repetitions': ansatz_reps,
+            ansatz_isa, hamiltonian_isa = self._prepare_circuits(ansatz, hamiltonian, backend)
+            number_of_parameters = ansatz.num_parameters
+
+            x0 = 2 * np.pi * np.random.random(number_of_parameters)
+            with Session(backend=backend) as session:
+                estimator = EstimatorV2(mode=session)
+                estimator.options.default_shots = 10000
+
+                res = minimize(
+                    self.cost_func,
+                    x0,
+                    args=(ansatz_isa, hamiltonian_isa, estimator),
+                    method='cobyla',
+                )
+
+                res_dict = {
+                    'optimal_parameters': res.optimal_parameters,
+                    'minimal_energy': res.minimal_energy,
+                    'success': res.success,
+                    'num_iterations': len(cost_history_dict['cost_history']),
+                    'num_qubits': num_qubits,
                 }
-            )
-        except Exception as e:
-            logger.error(f'Failed to generate report: {str(e)}')
+                json.dump(res_dict, open('res.json', 'w'))
+                json.dump(cost_history_dict, open('cost_history.json', 'w'))
+                return res
 
-        return min_energy
+        else:
+            # backend = Aer.get_backend('aer_simulator')
+            vqe = VQE(
+                estimator=Estimator(),
+                ansatz=ansatz,
+                optimizer=optimizer,
+                callback=callback,
+            )
+
+            logger.info('VQE instance configured.')
+
+            try:
+                logger.info('Starting VQE computation...')
+                result = vqe.compute_minimum_eigenvalue(self.qubit_op)
+            except Exception as e:
+                logger.error(f'VQE execution failed: {str(e)}')
+                raise RuntimeError('VQE execution encountered an error.') from e
+
+            if result.eigenvalue is None:
+                logger.error('VQE did not converge to a valid result.')
+                raise RuntimeError('VQE did not produce a valid eigenvalue.')
+
+            min_energy = result.eigenvalue.real
+            logger.info(f'VQE Converged. Minimum energy: {min_energy:.6f}')
+
+            try:
+                AnsatzViewer().save_circuit(ansatz, self.symbols)
+                self.energy_plotter.plot_convergence(self.symbols)
+                self.report.add_insight('Energy analysis', 'Results of VQE algorihtm:')
+                self.report.add_metrics(
+                    {
+                        'Minimum Energy': str(round(min_energy, 4)) + ' Heartree',
+                        'Optimizer': optimizer_name,
+                        'Iterations': self.max_iterations,
+                        'Ansatz Repetitions': ansatz_reps,
+                    }
+                )
+            except Exception as e:
+                logger.error(f'Failed to generate report: {str(e)}')
+
+            return min_energy

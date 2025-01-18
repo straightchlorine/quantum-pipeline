@@ -29,22 +29,19 @@ class AnsatzViewer:
         circuit_drawer(
             ansatz,
             output='mpl',
-            filename=str(
-                getGraphPath(
-                    settings.ANSATZ_PLOT_DIR, settings.ANSATZ, symbols
-                )
-            ),
+            filename=str(getGraphPath(settings.ANSATZ_PLOT_DIR, settings.ANSATZ, symbols)),
         )
 
         # save the decomposed ansatz circuit
-        circuit_drawer(
-            ansatz.decompose(),
-            output='mpl',
-            filename=str(
-                getGraphPath(
-                    settings.ANSATZ_DECOMPOSED_PLOT_DIR,
-                    settings.ANSATZ_DECOMPOSED,
-                    symbols,
-                )
-            ),
-        )
+        # TODO: bring back!!
+        # circuit_drawer(
+        #     ansatz.decompose(),
+        #     output='mpl',
+        #     filename=str(
+        #         getGraphPath(
+        #             settings.ANSATZ_DECOMPOSED_PLOT_DIR,
+        #             settings.ANSATZ_DECOMPOSED,
+        #             symbols,
+        #         )
+        #     ),
+        # )

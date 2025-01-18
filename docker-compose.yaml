@@ -4,7 +4,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # for now its testing setup
     # restart: always
     volumes:
       - ./gen/:/usr/src/quantum-data-generator/gen/
+    environment:
+      IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
+      IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
+      IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}

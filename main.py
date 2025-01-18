@@ -11,12 +11,8 @@ logger = get_logger('MainRunner')
 
 def parse_arguments():
     """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(
-        description='Quantum Circuit data generation'
-    )
-    parser.add_argument(
-        '-f', '--file', required=True, help='Path to molecule data file (JSON)'
-    )
+    parser = argparse.ArgumentParser(description='Quantum Circuit data generation')
+    parser.add_argument('-f', '--file', required=True, help='Path to molecule data file (JSON)')
     parser.add_argument(
         '-b',
         '--basis',
@@ -38,7 +34,7 @@ def execute_simulation(molecule_file: str, basis_set: str):
     report = ReportGenerator()
 
     try:
-        runner = VQERunner(report)
+        runner = VQERunner(report, ibm=True)
         molecules = runner.load_and_validate(molecule_file, basis_set)
 
         for idx, molecule in enumerate(molecules):
@@ -53,5 +49,6 @@ def execute_simulation(molecule_file: str, basis_set: str):
 
 
 if __name__ == '__main__':
-    args = parse_arguments()
-    execute_simulation(args.file, args.basis)
+    # args = parse_arguments()
+    # execute_simulation(args.file, args.basis)
+    execute_simulation('data/molecules.json', 'sto3g')
