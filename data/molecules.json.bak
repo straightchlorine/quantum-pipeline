@@ -1,0 +1,19 @@
+[
+    {
+        "symbols": ["H", "H"],
+        "coords": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
+        "multiplicity": 1,
+        "charge": 0,
+        "units": "angstrom",
+        "masses": [1.008, 1.008]
+    },
+    {
+        "symbols": ["O", "H", "H"],
+        "coords": [[0.0, 0.0, 0.0], [0.0, 0.757, 0.586], [0.0, -0.757, 0.586]],
+        "multiplicity": 1,
+        "charge": 0,
+        "units": "angstrom",
+        "masses": [15.999, 1.008, 1.008]
+    }
+]
+

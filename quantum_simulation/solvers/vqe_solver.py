@@ -201,43 +201,64 @@ class VQESolver:
                 return res
 
         else:
-            # backend = Aer.get_backend('aer_simulator')
-            vqe = VQE(
-                estimator=Estimator(),
-                ansatz=ansatz,
-                optimizer=optimizer,
-                callback=callback,
+            backend = AerSimulator()
+            logger.info('Aer simulator backend initialized.')
+
+            hamiltonian = self.qubit_op
+            num_qubits = hamiltonian.num_qubits
+            ansatz = EfficientSU2(hamiltonian.num_qubits)
+            AnsatzViewer.save_circuit(ansatz, self.symbols)
+            ansatz_isa, hamiltonian_isa = self._prepare_circuits(ansatz, hamiltonian, backend)
+            number_of_parameters = ansatz.num_parameters
+            x0 = 2 * np.pi * np.random.random(number_of_parameters)
+
+            # Using primitive directly with Aer backend
+            estimator = EstimatorV2(mode=backend)
+            estimator.options.default_shots = 10000
+            res = minimize(
+                self.cost_func,
+                x0,
+                args=(ansatz_isa, hamiltonian_isa, estimator),
+                method='cobyla',
             )
+            res_dict = {
+                'optimal_parameters': res.optimal_parameters,
+                'minimal_energy': res.minimal_energy,
+                'success': res.success,
+                'num_iterations': len(cost_history_dict['cost_history']),
+                'num_qubits': num_qubits,
+            }
+            json.dump(res_dict, open('res.json', 'w'))
+            json.dump(cost_history_dict, open('cost_history.json', 'w'))
+            return res
 
-            logger.info('VQE instance configured.')
-
-            try:
-                logger.info('Starting VQE computation...')
-                result = vqe.compute_minimum_eigenvalue(self.qubit_op)
-            except Exception as e:
-                logger.error(f'VQE execution failed: {str(e)}')
-                raise RuntimeError('VQE execution encountered an error.') from e
-
-            if result.eigenvalue is None:
-                logger.error('VQE did not converge to a valid result.')
-                raise RuntimeError('VQE did not produce a valid eigenvalue.')
-
-            min_energy = result.eigenvalue.real
-            logger.info(f'VQE Converged. Minimum energy: {min_energy:.6f}')
-
-            try:
-                AnsatzViewer().save_circuit(ansatz, self.symbols)
-                self.energy_plotter.plot_convergence(self.symbols)
-                self.report.add_insight('Energy analysis', 'Results of VQE algorihtm:')
-                self.report.add_metrics(
-                    {
-                        'Minimum Energy': str(round(min_energy, 4)) + ' Heartree',
-                        'Optimizer': optimizer_name,
-                        'Iterations': self.max_iterations,
-                        'Ansatz Repetitions': ansatz_reps,
-                    }
-                )
-            except Exception as e:
-                logger.error(f'Failed to generate report: {str(e)}')
-
-            return min_energy
+            # try:
+            #     logger.info('Starting VQE computation...')
+            #     result = vqe.compute_minimum_eigenvalue(self.qubit_op)
+            # except Exception as e:
+            #     logger.error(f'VQE execution failed: {str(e)}')
+            #     raise RuntimeError('VQE execution encountered an error.') from e
+            #
+            # if result.eigenvalue is None:
+            #     logger.error('VQE did not converge to a valid result.')
+            #     raise RuntimeError('VQE did not produce a valid eigenvalue.')
+            #
+            # min_energy = result.eigenvalue.real
+            # logger.info(f'VQE Converged. Minimum energy: {min_energy:.6f}')
+            #
+            # try:
+            #     AnsatzViewer().save_circuit(ansatz, self.symbols)
+            #     self.energy_plotter.plot_convergence(self.symbols)
+            #     self.report.add_insight('Energy analysis', 'Results of VQE algorihtm:')
+            #     self.report.add_metrics(
+            #         {
+            #             'Minimum Energy': str(round(min_energy, 4)) + ' Heartree',
+            #             'Optimizer': optimizer_name,
+            #             'Iterations': self.max_iterations,
+            #             'Ansatz Repetitions': ansatz_reps,
+            #         }
+            #     )
+            # except Exception as e:
+            #     logger.error(f'Failed to generate report: {str(e)}')
+            #
+            # return min_energy

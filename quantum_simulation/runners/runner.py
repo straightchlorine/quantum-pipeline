@@ -46,7 +46,11 @@ class Runner:
             channel, instance, token = self.validate_env()
 
             self.logger.info('Connecting to IBM Quantum...')
-            service = QiskitRuntimeService(channel=channel, instance=instance, token=token)
+            service = QiskitRuntimeService(
+                channel=channel,
+                instance=instance,
+                token=token,
+            )
             self.logger.info('Connected to IBM Quantum.')
 
             return service

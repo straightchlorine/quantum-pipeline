@@ -34,7 +34,7 @@ def execute_simulation(molecule_file: str, basis_set: str):
     report = ReportGenerator()
 
     try:
-        runner = VQERunner(report, ibm=True)
+        runner = VQERunner(report, ibm=False)
         molecules = runner.load_and_validate(molecule_file, basis_set)
 
         for idx, molecule in enumerate(molecules):
