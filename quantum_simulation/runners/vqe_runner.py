@@ -1,59 +1,131 @@
+import time
+import numpy as np
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
 from qiskit_nature.second_q.mappers import JordanWignerMapper
 
+from quantum_simulation.configs import settings
 from quantum_simulation.drivers.basis_sets import validate_basis_set
 from quantum_simulation.drivers.molecule_loader import load_molecule
 from quantum_simulation.runners.runner import Runner
 from quantum_simulation.solvers.vqe_solver import VQESolver
+from quantum_simulation.utils.observation import BackendConfig, VQEDecoratedResult
+
+
+class Timer:
+    def __init__(self):
+        self.start_time = None
+        self.end_time = None
+
+    def __enter__(self):
+        self.start_time = time.time()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.end_time = time.time()
+
+    @property
+    def elapsed(self):
+        if self.start_time is None or self.end_time is None:
+            raise ValueError('Timer has not finished yet.')
+        return self.end_time - self.start_time
 
 
 class VQERunner(Runner):
     """Class to handle the ground energy finding process."""
 
-    def load_and_validate(self, file_path: str, basis_set: str):
+    def __init__(self, filepath, basis_set=None):
+        super().__init__()
+        if basis_set:
+            self.basis_set = basis_set
+        elif settings.BASIS_SET:
+            basis_set = settings.BASIS_SET
+        else:
+            self.basis_set = 'sto3g'
+
+        if filepath:
+            self.filepath = filepath
+
+        self.run_results = []
+
+    def load_molecules(self):
         """Load molecule data and validate the basis set."""
-        self.logger.info(f'Loading molecule data from {file_path}')
-        molecules = load_molecule(file_path)
-        validate_basis_set(basis_set)
+        self.logger.info(f'Loading molecule data from {self.filepath}')
+        molecules = load_molecule(self.filepath)
+        validate_basis_set(self.basis_set)
         return molecules
 
-    def prepare_simulation(self, molecule, basis_set: str):
+    def provide_hamiltonian(self, molecule, basis_set: str):
         """Generate the second quantized operator."""
         self.logger.info(f'Preparing simulation for molecule:\n {molecule}')
         driver = PySCFDriver.from_molecule(molecule, basis=basis_set)
         problem = driver.run()
         return problem.second_q_ops()[0]
 
-    def run(self, qubit_op, symbols):
-        """Run the VQE simulation and generate insights."""
-        if not self.ibm:
-            self.logger.info('Solving using VQE')
-            return VQESolver(qubit_op, report_generator=self.report, symbols=symbols).solve()
-        else:
-            self.logger.info('Solving on IBM Quantum Platform...')
-            provider = self.get_provider()
-            return VQESolver(
+    def runVQE(self, molecule, backend_config: BackendConfig):
+        """Prepare and run the VQE algorithm."""
+
+        self.logger.info('Generating hamiltonian based on the molecule...')
+        with Timer() as t:
+            second_q_op = self.provide_hamiltonian(molecule, self.basis_set)
+
+        self.hamiltonian_time = t.elapsed
+        self.logger.info(f'Hamiltonian generated in {t.elapsed:.6f} seconds.')
+
+        self.logger.info('Mapping fermionic operator to qubits')
+        with Timer() as t:
+            qubit_op = JordanWignerMapper().map(second_q_op)
+
+        self.mapping_time = t.elapsed
+        self.logger.info(f'Problem mapped to qubits in {t.elapsed:.6f} seconds.')
+
+        self.logger.info('Running VQE procedure...')
+        with Timer() as t:
+            result = VQESolver(
                 qubit_op,
-                report_generator=self.report,
-                symbols=symbols,
-                provider=provider,
+                backend_config,
             ).solve()
 
-    def process_molecule(self, molecule, basis_set: str):
+        self.vqe_time = t.elapsed
+        self.logger.info(f'VQE procedure completed in {t.elapsed:.6f} seconds')
+
+        return result
+
+    def run(self, backend_config: BackendConfig, process=True):
+        self.molecules = self.load_molecules()
+
+        for id, molecule in enumerate(self.molecules):
+            self.logger.info(f'Beginning to process {id} molecule:\n\n{molecule}\n')
+            result = self.runVQE(molecule, backend_config)
+
+            total_time = np.float64(self.hamiltonian_time + self.mapping_time + self.vqe_time)
+            self.logger.info(f'Result provided in {total_time:.6f} seconds.')
+
+            decorated_result = VQEDecoratedResult(
+                vqe_result=result,
+                molecule=molecule,
+                id=id,
+                hamiltonian_time=np.float64(self.hamiltonian_time),
+                mapping_time=np.float64(self.mapping_time),
+                vqe_time=np.float64(self.vqe_time),
+                total_time=total_time,
+            )
+            self.run_results.append(decorated_result)
+            self.logger.debug('Appended run information to the result.')
+
+        self.logger.info('All molecules processed.')
+
+    def process_molecule(self, molecule, basis_set: str, backend_config):
         """Process a single molecule:
         - prepare simulation,
         - run VQE,
         - generate reports.
         """
-        second_q_op = self.prepare_simulation(molecule, basis_set)
+        second_q_op = self.provide_hamiltonian(molecule, basis_set)
 
         self.report.add_header('Structure of the molecule in 3D')
         self.report.add_molecule_plot(molecule)
 
-        self.logger.info('Mapping fermionic operator to qubits')
-        qubit_op = JordanWignerMapper().map(second_q_op)
-
-        energy = self.run(qubit_op, molecule.symbols)
+        energy = self.runVQE(qubit_op, backend_config)
 
         self.report.new_page()
         self.report.add_header('Real coefficients of the operators')

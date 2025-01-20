@@ -5,6 +5,7 @@ from quantum_simulation.report.report_generator import ReportGenerator
 from quantum_simulation.runners.vqe_runner import VQERunner
 from quantum_simulation.utils.dir import ensureDirExists
 from quantum_simulation.utils.logger import get_logger
+from quantum_simulation.utils.observation import BackendConfig
 
 logger = get_logger('MainRunner')
 
@@ -31,21 +32,10 @@ def initialize_simulation_environment():
 def execute_simulation(molecule_file: str, basis_set: str):
     """Coordinate the process, including raporting and running the VQE."""
     initialize_simulation_environment()
-    report = ReportGenerator()
 
-    try:
-        runner = VQERunner(report, ibm=False)
-        molecules = runner.load_and_validate(molecule_file, basis_set)
-
-        for idx, molecule in enumerate(molecules):
-            runner.process_molecule(molecule, basis_set)
-
-            if idx < len(molecules) - 1:
-                report.new_page()
-
-        report.generate_report()
-    except Exception as e:
-        logger.error(f'Error encountered: {e}')
+    config = BackendConfig._get_local_backend()
+    runner = VQERunner(molecule_file, basis_set)
+    runner.run(config)
 
 
 if __name__ == '__main__':
