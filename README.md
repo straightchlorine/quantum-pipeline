@@ -65,16 +65,24 @@ quantum_pipeline/
    ```
 
 4. **(Optional) Run in Docker**:
-   ```bash
-   docker-compose up --build
-   ```
+    ```bash
+    docker-compose up --build
+    ```
+
+    or
+
+    ```bash
+    docker build .
+    ```
 
 ---
 
 ## Usage
 
 ### 1. Prepare Input Data
-Place molecule file in the `data/` directory. The file should look like this:
+
+Molecules should be defined like this:
+
 ```json
 [
     {
@@ -104,24 +112,20 @@ python quantum_pipeline.py -f data/molecule.json -b sto-3g --max-iterations 100 
 
 Defaults for each option can be found in `configs/defaults.py`, other available parameters include:
 
-`-f FILE, --file FILE`: Path to the molecule data file (required).
-`-b BASIS, --basis BASIS`: Specify the basis set for the simulation.
-`--local`: Use a local quantum simulator instead of IBM Quantum.
-`--min-qubits MIN_QUBITS`: Specify the minimum number of qubits required.
-`--max-iterations MAX_ITERATIONS`: Set the maximum number of VQE iterations.
-`--optimizer OPTIMIZER`: Choose from a variety of optimization algorithms.
-`--output-dir OUTPUT_DIR`: Specify the directory for storing output files.
-`--log-level {DEBUG,INFO,WARNING,ERROR}`: Set the logging level.
-`--shots SHOTS`: Number of shots for quantum circuit execution.
-`--optimization-level {0,1,2,3}`: Circuit optimization level.
-`--report`: Generate a PDF report after simulation.
-`--kafka`: Stream data to Apache Kafka for real-time processing.
+-  `-f FILE, --file FILE`: Path to the molecule data file (required).
+-  `-b BASIS, --basis BASIS`: Specify the basis set for the simulation.
+-  `--local`: Use a local quantum simulator instead of IBM Quantum.
+-  `--min-qubits MIN_QUBITS`: Specify the minimum number of qubits required.
+-  `--max-iterations MAX_ITERATIONS`: Set the maximum number of VQE iterations.
+-  `--optimizer OPTIMIZER`: Choose from a variety of optimization algorithms.
+-  `--output-dir OUTPUT_DIR`: Specify the directory for storing output files.
+-  `--log-level {DEBUG,INFO,WARNING,ERROR}`: Set the logging level.
+-  `--shots SHOTS`: Number of shots for quantum circuit execution.
+-  `--optimization-level {0,1,2,3}`: Circuit optimization level.
+-  `--report`: Generate a PDF report after simulation.
+-  `--kafka`: Stream data to Apache Kafka for real-time processing.
 
-Help message can be displayed with:
-
-```bash
-python quantum_pipeline.py -h
-```
+Entire help message can be displayed with `python quantum_pipeline.py -h`.
 
 ### Example configurations
 
