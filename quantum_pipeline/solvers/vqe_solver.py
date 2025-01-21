@@ -13,14 +13,9 @@ from qiskit_aer.backends.aer_simulator import AerBackend
 from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
-from quantum_simulation.configs import settings
-from quantum_simulation.solvers.solver import Solver
-from quantum_simulation.utils.observation import (
-    BackendConfig,
-    VQEInitialData,
-    VQEProcess,
-    VQEResult,
-)
+from quantum_pipeline.configs.argparser import BackendConfig
+from quantum_pipeline.solvers.solver import Solver
+from quantum_pipeline.utils.observation import VQEInitialData, VQEProcess, VQEResult
 
 
 class VQESolver(Solver):
@@ -28,38 +23,23 @@ class VQESolver(Solver):
         self,
         qubit_op,
         backend_config: BackendConfig,
-        max_iterations=1,
-        default_shots=10000,
-        ansatz_reps=None,
-        optimizer=None,
+        max_iterations=50,
+        optimizer='COBYLA',
+        ansatz_reps=3,
+        default_shots=1024,
+        convergence_threshold=None,
     ):
         super().__init__()
         self.qubit_op = qubit_op
-
-        if ansatz_reps:
-            self.ansatz_reps = ansatz_reps
-        elif settings.ANSATZ_REPS:
-            self.ansatz_reps = settings.ANSATZ_REPS
-        else:
-            self.ansatz_reps = 3
-
-        if optimizer:
-            supported = list(settings.SUPPORTED_OPTIMIZERS.keys())
-            if optimizer in [x.lower() for x in supported]:
-                self.optimizer = optimizer
-            else:
-                support = self.supported_optimizers_prompt()
-                raise ValueError(f'Unsupported optimizer: {optimizer}\nSupported:\n{support}')
-        elif settings.OPTIMIZER:
-            self.optimizer = settings.OPTIMIZER
-        else:
-            self.optimizer = 'COBYLA'
-
+        self.ansatz_reps = ansatz_reps
+        self.optimizer = optimizer
         self.max_iterations = max_iterations
+        self.digits_iter = len(str(max_iterations))
         self.default_shots = default_shots
         self.backend_config = backend_config
         self.vqe_process: list[VQEProcess] = []
         self.current_iter = 1
+        self.convergence_threshold = convergence_threshold
 
     def _optimize_circuits(self, ansatz, hamiltonian, backend):
         """Prepare ISA-compatible circuits and observables"""
@@ -94,17 +74,19 @@ class VQESolver(Solver):
             std=std,
         )
 
-        self.current_iter += 1
         self.vqe_process.append(iter)
-        self.logger.debug(f'Iters. done: {self.current_iter} [Current cost: {energy}]')
+        self.logger.debug(
+            f'Iters. done: {self.current_iter:0{self.digits_iter}d} [Current cost: {energy}]'
+        )
+        self.current_iter += 1
         return energy
 
     def viaIBMQ(self, backend):
         """Run the VQE simulation on IBM Quantum backend."""
         hamiltonian = self.qubit_op
 
-        self.logger.info('Initializing the ansatz...')
-        ansatz = EfficientSU2(hamiltonian.num_qubits)
+        self.logger.info(f'Initializing the ansatz with {self.ansatz_reps} reps...')
+        ansatz = EfficientSU2(hamiltonian.num_qubits, reps=self.ansatz_reps)
         self.logger.info('Ansatz initialized.')
 
         param_num = ansatz.num_parameters
@@ -118,12 +100,12 @@ class VQESolver(Solver):
         self.init_data = VQEInitialData(
             backend=backend.name,
             num_qubits=hamiltonian_isa.num_qubits,
-            hamiltonian=hamiltonian_isa.to_matrix(),
+            hamiltonian=hamiltonian_isa.to_list(),
             num_parameters=ansatz_isa.num_parameters,
             initial_parameters=x0,
             optimizer=self.optimizer,
-            basis_set=settings.BASIS_SET,
             ansatz=ansatz_isa,
+            ansatz_reps=self.ansatz_reps,
         )
         self.logger.info('Opening a session...')
 
@@ -136,19 +118,25 @@ class VQESolver(Solver):
                 'disp': False,
             }
 
+            self.logger.info(
+                'Starting the minimization process with max iterations: {}'.format(
+                    self.max_iterations
+                )
+            )
+
             res = minimize(
                 self.computeEnergy,
                 x0,
                 args=(ansatz_isa, hamiltonian_isa, estimator),
                 method=self.optimizer,
                 options=optimization_params,
+                tol=self.convergence_threshold if self.convergence_threshold else None,
             )
 
             result = VQEResult(
-                vqe_initial_data=self.init_data,
-                vqe_iterations=self.vqe_process,
+                initial_data=self.init_data,
+                iteration_list=self.vqe_process,
                 minimum=res.fun,
-                iterations=res.nfev,
                 optimal_parameters=res.x,
                 maxcv=res.maxcv,
             )
@@ -166,7 +154,7 @@ class VQESolver(Solver):
 
         param_num = ansatz.num_parameters
         x0 = 2 * np.pi * np.random.random(param_num)
-        self.logger.info('Initial ansatz parameters:\n{}'.format(x0))
+        self.logger.info('Initial ansatz parameters:\n\n{}\n'.format(x0))
 
         self.logger.info('Optimizing ansatz and hamiltonian...')
         ansatz_isa, hamiltonian_isa = self._optimize_circuits(ansatz, hamiltonian, backend)
@@ -175,12 +163,12 @@ class VQESolver(Solver):
         self.init_data = VQEInitialData(
             backend=backend.name,
             num_qubits=hamiltonian_isa.num_qubits,
-            hamiltonian=hamiltonian_isa.to_matrix(),
+            hamiltonian=hamiltonian_isa.to_list(),
             num_parameters=ansatz_isa.num_parameters,
             initial_parameters=x0,
             optimizer=self.optimizer,
-            basis_set=settings.BASIS_SET,
             ansatz=ansatz_isa,
+            ansatz_reps=self.ansatz_reps,
         )
 
         estimator = EstimatorV2(mode=backend)
@@ -191,19 +179,22 @@ class VQESolver(Solver):
             'disp': False,
         }
 
+        self.logger.info(
+            'Starting the minimization process with max iterations: {}'.format(self.max_iterations)
+        )
         res = minimize(
             self.computeEnergy,
             x0,
             args=(ansatz_isa, hamiltonian_isa, estimator),
             method=self.optimizer,
             options=optimization_params,
+            tol=self.convergence_threshold if self.convergence_threshold else None,
         )
 
         result = VQEResult(
-            vqe_initial_data=self.init_data,
-            vqe_iterations=self.vqe_process,
+            initial_data=self.init_data,
+            iteration_list=self.vqe_process,
             minimum=res.fun,
-            iterations=res.nfev,
             optimal_parameters=res.x,
             maxcv=res.maxcv,
         )

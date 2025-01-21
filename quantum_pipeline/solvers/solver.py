@@ -1,9 +1,10 @@
+import os
+
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import QiskitRuntimeService
-from quantum_simulation.configs import settings
-from quantum_simulation.utils.logger import get_logger
-from quantum_simulation.utils.observation import BackendConfig
-import os
+
+from quantum_pipeline.configs.argparser import SUPPORTED_OPTIMIZERS, BackendConfig
+from quantum_pipeline.utils.logger import get_logger
 
 
 class Solver:
@@ -16,7 +17,7 @@ class Solver:
 
     def supported_optimizers_prompt(self):
         supported_optimizers = ''
-        for opt, description in settings.SUPPORTED_OPTIMIZERS:
+        for opt, description in SUPPORTED_OPTIMIZERS.items():
             supported_optimizers += f'{opt}: {description}\n'
 
     def __validate_env(self):

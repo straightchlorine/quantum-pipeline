@@ -17,12 +17,13 @@ from reportlab.lib.units import cm
 from reportlab.lib.pagesizes import A4
 
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
-from quantum_simulation.configs import settings
-from quantum_simulation.utils.dir import getGraphPath
-from quantum_simulation.visual.energy import EnergyPlotter
-from quantum_simulation.visual.molecule import MoleculePlotter
-from quantum_simulation.utils.logger import get_logger
-from quantum_simulation.visual.operator import OperatorViewer
+from quantum_pipeline.configs import settings
+from quantum_pipeline.utils.dir import getGraphPath
+from quantum_pipeline.utils.observation import VQEProcess
+from quantum_pipeline.visual.energy import EnergyPlotter
+from quantum_pipeline.visual.molecule import MoleculePlotter
+from quantum_pipeline.utils.logger import get_logger
+from quantum_pipeline.visual.operator import OperatorViewer
 
 
 class ReportConfiguration:
@@ -134,9 +135,7 @@ class ReportContentBuilder:
         Args:
             metrics (Dict): Dictionary of metrics to include.
         """
-        data = [['Metric', 'Value']] + [
-            [str(k), str(v)] for k, v in metrics.items()
-        ]
+        data = [['Metric', 'Value']] + [[str(k), str(v)] for k, v in metrics.items()]
         self.add_table(data)
 
     def append_plot_path(self, plot_path: str | Path, sizes: Tuple[int, int]):
@@ -145,9 +144,7 @@ class ReportContentBuilder:
         else:
             raise FileNotFoundError(f'Plot path {plot_path} does not exist.')
 
-    def add_molecule_plot(
-        self, molecule: MoleculeInfo, plotter: Optional[MoleculePlotter] = None
-    ):
+    def add_molecule_plot(self, molecule: MoleculeInfo, plotter: Optional[MoleculePlotter] = None):
         """
         Add a molecule visualization to the report.
 
@@ -159,7 +156,7 @@ class ReportContentBuilder:
         plot_path = plotter.plot_molecule(molecule)
         self.append_plot_path(plot_path, self.report_config.molecule_size)
 
-    def add_convergence_plot(self, molecule: MoleculeInfo):
+    def add_convergence_plot(self, iterations: list[VQEProcess], symbols, max_points=100):
         """
         Add a molecule visualization to the report.
 
@@ -167,30 +164,20 @@ class ReportContentBuilder:
             molecule (MoleculeInfo): Molecule to visualize.
             plotter (MoleculePlotter, optional): Custom molecule plotter.
         """
-        plot_path = getGraphPath(
-            settings.ENERGY_CONVERGENCE_PLOT_DIR,
-            settings.ENERGY_CONVERGENCE_PLOT,
-            molecule.symbols,
-        )
+        plot_path = EnergyPlotter(iterations, symbols, max_points).plot_convergence()
         self.append_plot_path(plot_path, self.report_config.convergence_size)
 
-    def add_operator_coeff_plot(
-        self, qubit_op, symbols, title='Real Operator Coefficients'
-    ):
+    def add_operator_coeff_plot(self, qubit_op, symbols, title='Real Operator Coefficients'):
         """
         Add a plot of the operator coefficients to the report.
         Args:
             qubit_op: Qiskit's PauliSumOp or similar operator.
             title (str, optional): Title of the plot.
         """
-        plot_path = OperatorViewer().plot_operator_coefficients(
-            qubit_op, symbols, title
-        )
+        plot_path = OperatorViewer().plot_operator_coefficients(qubit_op, symbols, title)
         self.append_plot_path(plot_path, self.report_config.op_coeff_size)
 
-    def add_complex_coeff_plot(
-        self, qubit_op, symbols, title='Polar Operator Coefficients'
-    ):
+    def add_complex_coeff_plot(self, qubit_op, symbols, title='Polar Operator Coefficients'):
         """
         Add a plot of the operator coefficients in polar coordinates to
         the report.
@@ -198,12 +185,8 @@ class ReportContentBuilder:
             qubit_op: Qiskit's PauliSumOp or similar operator.
             title (str, optional): Title of the plot.
         """
-        plot_path = OperatorViewer().plot_complex_coefficients_polar(
-            qubit_op, symbols, title
-        )
-        self.append_plot_path(
-            plot_path, self.report_config.complex_op_coeff_size
-        )
+        plot_path = OperatorViewer().plot_complex_coefficients_polar(qubit_op, symbols, title)
+        self.append_plot_path(plot_path, self.report_config.complex_op_coeff_size)
 
     def new_page(self):
         """Insert a new page marker in the report content."""
@@ -245,9 +228,7 @@ class PDFRenderer:
         y_position = max_height - self.config.margin
 
         for item in content:
-            y_position = self._render_item(
-                canvas_obj, item, y_position, max_height
-            )
+            y_position = self._render_item(canvas_obj, item, y_position, max_height)
 
         canvas_obj.save()
 
@@ -280,9 +261,7 @@ class PDFRenderer:
             except IndexError:
                 size = (self.config.image_width, self.config.image_height)
 
-            return self._render_image(
-                canvas_obj, item[1], y_position, max_height, size
-            )
+            return self._render_image(canvas_obj, item[1], y_position, max_height, size)
 
         return y_position
 
@@ -300,9 +279,7 @@ class PDFRenderer:
         """
         element.wrapOn(canvas_obj, (A4[0] - self.config.margin), y_position)
 
-        element.drawOn(
-            canvas_obj, self.config.margin, y_position - element.height
-        )
+        element.drawOn(canvas_obj, self.config.margin, y_position - element.height)
         return y_position - element.height
 
     def _render_table(self, canvas_obj, table, y_position, max_height):
@@ -323,9 +300,7 @@ class PDFRenderer:
         table.drawOn(canvas_obj, table_x, y_position - table_height)
         return y_position - table_height - 20
 
-    def _render_image(
-        self, canvas_obj, plot_path, y_position, max_height, size
-    ):
+    def _render_image(self, canvas_obj, plot_path, y_position, max_height, size):
         """
         Render an image to the PDF.
 
@@ -400,13 +375,11 @@ class ReportGenerator:
         """Add a molecule plot to the report."""
         self.content_builder.add_molecule_plot(molecule)
 
-    def add_convergence_plot(self, molecule: MoleculeInfo):
+    def add_convergence_plot(self, iterations: list[VQEProcess], symbols, max_points=100):
         """Add a convergence plot to the report."""
-        self.content_builder.add_convergence_plot(molecule)
+        self.content_builder.add_convergence_plot(iterations, symbols, max_points)
 
-    def add_operator_coefficients_plot(
-        self, qubit_op, symbols, title='Operator Coefficients'
-    ):
+    def add_operator_coefficients_plot(self, qubit_op, symbols, title='Operator Coefficients'):
         """Add an operator coefficients plot to the report."""
         self.content_builder.add_operator_coeff_plot(qubit_op, symbols, title)
 
@@ -424,12 +397,8 @@ class ReportGenerator:
         """Generate the final PDF report."""
         try:
             content = self.content_builder.get_content()
-            self.pdf_renderer.render(
-                content, str(Path(settings.GEN_DIR, self.report_name))
-            )
-            self.logger.info(
-                f'Report successfully generated: {self.report_name}'
-            )
+            self.pdf_renderer.render(content, str(Path(settings.GEN_DIR, self.report_name)))
+            self.logger.info(f'Report successfully generated: {self.report_name}')
         except Exception as e:
             self.logger.error(f'Report generation failed: {e}')
             raise

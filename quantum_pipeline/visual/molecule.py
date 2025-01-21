@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from mpl_toolkits.mplot3d import Axes3D
 
-from quantum_simulation.configs import settings
-from quantum_simulation.utils.dir import savePlot
+from quantum_pipeline.configs import settings
+from quantum_pipeline.utils.dir import savePlot
 
 
 class MoleculePlotter:
@@ -31,9 +31,7 @@ class MoleculePlotter:
     }
     DEFAULT_COLOR = '#1f77b4'  # default blue for unknown elements
 
-    def __init__(
-        self, figsize: tuple[int, int] = (12, 10), legend_marker_size: int = 10
-    ):
+    def __init__(self, figsize: tuple[int, int] = (12, 10), legend_marker_size: int = 10):
         """
         Initialize the plotter with figure size and legend marker size.
         """
@@ -76,13 +74,9 @@ class MoleculePlotter:
     ) -> None:
         """Validate that molecule data is consistent."""
         if len(coords) != len(symbols) or len(coords) != len(masses):
-            raise ValueError(
-                'Mismatch in the lengths of coordinates, symbols, and masses.'
-            )
+            raise ValueError('Mismatch in the lengths of coordinates, symbols, and masses.')
 
-    def _calculate_atom_sizes(
-        self, masses: list[float], base_size: float = 500
-    ) -> list[float]:
+    def _calculate_atom_sizes(self, masses: list[float], base_size: float = 500) -> list[float]:
         """Calculate atom sizes based on masses with appropriate scaling."""
         min_mass = min(masses)
         return list(base_size * (1 + np.log(np.array(masses) / min_mass)))
@@ -96,9 +90,7 @@ class MoleculePlotter:
         self.ax.view_init(elev=20, azim=45)
         self.ax.grid(True, alpha=0.3)
 
-    def _set_plot_bounds(
-        self, coords: np.ndarray, padding_factor: float = 0.3
-    ) -> None:
+    def _set_plot_bounds(self, coords: np.ndarray, padding_factor: float = 0.3) -> None:
         """Set plot boundaries with padding."""
         ranges = [coords[:, i].max() - coords[:, i].min() for i in range(3)]
         max_range = max(ranges) / 2.0
@@ -183,9 +175,7 @@ class MoleculePlotter:
                     verticalalignment='center',
                     fontweight='semibold',
                 )
-                text.set_path_effects(
-                    [pe.withStroke(linewidth=0.1, foreground='black')]
-                )
+                text.set_path_effects([pe.withStroke(linewidth=0.1, foreground='black')])
 
         # Set plot bounds
         self._set_plot_bounds(coords)

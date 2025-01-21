@@ -7,8 +7,9 @@ This module visualizes the energy convergence during optimization.
 import matplotlib.pyplot as plt
 import logging
 
-from quantum_simulation.configs import settings
-from quantum_simulation.utils.dir import savePlot
+from quantum_pipeline.configs import settings
+from quantum_pipeline.utils.dir import savePlot
+from quantum_pipeline.utils.observation import VQEProcess
 
 logger = logging.getLogger(__name__)
 
@@ -18,28 +19,18 @@ class EnergyPlotter:
     A utility class to plot energy values from VQE runs.
     """
 
-    def __init__(self, max_points=100):
+    def __init__(self, iterations: list[VQEProcess], symbols, max_points=100):
         """
         Initializes the EnergyPlotter.
 
         Args:
             max_points: Maximum number of points to display on the graph.
         """
-        self.iterations = []
-        self.energy_values = []
+        self.iterations = [iteration.iteration for iteration in iterations]
+        self.energy_values = [iteration.result for iteration in iterations]
+        self.stds = [iteration.std for iteration in iterations]
+        self.symbols = symbols
         self.max_points = max_points
-
-    def add_iteration(self, iteration, energy):
-        """
-        Adds an iteration's energy value for plotting.
-
-        Args:
-            iteration: The iteration number (int).
-            energy: The energy value (float).
-        """
-        self.iterations.append(iteration)
-        self.energy_values.append(energy)
-        logger.info(f'Iteration {iteration}: Energy = {energy:.6f}')
 
     def _filter_points(self):
         """
@@ -64,22 +55,7 @@ class EnergyPlotter:
 
         return filtered_iterations, filtered_energy_values
 
-    def summary(self):
-        """
-        Get a summary of optimization metrics.
-
-        Returns:
-            dict: Summary including convergence metrics.
-        """
-        return {
-            'iterations': len(self.iterations),
-            'min_energy': min(self.energy_values)
-            if self.energy_values
-            else None,
-            'energy_convergence': self.energy_values,
-        }
-
-    def plot_convergence(self, symbols, title='Energy Convergence'):
+    def plot_convergence(self, title='Energy Convergence'):
         """
         Plots the energy convergence.
 
@@ -90,7 +66,19 @@ class EnergyPlotter:
         iterations, energy_values = self._filter_points()
 
         plt.figure(figsize=(10, 6))
-        plt.plot(iterations, energy_values, marker='o', label='Energy')
+        # plt.plot(iterations, energy_values, marker='o', label='Energy')
+        plt.errorbar(
+            iterations,
+            energy_values,
+            yerr=self.stds,
+            fmt='o-',
+            label='Energy',
+            capsize=5,
+            capthick=1,
+            elinewidth=1,
+            markersize=4,
+        )
+
         plt.xlabel('Iteration')
         plt.ylabel('Energy (a.u.)')
         plt.title(title)
@@ -101,6 +89,6 @@ class EnergyPlotter:
             plt,
             settings.ENERGY_CONVERGENCE_PLOT_DIR,
             settings.ENERGY_CONVERGENCE_PLOT,
-            symbols,
+            self.symbols,
         )
         return plot_path

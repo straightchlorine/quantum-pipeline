@@ -1,4 +1,4 @@
-from quantum_simulation.utils.logger import get_logger
+from quantum_pipeline.utils.logger import get_logger
 
 
 class Runner:

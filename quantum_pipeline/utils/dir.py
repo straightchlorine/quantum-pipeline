@@ -1,8 +1,6 @@
 from collections.abc import Sequence
 from pathlib import Path
 
-from quantum_simulation.configs import settings
-
 
 def savePlot(
     plt,

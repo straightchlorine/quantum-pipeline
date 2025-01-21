@@ -7,7 +7,7 @@ fermionic systems on quantum computers.
 """
 
 from qiskit_nature.second_q.mappers import JordanWignerMapper as JWM
-from quantum_simulation.mappers.mapper import Mapper
+from quantum_pipeline.mappers.mapper import Mapper
 
 
 class JordanWignerMapper(Mapper):

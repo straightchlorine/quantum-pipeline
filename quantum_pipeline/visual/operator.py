@@ -7,8 +7,8 @@ This module visualizes the coefficients of qubit operators.
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from quantum_simulation.configs import settings
-from quantum_simulation.utils.dir import savePlot
+from quantum_pipeline.configs import settings
+from quantum_pipeline.utils.dir import savePlot
 
 matplotlib.use('Agg')
 
@@ -42,7 +42,7 @@ class OperatorViewer:
             str: Path to the saved plot.
         """
         # convert coefficients to a list
-        terms = qubit_op.to_list()
+        terms = qubit_op
         operators = [term[0] for term in terms]
         coefficients = [term[1] for term in terms]
 
@@ -51,23 +51,17 @@ class OperatorViewer:
         imag_parts = [coeff.imag for coeff in coefficients]
 
         # filter out insignificant terms (smaller than threshold)
-        significant_indices = [
-            i for i, coeff in enumerate(coefficients) if abs(coeff) > threshold
-        ]
+        significant_indices = [i for i, coeff in enumerate(coefficients) if abs(coeff) > threshold]
         filtered_real_parts = [real_parts[i] for i in significant_indices]
         filtered_imag_parts = [imag_parts[i] for i in significant_indices]
         filtered_operators = [operators[i] for i in significant_indices]
 
         # group up filtered out terms
         other_real = sum(
-            real_parts[i]
-            for i in range(len(real_parts))
-            if i not in significant_indices
+            real_parts[i] for i in range(len(real_parts)) if i not in significant_indices
         )
         other_imag = sum(
-            imag_parts[i]
-            for i in range(len(imag_parts))
-            if i not in significant_indices
+            imag_parts[i] for i in range(len(imag_parts)) if i not in significant_indices
         )
 
         if other_real or other_imag:
@@ -77,9 +71,7 @@ class OperatorViewer:
 
         # displayed terms must be limited to make the plot readable
         if len(filtered_operators) > max_terms:
-            indices = np.linspace(
-                0, len(filtered_operators) - 1, max_terms, dtype=int
-            )
+            indices = np.linspace(0, len(filtered_operators) - 1, max_terms, dtype=int)
             filtered_real_parts = [filtered_real_parts[i] for i in indices]
             filtered_imag_parts = [filtered_imag_parts[i] for i in indices]
             filtered_operators = [filtered_operators[i] for i in indices]
@@ -152,7 +144,7 @@ class OperatorViewer:
         """
 
         # terms and operators to lists
-        terms = qubit_op.to_list()
+        terms = qubit_op
         operators = [term[0] for term in terms]
         coefficients = [term[1] for term in terms]
 
@@ -161,34 +153,24 @@ class OperatorViewer:
         phases = np.angle(coefficients)
 
         # filter out insignificant terms
-        significant_indices = [
-            i for i, mag in enumerate(magnitudes) if mag > threshold
-        ]
+        significant_indices = [i for i, mag in enumerate(magnitudes) if mag > threshold]
         filtered_magnitudes = [magnitudes[i] for i in significant_indices]
         filtered_phases = [phases[i] for i in significant_indices]
         filtered_operators = [operators[i] for i in significant_indices]
 
         # group up the insignificant terms
         other_magnitude = sum(
-            magnitudes[i]
-            for i in range(len(magnitudes))
-            if i not in significant_indices
+            magnitudes[i] for i in range(len(magnitudes)) if i not in significant_indices
         )
         insignificant_phases = [
-            phases[i]
-            for i in range(len(phases))
-            if i not in significant_indices
+            phases[i] for i in range(len(phases)) if i not in significant_indices
         ]
         other_magnitude = sum(
-            magnitudes[i]
-            for i in range(len(magnitudes))
-            if i not in significant_indices
+            magnitudes[i] for i in range(len(magnitudes)) if i not in significant_indices
         )
 
         # no phase equivalent to 0
-        other_phase = (
-            np.mean(insignificant_phases) if insignificant_phases else 0
-        )
+        other_phase = np.mean(insignificant_phases) if insignificant_phases else 0
 
         if other_magnitude > 0:
             filtered_magnitudes.append(other_magnitude)
@@ -197,9 +179,7 @@ class OperatorViewer:
 
         # limit the displayed terms
         if len(filtered_operators) > max_terms:
-            indices = np.linspace(
-                0, len(filtered_operators) - 1, max_terms, dtype=int
-            )
+            indices = np.linspace(0, len(filtered_operators) - 1, max_terms, dtype=int)
             filtered_magnitudes = [filtered_magnitudes[i] for i in indices]
             filtered_phases = [filtered_phases[i] for i in indices]
             filtered_operators = [filtered_operators[i] for i in indices]
