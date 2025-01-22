@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 import numpy as np
 from qiskit.circuit import QuantumCircuit
-from qiskit_ibm_runtime.qiskit_runtime_service import IBMBackend
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 
 

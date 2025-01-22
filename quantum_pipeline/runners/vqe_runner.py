@@ -10,7 +10,8 @@ from quantum_pipeline.drivers.molecule_loader import load_molecule
 from quantum_pipeline.report.report_generator import ReportGenerator
 from quantum_pipeline.runners.runner import Runner
 from quantum_pipeline.solvers.vqe_solver import VQESolver
-from quantum_pipeline.utils.observation import VQEDecoratedResult
+from quantum_pipeline.stream.kafka_interface import ProducerConfig, VQEKafkaProducer
+from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 from quantum_pipeline.visual.ansatz import AnsatzViewer
 
 
@@ -47,6 +48,13 @@ class VQERunner(Runner):
         default_shots=1024,
         report=False,
         kafka=False,
+        kafka_bootstrap_servers='localhost:9092',
+        kafka_topic='vqe_results',
+        kafka_retries=3,
+        kafka_internal_retries=5,
+        kafka_acks='all',
+        kafka_timeout=10,
+        kafka_config: ProducerConfig | None = None,
     ):
         super().__init__()
         self.filepath = filepath
@@ -62,6 +70,22 @@ class VQERunner(Runner):
             self.report_gen = ReportGenerator()
 
         self.kafka = kafka
+        if self.kafka and kafka_config is not None:
+            self.kafka_config = kafka_config
+        elif self.kafka and kafka_config is None:
+            try:
+                self.kafka_config = ProducerConfig(
+                    bootstrap_servers=kafka_bootstrap_servers,
+                    topic=kafka_topic,
+                    retries=kafka_retries,
+                    kafka_retries=kafka_internal_retries,
+                    acks=kafka_acks,
+                    timeout=kafka_timeout,
+                )
+            except Exception as e:
+                self.logger.error(
+                    f'Unable to create ProducerConfig, ensure required parameters are passed to the VQERunner instance: {e}'
+                )
 
         self.run_results = []
 
@@ -112,7 +136,7 @@ class VQERunner(Runner):
 
         return result
 
-    def run(self, backend_config: BackendConfig, report=True):
+    def run(self, backend_config: BackendConfig):
         self.molecules = self.load_molecules()
 
         for id, molecule in enumerate(self.molecules):
@@ -134,6 +158,10 @@ class VQERunner(Runner):
             )
             self.run_results.append(decorated_result)
             self.logger.debug('Appended run information to the result.')
+
+            if self.kafka:
+                producer = VQEKafkaProducer(self.kafka_config)
+                producer.send_result(decorated_result)
 
             if self.report:
                 self.logger.info(f'Generating report for molecule {id + 1}...')

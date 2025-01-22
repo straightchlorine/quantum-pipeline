@@ -10,7 +10,6 @@ logger = get_logger('QuantumPipeline')
 def execute_simulation(
     molecule_file: str,
     basis_set: str,
-    config: BackendConfig,
     **kwargs,
 ):
     threshold = None
@@ -29,13 +28,13 @@ def execute_simulation(
         default_shots=kwargs['shots'],
         report=kwargs['report'],
         kafka=kwargs['kafka'],
+        kafka_config=kwargs['kafka_config'] if kwargs['kafka'] else None,
     )
-    runner.run(config, report=True)
+    runner.run(kwargs['backend_config'])
 
 
 if __name__ == '__main__':
     parser = QuantumPipelineArgParser()
     args = parser.parse_args()
-    config = parser.create_backend_config(args)
     kwargs = parser.get_simulation_kwargs(args)
-    execute_simulation(args.file, args.basis, config, **kwargs)
+    execute_simulation(args.file, args.basis, **kwargs)

@@ -1,0 +1,32 @@
+{
+    "type": "record",
+    "name": "MoleculeInfo",
+    "namespace": "quantum_pipeline",
+    "fields": [
+        {
+            "name": "molecule_data",
+            "type": {
+                "type": "record",
+                "name": "MoleculeData",
+                "fields": [
+                    {"name": "symbols", "type": {"type": "array", "items": "string"}},
+                    {
+                        "name": "coords",
+                        "type": {
+                            "type": "array",
+                            "items": {"type": "array", "items": "double"}
+                        }
+                    },
+                    {"name": "multiplicity", "type": "int"},
+                    {"name": "charge", "type": "int"},
+                    {"name": "units", "type": "string"},
+                    {
+                        "name": "masses",
+                        "type": ["null", {"type": "array", "items": "double"}],
+                        "default": null
+                    }
+                ]
+            }
+        }
+    ]
+}

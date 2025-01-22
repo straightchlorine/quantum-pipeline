@@ -9,7 +9,7 @@ import logging
 
 from quantum_pipeline.configs import settings
 from quantum_pipeline.utils.dir import savePlot
-from quantum_pipeline.utils.observation import VQEProcess
+from quantum_pipeline.structures.vqe_observation import VQEProcess
 
 logger = logging.getLogger(__name__)
 

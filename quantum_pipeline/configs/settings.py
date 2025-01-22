@@ -7,6 +7,9 @@ GEN_DIR = 'gen'
 GRAPH_DIR = Path(GEN_DIR, 'graphs')
 REPORT_DIR = GEN_DIR
 
+SCHEMA_DIR = Path('stream', 'serialization', 'schemas')
+RUN_CONFIGS = Path('configs', 'runs')
+
 # molecule graph settings
 MOLECULE_PLOT_DIR = Path(GRAPH_DIR, 'molecule_plots')
 MOLECULE_PLOT = 'molecule'

@@ -1,0 +1,10 @@
+{
+    "type": "record",
+    "name": "VQEProcess",
+    "fields": [
+        {"name": "iteration", "type": "int"},
+        {"name": "parameters", "type": {"type": "array", "items": "double"}},
+        {"name": "result", "type": "double"},
+        {"name": "std", "type": "double"}
+    ]
+}

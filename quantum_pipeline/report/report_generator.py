@@ -18,8 +18,7 @@ from reportlab.lib.pagesizes import A4
 
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 from quantum_pipeline.configs import settings
-from quantum_pipeline.utils.dir import getGraphPath
-from quantum_pipeline.utils.observation import VQEProcess
+from quantum_pipeline.structures.vqe_observation import VQEProcess
 from quantum_pipeline.visual.energy import EnergyPlotter
 from quantum_pipeline.visual.molecule import MoleculePlotter
 from quantum_pipeline.utils.logger import get_logger

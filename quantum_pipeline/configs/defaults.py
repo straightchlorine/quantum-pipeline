@@ -9,4 +9,12 @@ DEFAULTS = {
     'optimizer': 'COBYLA',
     'shots': 1024,
     'optimization_level': 1,
+    'kafka': {
+        'server': 'localhost:9092',
+        'topic': 'vqe_results',
+        'retries': 3,
+        'internal_retries': 0,
+        'acks': 'all',
+        'timeout': 10,
+    },
 }

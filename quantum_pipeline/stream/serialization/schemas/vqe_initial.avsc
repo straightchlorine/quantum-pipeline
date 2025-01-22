@@ -1,0 +1,37 @@
+{
+    "type": "record",
+    "name": "VQEInitialData",
+    "fields": [
+        {"name": "backend", "type": "string"},
+        {"name": "num_qubits", "type": "int"},
+        {
+            "name": "hamiltonian",
+            "type": {
+                "type": "array",
+                "items": {
+                    "type": "record",
+                    "name": "HamiltonianTerm",
+                    "fields": [
+                        {"name": "label", "type": "string"},
+                        {
+                            "name": "coefficients",
+                            "type": {
+                                "type": "record",
+                                "name": "ComplexNumber",
+                                "fields": [
+                                    {"name": "real", "type": "double"},
+                                    {"name": "imaginary", "type": "double"}
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {"name": "num_parameters", "type": "int"},
+        {"name": "initial_parameters", "type": {"type": "array", "items": "double"}},
+        {"name": "optimizer", "type": "string"},
+        {"name": "ansatz", "type": "string"},
+        {"name": "ansatz_reps", "type": "int"}
+    ]
+}

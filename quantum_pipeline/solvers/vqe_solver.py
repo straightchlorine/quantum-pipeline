@@ -15,7 +15,11 @@ from scipy.optimize import minimize
 
 from quantum_pipeline.configs.argparser import BackendConfig
 from quantum_pipeline.solvers.solver import Solver
-from quantum_pipeline.utils.observation import VQEInitialData, VQEProcess, VQEResult
+from quantum_pipeline.structures.vqe_observation import (
+    VQEInitialData,
+    VQEProcess,
+    VQEResult,
+)
 
 
 class VQESolver(Solver):
