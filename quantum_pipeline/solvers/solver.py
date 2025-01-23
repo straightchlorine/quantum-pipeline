@@ -3,7 +3,8 @@ import os
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import QiskitRuntimeService
 
-from quantum_pipeline.configs.argparser import SUPPORTED_OPTIMIZERS, BackendConfig
+from quantum_pipeline.configs.parsing.backend_config import BackendConfig
+from quantum_pipeline.configs.settings import SUPPORTED_OPTIMIZERS
 from quantum_pipeline.utils.logger import get_logger
 
 
@@ -18,7 +19,7 @@ class Solver:
     def supported_optimizers_prompt(self):
         supported_optimizers = ''
         for opt, description in SUPPORTED_OPTIMIZERS.items():
-            supported_optimizers += f'{opt}: {description}\n'
+            supported_optimizers += f'{opt}: {description}'
 
     def __validate_env(self):
         """Validates the environment variables required for IBM Quantum authentication.

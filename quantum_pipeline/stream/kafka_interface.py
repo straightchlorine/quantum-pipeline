@@ -1,37 +1,15 @@
-from dataclasses import asdict, dataclass
-import json
 from time import sleep
 from typing import Optional
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 
+from quantum_pipeline.configs.parsing.producer_config import ProducerConfig
 from quantum_pipeline.stream.serialization.interfaces.vqe import (
     VQEDecoratedResultInterface,
 )
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 from quantum_pipeline.utils.logger import get_logger
-
-
-@dataclass
-class ProducerConfig:
-    """Configuration for Kafka Producer object"""
-
-    bootstrap_servers: str
-    topic: str
-    retries: int = 3
-    retry_delay: int = 2
-    kafka_retries: int = 5
-    acks: str = 'all'
-    timeout: int = 10
-
-    def to_dict(self) -> dict:
-        """Convert the configuration to a dictionary."""
-        return asdict(self)
-
-    def toJSON(self) -> str:
-        """Convert the configuration to a JSON string."""
-        return json.dumps(self.to_dict())
 
 
 class KafkaProducerError(Exception):
@@ -50,7 +28,7 @@ class VQEKafkaProducer:
         """Initialize the Kafka producer with error handling."""
         try:
             self.producer = KafkaProducer(
-                bootstrap_servers=self.config.bootstrap_servers,
+                bootstrap_servers=self.config.servers,
                 value_serializer=lambda v: v,
                 retries=self.config.kafka_retries,
                 acks=self.config.acks,
@@ -113,6 +91,7 @@ class VQEKafkaProducer:
 
     def send_result(self, result: VQEDecoratedResult) -> None:
         """Send VQEDecoratedResult to Kafka topic with proper error handling."""
+        self.logger.info(f'Sending the result to the Kafka topic {self.config.topic}...')
         if not self.producer:
             raise KafkaProducerError('Producer not initialized')
 

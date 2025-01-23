@@ -2,7 +2,10 @@
 
 ## Overview
 
-The Quantum Pipeline project is an extensible framework designed for exploring Variational Quantum Eigensolver (VQE) algorithms. It combines quantum and classical computing to estimate the ground-state energy of molecular systems. The framework provides modularity to handle molecule loading, Hamiltonian generation, quantum circuit design, and result visualization.
+The Quantum Pipeline project is an extensible framework designed for exploring Variational Quantum Eigensolver (VQE) algorithms. It combines quantum and classical computing to estimate the ground-state energy of molecular systems.
+
+The framework provides modules to handle algorithm orchestration, prametrising it as well as monitoring and data visualization. Data is organised in extensible dataclasses, which
+can also be streamed via Kafka for further processing.
 
 Currently, it offers VQE as its primary algorithm with basic functionality, but aims to evolve into a convenient tool for running various quantum algorithms.
 
@@ -18,8 +21,7 @@ Currently, it offers VQE as its primary algorithm with basic functionality, but 
 - **Report Generation:** Automatically generate detailed reports for each processed molecule.
 - **Kafka Integration:** Stream simulation results to Apache Kafka for real-time data processing.
 - **Advanced Backend Options:** Customize simulation parameters such as qubit count, shot count, and optimization levels.
-- **Contenerised:** Deployment as a Docker container for easy setup and execution.
-
+- **Containerized Execution:** Deploy as a Docker container.
 
 ---
 
@@ -34,12 +36,10 @@ quantum_pipeline/
 ├── report/               # Report generation utilities
 ├── runners/              # VQE execution logic
 ├── solvers/              # VQE solver implementations
+├── stream/               # Kafka streaming and messaging utilities
+├── structures/           # Quantum and classical data structures
 ├── utils/                # Utility functions (logging, visualization, etc.)
 ├── visual/               # Visualization tools for molecules and operators
-├── Dockerfile            # Dockerfile for containerized execution
-├── docker-compose.yaml   # Docker Compose file for multi-container setup
-├── pyproject.toml        # Project configuration
-├── requirements.txt      # Python dependencies
 └── quantum_pipeline.py   # Main entry point
 ```
 
@@ -65,15 +65,15 @@ quantum_pipeline/
    ```
 
 4. **(Optional) Run in Docker**:
-    ```bash
-    docker-compose up --build
-    ```
+   ```bash
+   docker-compose up --build
+   ```
 
-    or
+   or
 
-    ```bash
-    docker build .
-    ```
+   ```bash
+   docker build .
+   ```
 
 ---
 
@@ -102,34 +102,34 @@ Molecules should be defined like this:
         "masses": [15.999, 1.008, 1.008]
     }
 ]
-
 ```
+
 ### 2. Run the Pipeline
+
 Run the main script to process molecules:
+
 ```bash
 python quantum_pipeline.py -f data/molecule.json -b sto-3g --max-iterations 100 --optimizer COBYLA --report
 ```
 
-Defaults for each option can be found in `configs/defaults.py`, other available parameters include:
+Defaults for each option can be found in `configs/defaults.py` and the help message (`python quantum_pipeline.py -h`). Other available parameters include:
 
--  `-f FILE, --file FILE`: Path to the molecule data file (required).
--  `-b BASIS, --basis BASIS`: Specify the basis set for the simulation.
--  `--local`: Use a local quantum simulator instead of IBM Quantum.
--  `--min-qubits MIN_QUBITS`: Specify the minimum number of qubits required.
--  `--max-iterations MAX_ITERATIONS`: Set the maximum number of VQE iterations.
--  `--optimizer OPTIMIZER`: Choose from a variety of optimization algorithms.
--  `--output-dir OUTPUT_DIR`: Specify the directory for storing output files.
--  `--log-level {DEBUG,INFO,WARNING,ERROR}`: Set the logging level.
--  `--shots SHOTS`: Number of shots for quantum circuit execution.
--  `--optimization-level {0,1,2,3}`: Circuit optimization level.
--  `--report`: Generate a PDF report after simulation.
--  `--kafka`: Stream data to Apache Kafka for real-time processing.
+- `-f FILE, --file FILE`: Path to the molecule data file (required).
+- `-b BASIS, --basis BASIS`: Specify the basis set for the simulation.
+- `--local`: Use a local quantum simulator instead of IBM Quantum.
+- `--min-qubits MIN_QUBITS`: Specify the minimum number of qubits required.
+- `--max-iterations MAX_ITERATIONS`: Set the maximum number of VQE iterations.
+- `--optimizer OPTIMIZER`: Choose from a variety of optimization algorithms.
+- `--output-dir OUTPUT_DIR`: Specify the directory for storing output files.
+- `--log-level {DEBUG,INFO,WARNING,ERROR}`: Set the logging level.
+- `--shots SHOTS`: Number of shots for quantum circuit execution.
+- `--optimization-level {0,1,2,3}`: Circuit optimization level.
+- `--report`: Generate a PDF report after simulation.
+- `--kafka`: Stream data to Apache Kafka for real-time processing.
 
-Entire help message can be displayed with `python quantum_pipeline.py -h`.
+### Example Configurations
 
-### Example configurations
-
-Basic configuration (utilises the `defaults.py` config) emphasises performance over accuracy:
+Basic configuration (utilizes the `defaults.py` config) emphasizes performance over accuracy:
 ```bash
 python quantum_pipeline.py -f data/molecules.json
 ```
@@ -139,9 +139,9 @@ Configuration with custom parameters:
 python quantum_pipeline.py -f data/molecule.json -b cc-pvdz --max-iterations 200 --optimizer L-BFGS-B --shots 2048 --report
 ```
 
+### 3. Kafka Integration
 
-### 3. Kafka integration
-Enable Apache Kafka for streaming simulation results:
+Enable streaming to Apache Kafka via `--kafka` parameter:
 ```bash
 python quantum_pipeline.py -f data/molecule.json --kafka
 ```
@@ -151,36 +151,79 @@ python quantum_pipeline.py -f data/molecule.json --kafka
 ## Examples
 
 ### Python API
+
 The framework can be used programmatically:
+
 ```python
 from quantum_pipeline.runners.vqe_runner import VQERunner
-from quantum_pipeline.configs.argparser import BackendConfig
 
-backend_config = BackendConfig(backend_type='qasm_simulator', shots=1024)
-
+backend = VQERunner.default_backend()
 runner = VQERunner(
-    filepath='data/molecule.json',
-    basis_set='sto-3g',
-    max_iterations=200,
+    filepath='data/molecules.json',
+    basis_set='sto3g',
+    max_iterations=1,
     convergence_threshold=1e-6,
     optimizer='COBYLA',
     ansatz_reps=3
 )
-
-runner.run(backend_config)
+runner.run(backend)
 ```
 
 ### Docker Example
+
 Run the pipeline in a Docker container:
 ```bash
 docker run -v $(pwd)/data:/app/data quantum_pipeline:latest \
     python quantum_pipeline.py --file /app/data/molecule.json --basis sto-3g
 ```
+
+### Example KafkaConsumer
+
+You can test the Kafka integration with a simple consumer like this:
+
+```python
+from kafka import KafkaConsumer
+from quantum_pipeline.stream.serialization.interfaces.vqe import VQEDecoratedResultInterface
+
+class KafkaMessageConsumer:
+    def __init__(self, topic='vqe_results', bootstrap_servers='localhost:9092'):
+        self.deserializer = VQEDecoratedResultInterface()
+        self.consumer = KafkaConsumer(
+            topic,
+            bootstrap_servers=bootstrap_servers,
+            value_deserializer=self.deserializer.from_avro_bytes,
+            auto_offset_reset='earliest',
+            enable_auto_commit=True,
+            group_id='vqe_consumer_group'
+        )
+
+    def consume_messages(self):
+        try:
+            for message in self.consumer:
+                try:
+                    # Process the message
+                    decoded_message = message.value
+                    yield decoded_message
+                except Exception as e:
+                    print(f"Error processing message: {str(e)}")
+                    continue
+        except Exception as e:
+            print(f"Error in consumer: {str(e)}")
+        finally:
+            self.consumer.close()
+```
+
+Then you can use the consumer like this:
+```python
+consumer = KafkaMessageConsumer()
+for msg in consumer.consume_messages():
+    print(f"Received message: {msg}")
+``````
 ---
 
 ## Contributing
 
-For now this project is not open for contribution, since its a university project, but feel free to fork it and make your own version.
+For now, this project is not open for contributions since it is a university project, but feel free to fork it and make your own version.
 
 ---
 

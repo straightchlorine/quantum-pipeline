@@ -8,13 +8,19 @@ DEFAULTS = {
     'convergence_threshold': 1e-6,
     'optimizer': 'COBYLA',
     'shots': 1024,
-    'optimization_level': 1,
+    'backend': {
+        'local': True,
+        'min_qubits': None,
+        'optimization_level': 3,
+        'filters': None,
+    },
     'kafka': {
-        'server': 'localhost:9092',
+        'servers': 'localhost:9092',
         'topic': 'vqe_results',
         'retries': 3,
         'internal_retries': 0,
         'acks': 'all',
         'timeout': 10,
+        'retry_delay': 2,
     },
 }

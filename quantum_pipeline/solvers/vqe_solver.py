@@ -13,7 +13,7 @@ from qiskit_aer.backends.aer_simulator import AerBackend
 from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
-from quantum_pipeline.configs.argparser import BackendConfig
+from quantum_pipeline.configs.parsing.backend_config import BackendConfig
 from quantum_pipeline.solvers.solver import Solver
 from quantum_pipeline.structures.vqe_observation import (
     VQEInitialData,
@@ -32,6 +32,7 @@ class VQESolver(Solver):
         ansatz_reps=3,
         default_shots=1024,
         convergence_threshold=None,
+        optimization_level=3,
     ):
         super().__init__()
         self.qubit_op = qubit_op
@@ -44,11 +45,14 @@ class VQESolver(Solver):
         self.vqe_process: list[VQEProcess] = []
         self.current_iter = 1
         self.convergence_threshold = convergence_threshold
+        self.optimization_level = optimization_level
 
     def _optimize_circuits(self, ansatz, hamiltonian, backend):
         """Prepare ISA-compatible circuits and observables"""
         target = backend.target
-        pm = generate_preset_pass_manager(target=target, optimization_level=3)
+        pm = generate_preset_pass_manager(
+            target=target, optimization_level=self.optimization_level
+        )
         ansatz_isa = pm.run(ansatz)
 
         hamiltonian_isa = hamiltonian.apply_layout(layout=ansatz_isa.layout)
@@ -95,7 +99,7 @@ class VQESolver(Solver):
 
         param_num = ansatz.num_parameters
         x0 = 2 * np.pi * np.random.random(param_num)
-        self.logger.info('Initial ansatz parameters:\n\n{}\n'.format(x0))
+        self.logger.debug('Initial ansatz parameters:\n\n{}\n'.format(x0))
 
         self.logger.info('Optimizing ansatz and hamiltonian...')
         ansatz_isa, hamiltonian_isa = self._optimize_circuits(ansatz, hamiltonian, backend)
@@ -158,7 +162,7 @@ class VQESolver(Solver):
 
         param_num = ansatz.num_parameters
         x0 = 2 * np.pi * np.random.random(param_num)
-        self.logger.info('Initial ansatz parameters:\n\n{}\n'.format(x0))
+        self.logger.debug('Initial ansatz parameters:\n\n{}\n'.format(x0))
 
         self.logger.info('Optimizing ansatz and hamiltonian...')
         ansatz_isa, hamiltonian_isa = self._optimize_circuits(ansatz, hamiltonian, backend)

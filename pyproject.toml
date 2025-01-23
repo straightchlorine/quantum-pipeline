@@ -5,3 +5,8 @@ line-length = 99
 quote-style = "single"
 indent-style = "space"
 docstring-code-format = true
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]

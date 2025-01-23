@@ -1,17 +1,13 @@
 #!/usr/bin/env python
 
-from quantum_pipeline.configs.argparser import BackendConfig, QuantumPipelineArgParser
+from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
 from quantum_pipeline.runners.vqe_runner import VQERunner
 from quantum_pipeline.utils.logger import get_logger
 
 logger = get_logger('QuantumPipeline')
 
 
-def execute_simulation(
-    molecule_file: str,
-    basis_set: str,
-    **kwargs,
-):
+def execute_simulation(**kwargs):
     threshold = None
     apply_threshold = kwargs.get('convergence_threshold')
     if apply_threshold:
@@ -19,8 +15,8 @@ def execute_simulation(
         logger.info(f'Applying convergence threshold {threshold} during minimization')
 
     runner = VQERunner(
-        filepath=molecule_file,
-        basis_set=basis_set,
+        filepath=kwargs['file'],
+        basis_set=kwargs['basis'],
         max_iterations=kwargs['max_iterations'],
         convergence_threshold=threshold,
         optimizer=kwargs['optimizer'],
@@ -35,6 +31,5 @@ def execute_simulation(
 
 if __name__ == '__main__':
     parser = QuantumPipelineArgParser()
-    args = parser.parse_args()
-    kwargs = parser.get_simulation_kwargs(args)
-    execute_simulation(args.file, args.basis, **kwargs)
+    kwargs = parser.get_config()
+    execute_simulation(**kwargs)

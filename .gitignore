@@ -1,3 +1,6 @@
+# ignore directory with generated configs
+run_configs
+
 # ignore generated pdfs
 *.pdf
 

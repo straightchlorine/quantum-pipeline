@@ -1,66 +1,16 @@
 import argparse
-from dataclasses import dataclass
-from datetime import datetime
 import json
 import logging
-from pathlib import Path
-from typing import Any, Callable, Dict
-
-from qiskit_ibm_runtime import IBMBackend
+import os
+from typing import Any, Dict
 
 from quantum_pipeline.configs import settings
 from quantum_pipeline.configs.defaults import DEFAULTS
+from quantum_pipeline.configs.parsing.backend_config import BackendConfig
+from quantum_pipeline.configs.parsing.configuration_manager import ConfigurationManager
 from quantum_pipeline.stream.kafka_interface import ProducerConfig
 from quantum_pipeline.utils.dir import ensureDirExists
 from quantum_pipeline.utils.logger import get_logger
-
-SUPPORTED_OPTIMIZERS = {
-    'Nelder-Mead': 'A simplex algorithm for unconstrained optimization.',
-    'Powell': 'A directional set method for unconstrained optimization.',
-    'CG': 'Non-linear conjugate gradient method for unconstrained optimization.',
-    'BFGS': 'Quasi-Newton method using the Broyden–Fletcher–Goldfarb–Shanno algorithm.',
-    'Newton-CG': "Newton's method with conjugate gradient for unconstrained optimization.",
-    'L-BFGS-B': 'Limited-memory BFGS with box constraints.',
-    'TNC': 'Truncated Newton method for bound-constrained optimization.',
-    'COBYLA': 'Constrained optimization by linear approximations.',
-    'COBYQA': 'Constrained optimization by quadratic approximations.',
-    'SLSQP': 'Sequential Least Squares Programming for constrained optimization.',
-    'trust-constr': 'Trust-region method for constrained optimization.',
-    'dogleg': 'Dog-leg trust-region algorithm for unconstrained optimization.',
-    'trust-ncg': 'Trust-region Newton conjugate gradient method.',
-    'trust-exact': 'Exact trust-region optimization.',
-    'trust-krylov': 'Trust-region method with Krylov subspace solver.',
-    'custom': 'A user-provided callable object implementing the optimization method.',
-}
-
-
-@dataclass
-class BackendConfig:
-    """Dataclass for storing backend filter."""
-
-    local: bool | None
-    min_num_qubits: int | None
-    filters: Callable[[IBMBackend], bool] | None
-
-    def to_dict(self):
-        """Convert the dataclass to a dictionary."""
-        return {
-            key: value
-            for key, value in self.__dict__.items()
-            if value is not None and key != 'local'
-        }
-
-    def toJSON(self) -> str:
-        """Convert the configuration to a JSON string."""
-        return json.dumps(self.to_dict())
-
-    def local_backend(self):
-        """Check if the backend is local."""
-        return self.local
-
-    @classmethod
-    def _get_local_backend(cls):
-        return cls(local=True, min_num_qubits=None, filters=None)
 
 
 class QuantumPipelineArgParser:
@@ -68,12 +18,13 @@ class QuantumPipelineArgParser:
 
     def __init__(self):
         """Initialize the parser with default configuration."""
+        self.logger = get_logger('Argparser')
+
         self.initialize_simulation_environment()
         self.parser = argparse.ArgumentParser(
             description='Quantum Circuit Simulation and Execution',
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-        self.logger = get_logger('Argparser')
 
         self._add_arguments()
 
@@ -87,8 +38,8 @@ class QuantumPipelineArgParser:
     def _create_optimizer_help_text(self) -> str:
         """Create detailed help text for optimizer options."""
         help_text = 'Available optimizers:\n'
-        for optimizer, description in SUPPORTED_OPTIMIZERS.items():
-            help_text += f'\n  {optimizer}: {description}'
+        for optimizer, description in settings.SUPPORTED_OPTIMIZERS.items():
+            help_text += f'|  {optimizer}: {description} |'
         return help_text
 
     def _add_arguments(self):
@@ -122,11 +73,14 @@ class QuantumPipelineArgParser:
         sim_group.add_argument(
             '--local',
             action='store_true',
-            default=DEFAULTS['local'],
+            default=DEFAULTS['backend']['local'],
             help='Using local backend for simulation (otherwise IBM Quantum is used.)',
         )
         sim_group.add_argument(
-            '--min-qubits', type=int, help='Minimum number of qubits required for the backend'
+            '--min-qubits',
+            type=int,
+            default=DEFAULTS['backend']['min_qubits'],
+            help='Minimum number of qubits required for the backend',
         )
 
     def _add_kafka_config(self):
@@ -136,9 +90,9 @@ class QuantumPipelineArgParser:
             '--kafka', action='store_true', help='Enable streaming results to Apache Kafka'
         )
         kafka_group.add_argument(
-            '--host',
+            '--servers',
             type=str,
-            default=DEFAULTS['kafka']['server'],
+            default=DEFAULTS['kafka']['servers'],
             help='Apache Kafka instance address',
         )
         kafka_group.add_argument(
@@ -148,28 +102,30 @@ class QuantumPipelineArgParser:
             help='Name of the topic, with which message will be categorised with',
         )
         kafka_group.add_argument(
-            '-ret',
             '--retries',
             type=str,
             default=DEFAULTS['kafka']['retries'],
             help='Number of attempts to send message to kafka',
         )
         kafka_group.add_argument(
-            '-iret',
+            '--retry-delay',
+            type=str,
+            default=DEFAULTS['kafka']['retries'],
+            help='Number of attempts to send message to kafka',
+        )
+        kafka_group.add_argument(
             '--internal-retries',
             type=int,
             default=DEFAULTS['kafka']['internal_retries'],
             help='Number of attempts kafka should attempt automatically (introduces risk of duplicate entries)',
         )
         kafka_group.add_argument(
-            '-a',
             '--acks',
             default=DEFAULTS['kafka']['acks'],
             choices=['0', '1', 'all'],
             help='Number of acknowledgments producer requires to receive before a request is complete.',
         )
         kafka_group.add_argument(
-            '-t',
             '--timeout',
             type=int,
             default=DEFAULTS['kafka']['timeout'],
@@ -200,7 +156,7 @@ class QuantumPipelineArgParser:
         )
         vqe_group.add_argument(
             '--optimizer',
-            choices=list(SUPPORTED_OPTIMIZERS.keys()),
+            choices=list(settings.SUPPORTED_OPTIMIZERS.keys()),
             default=DEFAULTS['optimizer'],
             help=self._create_optimizer_help_text(),
             metavar='OPTIMIZER',
@@ -219,12 +175,17 @@ class QuantumPipelineArgParser:
             help='Set the logging level',
         )
 
+    def shots(self, shots):
+        if int(shots) <= 0:
+            raise argparse.ArgumentTypeError(f'shots:{shots} is not a valid number')
+        return shots
+
     def _add_backend_options(self):
         """Add advanced backend configuration options."""
         backend_group = self.parser.add_argument_group('Advanced Backend Options')
         backend_group.add_argument(
             '--shots',
-            type=int,
+            type=self.shots,
             default=DEFAULTS['shots'],
             help='Number of shots for quantum circuit execution',
         )
@@ -232,9 +193,15 @@ class QuantumPipelineArgParser:
             '--optimization-level',
             type=int,
             choices=[0, 1, 2, 3],
-            default=DEFAULTS['optimization_level'],
+            default=DEFAULTS['backend']['optimization_level'],
             help='Circuit optimization level',
         )
+
+    def dir_path(self, path):
+        if os.path.isfile(path):
+            return path
+        else:
+            raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
 
     def _add_additional_features(self):
         """Add additional feature arguments."""
@@ -247,10 +214,15 @@ class QuantumPipelineArgParser:
             action='store_true',
             help='Dump configuration generated by the parameters into JSON file',
         )
+        additional_group.add_argument(
+            '--load',
+            type=self.dir_path,
+            help='Path to a JSON configuration file to load parameters from',
+        )
 
     def kafka_params_set(self, args: argparse.Namespace):
         if (
-            args.host != DEFAULTS['kafka']['server']
+            args.servers != DEFAULTS['kafka']['servers']
             or args.topic != DEFAULTS['kafka']['topic']
             or args.retries != DEFAULTS['kafka']['retries']
             or args.internal_retries != DEFAULTS['kafka']['internal_retries']
@@ -262,6 +234,9 @@ class QuantumPipelineArgParser:
 
     def _validate_args(self, args: argparse.Namespace) -> None:
         """Validate parsed arguments."""
+        if args.dump and args.load:
+            self.parser.error('--dump and --load cannot be used together.')
+
         if args.min_qubits is not None and not args.ibm_quantum:
             self.parser.error('--min-qubits can only be used if --ibm-quantum is selected.')
 
@@ -275,48 +250,24 @@ class QuantumPipelineArgParser:
     def parse_args(self) -> argparse.Namespace:
         """Parse and validate command line arguments."""
         args = self.parser.parse_args()
+
+        if args.load:
+            try:
+                with open(args.load, 'r') as file:
+                    config = json.load(file)
+                for key, value in config.items():
+                    if hasattr(args, key):
+                        setattr(args, key, value)
+                self.logger.info(f'Loaded configuration from {args.load}')
+            except Exception as e:
+                self.logger.error(f'Failed to load configuration: {e}')
+                raise
+
         self._validate_args(args)
         return args
 
-    def create_backend_config(self, args: argparse.Namespace) -> BackendConfig:
-        """Create BackendConfig from parsed arguments."""
-        return BackendConfig(
-            local=args.local,
-            min_num_qubits=args.min_qubits,
-            filters=None,
-        )
-
-    def create_kafka_config(self, args: argparse.Namespace) -> ProducerConfig:
-        """Create ProducerConfig from parsed arguments"""
-        return ProducerConfig(
-            bootstrap_servers=args.host,
-            topic=args.topic,
-            retries=args.retries,
-            kafka_retries=args.internal_retries,
-            acks=args.acks,
-            timeout=args.timeout,
-        )
-
-    def get_simulation_kwargs(self, args: argparse.Namespace, dump=False) -> Dict[str, Any]:
-        """Convert parsed arguments dynamically into a dictionary."""
-        kwargs = {key: value for key, value in vars(args).items() if key != 'local'}
-
-        kwargs['kafka_config'] = self.create_kafka_config(args)
-        kwargs['backend_config'] = self.create_backend_config(args)
-
-        if args.dump:
-            file_name = Path(args.file).stem
-            basis_set = args.basis
-            optimizer = args.optimizer
-            backend_local = 'local' if args.local else 'api'
-            current_date = datetime.now().strftime('%Y%m%d')
-
-            file_path = (
-                f'config-{file_name}-{basis_set}-{optimizer}-{backend_local}-{current_date}.json'
-            )
-            with open(file_path, 'w') as file:
-                # TODO: fix this, so that configs are seriable
-                json.dump(kwargs, file, indent=4)
-            self.logger.info(f'Configuration saved to {file_path}')
-
-        return kwargs
+    def get_config(self) -> Dict[str, Any]:
+        """Get the configuration from the parsed arguments."""
+        config_manager = ConfigurationManager()
+        args = self.parser.parse_args()
+        return config_manager.get_config(args)

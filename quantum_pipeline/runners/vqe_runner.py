@@ -4,7 +4,7 @@ import numpy as np
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
 from qiskit_nature.second_q.mappers import JordanWignerMapper
 
-from quantum_pipeline.configs.argparser import BackendConfig
+from quantum_pipeline.configs.parsing.backend_config import BackendConfig
 from quantum_pipeline.drivers.basis_sets import validate_basis_set
 from quantum_pipeline.drivers.molecule_loader import load_molecule
 from quantum_pipeline.report.report_generator import ReportGenerator
@@ -47,6 +47,7 @@ class VQERunner(Runner):
         ansatz_reps=3,
         default_shots=1024,
         report=False,
+        optimization_level=3,
         kafka=False,
         kafka_bootstrap_servers='localhost:9092',
         kafka_topic='vqe_results',
@@ -64,6 +65,7 @@ class VQERunner(Runner):
         self.optimizer = optimizer
         self.default_shots = default_shots
         self.convergence_threshold = convergence_threshold
+        self.optimization_level = optimization_level
 
         self.report = report
         if self.report:
@@ -75,7 +77,7 @@ class VQERunner(Runner):
         elif self.kafka and kafka_config is None:
             try:
                 self.kafka_config = ProducerConfig(
-                    bootstrap_servers=kafka_bootstrap_servers,
+                    servers=kafka_bootstrap_servers,
                     topic=kafka_topic,
                     retries=kafka_retries,
                     kafka_retries=kafka_internal_retries,
@@ -88,6 +90,10 @@ class VQERunner(Runner):
                 )
 
         self.run_results = []
+
+    @staticmethod
+    def default_backend():
+        return BackendConfig.default_backend_config()
 
     def load_molecules(self):
         """Load molecule data and validate the basis set."""
@@ -102,7 +108,7 @@ class VQERunner(Runner):
         problem = driver.run()
         return problem.second_q_ops()[0]
 
-    def runVQE(self, molecule, max_iterations, backend_config: BackendConfig):
+    def runVQE(self, molecule, backend_config: BackendConfig):
         """Prepare and run the VQE algorithm."""
 
         self.logger.info('Generating hamiltonian based on the molecule...')
@@ -124,7 +130,8 @@ class VQERunner(Runner):
             result = VQESolver(
                 qubit_op=qubit_op,
                 backend_config=backend_config,
-                max_iterations=max_iterations,
+                max_iterations=self.max_iterations,
+                optimization_level=self.optimization_level,
                 optimizer=self.optimizer,
                 ansatz_reps=self.ansatz_reps,
                 default_shots=self.default_shots,
@@ -140,8 +147,8 @@ class VQERunner(Runner):
         self.molecules = self.load_molecules()
 
         for id, molecule in enumerate(self.molecules):
-            self.logger.info(f'Beginning to process molecule {id + 1}:\n\n{molecule}\n')
-            result = self.runVQE(molecule, self.max_iterations, backend_config)
+            self.logger.info(f'Processing molecule {id + 1}:\n\n{molecule}\n')
+            result = self.runVQE(molecule, backend_config)
 
             total_time = np.float64(self.hamiltonian_time + self.mapping_time + self.vqe_time)
             self.logger.info(f'Result provided in {total_time:.6f} seconds.')
