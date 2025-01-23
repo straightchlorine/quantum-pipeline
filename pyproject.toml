@@ -1,12 +1,143 @@
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[project]
+name = 'quantum-pipeline'
+description = 'Framework for running, monitoring and analysing quantum algorithms.'
+authors = [
+    {name = 'Piotr Krzysztof', email = 'piotrlis555@gmail.com'}
+]
+maintainers = [
+    {name = 'Piotr Krzysztof', email = 'piotrlis555@gmail.com'}
+]
+
+dynamic = ['version']
+requires-python = ">=3.10,<3.13"
+license = {text = "MIT"}
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Physics",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "qiskit>=1.0.0",
+    "qiskit-ibm-runtime>=0.20.0",
+    "qiskit-aer>=0.15.1"
+    "qiskit-nature>=0.7.0",
+    "rustworkx>=0.13.0",
+    "pyscf>=2.7.0",
+
+    "numpy>=1.22.0",
+    "scipy>=1.10.0",
+    "pandas>=2.0.0",
+    "matplotlib>=3.7.0",
+    "reportlab>=4.2.5",
+
+    "h5py>=3.8.0",
+    "sympy>=1.11.0",
+
+    "kafka-python @ git+https://github.com/dpkp/kafka-python.git@a6d0579d3cadd3826dd364b01bc12a2173139abc",
+    "avro>=1.12.0"
+
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "debugpy",
+    "ipython",
+    "ipdb",
+
+    "pytest>=7.3.0",
+    "pytest-cov",
+    "pytest-mock",
+    "hypothesis",
+
+    "mypy",
+    "types-all",
+
+    "ruff",
+    "black",
+    "isort",
+
+    "py-spy",
+    "memory-profiler",
+    "line-profiler",
+
+    "jupyter",
+    "notebook",
+    "jupyterlab",
+    "ipykernel",
+
+    "sphinx",
+    "pdoc3",
+
+    "bandit",
+    "safety"
+]
+
+[project.urls]
+Homepage = "https://github.com/straightchlorine/quantum-pipeline"
+
 [tool.ruff]
 line-length = 99
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "ASYNC", "S", "C4"]
+ignore = ["E501"]
 
 [tool.ruff.format]
 quote-style = "single"
 indent-style = "space"
 docstring-code-format = true
 
+[tool.black]
+line-length = 99
+target-version = ['py310']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
-pythonpath = [
-  "."
+minversion = "7.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests"
 ]
+pythonpath = [
+    "."
+]
+
+[tool.coverage.run]
+source = ["quantum_pipeline"]
+omit = ["tests/*"]
+
+[project.scripts]
+quantum-pipeline = "quantum_pipeline.cli:main"
