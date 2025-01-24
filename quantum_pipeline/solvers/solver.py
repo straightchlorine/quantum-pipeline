@@ -1,10 +1,12 @@
+import logging
 import os
+import sys
 
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import QiskitRuntimeService
 
 from quantum_pipeline.configs.parsing.backend_config import BackendConfig
-from quantum_pipeline.configs.settings import SUPPORTED_OPTIMIZERS
+from quantum_pipeline.configs.settings import LOG_LEVEL, SUPPORTED_OPTIMIZERS
 from quantum_pipeline.utils.logger import get_logger
 
 
@@ -35,9 +37,11 @@ class Solver:
         token = os.getenv('IBM_RUNTIME_TOKEN')
 
         if not channel or not instance or not token:
+            self.logger.error('IBM Quantum credentials not found.')
             raise RuntimeError('IBM Quantum credentials not found')
 
         if channel not in {'ibm_quantum', 'ibm_cloud', 'local'}:
+            self.logger.error('Invalid IBM Quantum channel.')
             raise RuntimeError('Invalid IBM Quantum channel')
 
         return channel, instance, token
@@ -65,9 +69,11 @@ class Solver:
 
             return service
 
-        except Exception as e:
-            self.logger.error(f'Failed to connect to IBM Quantum: {str(e)}')
-            raise RuntimeError('IBM Quantum connection failed.') from e
+        except Exception:
+            if LOG_LEVEL == logging.DEBUG:
+                raise RuntimeError('IBM Quantum connection failed.')
+            else:
+                sys.exit(1)
 
     def get_backend(self):
         if not self.backend_config:
@@ -78,9 +84,10 @@ class Solver:
             backend = AerSimulator()
             self.logger.info('Aer simulator backend initialized.')
         else:
-            service = self._get_service()
-            config = self.backend_config.to_dict()
             try:
+                service = self._get_service()
+                config = self.backend_config.to_dict()
+
                 if config:
                     self.logger.info(f'Waiting for backend fitting the requirements: {config}...')
                     backend = service.least_busy(operational=True, **config)
@@ -88,8 +95,8 @@ class Solver:
                     self.logger.info('Waiting for a least busy backend...')
                     backend = service.least_busy(operational=True)
             except Exception as e:
-                self.logger.error(f'Failed to get backend: {str(e)}')
-                raise RuntimeError('Backend retrieval failed.') from e
+                self.logger.error(f'Failed to get backend:\n\n{self.backend_config.to_dict()}\n')
+                raise RuntimeError('Backend retrieval failed.')
 
             self.logger.info(f'Backend {backend.name} acquired.')
         return backend

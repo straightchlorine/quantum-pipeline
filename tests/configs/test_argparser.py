@@ -37,7 +37,7 @@ def test_ansatz_reps_argument(argparser):
 def test_local_backend_flag(argparser):
     """Test the --local flag for using a local backend."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--local'])
-    assert args.local is True
+    assert args.ibm is False
 
 
 def test_kafka_arguments(argparser):

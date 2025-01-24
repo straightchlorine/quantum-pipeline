@@ -6,9 +6,7 @@ from typing import Any, Dict
 
 from quantum_pipeline.configs import settings
 from quantum_pipeline.configs.defaults import DEFAULTS
-from quantum_pipeline.configs.parsing.backend_config import BackendConfig
 from quantum_pipeline.configs.parsing.configuration_manager import ConfigurationManager
-from quantum_pipeline.stream.kafka_interface import ProducerConfig
 from quantum_pipeline.utils.dir import ensureDirExists
 from quantum_pipeline.utils.logger import get_logger
 
@@ -71,10 +69,10 @@ class QuantumPipelineArgParser:
             help='Amount of reps for the ansatz',
         )
         sim_group.add_argument(
-            '--local',
-            action='store_true',
+            '--ibm',
+            action='store_false',
             default=DEFAULTS['backend']['local'],
-            help='Using local backend for simulation (otherwise IBM Quantum is used.)',
+            help='Using IBM Quantum backend for simulation (otherwise local Aer simulator is used.)',
         )
         sim_group.add_argument(
             '--min-qubits',
@@ -234,6 +232,8 @@ class QuantumPipelineArgParser:
 
     def _validate_args(self, args: argparse.Namespace) -> None:
         """Validate parsed arguments."""
+        settings.LOG_LEVEL = getattr(logging, args.log_level)
+
         if args.dump and args.load:
             self.parser.error('--dump and --load cannot be used together.')
 
@@ -245,7 +245,6 @@ class QuantumPipelineArgParser:
 
         if self.kafka_params_set(args) and not args.kafka:
             self.parser.error('--kafka must be set for the options to take effect.')
-        settings.LOG_LEVEL = getattr(logging, args.log_level)
 
     def parse_args(self) -> argparse.Namespace:
         """Parse and validate command line arguments."""
@@ -253,7 +252,7 @@ class QuantumPipelineArgParser:
 
         if args.load:
             try:
-                with open(args.load, 'r') as file:
+                with open(args.load) as file:
                     config = json.load(file)
                 for key, value in config.items():
                     if hasattr(args, key):
@@ -269,5 +268,5 @@ class QuantumPipelineArgParser:
     def get_config(self) -> Dict[str, Any]:
         """Get the configuration from the parsed arguments."""
         config_manager = ConfigurationManager()
-        args = self.parser.parse_args()
+        args = self.parse_args()
         return config_manager.get_config(args)

@@ -35,7 +35,7 @@ class ConfigurationManager:
         """Create Backend configuration from arguments."""
         return BackendConfig.from_dict(
             {
-                'local': args.local,
+                'local': args.ibm,
                 'min_num_qubits': args.min_qubits,
                 'optimization_level': args.optimization_level,
                 'filters': None,
@@ -64,7 +64,7 @@ class ConfigurationManager:
         file_name = Path(args.file).stem
         basis_set = args.basis
         optimizer = args.optimizer
-        backend_local = 'local' if args.local else 'api'
+        backend_local = 'api' if args.ibm else 'local'
         current_date = datetime.now().strftime('%Y%m%d')
 
         file_path = f'{file_name}-{basis_set}-{optimizer}-{backend_local}-{current_date}.json'
