@@ -3,6 +3,7 @@ from unittest.mock import mock_open, patch
 import pytest
 
 from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
+from quantum_pipeline.configs.parsing.configuration_manager import ConfigurationManager
 
 
 @pytest.fixture
@@ -36,7 +37,7 @@ def test_ansatz_reps_argument(argparser):
 
 def test_local_backend_flag(argparser):
     """Test the --local flag for using a local backend."""
-    args = argparser.parser.parse_args(['--file', 'molecule.json', '--local'])
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--ibm'])
     assert args.ibm is False
 
 
@@ -47,7 +48,7 @@ def test_kafka_arguments(argparser):
             '--file',
             'molecule.json',
             '--kafka',
-            '--host',
+            '--servers',
             'localhost',
             '--topic',
             'quantum',
@@ -62,7 +63,7 @@ def test_kafka_arguments(argparser):
         ]
     )
     assert args.kafka is True
-    assert args.host == 'localhost'
+    assert args.servers == 'localhost'
     assert args.topic == 'quantum'
     assert args.retries == '5'
     assert args.internal_retries == 3
@@ -125,18 +126,26 @@ def test_shots_argument(argparser, args, expected):
 def test_dump_configuration(mock_file, argparser):
     """Test that configuration is correctly dumped to a JSON file."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--dump'])
-    argparser.get_config(args)
-    path = argparser.config_manager.config_path
+    cfg_manager = ConfigurationManager()
+    cfg_manager.get_config(args)
+    path = cfg_manager.config_path
     mock_file.assert_called_once_with(path, 'w')
 
 
 def test_load_configuration(argparser):
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--dump'])
-    dump_config = argparser.get_config(args)
-    path = argparser.config_manager.config_path
+    cfg_manager = ConfigurationManager()
+    dump_config = cfg_manager.get_config(args)
 
-    args = argparser.parser.parse_args(['--file', 'molecule.json', '--load', path.as_posix()])
-    load_config = argparser.get_config(args)
+    args = argparser.parser.parse_args(
+        [
+            '--file',
+            'molecule.json',
+            '--load',
+            cfg_manager.config_path.as_posix(),
+        ]
+    )
+    load_config = cfg_manager.get_config(args)
 
     # ensure the dump and load configurations are the same
     dump_config['dump'], load_config['dump'] = None, None
