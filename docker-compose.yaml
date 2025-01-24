@@ -1,12 +1,12 @@
 services:
-  data-generator:
-    container_name: quantum-circiut-runner
+  quantum-pipeline:
+    container_name: quantum-pipeline
     build:
       context: .
       dockerfile: Dockerfile
     restart: always
     volumes:
-      - ./gen/:/usr/src/quantum-data-generator/gen/
+      - ./gen/:/usr/src/quantum-pipeline/gen/
     environment:
       IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
       IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}

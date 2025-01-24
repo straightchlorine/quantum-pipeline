@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
 from quantum_pipeline.runners.vqe_runner import VQERunner
 from quantum_pipeline.utils.logger import get_logger
@@ -14,6 +15,9 @@ def execute_simulation(**kwargs):
         threshold = kwargs['threshold']
         logger.info(f'Applying convergence threshold {threshold} during minimization')
 
+    if os.getenv('KAFKA_SERVERS', None):
+        kwargs['kafka_config'].servers = os.getenv('KAFKA_SERVERS')
+
     runner = VQERunner(
         filepath=kwargs['file'],
         basis_set=kwargs['basis'],
@@ -25,8 +29,9 @@ def execute_simulation(**kwargs):
         report=kwargs['report'],
         kafka=kwargs['kafka'],
         kafka_config=kwargs['kafka_config'] if kwargs['kafka'] else None,
+        backend_config=kwargs['backend_config'],
     )
-    runner.run(kwargs['backend_config'])
+    runner.run()
 
 
 if __name__ == '__main__':

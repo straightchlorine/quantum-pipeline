@@ -47,7 +47,6 @@ class VQERunner(Runner):
         ansatz_reps=3,
         default_shots=1024,
         report=False,
-        optimization_level=3,
         kafka=False,
         kafka_bootstrap_servers='localhost:9092',
         kafka_topic='vqe_results',
@@ -56,6 +55,11 @@ class VQERunner(Runner):
         kafka_acks='all',
         kafka_timeout=10,
         kafka_config: ProducerConfig | None = None,
+        backend_type='local',
+        backend_optimization_level=3,
+        backend_min_num_qubits=None,
+        filters=None,
+        backend_config: BackendConfig | None = None,
     ):
         super().__init__()
         self.filepath = filepath
@@ -65,7 +69,7 @@ class VQERunner(Runner):
         self.optimizer = optimizer
         self.default_shots = default_shots
         self.convergence_threshold = convergence_threshold
-        self.optimization_level = optimization_level
+        self.optimization_level = backend_optimization_level
 
         self.report = report
         if self.report:
@@ -87,6 +91,36 @@ class VQERunner(Runner):
             except Exception as e:
                 self.logger.error(
                     f'Unable to create ProducerConfig, ensure required parameters are passed to the VQERunner instance: {e}'
+                )
+
+        def isAnyBackendOptionSet():
+            return (
+                backend_type is not None
+                or backend_optimization_level is not None
+                or backend_min_num_qubits is not None
+                or filters is not None
+            )
+
+        if backend_config is not None:
+            self.backend_config = backend_config
+        elif backend_config is None and isAnyBackendOptionSet():
+            try:
+                self.backend_config = BackendConfig(
+                    local=True if backend_type == 'local' else False,
+                    optimization_level=backend_optimization_level,
+                    min_num_qubits=backend_min_num_qubits,
+                    filters=filters,
+                )
+            except Exception as e:
+                self.logger.error(
+                    f'Unable to create BackendConfig, ensure required parameters are passed to the VQERunner instance: {e}'
+                )
+        else:
+            try:
+                self.backend_config = BackendConfig.default_backend_config()
+            except Exception as e:
+                self.logger.error(
+                    f'Unable to create default backend_config, ensure required parameters are passed to the VQERunner instance: {e}'
                 )
 
         self.run_results = []
@@ -143,12 +177,12 @@ class VQERunner(Runner):
 
         return result
 
-    def run(self, backend_config: BackendConfig):
+    def run(self):
         self.molecules = self.load_molecules()
 
         for id, molecule in enumerate(self.molecules):
             self.logger.info(f'Processing molecule {id + 1}:\n\n{molecule}\n')
-            result = self.runVQE(molecule, backend_config)
+            result = self.runVQE(molecule, self.backend_config)
 
             total_time = np.float64(self.hamiltonian_time + self.mapping_time + self.vqe_time)
             self.logger.info(f'Result provided in {total_time:.6f} seconds.')
