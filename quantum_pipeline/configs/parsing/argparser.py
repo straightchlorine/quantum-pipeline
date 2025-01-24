@@ -1,5 +1,4 @@
 import argparse
-import json
 import logging
 import os
 from typing import Any, Dict
@@ -249,19 +248,6 @@ class QuantumPipelineArgParser:
     def parse_args(self) -> argparse.Namespace:
         """Parse and validate command line arguments."""
         args = self.parser.parse_args()
-
-        if args.load:
-            try:
-                with open(args.load) as file:
-                    config = json.load(file)
-                for key, value in config.items():
-                    if hasattr(args, key):
-                        setattr(args, key, value)
-                self.logger.info(f'Loaded configuration from {args.load}')
-            except Exception as e:
-                self.logger.error(f'Failed to load configuration: {e}')
-                raise
-
         self._validate_args(args)
         return args
 
