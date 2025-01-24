@@ -86,11 +86,11 @@ class Solver:
         else:
             try:
                 service = self._get_service()
-                config = self.backend_config.to_dict()
+                config = self.backend_config
 
-                if config:
+                if config.min_num_qubits is not None and config.filters is not None:
                     self.logger.info(f'Waiting for backend fitting the requirements: {config}...')
-                    backend = service.least_busy(operational=True, **config)
+                    backend = service.least_busy(operational=True, **config.to_dict())
                 else:
                     self.logger.info('Waiting for a least busy backend...')
                     backend = service.least_busy(operational=True)
