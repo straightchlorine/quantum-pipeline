@@ -6,9 +6,7 @@ RUN apt-get update \
       && apt-get install -y git \
       && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
+COPY . .
 RUN pip install --no-cache-dir .
 
-COPY . .
-
-CMD [ "python", "quantum_pipeline.py", "-f", "data/molecules.json", "--max-iterations", "1", "--kafka" ]
+CMD [ "python", "quantum_pipeline.py", "-f", "data/molecules.json", "--max-iterations", "100", "--kafka" ]
