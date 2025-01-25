@@ -37,7 +37,7 @@ class Timer:
 class VQERunner(Runner):
     """Class to handle the ground energy finding process."""
 
-    def __init__(
+    def __init__(  # noqa: C901
         self,
         filepath,
         basis_set='sto3g',
@@ -120,7 +120,10 @@ class VQERunner(Runner):
                 self.backend_config = BackendConfig.default_backend_config()
             except Exception as e:
                 self.logger.error(
-                    f'Unable to create default backend_config, ensure required parameters are passed to the VQERunner instance: {e}'
+                    (
+                        'Unable to create default backend_config. '
+                        + f'ensure required parameters are passed to the VQERunner instance: {e}'
+                    )
                 )
 
         self.run_results = []

@@ -4,10 +4,10 @@ ansatz.py
 This module visualizes the ansatz circuit used in quantum algorithms.
 """
 
-import matplotlib.pyplot as plt
 from qiskit.visualization import circuit_drawer
+
 from quantum_pipeline.configs import settings
-from quantum_pipeline.utils.dir import getGraphPath, savePlot
+from quantum_pipeline.utils.dir import getGraphPath
 from quantum_pipeline.utils.logger import get_logger
 
 

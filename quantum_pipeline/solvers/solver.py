@@ -94,7 +94,7 @@ class Solver:
                 else:
                     self.logger.info('Waiting for a least busy backend...')
                     backend = service.least_busy(operational=True)
-            except Exception as e:
+            except Exception:
                 self.logger.error(f'Failed to get backend:\n\n{self.backend_config.to_dict()}\n')
                 raise RuntimeError('Backend retrieval failed.')
 

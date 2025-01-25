@@ -1,14 +1,13 @@
 from abc import ABC, abstractmethod
 import io
 import json
-from typing import Any, Dict, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 import avro.schema
 import numpy as np
 from numpy import float32, float64, int32, int64, ndarray
-from qiskit.circuit import QuantumCircuit
-from qiskit.qasm3 import dumps, load, loads
+from qiskit.qasm3 import dumps, loads
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 from qiskit_nature.units import DistanceUnit
 
@@ -30,15 +29,15 @@ class AvroInterfaceBase(ABC, Generic[T]):
 
     @property
     @abstractmethod
-    def schema(self) -> Dict[str, Any]:
+    def schema(self) -> dict[str, Any]:
         """Return Avro schema for the type."""
 
     @abstractmethod
-    def serialize(self, obj: T) -> Dict[str, Any]:
+    def serialize(self, obj: T) -> dict[str, Any]:
         """Convert object to Avro-compatible dictionary."""
 
     @abstractmethod
-    def deserialize(self, data: Dict[str, Any]) -> T:
+    def deserialize(self, data: dict[str, Any]) -> T:
         """Convert Avro-compatible dictionary to object."""
 
     def _is_numpy_int(self, obj: Any) -> bool:
@@ -92,10 +91,10 @@ class AvroInterfaceBase(ABC, Generic[T]):
 
 class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
     @property
-    def schema(self) -> Dict[str, Any]:
+    def schema(self) -> dict[str, Any]:
         return registry.get_schema('vqe_process')
 
-    def serialize(self, obj: VQEProcess) -> Dict[str, Any]:
+    def serialize(self, obj: VQEProcess) -> dict[str, Any]:
         return {
             'iteration': obj.iteration,
             'parameters': self._convert_to_primitives(obj.parameters),
@@ -103,7 +102,7 @@ class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
             'std': float(obj.std),
         }
 
-    def deserialize(self, data: Dict[str, Any]) -> VQEProcess:
+    def deserialize(self, data: dict[str, Any]) -> VQEProcess:
         return VQEProcess(
             iteration=data['iteration'],
             parameters=self._convert_to_numpy(data['parameters']),
@@ -114,7 +113,7 @@ class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
 
 class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
     @property
-    def schema(self) -> Dict[str, Any]:
+    def schema(self) -> dict[str, Any]:
         return registry.get_schema('vqe_initial')
 
     def _serialize_hamiltonian(self, data: ndarray):
@@ -141,7 +140,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
             ]
         )
 
-    def serialize(self, obj: VQEInitialData) -> Dict[str, Any]:
+    def serialize(self, obj: VQEInitialData) -> dict[str, Any]:
         return {
             'backend': obj.backend,
             'num_qubits': obj.num_qubits,
@@ -153,7 +152,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
             'ansatz_reps': obj.ansatz_reps,
         }
 
-    def deserialize(self, data: Dict[str, Any]) -> VQEInitialData:
+    def deserialize(self, data: dict[str, Any]) -> VQEInitialData:
         return VQEInitialData(
             backend=data['backend'],
             num_qubits=data['num_qubits'],
@@ -172,7 +171,7 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
         self.process_interface = VQEProcessInterface()
 
     @property
-    def schema(self) -> Dict[str, Any]:
+    def schema(self) -> dict[str, Any]:
         return {
             'type': 'record',
             'name': 'VQEResult',
@@ -188,7 +187,7 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
             ],
         }
 
-    def serialize(self, obj: VQEResult) -> Dict[str, Any]:
+    def serialize(self, obj: VQEResult) -> dict[str, Any]:
         return {
             'initial_data': self.initial_data_interface.serialize(obj.initial_data),
             'iteration_list': [self.process_interface.serialize(p) for p in obj.iteration_list],
@@ -197,7 +196,7 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
             'maxcv': float(obj.maxcv),
         }
 
-    def deserialize(self, data: Dict[str, Any]) -> VQEResult:
+    def deserialize(self, data: dict[str, Any]) -> VQEResult:
         return VQEResult(
             initial_data=self.initial_data_interface.deserialize(data['initial_data']),
             iteration_list=[self.process_interface.deserialize(p) for p in data['iteration_list']],
@@ -209,10 +208,10 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
 
 class MoleculeInfoInterface(AvroInterfaceBase[MoleculeInfo]):
     @property
-    def schema(self) -> Dict[str, Any]:
+    def schema(self) -> dict[str, Any]:
         return registry.get_schema('vqe_molecule')
 
-    def serialize(self, obj: MoleculeInfo) -> Dict[str, Any]:
+    def serialize(self, obj: MoleculeInfo) -> dict[str, Any]:
         return {
             'molecule_data': {
                 'symbols': self._convert_to_primitives(obj.symbols),
@@ -224,7 +223,7 @@ class MoleculeInfoInterface(AvroInterfaceBase[MoleculeInfo]):
             }
         }
 
-    def deserialize(self, data: Dict[str, Any]) -> MoleculeInfo:
+    def deserialize(self, data: dict[str, Any]) -> MoleculeInfo:
         mol = data['molecule_data']
 
         # coordinates to nested list if they're flattened
@@ -253,7 +252,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
         self.molecule_interface = MoleculeInfoInterface()
 
     @property
-    def schema(self) -> Dict[str, Any]:
+    def schema(self) -> dict[str, Any]:
         return {
             'type': 'record',
             'name': 'VQEDecoratedResult',
@@ -269,7 +268,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
             ],
         }
 
-    def serialize(self, obj: VQEDecoratedResult) -> Dict[str, Any]:
+    def serialize(self, obj: VQEDecoratedResult) -> dict[str, Any]:
         return {
             'vqe_result': self.result_interface.serialize(obj.vqe_result),
             'molecule': self.molecule_interface.serialize(obj.molecule),
@@ -281,7 +280,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
             'id': int(obj.id),
         }
 
-    def deserialize(self, data: Dict[str, Any]) -> VQEDecoratedResult:
+    def deserialize(self, data: dict[str, Any]) -> VQEDecoratedResult:
         return VQEDecoratedResult(
             vqe_result=self.result_interface.deserialize(data['vqe_result']),
             molecule=self.molecule_interface.deserialize(data['molecule']),
