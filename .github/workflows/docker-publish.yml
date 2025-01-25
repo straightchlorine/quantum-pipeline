@@ -17,6 +17,8 @@ jobs:
       contents: read
       packages: write
       id-token: write
+    environment:
+      name: docker
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -1,6 +1,6 @@
 FROM python:3.12-slim-bullseye
 
-WORKDIR /usr/src/quantum-data-generator
+WORKDIR /usr/src/quantum_pipeline
 
 RUN apt-get update \
       && apt-get install -y git \

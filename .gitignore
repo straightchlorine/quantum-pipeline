@@ -1,6 +1,9 @@
 # ignore directory with generated configs
 run_configs
 
+# ignore pdm-python
+.pdm-python
+
 # ignore generated pdfs
 *.pdf
 
