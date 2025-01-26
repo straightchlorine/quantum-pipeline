@@ -173,8 +173,7 @@ runner.run(backend)
 
 Run the pipeline in a Docker container:
 ```bash
-docker run -v $(pwd)/data:/app/data quantum_pipeline:latest \
-    python quantum_pipeline.py --file /app/data/molecule.json --basis sto-3g
+docker run --rm quantum_pipeline:latest --file /app/data/molecule.json --basis sto-3g --max-iterations 10
 ```
 
 ### Example KafkaConsumer

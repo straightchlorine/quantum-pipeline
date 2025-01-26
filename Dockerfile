@@ -9,4 +9,4 @@ RUN apt-get update \
 COPY . .
 RUN pip install --no-cache-dir .
 
-CMD [ "python", "quantum_pipeline.py", "-f", "data/molecules.json", "--max-iterations", "100" ]
+ENTRYPOINT [ "python", "quantum_pipeline.py" ]
