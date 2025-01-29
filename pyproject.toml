@@ -12,7 +12,7 @@ maintainers = [
     {name = 'Piotr Krzysztof', email = 'piotrlis555@gmail.com'}
 ]
 
-version = "1.0.4"
+version = "1.0.5"
 requires-python = ">=3.10,<3.13"
 license = {text = "MIT"}
 readme = "README.md"

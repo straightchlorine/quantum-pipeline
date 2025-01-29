@@ -1,0 +1,133 @@
+{
+    "type": "record",
+    "name": "VQEResult",
+    "fields": [
+        {
+            "name": "initial_data",
+            "type": {
+                "type": "record",
+                "name": "VQEInitialData",
+                "fields": [
+                    {
+                        "name": "backend",
+                        "type": "string"
+                    },
+                    {
+                        "name": "num_qubits",
+                        "type": "int"
+                    },
+                    {
+                        "name": "hamiltonian",
+                        "type": {
+                            "type": "array",
+                            "items": {
+                                "type": "record",
+                                "name": "HamiltonianTerm",
+                                "fields": [
+                                    {
+                                        "name": "label",
+                                        "type": "string"
+                                    },
+                                    {
+                                        "name": "coefficients",
+                                        "type": {
+                                            "type": "record",
+                                            "name": "ComplexNumber",
+                                            "fields": [
+                                                {
+                                                    "name": "real",
+                                                    "type": "double"
+                                                },
+                                                {
+                                                    "name": "imaginary",
+                                                    "type": "double"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "name": "num_parameters",
+                        "type": "int"
+                    },
+                    {
+                        "name": "initial_parameters",
+                        "type": {
+                            "type": "array",
+                            "items": "double"
+                        }
+                    },
+                    {
+                        "name": "optimizer",
+                        "type": "string"
+                    },
+                    {
+                        "name": "ansatz",
+                        "type": "string"
+                    },
+                    {
+                        "name": "noise_backend",
+                        "type": "string"
+                    },
+                    {
+                        "name": "default_shots",
+                        "type": "int"
+                    },
+                    {
+                        "name": "ansatz_reps",
+                        "type": "int"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "iteration_list",
+            "type": {
+                "type": "array",
+                "items": {
+                    "type": "record",
+                    "name": "VQEProcess",
+                    "fields": [
+                        {
+                            "name": "iteration",
+                            "type": "int"
+                        },
+                        {
+                            "name": "parameters",
+                            "type": {
+                                "type": "array",
+                                "items": "double"
+                            }
+                        },
+                        {
+                            "name": "result",
+                            "type": "double"
+                        },
+                        {
+                            "name": "std",
+                            "type": "double"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "minimum",
+            "type": "double"
+        },
+        {
+            "name": "optimal_parameters",
+            "type": {
+                "type": "array",
+                "items": "double"
+            }
+        },
+        {
+            "name": "maxcv",
+            "type": "double"
+        }
+    ]
+}

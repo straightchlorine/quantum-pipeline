@@ -29,6 +29,24 @@ def test_basis_argument(argparser):
     assert args.basis == 'sto-3g'
 
 
+def test_gpu_argument(argparser):
+    """Test the gpu enable argument."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--gpu'])
+    assert args.gpu == True
+
+
+def test_noise_argument(argparser):
+    """Test the noise enable argument."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--noise', 'ibm_brisbane'])
+    assert args.noise == 'ibm_brisbane'
+
+
+def test_noise_disable_argument(argparser):
+    """Test the noise enable argument."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json'])
+    assert args.noise == None
+
+
 def test_ansatz_reps_argument(argparser):
     """Test the ansatz reps argument."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--ansatz-reps', '3'])

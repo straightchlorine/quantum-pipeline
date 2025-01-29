@@ -3,9 +3,10 @@ from copy import deepcopy
 from datetime import datetime
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from quantum_pipeline.configs import settings
+from quantum_pipeline.configs.defaults import DEFAULTS
 from quantum_pipeline.configs.parsing.backend_config import BackendConfig
 from quantum_pipeline.configs.parsing.producer_config import ProducerConfig
 from quantum_pipeline.utils.logger import get_logger
@@ -39,10 +40,13 @@ class ConfigurationManager:
                 'min_num_qubits': args.min_qubits,
                 'optimization_level': args.optimization_level,
                 'filters': None,
+                'gpu': args.gpu,
+                'gpu_opts': DEFAULTS['backend']['gpu_opts'],
+                'simulation_method': args.simulation_method,
             }
         )
 
-    def dump(self, args: argparse.Namespace, config: Dict[str, Any]):
+    def dump(self, args: argparse.Namespace, config: dict[str, Any]):
         """Dump the configurations for debugging or logging."""
 
         self.logger.debug('Dumping configuration into the file...')
@@ -81,11 +85,11 @@ class ConfigurationManager:
         self.logger.debug(f'Arguments:\n\n{vars(args)}\n')
         self.logger.debug(f'Configurations:\n\n{config_dict}\n')
 
-    def load(self, file_path: str) -> Dict[str, Any]:
+    def load(self, file_path: str) -> dict[str, Any]:
         """Load the configurations from a JSON file."""
         try:
             self.logger.debug(f'Loading configuration from:\n\n{file_path}\n')
-            with open(file_path, 'r') as file:
+            with open(file_path) as file:
                 config_dict = json.load(file)
 
             # reconstruct config objects
@@ -107,7 +111,7 @@ class ConfigurationManager:
             self.logger.error(f'Failed to parse JSON configuration: {e}')
             raise
 
-    def get_config(self, args: argparse.Namespace) -> Dict[str, Any]:
+    def get_config(self, args: argparse.Namespace) -> dict[str, Any]:
         """Convert parsed arguments dynamically into a dictionary."""
 
         if args.load:

@@ -32,6 +32,8 @@
         {"name": "initial_parameters", "type": {"type": "array", "items": "double"}},
         {"name": "optimizer", "type": "string"},
         {"name": "ansatz", "type": "string"},
+        {"name": "noise_backend", "type": "string"},
+        {"name": "default_shots", "type": "int"},
         {"name": "ansatz_reps", "type": "int"}
     ]
 }

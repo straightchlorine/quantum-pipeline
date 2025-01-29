@@ -14,9 +14,11 @@ class VQEInitialData:
     hamiltonian: np.ndarray
     num_parameters: int
     initial_parameters: np.ndarray
+    noise_backend: str
     optimizer: str
     ansatz: QuantumCircuit
     ansatz_reps: int
+    default_shots: int
 
 
 @dataclass

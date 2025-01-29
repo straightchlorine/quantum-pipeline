@@ -114,6 +114,8 @@ class VQESolver(Solver):
             optimizer=self.optimizer,
             ansatz=ansatz_isa,
             ansatz_reps=self.ansatz_reps,
+            noise_backend=self.backend_config.noise if self.backend_config.noise else 'undef',
+            default_shots=self.default_shots,
         )
         self.logger.info('Opening a session...')
 
@@ -160,7 +162,7 @@ class VQESolver(Solver):
 
         param_num = ansatz.num_parameters
         x0 = 2 * np.pi * np.random.random(param_num)
-        self.logger.debug('Initial ansatz parameters:\n\n{}\n'.format(x0))
+        self.logger.debug(f'Initial ansatz parameters:\n\n{x0}\n')
 
         self.logger.info('Optimizing ansatz and hamiltonian...')
         ansatz_isa, hamiltonian_isa = self._optimize_circuits(ansatz, hamiltonian, backend)
@@ -175,6 +177,8 @@ class VQESolver(Solver):
             optimizer=self.optimizer,
             ansatz=ansatz_isa,
             ansatz_reps=self.ansatz_reps,
+            noise_backend=self.backend_config.noise if self.backend_config.noise else 'undef',
+            default_shots=self.default_shots,
         )
 
         estimator = EstimatorV2(mode=backend)
@@ -186,7 +190,7 @@ class VQESolver(Solver):
         }
 
         self.logger.info(
-            'Starting the minimization process with max iterations: {}'.format(self.max_iterations)
+            f'Starting the minimization process with max iterations {self.max_iterations}:'
         )
         res = minimize(
             self.computeEnergy,

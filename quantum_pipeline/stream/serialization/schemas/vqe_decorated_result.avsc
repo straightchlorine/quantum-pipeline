@@ -1,0 +1,225 @@
+{
+    "type": "record",
+    "name": "VQEDecoratedResult",
+    "fields": [
+        {
+            "name": "vqe_result",
+            "type": {
+                "type": "record",
+                "name": "VQEResult",
+                "fields": [
+                    {
+                        "name": "initial_data",
+                        "type": {
+                            "type": "record",
+                            "name": "VQEInitialData",
+                            "fields": [
+                                {
+                                    "name": "backend",
+                                    "type": "string"
+                                },
+                                {
+                                    "name": "num_qubits",
+                                    "type": "int"
+                                },
+                                {
+                                    "name": "hamiltonian",
+                                    "type": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "record",
+                                            "name": "HamiltonianTerm",
+                                            "fields": [
+                                                {
+                                                    "name": "label",
+                                                    "type": "string"
+                                                },
+                                                {
+                                                    "name": "coefficients",
+                                                    "type": {
+                                                        "type": "record",
+                                                        "name": "ComplexNumber",
+                                                        "fields": [
+                                                            {
+                                                                "name": "real",
+                                                                "type": "double"
+                                                            },
+                                                            {
+                                                                "name": "imaginary",
+                                                                "type": "double"
+                                                            }
+                                                        ]
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "num_parameters",
+                                    "type": "int"
+                                },
+                                {
+                                    "name": "initial_parameters",
+                                    "type": {
+                                        "type": "array",
+                                        "items": "double"
+                                    }
+                                },
+                                {
+                                    "name": "optimizer",
+                                    "type": "string"
+                                },
+                                {
+                                    "name": "ansatz",
+                                    "type": "string"
+                                },
+                                {
+                                    "name": "noise_backend",
+                                    "type": "string"
+                                },
+                                {
+                                    "name": "default_shots",
+                                    "type": "int"
+                                },
+                                {
+                                    "name": "ansatz_reps",
+                                    "type": "int"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "name": "iteration_list",
+                        "type": {
+                            "type": "array",
+                            "items": {
+                                "type": "record",
+                                "name": "VQEProcess",
+                                "fields": [
+                                    {
+                                        "name": "iteration",
+                                        "type": "int"
+                                    },
+                                    {
+                                        "name": "parameters",
+                                        "type": {
+                                            "type": "array",
+                                            "items": "double"
+                                        }
+                                    },
+                                    {
+                                        "name": "result",
+                                        "type": "double"
+                                    },
+                                    {
+                                        "name": "std",
+                                        "type": "double"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "name": "minimum",
+                        "type": "double"
+                    },
+                    {
+                        "name": "optimal_parameters",
+                        "type": {
+                            "type": "array",
+                            "items": "double"
+                        }
+                    },
+                    {
+                        "name": "maxcv",
+                        "type": "double"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "molecule",
+            "type": {
+                "type": "record",
+                "name": "MoleculeInfo",
+                "namespace": "quantum_pipeline",
+                "fields": [
+                    {
+                        "name": "molecule_data",
+                        "type": {
+                            "type": "record",
+                            "name": "MoleculeData",
+                            "fields": [
+                                {
+                                    "name": "symbols",
+                                    "type": {
+                                        "type": "array",
+                                        "items": "string"
+                                    }
+                                },
+                                {
+                                    "name": "coords",
+                                    "type": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "array",
+                                            "items": "double"
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "multiplicity",
+                                    "type": "int"
+                                },
+                                {
+                                    "name": "charge",
+                                    "type": "int"
+                                },
+                                {
+                                    "name": "units",
+                                    "type": "string"
+                                },
+                                {
+                                    "name": "masses",
+                                    "type": [
+                                        "null",
+                                        {
+                                            "type": "array",
+                                            "items": "double"
+                                        }
+                                    ],
+                                    "default": null
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "basis_set",
+            "type": "string"
+        },
+        {
+            "name": "hamiltonian_time",
+            "type": "double"
+        },
+        {
+            "name": "mapping_time",
+            "type": "double"
+        },
+        {
+            "name": "vqe_time",
+            "type": "double"
+        },
+        {
+            "name": "total_time",
+            "type": "double"
+        },
+        {
+            "name": "id",
+            "type": "int"
+        }
+    ]
+}

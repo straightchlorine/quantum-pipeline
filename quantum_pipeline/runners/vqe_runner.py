@@ -58,8 +58,12 @@ class VQERunner(Runner):
         backend_type='local',
         backend_optimization_level=3,
         backend_min_num_qubits=None,
-        filters=None,
         backend_config: BackendConfig | None = None,
+        backend_filters=None,
+        backend_simulation_method=None,
+        backend_gpu=None,
+        backend_noise=None,
+        backend_gpu_opts=None,
     ):
         super().__init__()
         self.filepath = filepath
@@ -92,13 +96,18 @@ class VQERunner(Runner):
                 self.logger.error(
                     f'Unable to create ProducerConfig, ensure required parameters are passed to the VQERunner instance: {e}'
                 )
+        if self.kafka:
+            self.producer = VQEKafkaProducer(self.kafka_config)
 
         def isAnyBackendOptionSet():
             return (
                 backend_type is not None
                 or backend_optimization_level is not None
                 or backend_min_num_qubits is not None
-                or filters is not None
+                or backend_filters is not None
+                or backend_gpu is not None
+                or backend_noise is not None
+                or backend_gpu_opts is not None
             )
 
         if backend_config is not None:
@@ -109,7 +118,11 @@ class VQERunner(Runner):
                     local=True if backend_type == 'local' else False,
                     optimization_level=backend_optimization_level,
                     min_num_qubits=backend_min_num_qubits,
-                    filters=filters,
+                    filters=backend_filters,
+                    gpu=backend_gpu,
+                    simulation_method=backend_simulation_method,
+                    gpu_opts=backend_gpu_opts,
+                    noise=backend_noise,
                 )
             except Exception as e:
                 self.logger.error(
@@ -204,8 +217,7 @@ class VQERunner(Runner):
             self.logger.debug('Appended run information to the result.')
 
             if self.kafka:
-                producer = VQEKafkaProducer(self.kafka_config)
-                producer.send_result(decorated_result)
+                self.producer.send_result(decorated_result)
 
             if self.report:
                 self.logger.info(f'Generating report for molecule {id + 1}...')

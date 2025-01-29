@@ -13,6 +13,16 @@ DEFAULTS = {
         'min_qubits': None,
         'optimization_level': 3,
         'filters': None,
+        'method': 'automatic',
+        'gpu': False,
+        'noise_backend': None,
+        'gpu_opts': {
+            'device': 'GPU',
+            'cuStateVec_enable': True,
+            'blocking_enable': True,
+            'batched_shots_gpu': True,
+            'shot_branching_enable': True,
+        },
     },
     'kafka': {
         'servers': 'localhost:9092',

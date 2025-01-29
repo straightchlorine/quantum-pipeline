@@ -3,8 +3,10 @@ import os
 import sys
 
 from qiskit_aer import AerSimulator
+from qiskit_aer.noise import NoiseModel
 from qiskit_ibm_runtime import QiskitRuntimeService
 
+from quantum_pipeline.configs.defaults import DEFAULTS
 from quantum_pipeline.configs.parsing.backend_config import BackendConfig
 from quantum_pipeline.configs.settings import LOG_LEVEL, SUPPORTED_OPTIMIZERS
 from quantum_pipeline.utils.logger import get_logger
@@ -70,18 +72,54 @@ class Solver:
             return service
 
         except Exception:
+            self.logger.error('IBM Quantum connection failed.')
             if LOG_LEVEL == logging.DEBUG:
                 raise RuntimeError('IBM Quantum connection failed.')
             else:
                 sys.exit(1)
 
+    def _get_noise_model(self, backend):
+        provider = self._get_service()
+
+        try:
+            self.logger.info(f'Initializing noise model based on {backend}...')
+            backend = provider.get_backend(backend)
+            noise_model = NoiseModel.from_backend(backend)
+            self.logger.info('Initialized noise model.')
+            self.logger.debug(f'Model:\n\n{noise_model}')
+        except Exception:
+            self.logger.error(f'Failed to get the noise model for backend {backend}.')
+            if LOG_LEVEL == logging.DEBUG:
+                raise RuntimeError(f'Failed to get the noise model for backend {backend}.')
+            else:
+                sys.exit(1)
+
+        return noise_model
+
     def get_backend(self):
         if not self.backend_config:
             raise RuntimeError('Backend configuration not set.')
 
+        noise_model = None
+        if self.backend_config.noise:
+            noise_model = self._get_noise_model(self.backend_config.noise)
+
         if self.backend_config.local:
-            self.logger.info('Initializing Aer simulator backend...')
-            backend = AerSimulator()
+            if self.backend_config.gpu:
+                self.logger.info('Initializing Aer simulator backend with GPU acceleration...')
+
+                backend = AerSimulator(
+                    method=self.backend_config.simulation_method,
+                    **self.backend_config.gpu_opts,
+                    noise_model=noise_model if noise_model else None,
+                )
+            else:
+                self.logger.info('Initializing Aer simulator backend...')
+                backend = AerSimulator(
+                    method=self.backend_config.simulation_method,
+                    noise_model=noise_model if noise_model else None,
+                )
+
             self.logger.info('Aer simulator backend initialized.')
         else:
             try:

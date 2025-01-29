@@ -10,6 +10,7 @@ from quantum_pipeline.stream.serialization.interfaces.vqe import (
 )
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 from quantum_pipeline.utils.logger import get_logger
+from quantum_pipeline.utils.schema_registry import SchemaRegistry
 
 
 class KafkaProducerError(Exception):
@@ -19,7 +20,8 @@ class KafkaProducerError(Exception):
 class VQEKafkaProducer:
     def __init__(self, config: ProducerConfig):
         self.config = config
-        self.serializer = VQEDecoratedResultInterface()
+        self.registry = SchemaRegistry()
+        self.serializer = VQEDecoratedResultInterface(self.registry)
         self.logger = get_logger(self.__class__.__name__)
         self.producer: Optional[KafkaProducer] = None
         self._initialize_producer()

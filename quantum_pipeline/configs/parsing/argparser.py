@@ -1,7 +1,7 @@
 import argparse
 import logging
 import os
-from typing import Any, Dict
+from typing import Any
 
 from quantum_pipeline.configs import settings
 from quantum_pipeline.configs.defaults import DEFAULTS
@@ -38,6 +38,13 @@ class QuantumPipelineArgParser:
         for optimizer, description in settings.SUPPORTED_OPTIMIZERS.items():
             help_text += f'|  {optimizer}: {description} |'
         return help_text
+
+    def _create_simulation_method_help_text(self) -> str:
+        """Create detailed help text for simulation methods."""
+        help_text = 'Available simulation methods:\n'
+        for method, description in settings.SIMULATION_METHODS.items():
+            help_text += f'|  {method}: {description} |\n'
+        return help_text.strip()
 
     def _add_arguments(self):
         """Add all argument groups and their arguments to the parser."""
@@ -216,6 +223,24 @@ class QuantumPipelineArgParser:
             type=self.dir_path,
             help='Path to a JSON configuration file to load parameters from',
         )
+        additional_group.add_argument(
+            '--gpu',
+            action='store_true',
+            help='Enable GPU acceleration.',
+        )
+        additional_group.add_argument(
+            '--simulation-method',
+            choices=list(settings.SIMULATION_METHODS.keys()),
+            default=DEFAULTS['backend']['method'],
+            help=self._create_simulation_method_help_text(),
+            metavar='SIMULATION_METHOD',
+        )
+        additional_group.add_argument(
+            '--noise',
+            type=str,
+            default=DEFAULTS['backend']['noise_backend'],
+            help='Choose, which noise model to base the simulation on.',
+        )
 
     def kafka_params_set(self, args: argparse.Namespace):
         if (
@@ -251,7 +276,7 @@ class QuantumPipelineArgParser:
         self._validate_args(args)
         return args
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> dict[str, Any]:
         """Get the configuration from the parsed arguments."""
         config_manager = ConfigurationManager()
         args = self.parse_args()
