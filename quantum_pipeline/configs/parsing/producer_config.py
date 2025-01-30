@@ -14,6 +14,7 @@ class ProducerConfig:
     ssl_cafile: str
     ssl_certfile: str
     ssl_keyfile: str
+    ssl_password: str | None
     retries: int = 3
     retry_delay: int = 2
     kafka_retries: int = 5
@@ -40,4 +41,5 @@ class ProducerConfig:
             ssl_cafile=data.get('ssl_cafile', DEFAULTS['kafka']['ssl_paths']['ssl_cafile']),
             ssl_certfile=data.get('ssl_certfile', DEFAULTS['kafka']['ssl_paths']['ssl_certfile']),
             ssl_keyfile=data.get('ssl_keyfile', DEFAULTS['kafka']['ssl_paths']['ssl_keyfile']),
+            ssl_password=data.get('ssl_password', None),
         )

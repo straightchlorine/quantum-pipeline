@@ -27,21 +27,22 @@ services:
       - KAFKA_CLIENT_PASSWORDS=password
       # SSL
       - KAFKA_TLS_TYPE=JKS
-      - KAFKA_CERTIFICATE_PASSWORD=keystorepass
+      - KAFKA_CERTIFICATE_PASSWORD=123456
     networks:
       - quantum-net
     volumes:
-      - ../ssl/:/bitnami/kafka/config/certs/
+      - ../secrets/kafka.keystore.jks:/bitnami/kafka/config/certs/kafka.keystore.jks
+      - ../secrets/kafka.truststore.jks:/bitnami/kafka/config/certs/kafka.truststore.jks
   quantum-pipeline:
     container_name: quantum-pipeline
-    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", '--ssl', '--ssl-dir', '/bitnami/kafka/config/certs/']
+    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", '--ssl', '--ssl-dir', './secrets/', '--ssl-password', '1234']
     build:
       context: ../
       dockerfile: Dockerfile
     restart: always
     volumes:
-      - ./pem/:/usr/src/quantum-pipeline/gen/
-      - ./gen/:/usr/src/quantum-pipeline/gen/
+      - ../secrets/:/etc/quantum-pipeline/secrets/
+      - ../gen/:/usr/src/quantum-pipeline/gen/
     environment:
       IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
       IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}

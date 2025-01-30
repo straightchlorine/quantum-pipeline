@@ -42,6 +42,15 @@ def test_ssl_argument(argparser):
     assert args.ssl_dir == './secrets/'
 
 
+def test_ssl_argument(argparser):
+    """Test the gpu enable argument."""
+    args = argparser.parser.parse_args(
+        ['--file', 'molecule.json', '--ssl', '--ssl-password', 'password']
+    )
+    assert args.ssl == True
+    assert args.ssl_password == 'password'
+
+
 def test_noise_argument(argparser):
     """Test the noise enable argument."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--noise', 'ibm_brisbane'])

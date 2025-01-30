@@ -35,9 +35,10 @@ DEFAULTS = {
         'ssl': False,
         'ssl_paths': {
             'ssl_dir': './secrets/',
-            'ssl_cafile': 'ca-cert.pem',
-            'ssl_certfile': 'client-cert.pem',
-            'ssl_keyfile': 'client-key.pem',
+            'ssl_cafile': 'ca.crt',
+            'ssl_certfile': 'client.crt',
+            'ssl_keyfile': 'client.key',
+            'ssl_password': '1234',
         },
     },
 }

@@ -35,6 +35,7 @@ class VQEKafkaProducer:
                 value_serializer=lambda v: v,
                 retries=self.config.kafka_retries,
                 acks=self.config.acks,
+                security_protocol='SSL' if self.config.ssl else 'PLAINTEXT',
                 ssl_cafile=Path(self.config.ssl_dir, self.config.ssl_cafile).as_posix()
                 if self.config.ssl
                 else None,
@@ -44,6 +45,7 @@ class VQEKafkaProducer:
                 ssl_keyfile=Path(self.config.ssl_dir, self.config.ssl_keyfile).as_posix()
                 if self.config.ssl
                 else None,
+                ssl_password=self.config.ssl_password,
             )
         except Exception as e:
             self.logger.error(f'Failed to initialize KafkaProducer: {str(e)}')

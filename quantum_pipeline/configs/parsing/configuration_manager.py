@@ -31,6 +31,7 @@ class ConfigurationManager:
                 'timeout': args.timeout,
                 'ssl': args.ssl,
                 'ssl_dir': args.ssl_dir if args.ssl else None,
+                'ssl_password': args.ssl_password if args.ssl else None,
             }
         )
 

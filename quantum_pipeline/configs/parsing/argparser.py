@@ -258,6 +258,11 @@ class QuantumPipelineArgParser:
             default=DEFAULTS['kafka']['ssl_paths']['ssl_dir'],
             help='Set the directory with SSL keys.',
         )
+        additional_group.add_argument(
+            '--ssl-password',
+            default=None,
+            help='Password used for SSL connection',
+        )
 
     def kafka_params_set(self, args: argparse.Namespace):
         if (
