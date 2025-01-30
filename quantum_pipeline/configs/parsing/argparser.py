@@ -201,7 +201,13 @@ class QuantumPipelineArgParser:
             help='Circuit optimization level',
         )
 
-    def dir_path(self, path):
+    def ensure_dir(self, path):
+        if os.path.isdir(path):
+            return path
+        else:
+            raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
+
+    def ensure_file(self, path):
         if os.path.isfile(path):
             return path
         else:
@@ -220,7 +226,7 @@ class QuantumPipelineArgParser:
         )
         additional_group.add_argument(
             '--load',
-            type=self.dir_path,
+            type=self.ensure_file,
             help='Path to a JSON configuration file to load parameters from',
         )
         additional_group.add_argument(
@@ -240,6 +246,17 @@ class QuantumPipelineArgParser:
             type=str,
             default=DEFAULTS['backend']['noise_backend'],
             help='Choose, which noise model to base the simulation on.',
+        )
+        additional_group.add_argument(
+            '--ssl',
+            action='store_true',
+            help='Enable SSL for Kafka producer.',
+        )
+        additional_group.add_argument(
+            '--ssl-dir',
+            type=self.ensure_dir,
+            default=DEFAULTS['kafka']['ssl_paths']['ssl_dir'],
+            help='Set the directory with SSL keys.',
         )
 
     def kafka_params_set(self, args: argparse.Namespace):

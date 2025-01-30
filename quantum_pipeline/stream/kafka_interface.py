@@ -1,3 +1,4 @@
+from pathlib import Path
 from time import sleep
 from typing import Optional
 
@@ -34,6 +35,15 @@ class VQEKafkaProducer:
                 value_serializer=lambda v: v,
                 retries=self.config.kafka_retries,
                 acks=self.config.acks,
+                ssl_cafile=Path(self.config.ssl_dir, self.config.ssl_cafile).as_posix()
+                if self.config.ssl
+                else None,
+                ssl_certfile=Path(self.config.ssl_dir, self.config.ssl_certfile).as_posix()
+                if self.config.ssl
+                else None,
+                ssl_keyfile=Path(self.config.ssl_dir, self.config.ssl_keyfile).as_posix()
+                if self.config.ssl
+                else None,
             )
         except Exception as e:
             self.logger.error(f'Failed to initialize KafkaProducer: {str(e)}')

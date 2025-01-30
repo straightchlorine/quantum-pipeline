@@ -1,0 +1,55 @@
+services:
+  kafka:
+    image: bitnami/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      # Listeners
+      - KAFKA_CFG_LISTENERS=SASL_SSL://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:SASL_PLAINTEXT,SASL_SSL:SASL_SSL
+      - KAFKA_CFG_ADVERTISED_LISTENERS=SASL_SSL://:9092
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=SASL_SSL
+      - KAFKA_CLIENT_LISTENER_NAME=SASL_SSL
+      # SASL
+      - KAFKA_CFG_SASL_MECHANISM_CONTROLLER_PROTOCOL=PLAIN
+      - KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
+      - KAFKA_CONTROLLER_USER=controller_user
+      - KAFKA_CONTROLLER_PASSWORD=controller_password
+      - KAFKA_INTER_BROKER_USER=interbroker_user
+      - KAFKA_INTER_BROKER_PASSWORD=interbroker_password
+      - KAFKA_CLIENT_USERS=user
+      - KAFKA_CLIENT_PASSWORDS=password
+      # SSL
+      - KAFKA_TLS_TYPE=JKS
+      - KAFKA_CERTIFICATE_PASSWORD=keystorepass
+    networks:
+      - quantum-net
+    volumes:
+      - ../ssl/:/bitnami/kafka/config/certs/
+  quantum-pipeline:
+    container_name: quantum-pipeline
+    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", '--ssl', '--ssl-dir', '/bitnami/kafka/config/certs/']
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    restart: always
+    volumes:
+      - ./pem/:/usr/src/quantum-pipeline/gen/
+      - ./gen/:/usr/src/quantum-pipeline/gen/
+    environment:
+      IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
+      IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
+      IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+    networks:
+      - quantum-net
+networks:
+  quantum-net:
+    name: quantum-pipeline-network
+    driver: bridge

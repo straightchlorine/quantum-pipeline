@@ -32,5 +32,12 @@ DEFAULTS = {
         'acks': 'all',
         'timeout': 10,
         'retry_delay': 2,
+        'ssl': False,
+        'ssl_paths': {
+            'ssl_dir': './secrets/',
+            'ssl_cafile': 'ca-cert.pem',
+            'ssl_certfile': 'client-cert.pem',
+            'ssl_keyfile': 'client-key.pem',
+        },
     },
 }

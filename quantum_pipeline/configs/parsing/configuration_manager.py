@@ -29,6 +29,8 @@ class ConfigurationManager:
                 'kafka_retries': args.internal_retries,
                 'acks': args.acks,
                 'timeout': args.timeout,
+                'ssl': args.ssl,
+                'ssl_dir': args.ssl_dir if args.ssl else None,
             }
         )
 
