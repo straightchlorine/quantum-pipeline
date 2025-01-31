@@ -55,6 +55,7 @@ class QuantumPipelineArgParser:
         self._add_backend_options()
         self._add_kafka_config()
         self._add_additional_features()
+        self._add_security_options()
 
     def _add_required_arguments(self):
         """Add required arguments to the parser."""
@@ -247,21 +248,86 @@ class QuantumPipelineArgParser:
             default=DEFAULTS['backend']['noise_backend'],
             help='Choose, which noise model to base the simulation on.',
         )
-        additional_group.add_argument(
+
+    def _add_security_options(self):
+        security_group = self.parser.add_argument_group(
+            'Security settings for Apache Kafka connection'
+        )
+        security_group.add_argument(
             '--ssl',
             action='store_true',
             help='Enable SSL for Kafka producer.',
         )
-        additional_group.add_argument(
-            '--ssl-dir',
-            type=self.ensure_dir,
-            default=DEFAULTS['kafka']['ssl_paths']['ssl_dir'],
-            help='Set the directory with SSL keys.',
+        security_group.add_argument(
+            '--disable-ssl-check-hostname',
+            action='store_false',
+            help='Disable SSL check hostname. ONLY FOR TESTING.',
         )
-        additional_group.add_argument(
+        security_group.add_argument(
+            '--sasl-ssl',
+            action='store_true',
+            help='Enable SASL_SSL connection',
+        )
+        security_group.add_argument(
             '--ssl-password',
             default=None,
-            help='Password used for SSL connection',
+            help='Password used for SSL connection.',
+        )
+        security_group.add_argument(
+            '--ssl-dir',
+            type=self.ensure_dir,
+            default=DEFAULTS['kafka']['security']['certs']['dir'],
+            help='Set the directory with SSL keys.',
+        )
+        security_group.add_argument(
+            '--ssl-cafile',
+            default=None,
+            help='Path to CA certificate file (excluded by --ssl-dir).',
+        )
+        security_group.add_argument(
+            '--ssl-certfile',
+            default=None,
+            help='Path to SSL certificate file (excluded by --ssl-dir).',
+        )
+        security_group.add_argument(
+            '--ssl-keyfile',
+            default=None,
+            help='Path to SSL key file (excluded by --ssl-dir).',
+        )
+        security_group.add_argument(
+            '--ssl-crlfile',
+            default=None,
+            help='Path to SSL certificate revocation list file (excluded by --ssl-dir).',
+        )
+        security_group.add_argument(
+            '--ssl-ciphers',
+            default=None,
+            help='SSL cipher suite to use.',
+        )
+        security_group.add_argument(
+            '--sasl-mechanism',
+            choices=['PLAIN', 'GSSAPI', 'SCRAM-SHA-256', 'SCRAM-SHA-512'],
+            help='Authentication mechanism for SASL.',
+        )
+        security_group.add_argument(
+            '--sasl-plain-username',
+            default=None,
+            help='Username for SASL PLAIN and SCRAM authentication.',
+        )
+        security_group.add_argument(
+            '--sasl-plain-password',
+            default=None,
+            help='Password for SASL PLAIN and SCRAM authentication.',
+        )
+        security_group.add_argument(
+            '--sasl-kerberos-service-name',
+            default='kafka',
+            help='Kerberos service name for GSSAPI SASL mechanism.',
+        )
+        security_group.add_argument(
+            '--sasl-kerberos-domain-name',
+            default=None,
+            help='Kerberos domain name for GSSAPI SASL mechanism.',
         )
 
     def kafka_params_set(self, args: argparse.Namespace):
@@ -269,6 +335,7 @@ class QuantumPipelineArgParser:
             args.servers != DEFAULTS['kafka']['servers']
             or args.topic != DEFAULTS['kafka']['topic']
             or args.retries != DEFAULTS['kafka']['retries']
+            or args.retry_delay != DEFAULTS['kafka']['retry_delay']
             or args.internal_retries != DEFAULTS['kafka']['internal_retries']
             or args.acks != DEFAULTS['kafka']['acks']
             or args.timeout != DEFAULTS['kafka']['timeout']
@@ -283,14 +350,70 @@ class QuantumPipelineArgParser:
         if args.dump and args.load:
             self.parser.error('--dump and --load cannot be used together.')
 
-        if args.min_qubits is not None and not args.ibm_quantum:
-            self.parser.error('--min-qubits can only be used if --ibm-quantum is selected.')
+        if args.min_qubits is not None and args.ibm:
+            self.parser.error('--min-qubits can only be used if --ibm is selected.')
 
         if args.convergence and args.threshold is None:
             self.parser.error('--threshold must be set if --convergence is enabled.')
 
         if self.kafka_params_set(args) and not args.kafka:
             self.parser.error('--kafka must be set for the options to take effect.')
+
+        if args.sasl_mechanism and not args.kafka:
+            self.parser.error('--kafka must be enabled when using SASL authentication')
+
+        if args.ssl and not args.kafka:
+            self.parser.error('--kafka must be enabled when using SSL authentication')
+
+        if args.ssl:
+            if args.ssl_dir is not None:
+                individual_files = [
+                    args.ssl_cafile,
+                    args.ssl_certfile,
+                    args.ssl_keyfile,
+                    args.ssl_crlfile,
+                ]
+                if any(f is not None for f in individual_files):
+                    self.parser.error(
+                        'Cannot specify both --ssl-dir and individual SSL file options (--ssl-cafile, etc.)'
+                    )
+            else:
+                required_files = [args.ssl_cafile, args.ssl_certfile, args.ssl_keyfile]
+                if not all(required_files):
+                    self.parser.error(
+                        '--ssl-cafile, --ssl-certfile, and --ssl-keyfile are required when --ssl is set and --ssl-dir is not provided'
+                    )
+        elif not args.ssl and (args.ssl_cafile or args.ssl_certfile or args.ssl_keyfile):
+            self.parser.error(
+                '--ssl is required when specifying --ssl-cafile, --ssl-certfile, and --ssl-keyfile'
+            )
+
+        sasl_options_provided = (
+            args.sasl_ssl is True,
+            args.sasl_plain_username is not None
+            or args.sasl_plain_password is not None
+            or args.sasl_kerberos_service_name != 'kafka'
+            or args.sasl_kerberos_domain_name is not None,
+        )
+
+        if args.sasl_ssl:
+            if sasl_options_provided and not args.sasl_mechanism:
+                self.parser.error('--sasl-mechanism is required when SASL options are provided')
+
+            if args.sasl_mechanism:
+                if args.sasl_mechanism in ['PLAIN', 'SCRAM-SHA-256', 'SCRAM-SHA-512']:
+                    if not (args.sasl_plain_username and args.sasl_plain_password):
+                        self.parser.error(
+                            f'--sasl-plain-username and --sasl-plain-password are required for {args.sasl_mechanism}'
+                        )
+                    if args.sasl_kerberos_domain_name is not None:
+                        self.parser.error(f'Cannot use GSSAPI options with {args.sasl_mechanism}')
+                elif args.sasl_mechanism == 'GSSAPI':
+                    if (
+                        args.sasl_plain_username is not None
+                        or args.sasl_plain_password is not None
+                    ):
+                        self.parser.error('Cannot use PLAIN/SCRAM options with GSSAPI')
 
     def parse_args(self) -> argparse.Namespace:
         """Parse and validate command line arguments."""

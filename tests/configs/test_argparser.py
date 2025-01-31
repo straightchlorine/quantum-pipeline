@@ -14,7 +14,106 @@ def argparser():
 def test_required_arguments(argparser):
     """Test that the required argument --file is enforced."""
     with pytest.raises(SystemExit):
-        argparser.parser.parse_args([])
+        args = argparser.parser.parse_args([])
+        argparser._validate_args(args)
+
+
+def test_ssl_basic_configuration(argparser):
+    """Test valid SSL configuration with default ssl_dir."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--kafka', '--ssl'])
+    argparser._validate_args(args)
+    assert args.ssl is True
+    assert args.ssl_dir == './secrets/'
+
+
+def test_ssl_with_password(argparser):
+    """Test SSL configuration with password."""
+    args = argparser.parser.parse_args(
+        ['--file', 'molecule.json', '--ssl', '--ssl-password', 'secret']
+    )
+    assert args.ssl_password == 'secret'
+
+
+def test_ssl_dir_conflict(argparser):
+    """Test conflict between ssl_dir and individual SSL files."""
+    with pytest.raises(SystemExit):
+        args = argparser.parser.parse_args(
+            ['--file', 'molecule.json', '--ssl', '--ssl-dir', './certs/', '--ssl-cafile', 'ca.pem']
+        )
+        argparser._validate_args(args)
+
+
+def test_ssl_missing_cafile(argparser):
+    """Test missing CA file when not using ssl_dir."""
+    with pytest.raises(SystemExit):
+        args = argparser.parser.parse_args(
+            [
+                '--file',
+                'molecule.json',
+                '--ssl',
+                '--ssl-dir',
+                '',
+                '--ssl-certfile',
+                'cert.pem',
+            ]
+        )
+        argparser._validate_args(args)
+
+
+def test_sasl_plain_valid(argparser):
+    """Test valid SASL PLAIN configuration."""
+    args = argparser.parser.parse_args(
+        [
+            '--file',
+            'molecule.json',
+            '--kafka',
+            '--sasl-mechanism',
+            'PLAIN',
+            '--sasl-plain-username',
+            'user',
+            '--sasl-plain-password',
+            'pass',
+        ]
+    )
+    argparser._validate_args(args)
+    assert args.sasl_mechanism == 'PLAIN'
+    assert args.sasl_plain_username == 'user'
+    assert args.sasl_plain_password == 'pass'
+
+
+def test_sasl_missing_credentials(argparser):
+    """Test missing SASL PLAIN credentials."""
+    with pytest.raises(SystemExit):
+        args = argparser.parser.parse_args(
+            ['--file', 'molecule.json', '--kafka', '--sasl-mechanism', 'PLAIN']
+        )
+        argparser._validate_args(args)
+
+
+def test_sasl_conflicting_options(argparser):
+    """Test conflicting SASL mechanism options."""
+    with pytest.raises(SystemExit):
+        args = argparser.parser.parse_args(
+            [
+                '--file',
+                'molecule.json',
+                '--kafka',
+                '--sasl-mechanism',
+                'PLAIN',
+                '--sasl-kerberos-domain-name',
+                'domain',
+            ]
+        )
+        argparser._validate_args(args)
+
+
+def test_ssl_without_flag(argparser):
+    """Test SSL options without --ssl flag."""
+    with pytest.raises(SystemExit):
+        args = argparser.parser.parse_args(
+            ['--file', 'molecule.json', '--kafka', '--ssl-cafile', 'ca.pem']
+        )
+        argparser._validate_args(args)
 
 
 def test_minimum_arguments(argparser):
@@ -33,13 +132,6 @@ def test_gpu_argument(argparser):
     """Test the gpu enable argument."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--gpu'])
     assert args.gpu == True
-
-
-def test_ssl_argument(argparser):
-    """Test the gpu enable argument."""
-    args = argparser.parser.parse_args(['--file', 'molecule.json', '--ssl'])
-    assert args.ssl == True
-    assert args.ssl_dir == './secrets/'
 
 
 def test_ssl_argument(argparser):

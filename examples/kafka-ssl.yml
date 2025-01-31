@@ -2,40 +2,39 @@ services:
   kafka:
     image: bitnami/kafka:latest
     container_name: kafka
+    restart: unless-stopped
     ports:
+      - "9094:9094"
       - "9092:9092"
     environment:
-      # KRaft
       - KAFKA_CFG_NODE_ID=0
       - KAFKA_CFG_PROCESS_ROLES=controller,broker
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
-      # Listeners
-      - KAFKA_CFG_LISTENERS=SASL_SSL://:9092,CONTROLLER://:9093
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:SASL_PLAINTEXT,SASL_SSL:SASL_SSL
-      - KAFKA_CFG_ADVERTISED_LISTENERS=SASL_SSL://:9092
+      - KAFKA_CFG_LISTENERS=SSL://:9092,CONTROLLER://:9093,EXTERNAL://0.0.0.0:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=SSL://kafka:9092,EXTERNAL://${HOST_IP:-192.168.1.85}:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:SSL,SSL:SSL,EXTERNAL:SSL
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=SASL_SSL
-      - KAFKA_CLIENT_LISTENER_NAME=SASL_SSL
-      # SASL
-      - KAFKA_CFG_SASL_MECHANISM_CONTROLLER_PROTOCOL=PLAIN
-      - KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
-      - KAFKA_CONTROLLER_USER=controller_user
-      - KAFKA_CONTROLLER_PASSWORD=controller_password
-      - KAFKA_INTER_BROKER_USER=interbroker_user
-      - KAFKA_INTER_BROKER_PASSWORD=interbroker_password
-      - KAFKA_CLIENT_USERS=user
-      - KAFKA_CLIENT_PASSWORDS=password
-      # SSL
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=SSL
+      - KAFKA_CLIENT_LISTENER_NAME=SSL
       - KAFKA_TLS_TYPE=JKS
-      - KAFKA_CERTIFICATE_PASSWORD=123456
+      - KAFKA_SSL_KEYSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.keystore.jks
+      - KAFKA_SSL_TRUSTSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.truststore.jks
+      - KAFKA_CERTIFICATE_PASSWORD=${KAFKA_CERTIFICATE_PASSWORD}
+      - KAFKA_SSL_KEYSTORE_PASSWORD=${KAFKA_SSL_KEYSTORE_PASSWORD}
+      - KAFKA_SSL_TRUSTSTORE_PASSWORD=${KAFKA_SSL_TRUSTSTORE_PASSWORD}
+      - KAFKA_SSL_CLIENT_AUTH=required
+      - KAFKA_TLS_CONTROLLER_CLIENT_AUTH=required
+    env_file:
+      - ../.env
     networks:
       - quantum-net
+      - external-net
     volumes:
       - ../secrets/kafka.keystore.jks:/bitnami/kafka/config/certs/kafka.keystore.jks
       - ../secrets/kafka.truststore.jks:/bitnami/kafka/config/certs/kafka.truststore.jks
   quantum-pipeline:
     container_name: quantum-pipeline
-    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", '--ssl', '--ssl-dir', './secrets/', '--ssl-password', '1234']
+    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", "--ssl", "--ssl-dir", "/etc/quantum-pipeline/secrets/", "--ssl-password", "${QUANTUM_SSL_PASSWORD}", "--disable-ssl-check-hostname"]
     build:
       context: ../
       dockerfile: Dockerfile
@@ -48,9 +47,10 @@ services:
       IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
       IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+    env_file:
+      - ../.env
     networks:
       - quantum-net
-networks:
-  quantum-net:
-    name: quantum-pipeline-network
-    driver: bridge
+      - external-net:
+          name: external-network
+          driver: bridge

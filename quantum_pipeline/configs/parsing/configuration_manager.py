@@ -20,18 +20,45 @@ class ConfigurationManager:
 
     def create_kafka_config(self, args: argparse.Namespace) -> ProducerConfig:
         """Create Kafka configuration from arguments."""
+
+        security_dict = {
+            'ssl': args.ssl,
+            'sasl_ssl': args.sasl_ssl,
+            'ssl_check_hostname': args.disable_ssl_check_hostname,
+            'cert_config': {
+                'ssl_dir': args.ssl_dir,
+                'ssl_cafile': args.ssl_cafile
+                if args.ssl_cafile is not None
+                else DEFAULTS['kafka']['security']['certs']['cafile'],
+                'ssl_certfile': args.ssl_certfile
+                if args.ssl_certfile is not None
+                else DEFAULTS['kafka']['security']['certs']['certfile'],
+                'ssl_keyfile': args.ssl_keyfile
+                if args.ssl_keyfile is not None
+                else DEFAULTS['kafka']['security']['certs']['keyfile'],
+                'ssl_password': args.ssl_password,
+                'ssl_crlfile': args.ssl_crlfile,
+                'ssl_ciphers': args.ssl_ciphers,
+            },
+            'sasl_opts': {
+                'sasl_mechanism': args.sasl_mechanism,
+                'sasl_plain_username': args.sasl_plain_username,
+                'sasl_plain_password': args.sasl_plain_password,
+                'sasl_kerberos_service_name': args.sasl_kerberos_service_name,
+                'sasl_kerberos_domain_name': args.sasl_kerberos_domain_name,
+            },
+        }
+
         return ProducerConfig.from_dict(
             {
                 'servers': args.servers,
                 'topic': args.topic,
+                'security': security_dict,
                 'retries': args.retries,
                 'retry_delay': args.retry_delay,
                 'kafka_retries': args.internal_retries,
                 'acks': args.acks,
                 'timeout': args.timeout,
-                'ssl': args.ssl,
-                'ssl_dir': args.ssl_dir if args.ssl else None,
-                'ssl_password': args.ssl_password if args.ssl else None,
             }
         )
 

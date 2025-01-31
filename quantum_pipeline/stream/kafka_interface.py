@@ -1,6 +1,6 @@
 from pathlib import Path
 from time import sleep
-from typing import Optional
+from typing import Any, Optional
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
@@ -27,25 +27,81 @@ class VQEKafkaProducer:
         self.producer: Optional[KafkaProducer] = None
         self._initialize_producer()
 
+    def __security_configuration_handling(self) -> dict[str, Any]:
+        security = {}
+        if self.config.security.ssl or self.config.security.sasl_ssl:
+            ssl_dir = self.config.security.cert_config.ssl_dir
+            ssl_files = {
+                'ssl_cafile': self.config.security.cert_config.ssl_cafile,
+                'ssl_certfile': self.config.security.cert_config.ssl_certfile,
+                'ssl_keyfile': self.config.security.cert_config.ssl_keyfile,
+                'ssl_crlfile': self.config.security.cert_config.ssl_crlfile,
+            }
+
+            security = {
+                'ssl_password': self.config.security.cert_config.ssl_password,
+                'ssl_ciphers': self.config.security.cert_config.ssl_ciphers,
+                'ssl_check_hostname': self.config.security.ssl_check_hostname,
+            }
+
+            # build the paths based on the specified
+            for key, filename in ssl_files.items():
+                if filename:
+                    security[key] = Path(ssl_dir, filename).as_posix()
+
+            # adjust the configuration based on the protocols used
+            if self.config.security.ssl:
+                security['security_protocol'] = 'SSL'
+            if self.config.security.sasl_ssl:
+                security['security_protocol'] = 'SASL_SSL'
+
+                # determine the mechanisim of the connection
+                if not self.config.security.sasl_opts.sasl_mechanism:
+                    raise ValueError('SASL mechanism required for SASL_SSL')
+                security['sasl_mechanism'] = self.config.security.sasl_opts.sasl_mechanism
+
+                # adjust other parameters based on the mechanism
+                if security['sasl_mechanism'] in ['PLAIN', 'SCRAM-SHA-256', 'SCRAM-SHA-512']:
+                    if not (
+                        self.config.security.sasl_opts.sasl_plain_username
+                        and self.config.security.sasl_opts.sasl_plain_password
+                    ):
+                        raise ValueError(
+                            f"Username and password required for {security['sasl_mechanism']}"
+                        )
+                    security.update(
+                        {
+                            'sasl_plain_username': self.config.security.sasl_opts.sasl_plain_username,
+                            'sasl_plain_password': self.config.security.sasl_opts.sasl_plain_password,
+                        }
+                    )
+
+                elif security['sasl_mechanism'] == 'GSSAPI':
+                    security['sasl_kerberos_service_name'] = (
+                        self.config.security.sasl_opts.sasl_kerberos_service_name
+                    )
+                    if self.config.security.sasl_opts.sasl_kerberos_domain_name:
+                        security['sasl_kerberos_domain_name'] = (
+                            self.config.security.sasl_opts.sasl_kerberos_domain_name
+                        )
+
+        print(30 * '=')
+        __import__('pprint').pprint(security)
+        print(30 * '=')
+
+        return security
+
     def _initialize_producer(self) -> None:
         """Initialize the Kafka producer with error handling."""
+
+        security = self.__security_configuration_handling()
         try:
             self.producer = KafkaProducer(
                 bootstrap_servers=self.config.servers,
                 value_serializer=lambda v: v,
                 retries=self.config.kafka_retries,
                 acks=self.config.acks,
-                security_protocol='SSL' if self.config.ssl else 'PLAINTEXT',
-                ssl_cafile=Path(self.config.ssl_dir, self.config.ssl_cafile).as_posix()
-                if self.config.ssl
-                else None,
-                ssl_certfile=Path(self.config.ssl_dir, self.config.ssl_certfile).as_posix()
-                if self.config.ssl
-                else None,
-                ssl_keyfile=Path(self.config.ssl_dir, self.config.ssl_keyfile).as_posix()
-                if self.config.ssl
-                else None,
-                ssl_password=self.config.ssl_password,
+                **security,
             )
         except Exception as e:
             self.logger.error(f'Failed to initialize KafkaProducer: {str(e)}')

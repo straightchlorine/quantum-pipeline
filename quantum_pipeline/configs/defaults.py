@@ -32,13 +32,22 @@ DEFAULTS = {
         'acks': 'all',
         'timeout': 10,
         'retry_delay': 2,
-        'ssl': False,
-        'ssl_paths': {
-            'ssl_dir': './secrets/',
-            'ssl_cafile': 'ca.crt',
-            'ssl_certfile': 'client.crt',
-            'ssl_keyfile': 'client.key',
-            'ssl_password': '1234',
+        'security': {
+            'ssl': False,
+            'sasl_ssl': False,
+            'ssl_check_hostname': True,
+            'certs': {
+                'dir': './secrets/',
+                'cafile': 'ca.crt',
+                'certfile': 'client.crt',
+                'keyfile': 'client.key',
+                'pass': '1234',
+            },
+            'sasl_ssl_opts': {
+                'sasl_mechanism': 'PLAIN',
+                'sasl_plain_username': 'user',
+                'sasl_plain_password': 'password',
+            },
         },
     },
 }
