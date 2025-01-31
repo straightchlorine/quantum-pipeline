@@ -1,6 +1,6 @@
 from pathlib import Path
 from time import sleep
-from typing import Any, Optional
+from typing import Any
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
@@ -24,7 +24,7 @@ class VQEKafkaProducer:
         self.registry = SchemaRegistry()
         self.serializer = VQEDecoratedResultInterface(self.registry)
         self.logger = get_logger(self.__class__.__name__)
-        self.producer: Optional[KafkaProducer] = None
+        self.producer: KafkaProducer | None = None
         self._initialize_producer()
 
     def __security_configuration_handling(self) -> dict[str, Any]:
@@ -84,10 +84,6 @@ class VQEKafkaProducer:
                         security['sasl_kerberos_domain_name'] = (
                             self.config.security.sasl_opts.sasl_kerberos_domain_name
                         )
-
-        print(30 * '=')
-        __import__('pprint').pprint(security)
-        print(30 * '=')
 
         return security
 
