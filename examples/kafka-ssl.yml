@@ -7,23 +7,27 @@ services:
       - "9094:9094"
       - "9092:9092"
     environment:
+      # KRaft configuration
       - KAFKA_CFG_NODE_ID=0
       - KAFKA_CFG_PROCESS_ROLES=controller,broker
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      # Listeners
       - KAFKA_CFG_LISTENERS=SSL://:9092,CONTROLLER://:9093,EXTERNAL://0.0.0.0:9094
-      - KAFKA_CFG_ADVERTISED_LISTENERS=SSL://kafka:9092,EXTERNAL://${HOST_IP:-192.168.1.85}:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=SSL://kafka:9092,EXTERNAL://${EXTERNAL_HOST_IP}:9094
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:SSL,SSL:SSL,EXTERNAL:SSL
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=SSL
       - KAFKA_CLIENT_LISTENER_NAME=SSL
+      # SSL
       - KAFKA_TLS_TYPE=JKS
       - KAFKA_SSL_KEYSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.keystore.jks
       - KAFKA_SSL_TRUSTSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.truststore.jks
-      - KAFKA_CERTIFICATE_PASSWORD=${KAFKA_CERTIFICATE_PASSWORD}
-      - KAFKA_SSL_KEYSTORE_PASSWORD=${KAFKA_SSL_KEYSTORE_PASSWORD}
-      - KAFKA_SSL_TRUSTSTORE_PASSWORD=${KAFKA_SSL_TRUSTSTORE_PASSWORD}
       - KAFKA_SSL_CLIENT_AUTH=required
       - KAFKA_TLS_CONTROLLER_CLIENT_AUTH=required
+      # Certificate passwords
+      - KAFKA_CERTIFICATE_PASSWORD=${CERTIFICATE_PASSWORD}
+      - KAFKA_SSL_KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}
+      - KAFKA_SSL_TRUSTSTORE_PASSWORD=${TRUSTSTORE_PASSWORD}
     env_file:
       - ../.env
     networks:
@@ -34,7 +38,7 @@ services:
       - ../secrets/kafka.truststore.jks:/bitnami/kafka/config/certs/kafka.truststore.jks
   quantum-pipeline:
     container_name: quantum-pipeline
-    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", "--ssl", "--ssl-dir", "/etc/quantum-pipeline/secrets/", "--ssl-password", "${QUANTUM_SSL_PASSWORD}", "--disable-ssl-check-hostname"]
+    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", "--ssl", "--ssl-dir", "/etc/quantum-pipeline/secrets/", "--ssl-password", "${KAFKA_CERTIFICATE_PASSWORD}", "--disable-ssl-check-hostname"]
     build:
       context: ../
       dockerfile: Dockerfile
