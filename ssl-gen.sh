@@ -6,8 +6,6 @@ set -e
 # -------------------------------
 ENV_FILE=".env"
 if [ -f "$ENV_FILE" ]; then
-    # Export variables defined in the .env file.
-    # This method assumes no spaces around '=' and no quoted values.
     set -a
     source "$ENV_FILE"
     set +a

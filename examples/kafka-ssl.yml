@@ -19,26 +19,20 @@ services:
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=SSL
       - KAFKA_CLIENT_LISTENER_NAME=SSL
       # SSL
-      - KAFKA_TLS_TYPE=JKS
-      - KAFKA_SSL_KEYSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.keystore.jks
-      - KAFKA_SSL_TRUSTSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.truststore.jks
+      - KAFKA_SSL_KEYSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.keystore.jks:ro
+      - KAFKA_SSL_TRUSTSTORE_LOCATION=/bitnami/kafka/config/certs/kafka.truststore.jks:ro
       - KAFKA_SSL_CLIENT_AUTH=required
       - KAFKA_TLS_CONTROLLER_CLIENT_AUTH=required
-      # Certificate passwords
+      - KAFKA_TLS_TYPE=JKS
       - KAFKA_CERTIFICATE_PASSWORD=${CERTIFICATE_PASSWORD}
-      - KAFKA_SSL_KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}
-      - KAFKA_SSL_TRUSTSTORE_PASSWORD=${TRUSTSTORE_PASSWORD}
-    env_file:
-      - ../.env
     networks:
       - quantum-net
-      - external-net
     volumes:
       - ../secrets/kafka.keystore.jks:/bitnami/kafka/config/certs/kafka.keystore.jks
       - ../secrets/kafka.truststore.jks:/bitnami/kafka/config/certs/kafka.truststore.jks
   quantum-pipeline:
     container_name: quantum-pipeline
-    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", "--ssl", "--ssl-dir", "/etc/quantum-pipeline/secrets/", "--ssl-password", "${KAFKA_CERTIFICATE_PASSWORD}", "--disable-ssl-check-hostname"]
+    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", "--ssl", "--ssl-dir", "/etc/quantum-pipeline/secrets/", "--ssl-password", "${CERTIFICATE_PASSWORD}"]
     build:
       context: ../
       dockerfile: Dockerfile
@@ -55,6 +49,7 @@ services:
       - ../.env
     networks:
       - quantum-net
-      - external-net:
-          name: external-network
-          driver: bridge
+networks:
+  quantum-net:
+    name: quantum-pipeline-network
+    driver: bridge
