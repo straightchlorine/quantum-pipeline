@@ -389,11 +389,11 @@ class QuantumPipelineArgParser:
             )
 
         sasl_options_provided = (
-            args.sasl_ssl is True,
-            args.sasl_plain_username is not None
+            args.sasl_ssl is True
+            and args.sasl_plain_username is not None
             or args.sasl_plain_password is not None
             or args.sasl_kerberos_service_name != 'kafka'
-            or args.sasl_kerberos_domain_name is not None,
+            or args.sasl_kerberos_domain_name is not None
         )
 
         if args.sasl_ssl:

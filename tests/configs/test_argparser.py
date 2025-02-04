@@ -85,7 +85,7 @@ def test_sasl_missing_credentials(argparser):
     """Test missing SASL PLAIN credentials."""
     with pytest.raises(SystemExit):
         args = argparser.parser.parse_args(
-            ['--file', 'molecule.json', '--kafka', '--sasl-mechanism', 'PLAIN']
+            ['--file', 'molecule.json', '--kafka', '--sasl-ssl', '--sasl-mechanism', 'PLAIN']
         )
         argparser._validate_args(args)
 
@@ -98,7 +98,7 @@ def test_sasl_conflicting_options(argparser):
                 '--file',
                 'molecule.json',
                 '--kafka',
-                '--sasl-mechanism',
+                '--sasl-ssl' '--sasl-mechanism',
                 'PLAIN',
                 '--sasl-kerberos-domain-name',
                 'domain',
