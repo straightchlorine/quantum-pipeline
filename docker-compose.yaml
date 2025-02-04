@@ -1,6 +1,28 @@
 services:
+  kafka:
+    image: bitnami/kafka:latest
+    container_name: kafka
+    restart: unless-stopped
+    ports:
+      - "9094:9094"
+      - "9092:9092"
+    environment:
+      # KRaft
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      # Listener setup
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://kafka:9092,CONTROLLER://:9093,EXTERNAL://0.0.0.0:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://${EXTERNAL_HOST_IP}:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_CLIENT_LISTENER_NAME=PLAINTEXT
+    networks:
+      - quantum-net
   quantum-pipeline:
     container_name: quantum-pipeline
+    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -11,3 +33,10 @@ services:
       IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
       IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
       IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+    networks:
+      - quantum-net
+networks:
+  quantum-net:
+    name: quantum-pipeline-network
+    driver: bridge
