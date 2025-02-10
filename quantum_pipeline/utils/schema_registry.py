@@ -1,9 +1,10 @@
 import json
+import requests
 from typing import Any
 
 from avro import schema
 
-from quantum_pipeline.configs.settings import SCHEMA_DIR
+from quantum_pipeline.configs.settings import SCHEMA_DIR, SCHEMA_REGISTRY_URL
 from quantum_pipeline.utils.logger import get_logger
 
 
@@ -12,6 +13,7 @@ class SchemaRegistry:
         self.schema_dir = SCHEMA_DIR
         self.schema_cache: dict[str, dict[str, Any]] = {}
         self.logger = get_logger(self.__class__.__name__)
+        self.schema_registry_url = SCHEMA_REGISTRY_URL
 
     def get_schema(self, schema_name: str) -> dict[str, Any]:
         """
@@ -31,6 +33,18 @@ class SchemaRegistry:
         if schema_name in self.schema_cache:
             self.logger.info(f'Found cached {schema_name} schema.')
             return self.schema_cache[schema_name]
+
+        try:
+            response = requests.get(
+                f'{self.schema_registry_url}/subjects/{schema_name}/versions/latest'
+            )
+            if response.status_code == 200:
+                schema_dict = response.json()['schema']
+                schema_dict = json.loads(schema_dict)
+                self.schema_cache[schema_name] = schema_dict
+                return schema_dict
+        except requests.RequestException as e:
+            self.logger.warning(f'Failed to fetch schema from registry: {e}')
 
         self.logger.debug(f'Checking schema directory for {schema_name}...')
         schema_file = self.schema_dir / f'{schema_name}.avsc'
@@ -100,3 +114,14 @@ class SchemaRegistry:
             except IOError as e:
                 self.logger.error('Failed to write schema.')
                 raise IOError(f'Failed to write schema to {schema_file}: {e}')
+
+        try:
+            response = requests.post(
+                f'{self.schema_registry_url}/subjects/{schema_name}/versions',
+                headers={'Content-Type': 'application/vnd.schemaregistry.v1+json'},
+                json={'schema': json.dumps(schema_dict)},
+            )
+            if response.status_code not in [200, 201]:
+                self.logger.warning(f'Failed to register schema: {response.text}')
+        except requests.RequestException as e:
+            self.logger.warning(f'Error registering schema in registry: {e}')
