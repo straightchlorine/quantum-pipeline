@@ -1,4 +1,18 @@
 services:
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    container_name: schema-registry
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "kafka:9092"
+      SCHEMA_REGISTRY_HOST_NAME: "schema-registry"
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
+    ports:
+      - "8081:8081"
+    networks:
+      - quantum-net
   kafka:
     image: bitnami/kafka:latest
     container_name: kafka
