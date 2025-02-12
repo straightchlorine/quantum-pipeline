@@ -32,6 +32,8 @@ SIMULATION_METHODS = {
     'tensor_network': 'GPU-accelerated tensor-network simulation using cuTensorNet APIs.',
 }
 
+SCHEMA_REGISTRY_URL = 'http://schema-registry:8081'
+
 LOG_LEVEL = logging.DEBUG
 GEN_DIR = 'gen'
 
