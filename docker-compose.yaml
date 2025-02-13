@@ -36,7 +36,7 @@ services:
       - quantum-net
   quantum-pipeline:
     container_name: quantum-pipeline
-    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1"]
+    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", '--log-level', 'DEBUG']
     build:
       context: .
       dockerfile: Dockerfile
@@ -50,6 +50,8 @@ services:
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
     networks:
       - quantum-net
+    depends_on:
+      - schema-registry
 networks:
   quantum-net:
     name: quantum-pipeline-network

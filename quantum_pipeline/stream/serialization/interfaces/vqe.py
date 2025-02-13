@@ -92,7 +92,21 @@ class AvroInterfaceBase(ABC, Generic[T]):
 class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
     @property
     def schema(self) -> dict[str, Any]:
-        return self.registry.get_schema('vqe_process')
+        try:
+            return self.registry.get_schema('vqe_process')
+        except FileNotFoundError:
+            schema = {
+                'type': 'record',
+                'name': 'VQEProcess',
+                'fields': [
+                    {'name': 'iteration', 'type': 'int'},
+                    {'name': 'parameters', 'type': {'type': 'array', 'items': 'double'}},
+                    {'name': 'result', 'type': 'double'},
+                    {'name': 'std', 'type': 'double'},
+                ],
+            }
+            self.registry.save_schema('vqe_process', schema)
+            return schema
 
     def serialize(self, obj: VQEProcess) -> dict[str, Any]:
         return {
@@ -114,7 +128,50 @@ class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
 class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
     @property
     def schema(self) -> dict[str, Any]:
-        return self.registry.get_schema('vqe_initial')
+        try:
+            return self.registry.get_schema('vqe_initial')
+        except FileNotFoundError:
+            schema = {
+                'type': 'record',
+                'name': 'VQEInitialData',
+                'fields': [
+                    {'name': 'backend', 'type': 'string'},
+                    {'name': 'num_qubits', 'type': 'int'},
+                    {
+                        'name': 'hamiltonian',
+                        'type': {
+                            'type': 'array',
+                            'items': {
+                                'type': 'record',
+                                'name': 'HamiltonianTerm',
+                                'fields': [
+                                    {'name': 'label', 'type': 'string'},
+                                    {
+                                        'name': 'coefficients',
+                                        'type': {
+                                            'type': 'record',
+                                            'name': 'ComplexNumber',
+                                            'fields': [
+                                                {'name': 'real', 'type': 'double'},
+                                                {'name': 'imaginary', 'type': 'double'},
+                                            ],
+                                        },
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                    {'name': 'num_parameters', 'type': 'int'},
+                    {'name': 'initial_parameters', 'type': {'type': 'array', 'items': 'double'}},
+                    {'name': 'optimizer', 'type': 'string'},
+                    {'name': 'ansatz', 'type': 'string'},
+                    {'name': 'noise_backend', 'type': 'string'},
+                    {'name': 'default_shots', 'type': 'int'},
+                    {'name': 'ansatz_reps', 'type': 'int'},
+                ],
+            }
+            self.registry.save_schema('vqe_initial', schema)
+            return schema
 
     def _serialize_hamiltonian(self, data: ndarray):
         serialized_data = []
@@ -220,7 +277,43 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
 class MoleculeInfoInterface(AvroInterfaceBase[MoleculeInfo]):
     @property
     def schema(self) -> dict[str, Any]:
-        return self.registry.get_schema('vqe_molecule')
+        try:
+            return self.registry.get_schema('vqe_molecule')
+        except FileNotFoundError:
+            schema = {
+                'type': 'record',
+                'name': 'MoleculeInfo',
+                'namespace': 'quantum_pipeline',
+                'fields': [
+                    {
+                        'name': 'molecule_data',
+                        'type': {
+                            'type': 'record',
+                            'name': 'MoleculeData',
+                            'fields': [
+                                {'name': 'symbols', 'type': {'type': 'array', 'items': 'string'}},
+                                {
+                                    'name': 'coords',
+                                    'type': {
+                                        'type': 'array',
+                                        'items': {'type': 'array', 'items': 'double'},
+                                    },
+                                },
+                                {'name': 'multiplicity', 'type': 'int'},
+                                {'name': 'charge', 'type': 'int'},
+                                {'name': 'units', 'type': 'string'},
+                                {
+                                    'name': 'masses',
+                                    'type': ['null', {'type': 'array', 'items': 'double'}],
+                                    'default': None,
+                                },
+                            ],
+                        },
+                    }
+                ],
+            }
+            self.registry.save_schema('vqe_molecule', schema)
+            return schema
 
     def serialize(self, obj: MoleculeInfo) -> dict[str, Any]:
         return {

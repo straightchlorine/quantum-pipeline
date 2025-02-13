@@ -34,15 +34,19 @@ class SchemaRegistry:
             self.logger.info(f'Found cached {schema_name} schema.')
             return self.schema_cache[schema_name]
 
+        self.logger.debug(f'Checking the schema registry at {self.schema_registry_url}...')
         try:
             response = requests.get(
                 f'{self.schema_registry_url}/subjects/{schema_name}/versions/latest'
             )
             if response.status_code == 200:
+                self.logger.debug('Found schema at the schema registry.')
                 schema_dict = response.json()['schema']
                 schema_dict = json.loads(schema_dict)
                 self.schema_cache[schema_name] = schema_dict
                 return schema_dict
+            else:
+                self.logger.warning('Unable to find schema at the schema registry.')
         except requests.RequestException as e:
             self.logger.warning(f'Failed to fetch schema from registry: {e}')
 
@@ -94,6 +98,21 @@ class SchemaRegistry:
             raise ValueError(f'Invalid Avro schema: {e}')
         self.schema_dir.mkdir(parents=True, exist_ok=True)
 
+        self.logger.debug('Attempting to save schema at schema registry...')
+        try:
+            response = requests.post(
+                f'{self.schema_registry_url}/subjects/{schema_name}/versions',
+                headers={'Content-Type': 'application/vnd.schemaregistry.v1+json'},
+                json={'schema': json.dumps(schema_dict)},
+            )
+            if response.status_code not in [200, 201]:
+                self.logger.warning(f'Failed to register schema: {response.text}')
+            else:
+                self.logger.info('Schema registered successfully.')
+
+        except requests.RequestException as e:
+            self.logger.warning(f'Error registering schema in registry: {e}')
+
         self.logger.info(f'Checking if {schema_name} exists...')
         if schema_file.exists():
             try:
@@ -114,14 +133,3 @@ class SchemaRegistry:
             except IOError as e:
                 self.logger.error('Failed to write schema.')
                 raise IOError(f'Failed to write schema to {schema_file}: {e}')
-
-        try:
-            response = requests.post(
-                f'{self.schema_registry_url}/subjects/{schema_name}/versions',
-                headers={'Content-Type': 'application/vnd.schemaregistry.v1+json'},
-                json={'schema': json.dumps(schema_dict)},
-            )
-            if response.status_code not in [200, 201]:
-                self.logger.warning(f'Failed to register schema: {response.text}')
-        except requests.RequestException as e:
-            self.logger.warning(f'Error registering schema in registry: {e}')
