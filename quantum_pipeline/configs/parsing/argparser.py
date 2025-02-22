@@ -204,7 +204,7 @@ class QuantumPipelineArgParser:
 
     def ensure_dir(self, path):
         if os.path.isdir(path):
-            return path
+            return True
         else:
             raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
 
@@ -275,7 +275,6 @@ class QuantumPipelineArgParser:
         )
         security_group.add_argument(
             '--ssl-dir',
-            type=self.ensure_dir,
             default=DEFAULTS['kafka']['security']['certs']['dir'],
             help='Set the directory with SSL keys.',
         )
@@ -366,7 +365,7 @@ class QuantumPipelineArgParser:
             self.parser.error('--kafka must be enabled when using SSL authentication')
 
         if args.ssl:
-            if args.ssl_dir is not None:
+            if args.ssl_dir is not None and self.ensure_dir(args.ssl_dir):
                 individual_files = [
                     args.ssl_cafile,
                     args.ssl_certfile,
