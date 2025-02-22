@@ -115,7 +115,7 @@ class QuantumPipelineArgParser:
         kafka_group.add_argument(
             '--retry-delay',
             type=str,
-            default=DEFAULTS['kafka']['retries'],
+            default=DEFAULTS['kafka']['retry_delay'],
             help='Number of attempts to send message to kafka',
         )
         kafka_group.add_argument(
