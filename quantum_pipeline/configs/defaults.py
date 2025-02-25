@@ -20,9 +20,9 @@ DEFAULTS = {
             'device': 'GPU',
             # set to true if you have Volta or Ampere architecture GPUs (and cuda >=11.2)
             'cuStateVec_enable': False,
-            'blocking_enable': True,
-            'batched_shots_gpu': True,
-            'shot_branching_enable': True,
+            'blocking_enable': False,
+            'batched_shots_gpu': False,
+            'shot_branching_enable': False,
         },
     },
     'kafka': {

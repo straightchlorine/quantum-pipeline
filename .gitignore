@@ -1,3 +1,6 @@
+# ignore generated wheel files
+*.whl
+
 # ignore directory with potential secrets
 secrets
 

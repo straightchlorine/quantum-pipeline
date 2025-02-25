@@ -25,67 +25,30 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Operating System :: OS Independent",
+    "Operating System :: Linux",
 ]
 
 dependencies = [
-    "qiskit>=1.0.0",
-    "qiskit-ibm-runtime>=0.20.0",
-    "qiskit-aer>=0.15.1",
-    "qiskit-nature>=0.7.0",
-    "qiskit-qasm3-import>=0.5.1",
-    "openqasm3>=1.0.0",
-    "rustworkx>=0.13.0",
-    "pyscf>=2.7.0",
+    "qiskit>=1.4.0",
+    "qiskit-ibm-runtime>=0.36.1",
+    "qiskit-aer-gpu>=0.15.1",
+    "qiskit-nature>=0.7.2",
+    "pyscf>=2.8.0",
 
-    "numpy>=1.22.0",
+    "numpy>=2.2.3",
     "scipy>=1.10.0",
-    "pandas>=2.0.0",
-    "matplotlib>=3.7.0",
-    "reportlab>=4.2.5",
-
-    "h5py>=3.8.0",
-    "sympy>=1.11.0",
+    "matplotlib>=3.10.0",
+    "reportlab>=4.3.1",
 
     "kafka-python-ng>=2.2.3",
     "avro>=1.12.0",
-
-    "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0"
+    "Requests>=2.32.3"
 ]
 
 [project.optional-dependencies]
 dev = [
-    "debugpy",
-    "ipython",
-    "ipdb",
-
-    "pytest>=7.3.0",
-    "pytest-cov",
-    "pytest-mock",
-    "hypothesis",
-
-    "mypy",
-    "types-all",
-
-    "ruff",
-    "black",
-    "isort",
-
-    "py-spy",
-    "memory-profiler",
-    "line-profiler",
-
-    "jupyter",
-    "notebook",
-    "jupyterlab",
-    "ipykernel",
-
-    "sphinx",
-    "pdoc3",
-
-    "bandit",
-    "safety"
+    "debugpy>=1.8.12",
+    "pytest>=8.3.4"
 ]
 
 [project.urls]
