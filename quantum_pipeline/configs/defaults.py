@@ -18,7 +18,8 @@ DEFAULTS = {
         'noise_backend': None,
         'gpu_opts': {
             'device': 'GPU',
-            'cuStateVec_enable': True,
+            # set to true if you have Volta or Ampere architecture GPUs (and cuda >=11.2)
+            'cuStateVec_enable': False,
             'blocking_enable': True,
             'batched_shots_gpu': True,
             'shot_branching_enable': True,

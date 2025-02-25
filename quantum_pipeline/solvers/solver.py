@@ -6,7 +6,6 @@ from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel
 from qiskit_ibm_runtime import QiskitRuntimeService
 
-from quantum_pipeline.configs.defaults import DEFAULTS
 from quantum_pipeline.configs.parsing.backend_config import BackendConfig
 from quantum_pipeline.configs.settings import LOG_LEVEL, SUPPORTED_OPTIMIZERS
 from quantum_pipeline.utils.logger import get_logger
