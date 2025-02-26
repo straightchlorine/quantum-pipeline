@@ -1,0 +1,30 @@
+FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu24.04
+
+WORKDIR /usr/src/quantum_pipeline
+
+RUN apt-get update && apt-get install -y git python3.12 python3-pip
+
+RUN python3.12 -m venv aer-build && source ./aer-build/bin/activate
+
+RUN pip install qiskit-aer
+RUN pip uninstall -y qiskit-aer
+
+RUN pip install nvidia-cuda-runtime-cu12 nvidia-cublas-cu12 nvidia-cusolver-cu12 nvidia-cusparse-cu12 cuquantum-cu12 pybind11
+
+RUN git clone https://github.com/Qiskit/qiskit-aer
+RUN pip install -r qiskit-aer/requirements-dev.txt
+
+RUN rm -rf qiskit-aer/_skbuild
+
+WORKDIR /usr/src/quantum_pipeline/qiskit-aer
+RUN python ./setup.py bdist_wheel -- -DAER_THRUST_BACKEND=CUDA -DAER_CUDA_ARCH="6.1" -DCMAKE_VERBOSE_MAKEFILE=true  -DAER_DEBUG=false -DAER_MPI=false -DCMAKE_CUDA_FLAGS=-std=c++14 --
+WORKDIR /usr/src/quantum_pipeline/
+
+RUN mkdir static && mv ./qiskit-aer/dist/* ./static && rm -rf qiskit-aer && source deactivate && rm -rf ./aer-build
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+ENTRYPOINT [ "python", "quantum_pipeline.py" ]
