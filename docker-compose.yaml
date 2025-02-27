@@ -4,15 +4,23 @@ services:
     container_name: schema-registry
     restart: unless-stopped
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     environment:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "kafka:9092"
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: "vqe_"
       SCHEMA_REGISTRY_HOST_NAME: "schema-registry"
       SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
     ports:
       - "8081:8081"
     networks:
       - quantum-net
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8081/subjects"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
   kafka:
     image: bitnami/kafka:latest
     container_name: kafka
@@ -34,12 +42,18 @@ services:
       - KAFKA_CLIENT_LISTENER_NAME=PLAINTEXT
     networks:
       - quantum-net
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server kafka:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
   quantum-pipeline:
     container_name: quantum-pipeline
-    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", '--log-level', 'DEBUG']
+    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", '--log-level', 'DEBUG', '--gpu', '--simulation-method', 'tensor_network']
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./docker/Dockerfile.gpu
     restart: always
     volumes:
       - ./gen/:/usr/src/quantum-pipeline/gen/
@@ -51,7 +65,17 @@ services:
     networks:
       - quantum-net
     depends_on:
-      - schema-registry
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 networks:
   quantum-net:
     name: quantum-pipeline-network

@@ -14,6 +14,6 @@ COPY . .
 # you can easily generate one by using build_aer_gpu.sh script in the repo or by following
 # instructions in the offical repository:
 # https://github.com/Qiskit/qiskit-aer/blob/main/CONTRIBUTING.md
-RUN find ./static -name "*.whl" -type f -exec ./venv/bin/pip install {} \;
+RUN find ./static -name "*.whl" -type f -exec ./venv/bin/pip3.12 install {} \;
 
-ENTRYPOINT [ "./venv/bin/python", "quantum_pipeline.py" ]
+ENTRYPOINT [ "./venv/bin/python3.12", "quantum_pipeline.py" ]
