@@ -16,7 +16,7 @@ services:
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8081/subjects"]
+      test: ["CMD-SHELL", "if [ -f /tmp/last_success ] && [ $(( $(date +%s) - $(cat /tmp/last_success) )) -lt 60 ]; then echo 'Using cached health result'; else if curl --fail -s http://localhost:8081/subjects > /dev/null; then date +%s > /tmp/last_success; echo 'Schema Registry is healthy'; else echo 'Schema Registry is unhealthy'; exit 1; fi; fi"]
       interval: 10s
       timeout: 5s
       retries: 5

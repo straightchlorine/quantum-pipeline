@@ -1,0 +1,2 @@
+# do not copy any avro files, since in the container schema-registry will be used
+*.avsc

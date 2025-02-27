@@ -90,7 +90,7 @@ class SchemaRegistry:
         schema_file = self.schema_dir / f'{schema_name}.avsc'
 
         self.logger.info('Validating the schema dict...')
-        self.logger.debug(f'\n\n{schema_dict}\n\n')
+        self.logger.debug(f'{schema_name} structure:\n\n{schema_dict}\n\n')
         try:
             schema.parse(json.dumps(schema_dict))
         except Exception as e:

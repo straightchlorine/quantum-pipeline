@@ -129,7 +129,7 @@ class VQESolver(Solver):
             }
 
             self.logger.info(
-                f'Starting the minimization process with max iterations {self.max_iterations}.'
+                f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
             )
 
             res = minimize(
@@ -190,7 +190,7 @@ class VQESolver(Solver):
         }
 
         self.logger.info(
-            f'Starting the minimization process with max iterations {self.max_iterations}.'
+            f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
         )
         res = minimize(
             self.computeEnergy,
