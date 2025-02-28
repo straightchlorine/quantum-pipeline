@@ -1,4 +1,48 @@
+volumes:
+  minio-data:
+  dremio-data:
+
+networks:
+  quantum-net:
+    name: quantum-pipeline-network
+    driver: bridge
+
 services:
+
+  quantum-pipeline:
+    container_name: quantum-pipeline
+    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1",
+      '--log-level', 'DEBUG', '--gpu', '--simulation-method', 'tensor_network']
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.gpu
+    restart: always
+    volumes:
+      - ./gen/:/usr/src/quantum-pipeline/gen/
+    environment:
+      IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
+      IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
+      IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+    networks:
+      - quantum-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      kafka-connect:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
   schema-registry:
     image: confluentinc/cp-schema-registry:latest
     container_name: schema-registry
@@ -16,11 +60,16 @@ services:
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD-SHELL", "if [ -f /tmp/last_success ] && [ $(( $(date +%s) - $(cat /tmp/last_success) )) -lt 60 ]; then echo 'Using cached health result'; else if curl --fail -s http://localhost:8081/subjects > /dev/null; then date +%s > /tmp/last_success; echo 'Schema Registry is healthy'; else echo 'Schema Registry is unhealthy'; exit 1; fi; fi"]
+      test: ["CMD-SHELL", "if [ -f /tmp/last_success ] && [ $(( $(date +%s) - $(cat
+          /tmp/last_success) )) -lt 60 ]; then echo 'Using cached health result';
+          else if curl --fail -s http://localhost:8081/subjects > /dev/null; then
+          date +%s > /tmp/last_success; echo 'Schema Registry is healthy'; else echo
+          'Schema Registry is unhealthy'; exit 1; fi; fi"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+
   kafka:
     image: bitnami/kafka:latest
     container_name: kafka
@@ -48,20 +97,43 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-  quantum-pipeline:
-    container_name: quantum-pipeline
-    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", '--log-level', 'DEBUG', '--gpu', '--simulation-method', 'tensor_network']
-    build:
-      context: .
-      dockerfile: ./docker/Dockerfile.gpu
-    restart: always
-    volumes:
-      - ./gen/:/usr/src/quantum-pipeline/gen/
+
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:latest
+    container_name: kafka-connect
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
     environment:
-      IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
-      IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
-      IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
-      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      CONNECT_BOOTSTRAP_SERVERS: "kafka:9092"
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: "connect-cluster"
+      CONNECT_CONFIG_STORAGE_TOPIC: "connect-configs"
+      CONNECT_OFFSET_STORAGE_TOPIC: "connect-offsets"
+      CONNECT_STATUS_STORAGE_TOPIC: "connect-status"
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
+      CONNECT_LOG4J_ROOT_LOGLEVEL: "INFO"
+      CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/connectors"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+    volumes:
+      - ./docker/connectors:/connectors
+    command:
+      - bash
+      - -c
+      - |
+        echo "Installing connector plugins"
+        confluent-hub install --no-prompt confluentinc/kafka-connect-s3:latest
+        confluent-hub install --no-prompt tabular/iceberg-kafka-connect:latest
+        #
+        echo "Launching Kafka Connect worker"
+        /etc/confluent/docker/run
     networks:
       - quantum-net
     depends_on:
@@ -69,14 +141,55 @@ services:
         condition: service_healthy
       schema-registry:
         condition: service_healthy
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-networks:
-  quantum-net:
-    name: quantum-pipeline-network
-    driver: bridge
+      minio:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+      MINIO_REGION_NAME: us-east-1
+      MINIO_BROWSER_REDIRECT_URL: http://localhost:9001
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+      - ./docker/minio/config:/root/.minio
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mc-setup:
+    image: minio/mc
+    container_name: mc-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        sleep 5;
+        /usr/bin/mc config host add myminio http://minio:9000 minio minio123;
+        /usr/bin/mc mb myminio/iceberg;
+        /usr/bin/mc mb myminio/quantum-data;
+        /usr/bin/mc mb myminio/ml-datasets;
+        /usr/bin/mc policy set public myminio/quantum-data;
+        /usr/bin/mc policy set public myminio/iceberg;
+        exit 0;
+      "
+    networks:
+      - quantum-net
