@@ -12,6 +12,7 @@ class SchemaRegistry:
     def __init__(self):
         self.schema_dir = SCHEMA_DIR
         self.schema_cache: dict[str, dict[str, Any]] = {}
+        self.id_cache: dict[str, int] = {}
         self.logger = get_logger(self.__class__.__name__)
         self.schema_registry_url = SCHEMA_REGISTRY_URL
 
@@ -37,14 +38,20 @@ class SchemaRegistry:
         self.logger.debug(f'Checking the schema registry at {self.schema_registry_url}...')
         try:
             response = requests.get(
-                f'{self.schema_registry_url}/subjects/{schema_name}/versions/latest'
+                f'{self.schema_registry_url}/subjects/{schema_name}-value/versions/latest'
             )
             if response.status_code == 200:
                 self.logger.debug('Found schema at the schema registry.')
-                schema_dict = response.json()['schema']
-                schema_dict = json.loads(schema_dict)
-                self.schema_cache[schema_name] = schema_dict
-                return schema_dict
+
+                response_json = response.json()
+                schema = response.json()['schema']
+                id = response_json['id']
+
+                self.schema_cache[schema_name] = schema
+
+                if not self.id_cache.get(schema_name, False):
+                    self.id_cache[schema_name] = id
+                return schema
             else:
                 self.logger.warning('Unable to find schema at the schema registry.')
         except requests.RequestException as e:
@@ -101,14 +108,17 @@ class SchemaRegistry:
         self.logger.debug('Attempting to save schema at schema registry...')
         try:
             response = requests.post(
-                f'{self.schema_registry_url}/subjects/{schema_name}/versions',
+                f'{self.schema_registry_url}/subjects/{schema_name}-value/versions',
                 headers={'Content-Type': 'application/vnd.schemaregistry.v1+json'},
                 json={'schema': json.dumps(schema_dict)},
             )
+
             if response.status_code not in [200, 201]:
                 self.logger.warning(f'Failed to register schema: {response.text}')
             else:
                 self.logger.info('Schema registered successfully.')
+                if not self.id_cache.get(schema_name, False):
+                    self.id_cache[schema_name] = response.json()['id']
 
         except requests.RequestException as e:
             self.logger.warning(f'Error registering schema in registry: {e}')
