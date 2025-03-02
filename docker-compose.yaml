@@ -1,6 +1,5 @@
 volumes:
   minio-data:
-  dremio-data:
 
 networks:
   quantum-net:
@@ -11,8 +10,17 @@ services:
 
   quantum-pipeline:
     container_name: quantum-pipeline
-    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1",
-      '--log-level', 'DEBUG', '--gpu', '--simulation-method', 'tensor_network']
+    command:
+      - "--file"
+      - "data/molecules.json"
+      - "--kafka"
+      - "--gpu"
+      - "--max-iterations"
+      - "${MAX_ITERATIONS}"
+      - "--log-level"
+      - "${LOG_LEVEL:-INFO}"
+      - "--simulation-method"
+      - "${SIMULATION_METHOD:-statevector}"
     build:
       context: .
       dockerfile: ./docker/Dockerfile.gpu
@@ -27,14 +35,8 @@ services:
     networks:
       - quantum-net
     depends_on:
-      kafka:
-        condition: service_healthy
-      schema-registry:
-        condition: service_healthy
-      minio:
-        condition: service_started
-      kafka-connect:
-        condition: service_healthy
+      kafka-connect-init:
+        condition: service_completed_successfully
     deploy:
       resources:
         reservations:
@@ -44,47 +46,42 @@ services:
               capabilities: [gpu]
 
   schema-registry:
-    image: confluentinc/cp-schema-registry:latest
+    image: confluentinc/cp-schema-registry:${SCHEMA_REGISTRY_VERSION:-latest}
     container_name: schema-registry
     restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
     environment:
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "kafka:9092"
-      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: "vqe_"
-      SCHEMA_REGISTRY_HOST_NAME: "schema-registry"
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "${KAFKA_SERVERS}"
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: "${SCHEMA_REGISTRY_TOPIC}"
+      SCHEMA_REGISTRY_HOST_NAME: "${SCHEMA_REGISTRY_HOSTNAME:-schema-registry}"
       SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
     ports:
-      - "8081:8081"
+      - "${SCHEMA_REGISTRY_PORT:-8081}:8081"
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD-SHELL", "if [ -f /tmp/last_success ] && [ $(( $(date +%s) - $(cat
-          /tmp/last_success) )) -lt 60 ]; then echo 'Using cached health result';
-          else if curl --fail -s http://localhost:8081/subjects > /dev/null; then
-          date +%s > /tmp/last_success; echo 'Schema Registry is healthy'; else echo
-          'Schema Registry is unhealthy'; exit 1; fi; fi"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      test: ["CMD", "curl", "--fail", "-s", "http://localhost:8081/subjects"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
 
   kafka:
-    image: bitnami/kafka:latest
+    image: bitnami/kafka:${KAFKA_VERSION:-latest}
     container_name: kafka
     restart: unless-stopped
     ports:
-      - "9094:9094"
-      - "9092:9092"
+      - "${KAFKA_EXTERNAL_PORT:-9094}:9094"
+      - "${KAFKA_INTERNAL_PORT:-9092}:9092"
     environment:
-      # KRaft
       - KAFKA_CFG_NODE_ID=0
       - KAFKA_CFG_PROCESS_ROLES=controller,broker
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
-      # Listener setup
+
       - KAFKA_CFG_LISTENERS=PLAINTEXT://kafka:9092,CONTROLLER://:9093,EXTERNAL://0.0.0.0:9094
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://${EXTERNAL_HOST_IP}:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://${KAFKA_EXTERNAL_HOST_IP:-localhost}:${KAFKA_EXTERNAL_PORT:-9094}
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
@@ -99,38 +96,45 @@ services:
       start_period: 30s
 
   kafka-connect:
-    image: confluentinc/cp-kafka-connect:latest
+    image: confluentinc/cp-kafka-connect:${KAFKA_CONNECT_VERSION:-latest}
     container_name: kafka-connect
     restart: unless-stopped
     ports:
-      - "8083:8083"
+      - "${KAFKA_CONNECT_PORT:-8083}:8083"
     environment:
-      CONNECT_BOOTSTRAP_SERVERS: "kafka:9092"
+      CONNECT_BOOTSTRAP_SERVERS: "${KAFKA_SERVERS}"
       CONNECT_REST_PORT: 8083
+
       CONNECT_GROUP_ID: "connect-cluster"
+
       CONNECT_CONFIG_STORAGE_TOPIC: "connect-configs"
       CONNECT_OFFSET_STORAGE_TOPIC: "connect-offsets"
       CONNECT_STATUS_STORAGE_TOPIC: "connect-status"
+
       CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
       CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+
       CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
-      CONNECT_LOG4J_ROOT_LOGLEVEL: "INFO"
+
+      CONNECT_LOG4J_ROOT_LOGLEVEL: "${KAFKA_CONNECT_LOG_LEVEL:-INFO}"
       CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
+
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/connectors"
+
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
-    volumes:
-      - ./docker/connectors:/connectors
+
+      AWS_ACCESS_KEY: "${MINIO_ACCESS_KEY}"
+      AWS_SECRET_KEY: "${MINIO_SECRET_KEY}"
     command:
       - bash
       - -c
       - |
         echo "Installing connector plugins"
         confluent-hub install --no-prompt confluentinc/kafka-connect-s3:latest
-        confluent-hub install --no-prompt tabular/iceberg-kafka-connect:latest
         #
         echo "Launching Kafka Connect worker"
         /etc/confluent/docker/run
@@ -150,25 +154,46 @@ services:
       retries: 5
       start_period: 60s
 
+  kafka-connect-init:
+    image: curlimages/curl
+    container_name: kafka-connect-init
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+    entrypoint: >
+      bash -c "
+        echo 'Waiting for Kafka Connect...';
+        until curl -s -o /dev/null http://kafka-connect:8083/connectors; do
+          sleep 5;
+        done;
+        echo 'Registering MinIO Sink Connector...';
+        curl -X POST -H 'Content-Type: application/json' --data @/connectors/minio-sink-config.json http://kafka-connect:8083/connectors;
+        echo 'MinIO Sink Connector registered!';
+        exit 0;
+      "
+    volumes:
+      - ./docker/connectors/minio-sink-config.json:/connectors/minio-sink-config.json
+    networks:
+      - quantum-net
+
   minio:
-    image: minio/minio:latest
+    image: minio/minio:${MINIO_VERSION:-latest}
     container_name: minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
-      MINIO_REGION_NAME: us-east-1
-      MINIO_BROWSER_REDIRECT_URL: http://localhost:9001
-    command: server /data --console-address ":9001"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_REGION_NAME: ${MINIO_REGION}
+      MINIO_BROWSER_REDIRECT_URL: http://localhost:${MINIO_CONSOLE_PORT}
+    command: minio server /data --console-address ":${MINIO_CONSOLE_PORT}"
     volumes:
       - minio-data:/data
-      - ./docker/minio/config:/root/.minio
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:${MINIO_API_PORT}/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -182,13 +207,9 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-        sleep 5;
-        /usr/bin/mc config host add myminio http://minio:9000 minio minio123;
-        /usr/bin/mc mb myminio/iceberg;
-        /usr/bin/mc mb myminio/quantum-data;
-        /usr/bin/mc mb myminio/ml-datasets;
-        /usr/bin/mc policy set public myminio/quantum-data;
-        /usr/bin/mc policy set public myminio/iceberg;
+        /usr/bin/mc config host add ${MINIO_HOSTNAME} http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+        /usr/bin/mc ls ${MINIO_HOSTNAME}/${MINIO_BUCKET} || /usr/bin/mc mb ${MINIO_HOSTNAME}/${MINIO_BUCKET};
+        /usr/bin/mc policy set public ${MINIO_HOSTNAME}/${MINIO_BUCKET};
         exit 0;
       "
     networks:

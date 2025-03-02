@@ -1,3 +1,6 @@
+# ignore main env file
+.env
+
 # ignore generated wheel files
 *.whl
 

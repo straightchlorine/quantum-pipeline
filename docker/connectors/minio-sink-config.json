@@ -1,0 +1,29 @@
+{
+  "name": "minio-sink",
+  "config": {
+    "store.url": "http://minio:9000",
+    "connector.class": "io.confluent.connect.s3.S3SinkConnector",
+
+    "s3.bucket.name": "vqe-results",
+    "s3.region": "us-east-1",
+    "s3.path.style.access": "true",
+    "s3.access.key.id": "admin",
+    "s3.secret.access.key": "admin123",
+
+    "topics": "vqe_decorated_result",
+    "tasks.max": "1",
+
+    "schema.compatibility": "NONE",
+    "flush.size": "10",
+
+    "format.class": "io.confluent.connect.s3.format.json.JsonFormat",
+    "storage.class": "io.confluent.connect.s3.storage.S3Storage",
+
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://schema-registry:8081",
+    "value.converter.schema.registry.url": "http://schema-registry:8081",
+
+    "transforms.AvroToJson.field": "actual_field_name"
+  }
+}

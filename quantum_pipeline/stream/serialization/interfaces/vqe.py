@@ -70,22 +70,49 @@ class AvroInterfaceBase(ABC, Generic[T]):
             return obj.tolist()
         return obj
 
-    def to_avro_bytes(self, obj: T) -> bytes:
+    def to_avro_bytes(self, obj: T, schema_name: str = 'vqe_decorated_result') -> bytes:
         """Convert object to Avro binary format."""
-        parsed_schema = avro.schema.parse(json.dumps(self.schema))
+        schema = self.schema
+
+        parsed_schema = ''
+        if isinstance(schema, dict):
+            parsed_schema = avro.schema.parse(json.dumps(schema))
+        elif isinstance(schema, str):
+            parsed_schema = avro.schema.parse(schema)
+
         writer = DatumWriter(parsed_schema)
         bytes_writer = io.BytesIO()
+
+        # add Confluent Schema Registry header
+        bytes_writer.write(bytes([0]))
+        bytes_writer.write(self.registry.id_cache[schema_name].to_bytes(4, byteorder='big'))
+
         encoder = BinaryEncoder(bytes_writer)
         writer.write(self.serialize(obj), encoder)
         return bytes_writer.getvalue()
 
     def from_avro_bytes(self, avro_bytes: bytes) -> T:
         """Convert Avro binary format to object."""
-        parsed_schema = avro.schema.parse(json.dumps(self.schema))
-        reader = DatumReader(parsed_schema)
+        schema = self.schema
+
         bytes_reader = io.BytesIO(avro_bytes)
+
+        # read the magic byte
+        magic_byte = bytes_reader.read(1)
+        if magic_byte != bytes([0]):
+            raise ValueError(f'Invalid magic byte: {magic_byte}. Expected: {bytes([0])}')
+
+        # read the schema id (for now left unused)
+        # TODO: log it maybe
+        bytes_reader.read(4)
+
+        # parse the schema
+        parsed_schema = avro.schema.parse(schema)
+
+        reader = DatumReader(parsed_schema)
         decoder = BinaryDecoder(bytes_reader)
         data = reader.read(decoder)
+
         return self.deserialize(data)
 
 

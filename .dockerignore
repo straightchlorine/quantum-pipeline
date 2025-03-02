@@ -1,2 +1,10 @@
-# do not copy any avro files, since in the container schema-registry will be used
+.git
+.gitignore
+
+notebooks
+examples
+dist
+venv
+
+schemas
 *.avsc

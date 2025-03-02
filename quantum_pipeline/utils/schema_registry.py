@@ -1,9 +1,9 @@
 import json
-import requests
 from typing import Any
 
-from avro import schema
+import requests
 
+import avro.schema
 from quantum_pipeline.configs.settings import SCHEMA_DIR, SCHEMA_REGISTRY_URL
 from quantum_pipeline.utils.logger import get_logger
 
@@ -30,18 +30,24 @@ class SchemaRegistry:
             FileNotFoundError: If schema file doesn't exist
             ValueError: If schema is invalid
         """
-        self.logger.debug(f'Checking the {schema_name} schema registry cache...')
+        self.logger.debug(
+            f'Checking if the {schema_name} schema resides in the SchemaRegistry cache...'
+        )
         if schema_name in self.schema_cache:
             self.logger.info(f'Found cached {schema_name} schema.')
             return self.schema_cache[schema_name]
+        else:
+            self.logger.info(f'No entry of {schema_name} in the cache.')
 
-        self.logger.debug(f'Checking the schema registry at {self.schema_registry_url}...')
+        self.logger.debug(
+            f'Checking the schema registry at {self.schema_registry_url} for the schema...'
+        )
         try:
             response = requests.get(
                 f'{self.schema_registry_url}/subjects/{schema_name}-value/versions/latest'
             )
             if response.status_code == 200:
-                self.logger.debug('Found schema at the schema registry.')
+                self.logger.debug('Found schema in the schema-registry service.')
 
                 response_json = response.json()
                 schema = response.json()['schema']
@@ -69,7 +75,7 @@ class SchemaRegistry:
                 schema_dict = json.load(f)
 
             self.logger.debug(f'Validating the {schema_name}...')
-            schema.parse(json.dumps(schema_dict))
+            avro.schema.parse(json.dumps(schema_dict))
 
             self.logger.debug(f'Validation passed, caching the {schema_name} schema.')
             self.schema_cache[schema_name] = schema_dict
@@ -99,7 +105,7 @@ class SchemaRegistry:
         self.logger.info('Validating the schema dict...')
         self.logger.debug(f'{schema_name} structure:\n\n{schema_dict}\n\n')
         try:
-            schema.parse(json.dumps(schema_dict))
+            avro.schema.parse(json.dumps(schema_dict))
         except Exception as e:
             self.logger.error('Invalid Avro schema.')
             raise ValueError(f'Invalid Avro schema: {e}')
