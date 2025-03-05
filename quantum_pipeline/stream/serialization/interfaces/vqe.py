@@ -17,6 +17,7 @@ from quantum_pipeline.structures.vqe_observation import (
     VQEProcess,
     VQEResult,
 )
+from quantum_pipeline.utils.logger import get_logger
 
 T = TypeVar('T')
 
@@ -26,6 +27,7 @@ class AvroInterfaceBase(ABC, Generic[T]):
 
     def __init__(self, registry):
         self.registry = registry
+        self.logger = get_logger(self.__class__.__name__)
 
     @property
     @abstractmethod
@@ -84,8 +86,13 @@ class AvroInterfaceBase(ABC, Generic[T]):
         bytes_writer = io.BytesIO()
 
         # add Confluent Schema Registry header
-        bytes_writer.write(bytes([0]))
-        bytes_writer.write(self.registry.id_cache[schema_name].to_bytes(4, byteorder='big'))
+        try:
+            bytes_writer.write(bytes([0]))
+            bytes_writer.write(self.registry.id_cache[schema_name].to_bytes(4, byteorder='big'))
+        except Exception:
+            self.logger.warning(
+                'Unable to add schema-registry headers - likely due to no connection to the service.'
+            )
 
         encoder = BinaryEncoder(bytes_writer)
         writer.write(self.serialize(obj), encoder)
