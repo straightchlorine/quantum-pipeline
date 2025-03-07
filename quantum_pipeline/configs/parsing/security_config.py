@@ -68,6 +68,16 @@ class SecurityConfig:
     cert_config: CertConfig
     sasl_opts: SaslSslOpts
 
+    @staticmethod
+    def get_default() -> 'SecurityConfig':
+        return SecurityConfig(
+            ssl=DEFAULTS['kafka']['security']['ssl'],
+            sasl_ssl=DEFAULTS['kafka']['security']['sasl_ssl'],
+            ssl_check_hostname=DEFAULTS['kafka']['security']['ssl_check_hostname'],
+            cert_config=CertConfig.from_dict(DEFAULTS['kafka']['security']['certs']),
+            sasl_opts=SaslSslOpts.from_dict(DEFAULTS['kafka']['security']['sasl_opts']),
+        )
+
     def to_dict(self) -> dict:
         return {
             'ssl': self.ssl,

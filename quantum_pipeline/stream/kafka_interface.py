@@ -3,7 +3,7 @@ from time import sleep
 from typing import Any
 
 from kafka import KafkaProducer
-from kafka.errors import KafkaError
+from kafka.errors import KafkaError, NoBrokersAvailable
 
 from quantum_pipeline.configs.parsing.producer_config import ProducerConfig
 from quantum_pipeline.stream.serialization.interfaces.vqe import (
@@ -99,9 +99,12 @@ class VQEKafkaProducer:
                 acks=self.config.acks,
                 **security,
             )
+        except NoBrokersAvailable:
+            self.logger.error('No brokers available. Check the Kafka broker configuration.')
+            raise KafkaProducerError('No brokers available.')
         except Exception as e:
             self.logger.error(f'Failed to initialize KafkaProducer: {str(e)}')
-            raise KafkaProducerError(f'Producer initialization failed: {str(e)}')
+            raise KafkaProducerError(f'Failed to initialize producer: {str(e)}')
 
     def __enter__(self):
         return self

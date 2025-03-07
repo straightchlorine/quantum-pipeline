@@ -40,6 +40,7 @@ class VQEResult:
     minimum: np.float64
     optimal_parameters: np.ndarray
     maxcv: np.float64
+    minimization_time: np.float64
 
 
 @dataclass

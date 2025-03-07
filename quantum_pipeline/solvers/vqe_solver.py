@@ -7,12 +7,12 @@ classical optimization to find the minimum eigenvalue of a Hamiltonian.
 """
 
 import numpy as np
+from scipy.optimize import minimize
+
 from qiskit.circuit.library import EfficientSU2
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer.backends.aer_simulator import AerBackend
 from qiskit_ibm_runtime import EstimatorV2, Session
-from scipy.optimize import minimize
-
 from quantum_pipeline.configs.parsing.backend_config import BackendConfig
 from quantum_pipeline.solvers.solver import Solver
 from quantum_pipeline.structures.vqe_observation import (
@@ -20,6 +20,7 @@ from quantum_pipeline.structures.vqe_observation import (
     VQEProcess,
     VQEResult,
 )
+from quantum_pipeline.utils.timer import Timer
 
 
 class VQESolver(Solver):
@@ -132,6 +133,10 @@ class VQESolver(Solver):
                 f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
             )
 
+            if self.convergence_threshold:
+                self.logger.info(f'Applying convergence threshold {self.convergence_threshold}.')
+
+        with Timer() as t:
             res = minimize(
                 self.computeEnergy,
                 x0,
@@ -141,15 +146,19 @@ class VQESolver(Solver):
                 tol=self.convergence_threshold if self.convergence_threshold else None,
             )
 
-            result = VQEResult(
-                initial_data=self.init_data,
-                iteration_list=self.vqe_process,
-                minimum=res.fun,
-                optimal_parameters=res.x,
-                maxcv=res.maxcv,
-            )
+        result = VQEResult(
+            initial_data=self.init_data,
+            iteration_list=self.vqe_process,
+            minimum=res.fun,
+            optimal_parameters=res.x,
+            maxcv=res.maxcv,
+            minimization_time=np.float64(t.elapsed),
+        )
 
         self.logger.info('Session closed.')
+        self.logger.info(
+            f'Calculations on quantum hardware via IBMQ completed in {t.elapsed:}.6f seconds.'
+        )
         return result
 
     def viaAer(self, backend):
@@ -192,14 +201,15 @@ class VQESolver(Solver):
         self.logger.info(
             f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
         )
-        res = minimize(
-            self.computeEnergy,
-            x0,
-            args=(ansatz_isa, hamiltonian_isa, estimator),
-            method=self.optimizer,
-            options=optimization_params,
-            tol=self.convergence_threshold if self.convergence_threshold else None,
-        )
+        with Timer() as t:
+            res = minimize(
+                self.computeEnergy,
+                x0,
+                args=(ansatz_isa, hamiltonian_isa, estimator),
+                method=self.optimizer,
+                options=optimization_params,
+                tol=self.convergence_threshold if self.convergence_threshold else None,
+            )
 
         result = VQEResult(
             initial_data=self.init_data,
@@ -207,9 +217,10 @@ class VQESolver(Solver):
             minimum=res.fun,
             optimal_parameters=res.x,
             maxcv=res.maxcv,
+            minimization_time=np.float64(t.elapsed),
         )
 
-        self.logger.info('Simulation via Aer completed.')
+        self.logger.info(f'Simulation via Aer completed in {t.elapsed:}.6f seconds.')
         return result
 
     def solve(self):

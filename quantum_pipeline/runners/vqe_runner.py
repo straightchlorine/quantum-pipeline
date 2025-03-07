@@ -1,10 +1,9 @@
-import time
-
 import numpy as np
+
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
 from qiskit_nature.second_q.mappers import JordanWignerMapper
-
 from quantum_pipeline.configs.parsing.backend_config import BackendConfig
+from quantum_pipeline.configs.parsing.security_config import SecurityConfig
 from quantum_pipeline.drivers.basis_sets import validate_basis_set
 from quantum_pipeline.drivers.molecule_loader import load_molecule
 from quantum_pipeline.report.report_generator import ReportGenerator
@@ -12,26 +11,8 @@ from quantum_pipeline.runners.runner import Runner
 from quantum_pipeline.solvers.vqe_solver import VQESolver
 from quantum_pipeline.stream.kafka_interface import ProducerConfig, VQEKafkaProducer
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
+from quantum_pipeline.utils.timer import Timer
 from quantum_pipeline.visual.ansatz import AnsatzViewer
-
-
-class Timer:
-    def __init__(self):
-        self.start_time = None
-        self.end_time = None
-
-    def __enter__(self):
-        self.start_time = time.time()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.end_time = time.time()
-
-    @property
-    def elapsed(self):
-        if self.start_time is None or self.end_time is None:
-            raise ValueError('Timer has not finished yet.')
-        return self.end_time - self.start_time
 
 
 class VQERunner(Runner):
@@ -55,6 +36,7 @@ class VQERunner(Runner):
         kafka_acks='all',
         kafka_timeout=10,
         kafka_config: ProducerConfig | None = None,
+        security_config: SecurityConfig | None = None,
         backend_type='local',
         backend_optimization_level=3,
         backend_min_num_qubits=None,
@@ -80,6 +62,7 @@ class VQERunner(Runner):
             self.report_gen = ReportGenerator()
 
         self.kafka = kafka
+
         if self.kafka and kafka_config is not None:
             self.kafka_config = kafka_config
         elif self.kafka and kafka_config is None:
@@ -91,13 +74,14 @@ class VQERunner(Runner):
                     kafka_retries=kafka_internal_retries,
                     acks=kafka_acks,
                     timeout=kafka_timeout,
+                    security=security_config
+                    if security_config is not None
+                    else SecurityConfig.get_default(),
                 )
             except Exception as e:
                 self.logger.error(
                     f'Unable to create ProducerConfig, ensure required parameters are passed to the VQERunner instance: {e}'
                 )
-        if self.kafka:
-            self.producer = VQEKafkaProducer(self.kafka_config)
 
         def isAnyBackendOptionSet():
             return (
@@ -133,10 +117,8 @@ class VQERunner(Runner):
                 self.backend_config = BackendConfig.default_backend_config()
             except Exception as e:
                 self.logger.error(
-                    (
-                        'Unable to create default backend_config. '
-                        + f'ensure required parameters are passed to the VQERunner instance: {e}'
-                    )
+                    'Unable to create default backend_config. '
+                    f'ensure required parameters are passed to the VQERunner instance: {e}'
                 )
 
         self.run_results = []
@@ -177,7 +159,7 @@ class VQERunner(Runner):
 
         self.logger.info('Running VQE procedure...')
         with Timer() as t:
-            result = VQESolver(
+            solver = VQESolver(
                 qubit_op=qubit_op,
                 backend_config=backend_config,
                 max_iterations=self.max_iterations,
@@ -186,7 +168,8 @@ class VQERunner(Runner):
                 ansatz_reps=self.ansatz_reps,
                 default_shots=self.default_shots,
                 convergence_threshold=self.convergence_threshold,
-            ).solve()
+            )
+            result = solver.solve()
 
         self.vqe_time = t.elapsed
         self.logger.info(f'VQE procedure completed in {t.elapsed:.6f} seconds')
@@ -217,7 +200,21 @@ class VQERunner(Runner):
             self.logger.debug('Appended run information to the result.')
 
             if self.kafka:
-                self.producer.send_result(decorated_result)
+                try:
+                    self.producer = VQEKafkaProducer(self.kafka_config)
+
+                    try:
+                        self.producer.send_result(decorated_result)
+                    except Exception as e:
+                        self.logger.error('Unable to send the result to the Kafka broker.')
+                        self.logger.debug(f'Error: {e}')
+
+                except Exception as e:
+                    self.logger.error(
+                        'Unable to create Kafka Producer, '
+                        'cannot send the results to the broker.'
+                    )
+                    self.logger.debug(f'Error: {e}')
 
             if self.report:
                 self.logger.info(f'Generating report for molecule {id + 1}...')

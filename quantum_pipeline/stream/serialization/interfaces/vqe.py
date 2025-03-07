@@ -3,14 +3,14 @@ import io
 import json
 from typing import Any, Generic, TypeVar
 
-from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
-import avro.schema
 import numpy as np
 from numpy import float32, float64, int32, int64, ndarray
+
+from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
+import avro.schema
 from qiskit.qasm3 import dumps, loads
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 from qiskit_nature.units import DistanceUnit
-
 from quantum_pipeline.structures.vqe_observation import (
     VQEDecoratedResult,
     VQEInitialData,
@@ -85,13 +85,16 @@ class AvroInterfaceBase(ABC, Generic[T]):
         writer = DatumWriter(parsed_schema)
         bytes_writer = io.BytesIO()
 
-        # add Confluent Schema Registry header
-        try:
+        if self.registry.id_cache.get(schema_name, False):
+            self.logger.debug(
+                f'Writing Confluent Schema Registry header for schema {schema_name}.'
+            )
             bytes_writer.write(bytes([0]))
             bytes_writer.write(self.registry.id_cache[schema_name].to_bytes(4, byteorder='big'))
-        except Exception:
+        else:
             self.logger.warning(
-                'Unable to add schema-registry headers - likely due to no connection to the service.'
+                'Unable to find id of the schema in the id cache. '
+                'Serializing without Confluent Schema Registry header.'
             )
 
         encoder = BinaryEncoder(bytes_writer)
@@ -262,7 +265,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
 
 class VQEResultInterface(AvroInterfaceBase[VQEResult]):
     def __init__(self, registry):
-        self.registry = registry
+        super().__init__(registry)
         self.initial_data_interface = VQEInitialDataInterface(self.registry)
         self.process_interface = VQEProcessInterface(self.registry)
         self.schema_name = 'vqe_result'
@@ -284,6 +287,7 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
                     {'name': 'minimum', 'type': 'double'},
                     {'name': 'optimal_parameters', 'type': {'type': 'array', 'items': 'double'}},
                     {'name': 'maxcv', 'type': 'double'},
+                    {'name': 'minimization_time', 'type': 'double'},
                 ],
             }
             self.registry.save_schema(self.schema_name, schema)
@@ -305,6 +309,7 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
             minimum=float64(data['minimum']),
             optimal_parameters=self._convert_to_numpy(data['optimal_parameters']),
             maxcv=float64(data['maxcv']),
+            minimization_time=float64(data['minimization_time']),
         )
 
 
@@ -386,7 +391,7 @@ class MoleculeInfoInterface(AvroInterfaceBase[MoleculeInfo]):
 
 class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
     def __init__(self, registry):
-        self.registry = registry
+        super().__init__(registry)
         self.result_interface = VQEResultInterface(self.registry)
         self.molecule_interface = MoleculeInfoInterface(self.registry)
         self.schema_name = 'vqe_decorated_result'

@@ -51,6 +51,7 @@ class SchemaRegistry:
             return self.registry_schema_existence[schema_name]
 
         # check if registry is available
+        self.logger.info('Checking the availability of the schema registry')
         if not self.is_schema_registry_available():
             self.logger.warning('Schema registry is not available.')
             self.registry_schema_existence[schema_name] = False
@@ -101,6 +102,10 @@ class SchemaRegistry:
             self.logger.debug(f'Retrieved schema {schema_name} from cache.')
 
         registry_available = self.is_schema_registry_available()
+        if registry_available:
+            self.logger.info('Schema registry is available.')
+        else:
+            self.logger.warning('Schema registry is not available.')
 
         # if unable to get from cache, try the schema registry service
         if not from_cache and registry_available:
@@ -110,8 +115,8 @@ class SchemaRegistry:
                 and self.registry_schema_existence[schema_name]
             )
 
-            # if found in the registry, retrive it
-            if schema_in_registry:
+            # if found in the registry or if the id_cache is empty, get it from the registry
+            if schema_in_registry or not self.id_cache.get(schema_name, False):
                 schema = self._get_schema_from_registry(schema_name)
                 if schema:
                     self.logger.debug(f'Retrieved schema {schema_name} from registry.')
@@ -169,7 +174,8 @@ class SchemaRegistry:
         self.logger.debug(f'Checking schema registry at {self.schema_registry_url}...')
         try:
             response = requests.get(
-                f'{self.schema_registry_url}/subjects/{schema_name}-value/versions/latest'
+                f'{self.schema_registry_url}/subjects/{schema_name}-value/versions/latest',
+                timeout=5,
             )
             if response.status_code == 200:
                 self.logger.debug('Found schema in the schema-registry service.')
@@ -240,10 +246,8 @@ class SchemaRegistry:
 
         self._ensure_schema_directory_exists()
 
-        # try to save to registry
         self._save_schema_to_registry(schema_name, schema_dict)
 
-        # save to local file if different from existing
         self._save_schema_to_file_if_changed(schema_name, schema_dict)
 
     def _validate_schema(self, schema_name: str, schema_dict: dict[str, Any]) -> None:
@@ -262,7 +266,7 @@ class SchemaRegistry:
             self.schema_dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             self.logger.error(f'Failed to create schema directory: {e}')
-            raise IOError(f'Cannot create schema directory {self.schema_dir}: {e}')
+            raise OSError(f'Cannot create schema directory {self.schema_dir}: {e}')
 
     def _save_schema_to_registry(self, schema_name: str, schema_dict: dict[str, Any]) -> bool:
         """Attempt to save schema to registry.
@@ -276,6 +280,7 @@ class SchemaRegistry:
                 f'{self.schema_registry_url}/subjects/{schema_name}-value/versions',
                 headers={'Content-Type': 'application/vnd.schemaregistry.v1+json'},
                 json={'schema': json.dumps(schema_dict)},
+                timeout=5,
             )
 
             if response.status_code not in [200, 201]:
@@ -285,6 +290,7 @@ class SchemaRegistry:
             self.logger.info('Schema registered successfully.')
             if not self.id_cache.get(schema_name, False):
                 self.id_cache[schema_name] = response.json()['id']
+
             return True
 
         except requests.RequestException as e:
