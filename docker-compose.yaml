@@ -1,7 +1,10 @@
 volumes:
   minio-data:
+    name: quantum-minio-data
   spark-warehouse:
+    name: quantum-spark-warehouse
   metastore-db:
+    name: quantum-metastore-db
 
 networks:
   quantum-net:
@@ -137,6 +140,7 @@ services:
       - |
         echo "Installing connector plugins"
         confluent-hub install --no-prompt confluentinc/kafka-connect-s3:latest
+        confluent-hub install --no-prompt tabular/iceberg-kafka-connect:latest
         #
         echo "Launching Kafka Connect worker"
         /etc/confluent/docker/run
@@ -163,18 +167,49 @@ services:
       kafka-connect:
         condition: service_healthy
     entrypoint: >
-      bash -c "
+      sh -c "
         echo 'Waiting for Kafka Connect...';
         until curl -s -o /dev/null http://kafka-connect:8083/connectors; do
           sleep 5;
         done;
+        # Add a buffer to ensure Kafka Connect is fully ready
+        sleep 10;
+
         echo 'Registering MinIO Sink Connector...';
-        curl -X POST -H 'Content-Type: application/json' --data @/connectors/minio-sink-config.json http://kafka-connect:8083/connectors;
-        echo 'MinIO Sink Connector registered!';
-        exit 0;
+        for i in {1..5}; do
+          if curl -X POST -H 'Content-Type: application/json' --data @/connectors/minio-sink-config.json http://kafka-connect:8083/connectors;
+      then
+            echo 'MinIO Sink Connector registered successfully!';
+            break;
+          else
+            echo 'Failed to register MinIO connector, retrying in 5 seconds...';
+            sleep 5;
+            if [ $i -eq 5 ]; then
+              echo 'Failed to register MinIO connector after 5 attempts';
+              exit 1;
+            fi
+          fi
+        done;
+
+        echo 'Registering Iceberg Sink Connector...';
+        for i in {1..5}; do
+          if curl -X POST -H 'Content-Type: application/json' --data @/connectors/iceberg-sink-config.json http://kafka-connect:8083/connectors;
+      then
+            echo 'Iceberg Sink Connector registered successfully!';
+            exit 0;
+          else
+            echo 'Failed to register Iceberg connector, retrying in 5 seconds...';
+            sleep 5;
+            if [ $i -eq 5 ]; then
+              echo 'Failed to register Iceberg connector after 5 attempts';
+              exit 1;
+            fi
+          fi
+        done;
       "
     volumes:
       - ./docker/connectors/minio-sink-config.json:/connectors/minio-sink-config.json
+      - ./docker/connectors/iceberg-sink-config.json:/connectors/iceberg-sink-config.json
     networks:
       - quantum-net
 
@@ -208,127 +243,201 @@ services:
       minio:
         condition: service_healthy
     entrypoint: >
-      /bin/sh -c "
-        /usr/bin/mc config host add ${MINIO_HOSTNAME} http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
-        /usr/bin/mc ls ${MINIO_HOSTNAME}/${MINIO_BUCKET} || /usr/bin/mc mb ${MINIO_HOSTNAME}/${MINIO_BUCKET};
-        /usr/bin/mc policy set public ${MINIO_HOSTNAME}/${MINIO_BUCKET};
-        exit 0;
-      "
+      /bin/sh -c " /usr/bin/mc config host add ${MINIO_HOSTNAME} http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+
+      /usr/bin/mc ls ${MINIO_HOSTNAME}/iceberg || /usr/bin/mc mb ${MINIO_HOSTNAME}/iceberg;
+
+      /usr/bin/mc ls ${MINIO_HOSTNAME}/${MINIO_BUCKET} || /usr/bin/mc mb ${MINIO_HOSTNAME}/${MINIO_BUCKET};
+
+      /usr/bin/mc policy set public ${MINIO_HOSTNAME}/iceberg; /usr/bin/mc policy set public ${MINIO_HOSTNAME}/${MINIO_BUCKET};
+
+      exit 0; "
+    networks:
+      - quantum-net
+
+  iceberg-rest:
+    image: tabulario/iceberg-rest:latest
+    container_name: iceberg-rest
+    depends_on:
+      minio:
+        condition: service_started
+    ports:
+      - "8181:8181"
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
+      AWS_REGION: ${MINIO_REGION}
+      CATALOG_WAREHOUSE: s3://iceberg/warehouse
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_PATH_STYLE_ACCESS: "true"
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/v1/namespaces"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  hive-metastore:
+    image: apache/hive:3.1.3
+    container_name: hive-metastore
+    ports:
+      - "9083:9083"
+    environment:
+      - DB_DRIVER=org.postgresql.Driver
+      - DB_USER=hive
+      - DB_PASS=hive
+      - DB_URL=jdbc:postgresql://postgres:5432/metastore
+      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_KEY}
+      - S3_ENDPOINT=http://minio:9000
+      - S3_PATH_STYLE_ACCESS=true
+    volumes:
+      - metastore-db:/var/lib/hive
+    depends_on:
+      - postgres
     networks:
       - quantum-net
 
   postgres:
-    image: postgres:15
+    image: postgres:13
     container_name: postgres
-    restart: unless-stopped
     environment:
-      POSTGRES_DB: "metastore"
-      POSTGRES_USER: "${POSTGRES_USER:-hive}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-hive}"
+      - POSTGRES_USER=hive
+      - POSTGRES_PASSWORD=hive
+      - POSTGRES_DB=metastore
     volumes:
       - metastore-db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hive}"]
+      test: ["CMD-SHELL", "pg_isready -U hive"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
 
-  hive-metastore:
-    image: apache/hive:${APACHE_HIVE_VERSION:-4.0.1}
-    container_name: hive-metastore
-    restart: unless-stopped
-    environment:
-      HIVE_SITE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://postgres:5432/metastore"
-      HIVE_SITE_CONF_javax_jdo_option_ConnectionDriverName: "org.postgresql.Driver"
-      HIVE_SITE_CONF_javax_jdo_option_ConnectionUserName: "${POSTGRES_USER:-hive}"
-      HIVE_SITE_CONF_javax_jdo_option_ConnectionPassword: "${POSTGRES_PASSWORD:-hive}"
-      HIVE_SITE_CONF_datanucleus_autoCreateSchema: "true"
-      HIVE_SITE_CONF_hive_metastore_uris: "thrift://hive-metastore:9083"
-      HIVE_SITE_CONF_fs_s3a_endpoint: "http://minio:9000"
-      HIVE_SITE_CONF_fs_s3a_access_key: "${MINIO_ROOT_USER}"
-      HIVE_SITE_CONF_fs_s3a_secret_key: "${MINIO_ROOT_PASSWORD}"
-      HIVE_SITE_CONF_fs_s3a_path_style_access: "true"
-      HIVE_SITE_CONF_fs_s3a_impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
-    command: ["hiveserver2"]
-    ports:
-      - "${HIVE_METASTORE_PORT:-9083}:9083"
-    networks:
-      - quantum-net
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      kafka-connect:
-        condition: service_healthy
-
   spark-master:
-    image: bitnami/spark:${SPARK_VERSION:-3.5.5}
+    image: bitnami/spark:latest
     container_name: spark-master
-    restart: unless-stopped
     environment:
       - SPARK_MODE=master
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-      - |
-        SPARK_MASTER_OPTS=
-        -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.apache.spark.sql.delta.catalog.DeltaSparkSessionExtension
-        -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog
-        -Dspark.sql.catalog.iceberg.type=hive
-        -Dspark.sql.catalog.iceberg.uri=thrift://hive-metastore:9083
-        -Dspark.sql.catalog.iceberg.warehouse=s3a://${MINIO_BUCKET}/warehouse
-        -Dspark.sql.catalog.delta=org.apache.spark.sql.delta.catalog.DeltaCatalog
-        -Dspark.hadoop.fs.s3a.endpoint=http://minio:9000
-        -Dspark.hadoop.fs.s3a.access.key=${MINIO_ROOT_USER}
-        -Dspark.hadoop.fs.s3a.secret.key=${MINIO_ROOT_PASSWORD}
-        -Dspark.hadoop.fs.s3a.path.style.access=true
-        -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
-        -Dspark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+      - SPARK_MASTER_OPTS="-Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog
+        -Dspark.sql.catalog.spark_catalog.type=hive -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog -Dspark.sql.catalog.iceberg.type=rest
+        -Dspark.sql.catalog.iceberg.uri=http://iceberg-rest:8181 -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse
+        -Dspark.sql.catalog.iceberg.s3.endpoint=http://minio:9000 -Dspark.sql.catalog.iceberg.s3.path-style-access=true -Dspark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY}
+        -Dspark.hadoop.fs.s3a.secret.key=${MINIO_SECRET_KEY} -Dspark.hadoop.fs.s3a.endpoint=minio:9000 -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+        -Dspark.hadoop.fs.s3a.path.style.access=true -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false"
     ports:
-      - "${SPARK_MASTER_UI_PORT:-8080}:8080"
+      - "8080:8080"
+      - "7077:7077"
+    volumes:
+      - spark-warehouse:/opt/bitnami/spark/warehouse
     networks:
       - quantum-net
+    depends_on:
+      - minio
+      - iceberg-rest
 
   spark-worker:
-    image: bitnami/spark:${SPARK_VERSION:-3.5.5}
+    image: bitnami/spark:latest
     container_name: spark-worker
-    restart: unless-stopped
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY:-4G}
-      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES:-2}
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-      - |
-        SPARK_WORKER_OPTS=
-        -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.apache.spark.sql.delta.catalog.DeltaSparkSessionExtension
-        -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog
-        -Dspark.sql.catalog.iceberg.type=hive
-        -Dspark.sql.catalog.iceberg.uri=thrift://hive-metastore:9083
-        -Dspark.sql.catalog.iceberg.warehouse=s3a://${MINIO_BUCKET}/warehouse
-        -Dspark.sql.catalog.delta=org.apache.spark.sql.delta.catalog.DeltaCatalog
-        -Dspark.hadoop.fs.s3a.endpoint=http://minio:9000
-        -Dspark.hadoop.fs.s3a.access.key=${MINIO_ROOT_USER}
-        -Dspark.hadoop.fs.s3a.secret.key=${MINIO_ROOT_PASSWORD}
-        -Dspark.hadoop.fs.s3a.path.style.access=true
-        -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
-        -Dspark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
-    ports:
-      - "${SPARK_WORKER_UI_PORT:-8086}:8081"
-    networks:
-      - quantum-net
+      - SPARK_WORKER_OPTS="-Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog
+        -Dspark.sql.catalog.spark_catalog.type=hive -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog -Dspark.sql.catalog.iceberg.type=rest
+        -Dspark.sql.catalog.iceberg.uri=http://iceberg-rest:8181 -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse
+        -Dspark.sql.catalog.iceberg.s3.endpoint=http://minio:9000 -Dspark.sql.catalog.iceberg.s3.path-style-access=true -Dspark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY}
+        -Dspark.hadoop.fs.s3a.secret.key=${MINIO_SECRET_KEY} -Dspark.hadoop.fs.s3a.endpoint=minio:9000 -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+        -Dspark.hadoop.fs.s3a.path.style.access=true -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false"
+    volumes:
+      - spark-warehouse:/opt/bitnami/spark/warehouse
     depends_on:
       - spark-master
-    deploy:
-      resources:
-        limits:
-          cpus: '${SPARK_WORKER_CORES:-2}'
-          memory: ${SPARK_WORKER_MEMORY:-4G}
+    networks:
+      - quantum-net
+
+  spark-init:
+    image: bitnami/spark:latest
+    container_name: spark-init
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo "Creating Iceberg tables..."
+        /opt/bitnami/spark/bin/spark-submit \
+          --master spark://spark-master:7077 \
+          --conf "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions" \
+          --conf "spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog" \
+          --conf "spark.sql.catalog.spark_catalog.type=hive" \
+          --conf "spark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog" \
+          --conf "spark.sql.catalog.iceberg.type=rest" \
+          --conf "spark.sql.catalog.iceberg.uri=http://iceberg-rest:8181" \
+          --conf "spark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse" \
+          --conf "spark.sql.catalog.iceberg.s3.endpoint=http://minio:9000" \
+          --conf "spark.sql.catalog.iceberg.s3.path-style-access=true" \
+          --conf "spark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY}" \
+          --conf "spark.hadoop.fs.s3a.secret.key=${MINIO_SECRET_KEY}" \
+          --conf "spark.hadoop.fs.s3a.endpoint=minio:9000" \
+          --conf "spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem" \
+          --conf "spark.hadoop.fs.s3a.path.style.access=true" \
+          --conf "spark.hadoop.fs.s3a.connection.ssl.enabled=false" \
+          --class org.apache.spark.sql.SparkSession \
+          --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.3,org.apache.hadoop:hadoop-aws:3.3.4 \
+          /opt/bitnami/spark/examples/jars/spark-examples_2.12-3.5.0.jar \
+          "CREATE NAMESPACE IF NOT EXISTS iceberg.quantum; \
+           CREATE TABLE IF NOT EXISTS iceberg.quantum.simulation_results \
+           ( \
+             id BIGINT, \
+             molecule STRUCT<molecule_data: STRUCT<symbols: ARRAY<STRING>, coords: ARRAY<ARRAY<DOUBLE>>, multiplicity: INT, charge: INT, units: STRING, masses: ARRAY<DOUBLE>>>, \
+             basis_set STRING, \
+             hamiltonian_time DOUBLE, \
+             mapping_time DOUBLE, \
+             vqe_time DOUBLE, \
+             total_time DOUBLE, \
+             vqe_result STRUCT<initial_data: STRUCT<backend: STRING, num_qubits: INT, hamiltonian: ARRAY<STRUCT<label: STRING, coefficients: STRUCT<real: DOUBLE, imaginary: DOUBLE>>>, num_parameters: INT, initial_parameters: ARRAY<DOUBLE>, optimizer: STRING, ansatz: STRING, noise_backend: STRING, default_shots: INT, ansatz_reps: INT>, \
+                              iteration_list: ARRAY<STRUCT<iteration: INT, parameters: ARRAY<DOUBLE>, result: DOUBLE, std: DOUBLE>>, \
+                              minimum: DOUBLE, \
+                              optimal_parameters: ARRAY<DOUBLE>, \
+                              maxcv: DOUBLE> \
+           ) \
+           USING iceberg \
+           PARTITIONED BY (basis_set); \
+           CREATE TEMPORARY VIEW raw_vqe_data \
+           USING json \
+           OPTIONS ( \
+             path 's3a://${MINIO_BUCKET}/*', \
+             multiLine 'true' \
+           ); \
+           INSERT INTO iceberg.quantum.simulation_results \
+           SELECT id, molecule, basis_set, hamiltonian_time, mapping_time, vqe_time, total_time, vqe_result \
+           FROM raw_vqe_data;"
+    environment:
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_KEY}
+      - AWS_REGION=${MINIO_REGION}
+    volumes:
+      - spark-warehouse:/opt/bitnami/spark/warehouse
+    depends_on:
+      - spark-master
+      - spark-worker
+      - minio
+      - iceberg-rest
+    networks:
+      - quantum-net
