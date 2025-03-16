@@ -22,6 +22,15 @@ class SchemaRegistry:
         # dictionary, with schema_name:bool pairs
         self.registry_schema_existence = {}
 
+    def _normalize_schema(self, schema: dict[str, Any] | str) -> dict[str, Any]:
+        """Normalize schema to ensure consistent formatting."""
+        if isinstance(schema, dict):
+            schema_str = json.dumps(schema)
+            return json.loads(schema_str)
+        elif isinstance(schema, str):
+            return json.loads(schema)
+        raise ValueError('Invalid schema format.')
+
     def is_schema_registry_available(self) -> bool:
         """Check if the schema registry is accessible."""
         test_url = f'{self.schema_registry_url}/subjects'
@@ -120,7 +129,7 @@ class SchemaRegistry:
                 schema = self._get_schema_from_registry(schema_name)
                 if schema:
                     self.logger.debug(f'Retrieved schema {schema_name} from registry.')
-                    return schema
+                    return self._normalize_schema(schema)
                 else:
                     # update tracking if failed to get it
                     self.registry_schema_existence[schema_name] = False
@@ -158,14 +167,14 @@ class SchemaRegistry:
                     self.logger.info(f'Schema {schema_name} synchronized to registry.')
                     self.registry_schema_existence[schema_name] = True
 
-        return schema
+        return self._normalize_schema(schema)
 
     def _get_schema_from_cache(self, schema_name: str) -> dict[str, Any] | None:
         """Get schema from in-memory cache if available."""
         self.logger.debug(f'Checking if {schema_name} schema exists in cache...')
         if schema_name in self.schema_cache:
             self.logger.info(f'Found cached {schema_name} schema.')
-            return self.schema_cache[schema_name]
+            return self._normalize_schema(self.schema_cache[schema_name])
         self.logger.info(f'No entry of {schema_name} in the cache.')
         return None
 
@@ -189,7 +198,7 @@ class SchemaRegistry:
                 if not self.id_cache.get(schema_name, False):
                     self.id_cache[schema_name] = schema_id
 
-                return schema
+                return self._normalize_schema(schema)
             else:
                 self.logger.warning('Unable to find schema at the schema registry.')
         except requests.RequestException as e:
@@ -208,7 +217,7 @@ class SchemaRegistry:
         schema_file = self.schema_dir / f'{schema_name}.avsc'
 
         if not schema_file.exists():
-            self.logger.error(f'Unable to find {schema_name} locally')
+            self.logger.error(f'Unable to find {schema_name} locally.')
             raise FileNotFoundError(f'Schema file not found: {schema_file}')
 
         self.logger.info(f'Found schema {schema_name} locally.')
@@ -221,6 +230,8 @@ class SchemaRegistry:
             avro.schema.parse(json.dumps(schema_dict))
 
             self.logger.debug(f'Validation passed, caching {schema_name} schema.')
+
+            schema_dict = self._normalize_schema(schema_dict)
             self.schema_cache[schema_name] = schema_dict
             return schema_dict
 

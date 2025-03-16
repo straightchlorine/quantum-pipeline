@@ -11,7 +11,7 @@ logger = get_logger('QuantumPipeline')
 
 def execute_simulation(**kwargs):
     threshold = None
-    apply_threshold = kwargs.get('convergence_threshold')
+    apply_threshold = kwargs.get('convergence')
     if apply_threshold:
         threshold = kwargs['threshold']
         logger.info(f'Applying convergence threshold {threshold} during minimization')

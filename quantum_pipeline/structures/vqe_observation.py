@@ -54,4 +54,12 @@ class VQEDecoratedResult:
     mapping_time: np.float64
     vqe_time: np.float64
     total_time: np.float64
-    id: int
+    molecule_id: int
+
+    def get_result_suffix(self) -> str:
+        """Return the result suffix for Avro serialization."""
+        return f'_it{self.vqe_result.iteration_list.__len__()}'
+
+    def get_schema_suffix(self) -> str:
+        """Return the schema name for Avro serialization."""
+        return f'_mol{self.molecule_id}_it{self.vqe_result.iteration_list.__len__()}_bs_{self.basis_set.replace('-','_')}_bk_{self.vqe_result.initial_data.backend.replace('-','_')}'

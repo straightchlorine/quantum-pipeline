@@ -138,7 +138,6 @@ services:
       - |
         echo "Installing connector plugins"
         confluent-hub install --no-prompt confluentinc/kafka-connect-s3:latest
-        confluent-hub install --no-prompt tabular/iceberg-kafka-connect:latest
         #
         echo "Launching Kafka Connect worker"
         /etc/confluent/docker/run
@@ -191,7 +190,6 @@ services:
       "
     volumes:
       - ./docker/connectors/minio-sink-config.json:/connectors/minio-sink-config.json
-      - ./docker/connectors/iceberg-sink-config.json:/connectors/iceberg-sink-config.json
     networks:
       - quantum-net
 
@@ -237,49 +235,8 @@ services:
     networks:
       - quantum-net
 
-  hive-metastore:
-    image: apache/hive:3.1.3
-    container_name: hive-metastore
-    ports:
-      - "9083:9083"
-    environment:
-      - DB_DRIVER=org.postgresql.Driver
-      - DB_USER=hive
-      - DB_PASS=hive
-      - DB_URL=jdbc:postgresql://postgres:5432/metastore
-      - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY}
-      - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_KEY}
-      - S3_ENDPOINT=http://minio:9000
-      - S3_PATH_STYLE_ACCESS=true
-    volumes:
-      - metastore-db:/var/lib/hive
-    depends_on:
-      - postgres
-    networks:
-      - quantum-net
-
-  postgres:
-    image: postgres:13
-    container_name: postgres
-    environment:
-      - POSTGRES_USER=hive
-      - POSTGRES_PASSWORD=hive
-      - POSTGRES_DB=metastore
-    volumes:
-      - metastore-db:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - quantum-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hive"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
   spark-master:
-    image: bitnami/spark:latest
+    image: straightchlorine/spark-s3:latest
     container_name: spark-master
     environment:
       - SPARK_MODE=master
@@ -287,12 +244,14 @@ services:
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-      - SPARK_MASTER_OPTS="-Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog
-        -Dspark.sql.catalog.spark_catalog.type=hive -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog -Dspark.sql.catalog.iceberg.type=rest
-        -Dspark.sql.catalog.iceberg.uri=http://iceberg-rest:8181 -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse
+      - SPARK_MASTER_OPTS=" -Dspark.driver.extraClassPath=/opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar:/opt/bitnami/spark/jars/hadoop-common-3.3.1.jar:/opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar
+        -Dspark.executor.extraClassPath=/opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar:/opt/bitnami/spark/jars/hadoop-common-3.3.1.jar:/opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar
+        -Dspark.serializer=org.apache.spark.serializer.KryoSerializer -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+        -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog -Dspark.sql.catalog.spark_catalog.type=hive
+        -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog -Dspark.sql.catalog.iceberg.type=hadoop -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse
         -Dspark.sql.catalog.iceberg.s3.endpoint=http://minio:9000 -Dspark.sql.catalog.iceberg.s3.path-style-access=true -Dspark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY}
         -Dspark.hadoop.fs.s3a.secret.key=${MINIO_SECRET_KEY} -Dspark.hadoop.fs.s3a.endpoint=minio:9000 -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
-        -Dspark.hadoop.fs.s3a.path.style.access=true -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false"
+        -Dspark.hadoop.fs.s3a.path.style.access=true -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false -Dspark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
     ports:
       - "8080:8080"
       - "7077:7077"
@@ -302,10 +261,9 @@ services:
       - quantum-net
     depends_on:
       - minio
-      - iceberg-rest
 
   spark-worker:
-    image: bitnami/spark:latest
+    image: straightchlorine/spark-s3:latest
     container_name: spark-worker
     environment:
       - SPARK_MODE=worker
@@ -316,12 +274,14 @@ services:
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-      - SPARK_WORKER_OPTS="-Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog
-        -Dspark.sql.catalog.spark_catalog.type=hive -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog -Dspark.sql.catalog.iceberg.type=rest
-        -Dspark.sql.catalog.iceberg.uri=http://iceberg-rest:8181 -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse
+      - SPARK_WORKER_OPTS=" -Dspark.driver.extraClassPath=/opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar:/opt/bitnami/spark/jars/hadoop-common-3.3.1.jar:/opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar
+        -Dspark.executor.extraClassPath=/opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar:/opt/bitnami/spark/jars/hadoop-common-3.3.1.jar:/opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar
+        -Dspark.serializer=org.apache.spark.serializer.KryoSerializer -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+        -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog -Dspark.sql.catalog.spark_catalog.type=hive
+        -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog -Dspark.sql.catalog.iceberg.type=hadoop -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse
         -Dspark.sql.catalog.iceberg.s3.endpoint=http://minio:9000 -Dspark.sql.catalog.iceberg.s3.path-style-access=true -Dspark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY}
         -Dspark.hadoop.fs.s3a.secret.key=${MINIO_SECRET_KEY} -Dspark.hadoop.fs.s3a.endpoint=minio:9000 -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
-        -Dspark.hadoop.fs.s3a.path.style.access=true -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false"
+        -Dspark.hadoop.fs.s3a.path.style.access=true -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false -Dspark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
     volumes:
       - spark-warehouse:/opt/bitnami/spark/warehouse
     depends_on:

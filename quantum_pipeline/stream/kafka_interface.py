@@ -115,7 +115,18 @@ class VQEKafkaProducer:
     def _serialize_result(self, result: VQEDecoratedResult) -> bytes:
         """Serialize the result with error handling."""
         try:
-            return self.serializer.to_avro_bytes(result)
+            # create a custom schema name and update the serializer
+            suffix = result.get_schema_suffix()
+            self.serializer.schema_name = self.serializer.schema_name + suffix
+            self.serializer.result_interface.schema_name = (
+                self.serializer.result_interface.schema_name + result.get_result_suffix()
+            )
+            self.logger.info(f'Serializing the result {self.serializer.schema_name}...')
+
+            return self.serializer.to_avro_bytes(
+                result,
+                schema_name=self.serializer.schema_name,
+            )
         except Exception as e:
             self.logger.error('Object serialization failed!')
             raise KafkaProducerError(f'Serialization failed: {str(e)}')

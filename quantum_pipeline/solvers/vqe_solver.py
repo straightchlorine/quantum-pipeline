@@ -220,7 +220,9 @@ class VQESolver(Solver):
             minimization_time=np.float64(t.elapsed),
         )
 
-        self.logger.info(f'Simulation via Aer completed in {t.elapsed:}.6f seconds.')
+        self.logger.info(
+            f'Simulation via Aer completed in {t.elapsed:.6f} seconds and {len(result.iteration_list)} iterations.'
+        )
         return result
 
     def solve(self):

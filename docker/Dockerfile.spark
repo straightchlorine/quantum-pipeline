@@ -1,0 +1,22 @@
+FROM bitnami/spark
+
+USER root
+RUN install_packages curl
+USER 1001
+
+# download the spark-avro for avro data sources
+RUN curl \
+  https://repo1.maven.org/maven2/org/apache/spark/spark-avro_2.12/3.5.5/spark-avro_2.12-3.5.5.jar  \
+  --output /opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar && \
+ chmod 664 /opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar
+
+# download hadoop common
+RUN curl \
+    https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-common/3.3.1/hadoop-common-3.3.1.jar \
+    --output /opt/bitnami/spark/jars/hadoop-common-3.3.1.jar && \
+    chmod 664 /opt/bitnami/spark/jars/hadoop-common-3.3.1.jar
+
+RUN curl \
+  https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.1/hadoop-aws-3.3.1.jar \
+  --output /opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar && \
+  chmod 664 /opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar

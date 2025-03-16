@@ -179,8 +179,8 @@ class VQERunner(Runner):
     def run(self):
         self.molecules = self.load_molecules()
 
-        for id, molecule in enumerate(self.molecules):
-            self.logger.info(f'Processing molecule {id + 1}:\n\n{molecule}\n')
+        for molecule_id, molecule in enumerate(self.molecules):
+            self.logger.info(f'Processing molecule {molecule_id + 1}:\n\n{molecule}\n')
             result = self.runVQE(molecule, self.backend_config)
 
             total_time = np.float64(self.hamiltonian_time + self.mapping_time + self.vqe_time)
@@ -190,7 +190,7 @@ class VQERunner(Runner):
                 vqe_result=result,
                 molecule=molecule,
                 basis_set=self.basis_set,
-                id=id,
+                molecule_id=molecule_id,
                 hamiltonian_time=np.float64(self.hamiltonian_time),
                 mapping_time=np.float64(self.mapping_time),
                 vqe_time=np.float64(self.vqe_time),
@@ -217,9 +217,9 @@ class VQERunner(Runner):
                     self.logger.debug(f'Error: {e}')
 
             if self.report:
-                self.logger.info(f'Generating report for molecule {id + 1}...')
+                self.logger.info(f'Generating report for molecule {molecule_id + 1}...')
                 self.generate_report()
-                self.logger.info(f'Generated the report for molecule {id + 1}.')
+                self.logger.info(f'Generated the report for molecule {molecule_id + 1}.')
 
         self.logger.info('All molecules processed.')
 

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from copy import copy, deepcopy
 import io
 import json
 from typing import Any, Generic, TypeVar
@@ -76,11 +77,15 @@ class AvroInterfaceBase(ABC, Generic[T]):
         """Convert object to Avro binary format."""
         schema = self.schema
 
+        self.logger.debug(f'Serializing object with schema {schema_name}.')
+
         parsed_schema = ''
         if isinstance(schema, dict):
             parsed_schema = avro.schema.parse(json.dumps(schema))
+            self.logger.debug(f'Parsed dict schema: {parsed_schema}')
         elif isinstance(schema, str):
             parsed_schema = avro.schema.parse(schema)
+            self.logger.debug(f'Parsed string schema: {parsed_schema}')
 
         writer = DatumWriter(parsed_schema)
         bytes_writer = io.BytesIO()
@@ -142,8 +147,9 @@ class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
                     {'name': 'std', 'type': 'double'},
                 ],
             }
+            dict_schema = deepcopy(schema)
             self.registry.save_schema('vqe_process', schema)
-            return schema
+            return dict_schema
 
     def serialize(self, obj: VQEProcess) -> dict[str, Any]:
         return {
@@ -207,8 +213,9 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
                     {'name': 'ansatz_reps', 'type': 'int'},
                 ],
             }
+            dict_schema = deepcopy(schema)
             self.registry.save_schema('vqe_initial', schema)
-            return schema
+            return dict_schema
 
     def _serialize_hamiltonian(self, data: ndarray):
         serialized_data = []
@@ -290,8 +297,9 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
                     {'name': 'minimization_time', 'type': 'double'},
                 ],
             }
+            dict_schema = deepcopy(schema)
             self.registry.save_schema(self.schema_name, schema)
-            return schema
+            return dict_schema
 
     def serialize(self, obj: VQEResult) -> dict[str, Any]:
         return {
@@ -351,8 +359,9 @@ class MoleculeInfoInterface(AvroInterfaceBase[MoleculeInfo]):
                     }
                 ],
             }
+            dict_schema = deepcopy(schema)
             self.registry.save_schema('vqe_molecule', schema)
-            return schema
+            return dict_schema
 
     def serialize(self, obj: MoleculeInfo) -> dict[str, Any]:
         return {
@@ -400,7 +409,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
     def schema(self) -> dict[str, Any]:
         try:
             return self.registry.get_schema(self.schema_name)
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             schema = {
                 'type': 'record',
                 'name': 'VQEDecoratedResult',
@@ -412,11 +421,12 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
                     {'name': 'mapping_time', 'type': 'double'},
                     {'name': 'vqe_time', 'type': 'double'},
                     {'name': 'total_time', 'type': 'double'},
-                    {'name': 'id', 'type': 'int'},
+                    {'name': 'molecule_id', 'type': 'int'},
                 ],
             }
+            dict_schema = deepcopy(schema)
             self.registry.save_schema(self.schema_name, schema)
-            return schema
+            return dict_schema
 
     def serialize(self, obj: VQEDecoratedResult) -> dict[str, Any]:
         return {
@@ -427,7 +437,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
             'mapping_time': float(obj.mapping_time),
             'vqe_time': float(obj.vqe_time),
             'total_time': float(obj.total_time),
-            'id': int(obj.id),
+            'molecule_id': obj.molecule_id,
         }
 
     def deserialize(self, data: dict[str, Any]) -> VQEDecoratedResult:
@@ -439,5 +449,5 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
             mapping_time=float64(data['mapping_time']),
             vqe_time=float64(data['vqe_time']),
             total_time=float64(data['total_time']),
-            id=int(data['id']),
+            molecule_id=int(data['id']),
         )
