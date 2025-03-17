@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 from time import sleep
 from typing import Any
 
@@ -115,12 +116,6 @@ class VQEKafkaProducer:
     def _serialize_result(self, result: VQEDecoratedResult) -> bytes:
         """Serialize the result with error handling."""
         try:
-            # create a custom schema name and update the serializer
-            suffix = result.get_schema_suffix()
-            self.serializer.schema_name = self.serializer.schema_name + suffix
-            self.serializer.result_interface.schema_name = (
-                self.serializer.result_interface.schema_name + result.get_result_suffix()
-            )
             self.logger.info(f'Serializing the result {self.serializer.schema_name}...')
 
             return self.serializer.to_avro_bytes(
@@ -165,12 +160,42 @@ class VQEKafkaProducer:
 
     def _send_and_flush(self, result):
         assert isinstance(self.producer, KafkaProducer)
+
         avro_bytes = self._serialize_result(result)
         self._send_with_retry(avro_bytes)
         self.producer.flush()
 
+    def _update_topic(self, result: VQEDecoratedResult) -> None:
+        # get the suffix with simulation details
+        suffix = result.get_schema_suffix()
+        self.logger.info(f'Updating the topic with the new simulation suffix {suffix}...')
+
+        # check if the topic has the suffix already
+        base_topic = self.config.topic
+        base_schema_name = self.serializer.schema_name
+        base_result_schema_name = self.serializer.result_interface.schema_name
+
+        # pattern for the suffix
+        suffix_pattern = r'_mol.*$'
+
+        # remove the suffix, if found
+        if re.search(suffix_pattern, base_topic):
+            base_topic = re.sub(suffix_pattern, '', base_topic)
+        if re.search(suffix_pattern, base_schema_name):
+            base_schema_name = re.sub(suffix_pattern, '', base_schema_name)
+        if re.search(suffix_pattern, base_result_schema_name):
+            base_result_schema_name = re.sub(suffix_pattern, '', base_result_schema_name)
+
+        # update the topic and schema names with new topic
+        self.config.topic = base_topic + suffix
+        self.serializer.schema_name = base_schema_name + suffix
+        self.serializer.result_interface.schema_name = base_result_schema_name + suffix
+
     def send_result(self, result: VQEDecoratedResult) -> None:
         """Send VQEDecoratedResult to Kafka topic with proper error handling."""
+
+        self._update_topic(result)
+
         self.logger.info(f'Sending the result to the Kafka topic {self.config.topic}...')
         if not self.producer:
             raise KafkaProducerError('Producer not initialized')

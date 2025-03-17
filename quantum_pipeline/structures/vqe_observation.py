@@ -62,4 +62,9 @@ class VQEDecoratedResult:
 
     def get_schema_suffix(self) -> str:
         """Return the schema name for Avro serialization."""
-        return f'_mol{self.molecule_id}_it{self.vqe_result.iteration_list.__len__()}_bs_{self.basis_set.replace('-','_')}_bk_{self.vqe_result.initial_data.backend.replace('-','_')}'
+
+        mol_str = ''
+        for symbol in self.molecule.symbols:
+            mol_str += symbol
+
+        return f'_mol{self.molecule_id}_{mol_str}_it{self.vqe_result.iteration_list.__len__()}_bs_{self.basis_set.replace('-','_')}_bk_{self.vqe_result.initial_data.backend.replace('-','_')}'

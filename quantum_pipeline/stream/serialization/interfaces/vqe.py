@@ -308,6 +308,7 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
             'minimum': float(obj.minimum),
             'optimal_parameters': self._convert_to_primitives(obj.optimal_parameters),
             'maxcv': float(obj.maxcv),
+            'minimization_time': float(obj.minimization_time),
         }
 
     def deserialize(self, data: dict[str, Any]) -> VQEResult:

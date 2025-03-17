@@ -24,6 +24,7 @@ services:
       - "${LOG_LEVEL:-INFO}"
       - "--simulation-method"
       - "${SIMULATION_METHOD:-statevector}"
+      - "--convergence"
     build:
       context: .
       dockerfile: ./docker/Dockerfile.gpu
@@ -114,8 +115,11 @@ services:
       CONNECT_OFFSET_STORAGE_TOPIC: "connect-offsets"
       CONNECT_STATUS_STORAGE_TOPIC: "connect-status"
 
-      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_KEY_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_VALUE_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+
       CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
       CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
 
@@ -124,7 +128,7 @@ services:
       CONNECT_LOG4J_ROOT_LOGLEVEL: "${KAFKA_CONNECT_LOG_LEVEL:-INFO}"
       CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
 
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/connectors"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
 
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
@@ -244,9 +248,7 @@ services:
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-      - SPARK_MASTER_OPTS=" -Dspark.driver.extraClassPath=/opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar:/opt/bitnami/spark/jars/hadoop-common-3.3.1.jar:/opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar
-        -Dspark.executor.extraClassPath=/opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar:/opt/bitnami/spark/jars/hadoop-common-3.3.1.jar:/opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar
-        -Dspark.serializer=org.apache.spark.serializer.KryoSerializer -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      - SPARK_MASTER_OPTS="-Dspark.serializer=org.apache.spark.serializer.KryoSerializer -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
         -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog -Dspark.sql.catalog.spark_catalog.type=hive
         -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog -Dspark.sql.catalog.iceberg.type=hadoop -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse
         -Dspark.sql.catalog.iceberg.s3.endpoint=http://minio:9000 -Dspark.sql.catalog.iceberg.s3.path-style-access=true -Dspark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY}
@@ -274,9 +276,7 @@ services:
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-      - SPARK_WORKER_OPTS=" -Dspark.driver.extraClassPath=/opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar:/opt/bitnami/spark/jars/hadoop-common-3.3.1.jar:/opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar
-        -Dspark.executor.extraClassPath=/opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar:/opt/bitnami/spark/jars/hadoop-common-3.3.1.jar:/opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar
-        -Dspark.serializer=org.apache.spark.serializer.KryoSerializer -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      - SPARK_WORKER_OPTS="-Dspark.serializer=org.apache.spark.serializer.KryoSerializer -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
         -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog -Dspark.sql.catalog.spark_catalog.type=hive
         -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog -Dspark.sql.catalog.iceberg.type=hadoop -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse
         -Dspark.sql.catalog.iceberg.s3.endpoint=http://minio:9000 -Dspark.sql.catalog.iceberg.s3.path-style-access=true -Dspark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY}
