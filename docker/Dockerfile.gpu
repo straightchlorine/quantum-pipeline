@@ -1,19 +1,77 @@
 FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu24.04
 
 WORKDIR /usr/src/quantum_pipeline
-RUN apt-get update &&  \
-    apt-get install -y libc6 libblas3 liblapack3 git python3.12 python3-pip python3-venv
 
-RUN python3.12 -m venv ./venv
+RUN apt-get update && apt-get install -y \
+    wget \
+    git \
+    cmake \
+    ninja-build \
+    build-essential \
+    g++ \
+    gcc \
+    python3-dev \
+    libpython3-dev \
+    libopenblas-dev \
+    liblapack-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:ubuntu-toolchain-r/test && \
+    apt-get update && \
+    apt-get install -y libstdc++6 && \
+    rm -rf /var/lib/apt/lists/*
+
+# using miniconda, since its recommended for CUDA
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
+    bash /tmp/miniconda.sh -b -p /opt/conda && \
+    rm /tmp/miniconda.sh
+
+# set up conda env variables
+ENV PATH="/opt/conda/bin:$PATH"
+ENV CONDA_AUTO_UPDATE_CONDA=false
+
+# create cond env with python 3.12.9
+RUN conda create -y -n qenv python=3.12.9 && conda clean -afy
+
+# activate conda env
+SHELL ["/bin/bash", "-c"]
+RUN echo "conda activate qenv" >> ~/.bashrc
+ENV CONDA_DEFAULT_ENV=qenv
+ENV CONDA_PREFIX=/opt/conda/envs/qenv
+ENV PATH="${CONDA_PREFIX}/bin:$PATH"
+
+# link the libstdc++ to the conda env
+RUN ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 ${CONDA_PREFIX}/lib/libstdc++.so.6
+
+# install dependencies for the qiskit-aer compilation
+RUN pip install qiskit-aer
+RUN pip uninstall -y qiskit-aer
+RUN pip install nvidia-cuda-runtime-cu12 nvidia-cublas-cu12 nvidia-cusolver-cu12 nvidia-cusparse-cu12 cuquantum-cu12 pybind11
+
+# clone qiskit-aer and install dev dependencies
+RUN git clone --branch stable/0.16 https://github.com/Qiskit/qiskit-aer && \
+    pip install -r qiskit-aer/requirements-dev.txt && \
+    rm -rf qiskit-aer/_skbuild
+
+# build qiskit-aer with GPU support
+WORKDIR /usr/src/quantum_pipeline/qiskit-aer
+
+RUN python ./setup.py bdist_wheel -- -DAER_THRUST_BACKEND=CUDA -DCMAKE_VERBOSE_MAKEFILE=true  -DAER_DEBUG=false -DAER_MPI=false -DCMAKE_CUDA_FLAGS=-std=c++14 --
+
+# move the built wheel to the static folder
+WORKDIR /usr/src/quantum_pipeline
+RUN rm -rf static && mkdir -p static && mv ./qiskit-aer/dist/* ./static && rm -rf ./qiskit-aer
 
 COPY requirements.txt .
-RUN ./venv/bin/pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 # expects qiskit-aer version supporting your GPU architecture in the ./static folder
 # you can easily generate one by using build_aer_gpu.sh script in the repo or by following
 # instructions in the offical repository:
 # https://github.com/Qiskit/qiskit-aer/blob/main/CONTRIBUTING.md
-RUN find ./static -name "*.whl" -type f -exec ./venv/bin/pip3.12 install {} \;
+RUN find ./static -name "*.whl" -type f -exec pip install {} \;
 
-ENTRYPOINT [ "./venv/bin/python3.12", "quantum_pipeline.py" ]
+ENTRYPOINT [ "python", "quantum_pipeline.py" ]

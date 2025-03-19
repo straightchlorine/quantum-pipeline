@@ -1,3 +1,6 @@
+# ignore schemas
+quantum_pipeline/stream/serialization/schemas/*
+
 # ignore main env file
 .env
 

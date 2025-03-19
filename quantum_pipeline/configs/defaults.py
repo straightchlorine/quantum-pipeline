@@ -19,8 +19,11 @@ DEFAULTS = {
         'gpu_opts': {
             'device': 'GPU',
             # set to true if you have Volta or Ampere architecture GPUs (and cuda >=11.2)
+            # and your qiskit-aer is built with cuQuantum support (Dockerfile.gpu should
+            # account for that)
+            # https://github.com/Qiskit/qiskit-aer/blob/main/CONTRIBUTING.md
             'cuStateVec_enable': False,
-            'blocking_enable': False,
+            'blocking_enable': True,
             'batched_shots_gpu': False,
             'shot_branching_enable': False,
         },
