@@ -1,22 +1,42 @@
 FROM bitnami/spark
-
 USER root
+
 RUN install_packages curl
+
 USER 1001
 
-# download the spark-avro for avro data sources
-RUN curl \
-  https://repo1.maven.org/maven2/org/apache/spark/spark-avro_2.12/3.5.5/spark-avro_2.12-3.5.5.jar  \
-  --output /opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar && \
- chmod 664 /opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar
-
-# download hadoop common
-RUN curl \
-    https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-common/3.3.1/hadoop-common-3.3.1.jar \
-    --output /opt/bitnami/spark/jars/hadoop-common-3.3.1.jar && \
-    chmod 664 /opt/bitnami/spark/jars/hadoop-common-3.3.1.jar
-
-RUN curl \
-  https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.1/hadoop-aws-3.3.1.jar \
-  --output /opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar && \
-  chmod 664 /opt/bitnami/spark/jars/hadoop-aws-3.4.1.jar
+RUN set -ex && \
+    # org.slf4j:slf4j-api:2.0.17
+    curl -L https://repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.17/slf4j-api-2.0.17.jar \
+        -o /opt/bitnami/spark/jars/slf4j-api-2.0.17.jar && \
+    chmod 644 /opt/bitnami/spark/jars/slf4j-api-2.0.17.jar && \
+    \
+    # commons-codec:commons-codec:1.18.0
+    curl -L https://repo1.maven.org/maven2/commons-codec/commons-codec/1.18.0/commons-codec-1.18.0.jar \
+        -o /opt/bitnami/spark/jars/commons-codec-1.18.0.jar && \
+    chmod 644 /opt/bitnami/spark/jars/commons-codec-1.18.0.jar && \
+    \
+    # com.google.j2objc:j2objc-annotations:3.0.0
+    curl -L https://repo1.maven.org/maven2/com/google/j2objc/j2objc-annotations/3.0.0/j2objc-annotations-3.0.0.jar \
+        -o /opt/bitnami/spark/jars/j2objc-annotations-3.0.0.jar && \
+    chmod 644 /opt/bitnami/spark/jars/j2objc-annotations-3.0.0.jar && \
+    \
+    # org.apache.spark:spark-avro_2.12:3.5.5
+    curl -L https://repo1.maven.org/maven2/org/apache/spark/spark-avro_2.12/3.5.5/spark-avro_2.12-3.5.5.jar \
+        -o /opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar && \
+    chmod 644 /opt/bitnami/spark/jars/spark-avro_2.12-3.5.5.jar && \
+    \
+    # org.apache.hadoop:hadoop-aws:3.3.1
+    curl -L https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/3.3.1/hadoop-aws-3.3.1.jar \
+        -o /opt/bitnami/spark/jars/hadoop-aws-3.3.1.jar && \
+    chmod 644 /opt/bitnami/spark/jars/hadoop-aws-3.3.1.jar && \
+    \
+    # org.apache.hadoop:hadoop-common:3.3.1
+    curl -L https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-common/3.3.1/hadoop-common-3.3.1.jar \
+        -o /opt/bitnami/spark/jars/hadoop-common-3.3.1.jar && \
+    chmod 644 /opt/bitnami/spark/jars/hadoop-common-3.3.1.jar && \
+    \
+    # org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2
+    curl -L https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.4.2/iceberg-spark-runtime-3.5_2.12-1.4.2.jar \
+        -o /opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.2.jar && \
+    chmod 644 /opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.2.jar

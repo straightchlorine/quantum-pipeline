@@ -6,7 +6,6 @@
 
     "topics.regex": "vqe_decorated_result_.*",
     "refresh.topics.enabled": "true",
-    "refresh.topics.interval.ms": "60000",
 
     "topics.dir": "experiments",
     "directory.delim": "/",

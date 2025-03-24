@@ -12,3 +12,4 @@ Requests>=2.32.3
 scipy>=1.15.2
 pyscf>=2.8.0
 cryptography>=44.0.1
+pyspark>=3.5.5
