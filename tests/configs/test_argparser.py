@@ -124,8 +124,8 @@ def test_minimum_arguments(argparser):
 
 def test_basis_argument(argparser):
     """Test the basis set argument."""
-    args = argparser.parser.parse_args(['--file', 'molecule.json', '--basis', 'sto-3g'])
-    assert args.basis == 'sto-3g'
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--basis', 'sto3g'])
+    assert args.basis == 'sto3g'
 
 
 def test_gpu_argument(argparser):
@@ -278,3 +278,78 @@ def test_load_configuration(argparser):
     dump_config['load'], load_config['load'] = None, None
 
     assert dump_config == load_config
+
+
+def test_invalid_basis_set(argparser):
+    """Test passing an invalid basis set."""
+    with pytest.raises(SystemExit):
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--basis', 'INVALID_BASIS'])
+        argparser._validate_args(args)
+
+
+def test_simulation_method(argparser):
+    """Test simulation method selection."""
+    args = argparser.parser.parse_args(
+        ['--file', 'molecule.json', '--simulation-method', 'statevector']
+    )
+    assert args.simulation_method == 'statevector'
+
+
+@pytest.mark.parametrize('invalid_method', ['', 'unknown_method'])
+def test_invalid_simulation_method(argparser, invalid_method):
+    """Test invalid simulation method."""
+    with pytest.raises(SystemExit):
+        argparser.parser.parse_args(
+            ['--file', 'molecule.json', '--simulation-method', invalid_method]
+        )
+
+
+def test_sasl_ssl_without_mechanism(argparser):
+    """Test SASL SSL without specifying mechanism."""
+    with pytest.raises(SystemExit):
+        args = argparser.parser.parse_args(
+            [
+                '--file',
+                'molecule.json',
+                '--kafka',
+                '--sasl-ssl',
+                '--sasl-plain-username',
+                'user',
+                '--sasl-plain-password',
+                'pass',
+            ]
+        )
+        argparser._validate_args(args)
+
+
+def test_kerberos_options(argparser):
+    """Test Kerberos-specific SASL options."""
+    args = argparser.parser.parse_args(
+        [
+            '--file',
+            'molecule.json',
+            '--kafka',
+            '--sasl-ssl',
+            '--sasl-mechanism',
+            'GSSAPI',
+            '--sasl-kerberos-service-name',
+            'custom_service',
+            '--sasl-kerberos-domain-name',
+            'example.com',
+        ]
+    )
+    assert args.sasl_kerberos_service_name == 'custom_service'
+    assert args.sasl_kerberos_domain_name == 'example.com'
+
+
+@pytest.mark.parametrize('log_level', ['DEBUG', 'INFO', 'WARNING', 'ERROR'])
+def test_valid_log_levels(argparser, log_level):
+    """Test all valid log levels."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--log-level', log_level])
+    assert args.log_level == log_level
+
+
+def test_conflicting_config_options(argparser):
+    """Test conflicting configuration options."""
+    with pytest.raises(SystemExit):
+        argparser.parser.parse_args(['--dump', '--load', 'config.json', '--file', 'molecule.json'])

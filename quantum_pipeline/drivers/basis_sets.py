@@ -4,7 +4,7 @@ basis_sets.py
 This module manages and validates basis sets for molecular simulations.
 """
 
-SUPPORTED_BASIS_SETS = {'sto3g', '6-31g', 'cc-pvdz'}
+from quantum_pipeline.configs.settings import SUPPORTED_BASIS_SETS
 
 
 def validate_basis_set(basis_set):

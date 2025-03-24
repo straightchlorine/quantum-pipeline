@@ -20,6 +20,8 @@ SUPPORTED_OPTIMIZERS = {
     'custom': 'A user-provided callable object implementing the optimization method.',
 }
 
+SUPPORTED_BASIS_SETS = ['sto3g', '6-31g', 'cc-pvdz']
+
 SIMULATION_METHODS = {
     'automatic': 'Default simulation method. Selects the best method based on the circuit and noise model.',
     'statevector': 'Dense statevector simulation. Supports ideal circuits and noisy circuit sampling.',

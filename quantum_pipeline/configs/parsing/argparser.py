@@ -67,7 +67,11 @@ class QuantumPipelineArgParser:
         """Add simulation configuration arguments."""
         sim_group = self.parser.add_argument_group('Simulation Configuration')
         sim_group.add_argument(
-            '-b', '--basis', default=DEFAULTS['basis_set'], help='Basis set for the simulation'
+            '-b',
+            '--basis',
+            default=DEFAULTS['basis_set'],
+            help='Basis set for the simulation',
+            choices=settings.SUPPORTED_BASIS_SETS,
         )
         sim_group.add_argument(
             '-ar',
