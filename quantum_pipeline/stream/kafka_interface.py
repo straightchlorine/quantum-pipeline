@@ -1,12 +1,11 @@
-from pathlib import Path
 import re
 from time import sleep
-from typing import Any
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError, NoBrokersAvailable
 
 from quantum_pipeline.configs.parsing.producer_config import ProducerConfig
+from quantum_pipeline.stream.kafka_security import KafkaSecurity
 from quantum_pipeline.stream.serialization.interfaces.vqe import (
     VQEDecoratedResultInterface,
 )
@@ -20,85 +19,42 @@ class KafkaProducerError(Exception):
 
 
 class VQEKafkaProducer:
+    """Kafka producer for sending VQE (Variational Quantum Eigensolver) results.
+
+    Provides:
+        - secure Kafka connections;
+        - serialization of VQE results;
+        - sending of results with retry mechanisms.
+    """
+
     def __init__(self, config: ProducerConfig):
+        """Initialize the Kafka producer with given configuration.
+
+        Args:
+            config: Configuration for the Kafka producer.
+        """
+        self.logger = get_logger(self.__class__.__name__)
+
         self.config = config
+        self.producer: KafkaProducer | None = None
+
+        self.security = KafkaSecurity(self.config)
         self.registry = SchemaRegistry()
         self.serializer = VQEDecoratedResultInterface(self.registry)
-        self.logger = get_logger(self.__class__.__name__)
-        self.producer: KafkaProducer | None = None
+
         self._initialize_producer()
-
-    def __security_configuration_handling(self) -> dict[str, Any]:
-        security = {}
-        if self.config.security.ssl or self.config.security.sasl_ssl:
-            ssl_dir = self.config.security.cert_config.ssl_dir
-            ssl_files = {
-                'ssl_cafile': self.config.security.cert_config.ssl_cafile,
-                'ssl_certfile': self.config.security.cert_config.ssl_certfile,
-                'ssl_keyfile': self.config.security.cert_config.ssl_keyfile,
-                'ssl_crlfile': self.config.security.cert_config.ssl_crlfile,
-            }
-
-            security = {
-                'ssl_password': self.config.security.cert_config.ssl_password,
-                'ssl_ciphers': self.config.security.cert_config.ssl_ciphers,
-                'ssl_check_hostname': self.config.security.ssl_check_hostname,
-            }
-
-            # build the paths based on the specified
-            for key, filename in ssl_files.items():
-                if filename:
-                    security[key] = Path(ssl_dir, filename).as_posix()
-
-            # adjust the configuration based on the protocols used
-            if self.config.security.ssl:
-                security['security_protocol'] = 'SSL'
-            if self.config.security.sasl_ssl:
-                security['security_protocol'] = 'SASL_SSL'
-
-                # determine the mechanisim of the connection
-                if not self.config.security.sasl_opts.sasl_mechanism:
-                    raise ValueError('SASL mechanism required for SASL_SSL')
-                security['sasl_mechanism'] = self.config.security.sasl_opts.sasl_mechanism
-
-                # adjust other parameters based on the mechanism
-                if security['sasl_mechanism'] in ['PLAIN', 'SCRAM-SHA-256', 'SCRAM-SHA-512']:
-                    if not (
-                        self.config.security.sasl_opts.sasl_plain_username
-                        and self.config.security.sasl_opts.sasl_plain_password
-                    ):
-                        raise ValueError(
-                            f"Username and password required for {security['sasl_mechanism']}"
-                        )
-                    security.update(
-                        {
-                            'sasl_plain_username': self.config.security.sasl_opts.sasl_plain_username,
-                            'sasl_plain_password': self.config.security.sasl_opts.sasl_plain_password,
-                        }
-                    )
-
-                elif security['sasl_mechanism'] == 'GSSAPI':
-                    security['sasl_kerberos_service_name'] = (
-                        self.config.security.sasl_opts.sasl_kerberos_service_name
-                    )
-                    if self.config.security.sasl_opts.sasl_kerberos_domain_name:
-                        security['sasl_kerberos_domain_name'] = (
-                            self.config.security.sasl_opts.sasl_kerberos_domain_name
-                        )
-
-        return security
 
     def _initialize_producer(self) -> None:
         """Initialize the Kafka producer with error handling."""
 
-        security = self.__security_configuration_handling()
         try:
+            security_config = self.security.build_security_config()
             self.producer = KafkaProducer(
                 bootstrap_servers=self.config.servers,
                 value_serializer=lambda v: v,
                 retries=self.config.kafka_retries,
                 acks=self.config.acks,
-                **security,
+                **security_config,
             )
         except NoBrokersAvailable:
             self.logger.error('No brokers available. Check the Kafka broker configuration.')
@@ -107,17 +63,20 @@ class VQEKafkaProducer:
             self.logger.error(f'Failed to initialize KafkaProducer: {str(e)}')
             raise KafkaProducerError(f'Failed to initialize producer: {str(e)}')
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-
     def _serialize_result(self, result: VQEDecoratedResult) -> bytes:
-        """Serialize the result with error handling."""
+        """Serialize the result.
+
+        Args:
+            result: VQEDecoratedResult to be serialized.
+
+        Returns:
+            Serialized result in Avro bytes.
+
+        Raises:
+            KafkaProducerError: If serialization fails
+        """
         try:
             self.logger.info(f'Serializing the result {self.serializer.schema_name}...')
-
             return self.serializer.to_avro_bytes(
                 result,
                 schema_name=self.serializer.schema_name,
@@ -127,18 +86,31 @@ class VQEKafkaProducer:
             raise KafkaProducerError(f'Serialization failed: {str(e)}')
 
     def _send_with_retry(self, avro_bytes: bytes) -> bool:
-        """Send message with retry logic, returns success status."""
-        assert isinstance(self.producer, KafkaProducer)
+        """Send message with retry logic.
+
+        Args:
+            avro_bytes: Avro bytes to send.
+
+        Returns:
+            True if message sent successfully, False otherwise.
+
+        Raises:
+            KafkaProducerError: If send fails after all retries
+        """
+        assert self.producer is not None
 
         for attempt in range(1, self.config.retries + 1):
             try:
-                record_metadata = self.producer.send(self.config.topic, avro_bytes).get(
-                    timeout=self.config.timeout
-                )
+                # capture the metadata returned from Kafka
+                record_metadata = self.producer.send(
+                    self.config.topic,
+                    avro_bytes,
+                ).get(timeout=self.config.timeout)
 
                 self.logger.info(
                     f'Message sent successfully to {record_metadata.topic}-'
-                    f'{record_metadata.partition} at offset {record_metadata.offset}'
+                    f'{record_metadata.partition} at '
+                    f'offset {record_metadata.offset}.'
                 )
                 return True
 
@@ -146,10 +118,12 @@ class VQEKafkaProducer:
                 self.logger.warning(
                     f'Attempt {attempt}/{self.config.retries}: Kafka error: {str(ke)}'
                 )
+
                 # restart if attempts left
                 if attempt < self.config.retries:
                     sleep(self.config.retry_delay)
                     continue
+
                 raise KafkaProducerError(f'Failed after {self.config.retries} retries: {str(ke)}')
 
             except Exception as e:
@@ -159,41 +133,58 @@ class VQEKafkaProducer:
         return False
 
     def _send_and_flush(self, result):
-        assert isinstance(self.producer, KafkaProducer)
+        """Serialize and sent the result and after that - flush.
+
+        Args:
+            result: VQEDecoratedResult to be sent.
+        """
+        assert self.producer is not None
 
         avro_bytes = self._serialize_result(result)
         self._send_with_retry(avro_bytes)
         self.producer.flush()
 
     def _update_topic(self, result: VQEDecoratedResult) -> None:
+        """Update topic and schema names with simulation suffix.
+
+        Args:
+            result: VQEDecoratedResult with simulation details
+
+        Returns:
+            Updated topic and schema names
+        """
         # get the suffix with simulation details
         suffix = result.get_schema_suffix()
         self.logger.info(f'Updating the topic with the new simulation suffix {suffix}...')
 
-        # check if the topic has the suffix already
-        base_topic = self.config.topic
-        base_schema_name = self.serializer.schema_name
-        base_result_schema_name = self.serializer.result_interface.schema_name
-
-        # pattern for the suffix
+        # remove existing suffixes from the topic and schema names
         suffix_pattern = r'_mol.*$'
+        for attr in ['topic', 'schema_name', 'result_interface.schema_name']:
+            if attr.startswith('topic'):
+                base_name = getattr(self.config, attr)
+            elif attr.startswith('schema_name'):
+                base_name = getattr(self.serializer, attr)
+            else:
+                base_name = self.serializer.result_interface.schema_name
 
-        # remove the suffix, if found
-        if re.search(suffix_pattern, base_topic):
-            base_topic = re.sub(suffix_pattern, '', base_topic)
-        if re.search(suffix_pattern, base_schema_name):
-            base_schema_name = re.sub(suffix_pattern, '', base_schema_name)
-        if re.search(suffix_pattern, base_result_schema_name):
-            base_result_schema_name = re.sub(suffix_pattern, '', base_result_schema_name)
+            updated_name = re.sub(suffix_pattern, '', base_name) + suffix
 
-        # update the topic and schema names with new topic
-        self.config.topic = base_topic + suffix
-        self.serializer.schema_name = base_schema_name + suffix
-        self.serializer.result_interface.schema_name = base_result_schema_name + suffix
+            if self.config.topic == base_name:
+                self.config.topic = updated_name
+            if self.serializer.schema_name == base_name:
+                self.serializer.schema_name = updated_name
+            if self.serializer.result_interface.schema_name == base_name:
+                self.serializer.result_interface.schema_name = updated_name
 
     def send_result(self, result: VQEDecoratedResult) -> None:
-        """Send VQEDecoratedResult to Kafka topic with proper error handling."""
+        """Send VQE results to Kafka.
 
+        Args:
+            result: VQEDecoratedResult to be sent.
+
+        Raises:
+            KafkaProducerError: If sending fails
+        """
         self._update_topic(result)
 
         self.logger.info(f'Sending the result to the Kafka topic {self.config.topic}...')
@@ -210,7 +201,7 @@ class VQEKafkaProducer:
             raise KafkaProducerError(f'Unexpected error during send: {str(e)}')
 
     def close(self) -> None:
-        """Close the Kafka producer with proper error handling."""
+        """Close the producer safely."""
         if self.producer:
             try:
                 self.producer.close()
@@ -218,3 +209,9 @@ class VQEKafkaProducer:
             except Exception as e:
                 self.logger.error(f'Error closing producer: {str(e)}')
                 raise KafkaProducerError(f'Failed to close producer: {str(e)}')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
