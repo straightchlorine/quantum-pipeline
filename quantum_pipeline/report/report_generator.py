@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
-
 from quantum_pipeline.configs import settings
 from quantum_pipeline.report.configuration import ReportConfiguration
 from quantum_pipeline.report.content_builder import ReportContentBuilder
