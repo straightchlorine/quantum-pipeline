@@ -346,7 +346,7 @@ class QuantumPipelineArgParser:
             return True
         return False
 
-    def _validate_args(self, args: argparse.Namespace) -> None:
+    def _validate_args(self, args: argparse.Namespace) -> None:  # noqa: C901
         """Validate parsed arguments."""
         settings.LOG_LEVEL = getattr(logging, args.log_level)
 
@@ -384,7 +384,11 @@ class QuantumPipelineArgParser:
                 required_files = [args.ssl_cafile, args.ssl_certfile, args.ssl_keyfile]
                 if not all(required_files):
                     self.parser.error(
-                        '--ssl-cafile, --ssl-certfile, and --ssl-keyfile are required when --ssl is set and --ssl-dir is not provided'
+                        (
+                            '--ssl-cafile, --ssl-certfile, and --ssl-keyfile '
+                            'are required when --ssl is set '
+                            'and --ssl-dir is not provided'
+                        )
                     )
         elif not args.ssl and (args.ssl_cafile or args.ssl_certfile or args.ssl_keyfile):
             self.parser.error(

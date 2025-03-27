@@ -20,7 +20,7 @@ readme = "README.md"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Physics :: Quantum Mechanics :: Data Processing",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -29,20 +29,25 @@ classifiers = [
 ]
 
 dependencies = [
-    "qiskit>=1.4.0",
-    "qiskit-ibm-runtime>=0.36.1",
-    "qiskit-aer-gpu>=0.15.1",
+    "qiskit>=1.4.2",
+    "qiskit-ibm-runtime>=0.37.0",
+    "qiskit-aer>=0.15.1",
     "qiskit-nature>=0.7.2",
     "pyscf>=2.8.0",
 
-    "numpy>=2.2.3",
-    "scipy>=1.10.0",
-    "matplotlib>=3.10.0",
     "reportlab>=4.3.1",
+    "matplotlib>=3.10.0",
+    "scipy>=1.15.2",
+    "numpy>=2.2.3",
+    "pyscf>=2.8.0",
 
-    "kafka-python-ng>=2.2.3",
     "avro>=1.12.0",
-    "Requests>=2.32.3"
+    "kafka-python-ng>=2.2.3",
+    "Requests>=2.32.3",
+    "pyspark>=3.5.5",
+
+    "cryptography>=44.0.1",
+    "Jinja2>=3.1.6"
 ]
 
 [project.optional-dependencies]

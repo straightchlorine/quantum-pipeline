@@ -88,7 +88,7 @@ class SchemaRegistry:
             self.registry_schema_existence[schema_name] = False
             return False
 
-    def get_schema(self, schema_name: str) -> dict[str, Any]:
+    def get_schema(self, schema_name: str) -> dict[str, Any]:  # noqa: C901
         """Get Avro schema by name, trying cache, registry, and local file in sequence.
 
         Args:
@@ -159,7 +159,9 @@ class SchemaRegistry:
             # if not available in the registry, try to publish it
             if not schema_in_registry:
                 self.logger.info(
-                    f"Schema {schema_name} found {'in cache' if from_cache else 'locally'} but not in registry. Synchronizing..."
+                    f"Schema {schema_name} found "
+                    f"{'in cache' if from_cache else 'locally'} "
+                    "but not in registry. Synchronizing..."
                 )
                 success = self._save_schema_to_registry(schema_name, schema)
                 if success:
