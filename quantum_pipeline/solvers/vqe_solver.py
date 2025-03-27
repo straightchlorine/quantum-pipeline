@@ -7,12 +7,12 @@ classical optimization to find the minimum eigenvalue of a Hamiltonian.
 """
 
 import numpy as np
-from scipy.optimize import minimize
-
 from qiskit.circuit.library import EfficientSU2
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer.backends.aer_simulator import AerBackend
 from qiskit_ibm_runtime import EstimatorV2, Session
+from scipy.optimize import minimize
+
 from quantum_pipeline.configs.parsing.backend_config import BackendConfig
 from quantum_pipeline.solvers.solver import Solver
 from quantum_pipeline.structures.vqe_observation import (
