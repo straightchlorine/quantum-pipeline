@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from copy import copy, deepcopy
+from copy import deepcopy
 import io
 import json
 from typing import Any, Generic, TypeVar
@@ -75,9 +75,8 @@ class AvroInterfaceBase(ABC, Generic[T]):
 
     def to_avro_bytes(self, obj: T, schema_name: str = 'vqe_decorated_result') -> bytes:
         """Convert object to Avro binary format."""
-        schema = self.schema
-
         self.logger.debug(f'Serializing object with schema {schema_name}.')
+        schema = self.schema
 
         parsed_schema = ''
         if isinstance(schema, dict):
@@ -108,8 +107,6 @@ class AvroInterfaceBase(ABC, Generic[T]):
 
     def from_avro_bytes(self, avro_bytes: bytes) -> T:
         """Convert Avro binary format to object."""
-        schema = self.schema
-
         bytes_reader = io.BytesIO(avro_bytes)
 
         # read the magic byte
@@ -117,18 +114,14 @@ class AvroInterfaceBase(ABC, Generic[T]):
         if magic_byte != bytes([0]):
             raise ValueError(f'Invalid magic byte: {magic_byte}. Expected: {bytes([0])}')
 
-        # read the schema id (for now left unused)
-        # TODO: log it maybe
+        # read the schema id
         bytes_reader.read(4)
 
-        # parse the schema
-        parsed_schema = avro.schema.parse(schema)
-
+        # parse the schema and deserialize the object
+        parsed_schema = avro.schema.parse(self.schema)
         reader = DatumReader(parsed_schema)
         decoder = BinaryDecoder(bytes_reader)
-        data = reader.read(decoder)
-
-        return self.deserialize(data)
+        return self.deserialize(reader.read(decoder))
 
 
 class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
@@ -221,8 +214,13 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
         serialized_data = []
 
         for label, complex_number in data:
-            real_part = complex_number.real
-            imaginary_part = complex_number.imag
+            if isinstance(complex_number, (str, np.str_)):
+                complex_number = complex(
+                    complex_number.replace('(', '').replace(')', ''),
+                )
+
+            real_part = np.float64(complex_number.real)
+            imaginary_part = np.float64(complex_number.imag)
 
             serialized_data.append(
                 {'label': label, 'coefficients': {'real': real_part, 'imaginary': imaginary_part}}
@@ -238,7 +236,8 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
                     complex(term['coefficients']['real'], term['coefficients']['imaginary']),
                 )
                 for term in data
-            ]
+            ],
+            dtype=object,  # maintain the orignal dtype
         )
 
     def serialize(self, obj: VQEInitialData) -> dict[str, Any]:
@@ -410,7 +409,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
     def schema(self) -> dict[str, Any]:
         try:
             return self.registry.get_schema(self.schema_name)
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             schema = {
                 'type': 'record',
                 'name': 'VQEDecoratedResult',
@@ -450,5 +449,5 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
             mapping_time=float64(data['mapping_time']),
             vqe_time=float64(data['vqe_time']),
             total_time=float64(data['total_time']),
-            molecule_id=int(data['id']),
+            molecule_id=int(data['molecule_id']),
         )
