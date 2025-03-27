@@ -1,15 +1,12 @@
+from unittest.mock import MagicMock, Mock, patch
+
 from kafka.errors import KafkaError
 import pytest
-import numpy as np
-from unittest.mock import Mock, patch, MagicMock
 
-from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
-from qiskit_nature.second_q.mappers import JordanWignerMapper
-
+from quantum_pipeline.configs.module.backend import BackendConfig
+from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.runners.vqe_runner import VQERunner
-from quantum_pipeline.configs.parsing.backend_config import BackendConfig
-from quantum_pipeline.configs.parsing.security_config import SecurityConfig
-from quantum_pipeline.stream.kafka_interface import ProducerConfig
+from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 
 

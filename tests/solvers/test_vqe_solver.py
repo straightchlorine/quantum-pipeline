@@ -5,7 +5,7 @@ import pytest
 from qiskit.quantum_info import SparsePauliOp
 from qiskit_aer.backends.aer_simulator import AerBackend
 
-from quantum_pipeline.configs.parsing.backend_config import BackendConfig
+from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.solvers.vqe_solver import VQESolver
 from quantum_pipeline.structures.vqe_observation import VQEResult
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from quantum_pipeline.configs.parsing.producer_config import ProducerConfig
+from quantum_pipeline.configs.module.producer import ProducerConfig
 
 
 class KafkaSecurity:

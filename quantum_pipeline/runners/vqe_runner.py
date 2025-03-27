@@ -2,14 +2,15 @@ import numpy as np
 
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
 from qiskit_nature.second_q.mappers import JordanWignerMapper
-from quantum_pipeline.configs.parsing.backend_config import BackendConfig
-from quantum_pipeline.configs.parsing.security_config import SecurityConfig
+from quantum_pipeline.configs.module.backend import BackendConfig
+from quantum_pipeline.configs.module.security import SecurityConfig
+from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.drivers.basis_sets import validate_basis_set
 from quantum_pipeline.drivers.molecule_loader import load_molecule
 from quantum_pipeline.report.report_generator import ReportGenerator
 from quantum_pipeline.runners.runner import Runner
 from quantum_pipeline.solvers.vqe_solver import VQESolver
-from quantum_pipeline.stream.kafka_interface import ProducerConfig, VQEKafkaProducer
+from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 from quantum_pipeline.utils.timer import Timer
 from quantum_pipeline.visual.ansatz import AnsatzViewer

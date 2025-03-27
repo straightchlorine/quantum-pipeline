@@ -2,12 +2,10 @@ import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
-
-from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
-import avro.schema
 from qiskit.circuit import QuantumCircuit
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 from qiskit_nature.units import DistanceUnit
+
 from quantum_pipeline.stream.serialization.interfaces.vqe import (
     AvroInterfaceBase,
     MoleculeInfoInterface,

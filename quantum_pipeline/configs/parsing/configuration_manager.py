@@ -7,8 +7,8 @@ from typing import Any
 
 from quantum_pipeline.configs import settings
 from quantum_pipeline.configs.defaults import DEFAULTS
-from quantum_pipeline.configs.parsing.backend_config import BackendConfig
-from quantum_pipeline.configs.parsing.producer_config import ProducerConfig
+from quantum_pipeline.configs.module.backend import BackendConfig
+from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.utils.logger import get_logger
 
 

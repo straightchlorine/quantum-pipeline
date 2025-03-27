@@ -23,14 +23,12 @@ class CertConfig:
     def from_dict(cls, data: dict[str, Any]) -> 'CertConfig':
         return cls(
             ssl_dir=data.get('ssl_dir', ''),
-            ssl_cafile=data.get('ssl_cafile', DEFAULTS['kafka']['security']['certs']['cafile']),
-            ssl_certfile=data.get(
-                'ssl_certfile', DEFAULTS['kafka']['security']['certs']['certfile']
-            ),
-            ssl_keyfile=data.get('ssl_keyfile', DEFAULTS['kafka']['security']['certs']['keyfile']),
-            ssl_password=data.get('ssl_password'),
-            ssl_crlfile=data.get('ssl_crlfile'),
-            ssl_ciphers=data.get('ssl_ciphers'),
+            ssl_cafile=data.get('cafile', DEFAULTS['kafka']['security']['certs']['cafile']),
+            ssl_certfile=data.get('certfile', DEFAULTS['kafka']['security']['certs']['certfile']),
+            ssl_keyfile=data.get('keyfile', DEFAULTS['kafka']['security']['certs']['keyfile']),
+            ssl_password=data.get('password'),
+            ssl_crlfile=data.get('crlfile'),
+            ssl_ciphers=data.get('ciphers'),
         )
 
 

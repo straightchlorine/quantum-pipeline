@@ -4,7 +4,7 @@ from time import sleep
 from kafka import KafkaProducer
 from kafka.errors import KafkaError, NoBrokersAvailable
 
-from quantum_pipeline.configs.parsing.producer_config import ProducerConfig
+from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.stream.kafka_security import KafkaSecurity
 from quantum_pipeline.stream.serialization.interfaces.vqe import (
     VQEDecoratedResultInterface,

@@ -49,5 +49,5 @@ class BackendConfig:
             gpu=DEFAULTS['backend']['gpu'],
             simulation_method=DEFAULTS['backend']['method'],
             gpu_opts=DEFAULTS['backend']['gpu_opts'],
-            noise=DEFAULTS['backend']['noise'],
+            noise=DEFAULTS['backend']['noise_backend'],
         )

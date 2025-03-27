@@ -2,7 +2,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from quantum_pipeline.configs.defaults import DEFAULTS
-from quantum_pipeline.configs.parsing.security_config import SecurityConfig
+from quantum_pipeline.configs.module.security import SecurityConfig
 
 
 @dataclass
@@ -12,9 +12,9 @@ class ProducerConfig:
     servers: str
     topic: str
     security: SecurityConfig
-    retries: int = 3
-    retry_delay: int = 2
-    kafka_retries: int = 5
+    retries: int
+    retry_delay: int
+    kafka_retries: int
     acks: str = 'all'
     timeout: int = 10
 

@@ -13,7 +13,7 @@ from qiskit_aer.backends.aer_simulator import AerBackend
 from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
-from quantum_pipeline.configs.parsing.backend_config import BackendConfig
+from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.solvers.solver import Solver
 from quantum_pipeline.structures.vqe_observation import (
     VQEInitialData,
