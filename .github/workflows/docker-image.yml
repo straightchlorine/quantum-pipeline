@@ -1,4 +1,4 @@
-name: Build the Docker Image
+name: Build and Test Docker Images
 on:
   push:
     branches: ["master"]
@@ -9,7 +9,69 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dockerfile: [cpu, gpu]
+        include:
+          - dockerfile: cpu
+            display_name: "CPU"
+          - dockerfile: gpu
+            display_name: "GPU"
+    outputs:
+      image_${{ matrix.dockerfile }}: ${{ steps.image_info.outputs.image_tag
+        }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Build the Docker image
-        run: docker build . --file Dockerfile --tag ${{ env.IMAGE_NAME }}:$(date +%s)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ matrix.dockerfile }}-latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=ref,event=branch,suffix=-${{ matrix.dockerfile }}
+            type=sha,prefix=${{ matrix.dockerfile }}-
+            type=raw,value=pr-${{ github.event.pull_request.number }}-${{ matrix.dockerfile }},enable=${{ github.event_name == 'pull_request' }}
+
+      - name: Build the ${{ matrix.display_name }} Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.${{ matrix.dockerfile }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Store single image tag for later use
+        id: image_info
+        run: |
+          TAGS_ARRAY=(${{ steps.meta.outputs.tags }})
+          FIRST_TAG="${TAGS_ARRAY[0]}"
+          echo "image_tag=${FIRST_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.image_info.outputs.image_tag }}
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.dockerfile }}.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload vulnerability report
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results-${{ matrix.dockerfile }}.sarif'
+
+      - name: Test ${{ matrix.display_name }} Docker image
+        run: |-
+          docker run --rm ${{ steps.image_info.outputs.image_tag }} python -c "import sys; print(f'Python {sys.version} working in ${{ matrix.display_name }} container')"
+          docker run --rm -v ${{ github.workspace }}:/usr/src/quantum_pipeline/ ${{ steps.image_info.outputs.image_tag }} pip install pytest && python -m pytest tests && pip uninstall pytest

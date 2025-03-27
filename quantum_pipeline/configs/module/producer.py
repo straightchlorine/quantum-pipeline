@@ -12,9 +12,9 @@ class ProducerConfig:
     servers: str
     topic: str
     security: SecurityConfig
-    retries: int
-    retry_delay: int
-    kafka_retries: int
+    retries: int = 3
+    retry_delay: int = 2
+    kafka_retries: int = 5
     acks: str = 'all'
     timeout: int = 10
 
