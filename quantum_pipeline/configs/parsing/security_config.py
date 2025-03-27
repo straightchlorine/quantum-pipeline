@@ -75,7 +75,7 @@ class SecurityConfig:
             sasl_ssl=DEFAULTS['kafka']['security']['sasl_ssl'],
             ssl_check_hostname=DEFAULTS['kafka']['security']['ssl_check_hostname'],
             cert_config=CertConfig.from_dict(DEFAULTS['kafka']['security']['certs']),
-            sasl_opts=SaslSslOpts.from_dict(DEFAULTS['kafka']['security']['sasl_opts']),
+            sasl_opts=SaslSslOpts.from_dict(DEFAULTS['kafka']['security']['sasl_ssl_opts']),
         )
 
     def to_dict(self) -> dict:
