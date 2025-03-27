@@ -10,7 +10,7 @@ from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 from qiskit_nature.units import DistanceUnit
 
 
-def validate_molecule_data(data: dict):
+def validate_molecule_data(data: list):
     """Validate data parsed from the JSON file.
 
     Args:
@@ -34,7 +34,7 @@ def load_molecule(file_path: str):
     Returns:
         A list of MoleculeInfo objects.
     """
-    with open(file_path, 'r') as file:
+    with open(file_path) as file:
         data = json.load(file)
         validate_molecule_data(data)
 
