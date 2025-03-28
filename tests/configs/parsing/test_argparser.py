@@ -139,7 +139,7 @@ def test_basis_argument(argparser):
 def test_gpu_argument(argparser):
     """Test the gpu enable argument."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--gpu'])
-    assert args.gpu == True
+    assert args.gpu
 
 
 def test_ssl_argument(argparser):
@@ -147,7 +147,7 @@ def test_ssl_argument(argparser):
     args = argparser.parser.parse_args(
         ['--file', 'molecule.json', '--ssl', '--ssl-password', 'password']
     )
-    assert args.ssl == True
+    assert args.ssl
     assert args.ssl_password == 'password'
 
 
@@ -160,7 +160,7 @@ def test_noise_argument(argparser):
 def test_noise_disable_argument(argparser):
     """Test the noise enable argument."""
     args = argparser.parser.parse_args(['--file', 'molecule.json'])
-    assert args.noise == None
+    assert args.noise is None
 
 
 def test_ansatz_reps_argument(argparser):
@@ -172,7 +172,7 @@ def test_ansatz_reps_argument(argparser):
 def test_local_backend_flag(argparser):
     """Test the --local flag for using a local backend."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--ibm'])
-    assert args.ibm is False
+    assert not args.ibm
 
 
 def test_kafka_arguments(argparser):

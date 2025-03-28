@@ -9,6 +9,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     strategy:
       matrix:
         dockerfile: [cpu, gpu]
@@ -52,9 +55,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ env.IMAGE_NAME }}
+          images: ${{ github.repository }}
           tags: |
-            type=raw,value=${{ matrix.dockerfile }}-latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=${{ matrix.dockerfile }}-latest
             type=ref,event=branch,suffix=-${{ matrix.dockerfile }}
             type=sha,prefix=${{ matrix.dockerfile }}-
             type=raw,value=pr-${{ github.event.pull_request.number }}-${{ matrix.dockerfile }},enable=${{ github.event_name == 'pull_request' }}
@@ -65,7 +68,7 @@ jobs:
         with:
           context: .
           file: ./docker/Dockerfile.${{ matrix.dockerfile }}
-          push: ${{ github.event_name != 'pull_request' }}
+          push: false
           load: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
@@ -85,9 +88,11 @@ jobs:
           format: 'sarif'
           output: 'trivy-results-${{ matrix.dockerfile }}.sarif'
           severity: 'CRITICAL,HIGH'
+          timeout: '10m' # Longer timeout to ensure scan completes
 
       - name: Upload vulnerability report
-        uses: github/codeql-action/upload-sarif@v2
-        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && github.event_name != 'pull_request'
         with:
           sarif_file: 'trivy-results-${{ matrix.dockerfile }}.sarif'
+          category: 'trivy-${{ matrix.dockerfile }}'
