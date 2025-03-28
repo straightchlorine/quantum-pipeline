@@ -18,7 +18,9 @@ jobs:
           - dockerfile: gpu
             display_name: "GPU"
     outputs:
-      image_${{ matrix.dockerfile }}: ${{ steps.image_info.outputs.image_tag }}
+      image_cpu: ${{ matrix.dockerfile == 'cpu' && steps.image_info.outputs.image_tag || '' }}
+      image_gpu: ${{ matrix.dockerfile == 'gpu' && steps.image_info.outputs.image_tag || '' }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

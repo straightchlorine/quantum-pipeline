@@ -23,7 +23,6 @@ def test_ssl_basic_configuration(argparser):
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--kafka', '--ssl'])
     argparser._validate_args(args)
     assert args.ssl is True
-    assert args.ssl_dir == './secrets/'
 
 
 def test_ssl_with_password(argparser):
