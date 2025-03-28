@@ -49,9 +49,7 @@ jobs:
       - name: Test with pytest and remove dependencies
         run: |
           python -m pytest
-          if [ -f requirements.txt ]; then
-            pip freeze | grep -f requirements.txt | xargs pip uninstall -y
-          fi
+          pip freeze | grep -v "^-e" | xargs pip uninstall -y
 
       - name: Install cosign
         if: github.event_name != 'pull_request'
