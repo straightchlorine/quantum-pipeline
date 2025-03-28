@@ -1,5 +1,5 @@
 from unittest.mock import mock_open, patch
-
+import os
 import pytest
 
 from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
@@ -18,11 +18,20 @@ def test_required_arguments(argparser):
         argparser._validate_args(args)
 
 
-def test_ssl_basic_configuration(argparser):
-    """Test valid SSL configuration with default ssl_dir."""
+def test_ssl_basic_configuration_with_mock_dir(argparser, monkeypatch):
+    """
+    Test SSL configuration by mocking directory existence.
+
+    Uses monkeypatch to mock os.path.isdir to always return True.
+    """
+    # ensures isdir always returns True
+    monkeypatch.setattr(os.path, 'isdir', lambda path: True)
+
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--kafka', '--ssl'])
     argparser._validate_args(args)
+
     assert args.ssl is True
+    assert args.ssl_dir == './secrets/'
 
 
 def test_ssl_with_password(argparser):
