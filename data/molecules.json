@@ -6,22 +6,6 @@
         "charge": 0,
         "units": "angstrom",
         "masses": [1.008, 1.008]
-    },
-    {
-        "symbols": ["O", "H", "H"],
-        "coords": [[0.0, 0.0, 0.0], [0.0, 0.757, 0.586], [0.0, -0.757, 0.586]],
-        "multiplicity": 1,
-        "charge": 0,
-        "units": "angstrom",
-        "masses": [15.999, 1.008, 1.008]
-    },
-    {
-        "symbols": ["O", "C", "O"],
-        "coords": [[0.0, 0.0, -1.16], [0.0, 0.0, 0.0], [0.0, 0.0, 1.16]],
-        "multiplicity": 1,
-        "charge": 0,
-        "units": "angstrom",
-        "masses": [15.999, 12.011, 15.999]
     }
 ]
 
