@@ -7,13 +7,28 @@ This DAG handles:
 3. Status monitoring and error notification
 """
 
+import os
 from datetime import datetime, timedelta
+
 from airflow import DAG
-from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
-from airflow.operators.python import PythonOperator
-from airflow.sensors.filesystem import FileSensor
 from airflow.models import Variable
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+from airflow.sensors.filesystem import FileSensor
 from airflow.utils.email import send_email
+
+try:
+    from scripts.quantum_incremental_processing import (
+        DEFAULT_CONFIG,
+        check_for_new_data,
+        create_spark_session,
+        list_available_topics,
+        process_experiments_incrementally,
+    )
+except ImportError:
+    logger.error(
+        "Could not import the quantum processing module. Make sure it's in the PYTHONPATH."
+    )
+    sys.exit(1)
 
 # default args for the DAG
 default_args = {
@@ -35,7 +50,7 @@ def get_config():
         'S3_ENDPOINT': Variable.get('S3_ENDPOINT', 'http://server:9000'),
         'HOST_IP': Variable.get('HOST_IP', 'station'),
         'S3_BUCKET': Variable.get('S3_BUCKET', 's3a://local-vqe-results/experiments/'),
-        'S3_WAREHOUSE': Variable.get('S3_WAREHOUSE', 's3a://local-features/warehouse/'),
+        'S3_WAREHOUSE': Variable.get('S3_WAREHOUSE', 's3a://local-features/warehouse'),
         'SPARK_SUBMIT_ARGS': Variable.get('SPARK_SUBMIT_ARGS', ''),
         'PROCESSING_SCRIPT': Variable.get(
             'PROCESSING_SCRIPT', '/opt/airflow/dags/scripts/quantum_feature_processing.py'
@@ -125,3 +140,94 @@ with DAG(
 
     # set task dependencies
     check_for_data >> run_quantum_processing
+
+
+def parse_cli_args():
+    """Parse command-line arguments for Airflow compatibility."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Quantum Feature Processing')
+    parser.add_argument(
+        '--s3_endpoint',
+        default=os.getenv('S3_ENDPOINT', 'http://localhost:9000'),
+        help='S3 endpoint URL',
+    )
+    parser.add_argument(
+        '--s3_bucket',
+        default=os.getenv('S3_BUCKET', 's3a://local-vqe-results/experiments/'),
+        help='S3 bucket path',
+    )
+    parser.add_argument(
+        '--s3_warehouse',
+        default=os.getenv('S3_WAREHOUSE', 's3a://local-features/warehouse/'),
+        help='S3 warehouse path',
+    )
+    parser.add_argument(
+        '--spark_master',
+        default=os.getenv('SPARK_MASTER', 'spark://localhost:7077'),
+        help='Spark master URL',
+    )
+    parser.add_argument(
+        '--host_ip', default=os.getenv('HOST_IP', 'localhost'), help='Host IP address'
+    )
+
+    return parser.parse_args()
+
+
+def main(config=None):
+    """
+    Main entry point for the quantum feature processing script.
+
+    Args:
+        config: Optional configuration dictionary
+    """
+    # Parse CLI arguments for Airflow compatibility
+    args = parse_cli_args()
+
+    # Update config with CLI arguments
+    if config is None:
+        config = DEFAULT_CONFIG.copy()
+
+    config.update(
+        {
+            'S3_ENDPOINT': args.s3_endpoint,
+            'S3_BUCKET': args.s3_bucket,
+            'S3_WAREHOUSE': args.s3_warehouse,
+            'SPARK_MASTER': args.spark_master,
+            'HOST_IP': args.host_ip,
+        }
+    )
+
+    # create spark session
+    spark = create_spark_session(config)
+
+    try:
+        bucket_path = config.get('S3_BUCKET', DEFAULT_CONFIG['S3_BUCKET'])
+        available_topics = list_available_topics(spark, bucket_path)
+
+        # Track overall processing results
+        overall_results = {}
+
+        for topic in available_topics:
+            print(f'Found topic: {topic}')
+
+            topic_name, df = check_for_new_data(spark, topic, config)
+
+            if df is None:
+                print(f'No new data to process for topic {topic}.')
+                continue
+
+            results = process_experiments_incrementally(spark, df, topic_name)
+
+            print(f'\nProcessing Summary for topic {topic}:')
+            for table, count in results.items():
+                print(f'{table}: {count} new records processed')
+                overall_results[f'{topic}_{table}'] = count
+
+        return overall_results
+    finally:
+        spark.stop()
+
+
+if __name__ == '__main__':
+    main()

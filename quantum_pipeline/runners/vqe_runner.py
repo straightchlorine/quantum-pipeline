@@ -1,10 +1,10 @@
 import numpy as np
-
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
 from qiskit_nature.second_q.mappers import JordanWignerMapper
+
 from quantum_pipeline.configs.module.backend import BackendConfig
-from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.configs.module.producer import ProducerConfig
+from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.drivers.basis_sets import validate_basis_set
 from quantum_pipeline.drivers.molecule_loader import load_molecule
 from quantum_pipeline.report.report_generator import ReportGenerator
@@ -212,8 +212,7 @@ class VQERunner(Runner):
 
                 except Exception as e:
                     self.logger.error(
-                        'Unable to create Kafka Producer, '
-                        'cannot send the results to the broker.'
+                        'Unable to create Kafka Producer, cannot send the results to the broker.'
                     )
                     self.logger.debug(f'Error: {e}')
 

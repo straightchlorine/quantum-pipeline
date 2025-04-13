@@ -811,7 +811,7 @@ def main(config=None):
     Args:
         config: Optional configuration dictionary
     """
-    # Create spark session
+    # create spark session
     spark = create_spark_session(config)
 
     try:

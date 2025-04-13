@@ -1,12 +1,12 @@
 from unittest.mock import MagicMock, Mock, patch
 
-from kafka.errors import KafkaError
 import pytest
+from kafka.errors import KafkaError
 
 from quantum_pipeline.configs.module.backend import BackendConfig
+from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.runners.vqe_runner import VQERunner
-from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 
 
