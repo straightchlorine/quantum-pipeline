@@ -22,9 +22,8 @@ from pyspark.sql.functions import (
 from pyspark.sql.types import StringType
 
 DEFAULT_CONFIG = {
-    'S3': os.getenv('S3_ENDPOINT', 'http://localhost:9000'),
-    'SPARK_MASTER': os.getenv('SPARK_ENDPOINT', 'spark://spark-server:7077'),
-    'HOST_IP': os.getenv('HOST_IP', 'station'),
+    'S3_ENDPOINT': os.getenv('S3_ENDPOINT', 'http://minio:9000'),
+    'SPARK_MASTER': os.getenv('SPARK_ENDPOINT', 'spark://spark-master:7077'),
     'S3_BUCKET': os.getenv('S3_BUCKET_URL', 's3a://local-vqe-results/experiments/'),
     'S3_WAREHOUSE': os.getenv('S3_WAREHOUSE_URL', 's3a://local-features/warehouse/'),
     'APP_NAME': 'Quantum Pipeline Feature Processing',
@@ -62,7 +61,6 @@ def create_spark_session(config=None):
     return (
         SparkSession.builder.appName(config.get('APP_NAME', DEFAULT_CONFIG['APP_NAME']))
         .master(config.get('SPARK_MASTER', DEFAULT_CONFIG['SPARK_MASTER']))
-        .config('spark.driver.host', config.get('HOST_IP', DEFAULT_CONFIG['HOST_IP']))
         # TODO: check if its required if jars are already in the image
         .config(
             'spark.jars.packages',
@@ -187,7 +185,7 @@ def add_metadata_columns(dataframe, processing_name):
     )
 
 
-def identify_new_records(new_data_df, table_name, key_columns):
+def identify_new_records(spark, new_data_df, table_name, key_columns):
     """
     Identifies records in new_data_df that don't exist in the target table.
     Uses DataFrame operations for better performance.
@@ -312,7 +310,7 @@ def process_incremental_data(
 
     processing_batch_id = first_row[0]['processing_batch_id'].replace('-', '')
 
-    truly_new_data = identify_new_records(new_data_df, table_name, key_columns)
+    truly_new_data = identify_new_records(spark, new_data_df, table_name, key_columns)
 
     # if no new data, do not move with the process
     new_record_count = truly_new_data.count()

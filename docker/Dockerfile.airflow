@@ -1,3 +1,12 @@
 FROM apache/airflow:2.10.5
+
+# install java
+USER root
+RUN apt-get update && \
+    apt-get install -y openjdk-17-jdk && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+USER airflow
+
 ADD requirements-airflow.txt requirements.txt
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt

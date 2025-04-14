@@ -5,6 +5,8 @@ volumes:
     name: quantum-spark-warehouse
   airflow-postgres-data:
     name: quantum-airflow-postgres
+  airflow-logs:
+    name: quantum-airflow-logs
 
 networks:
   quantum-net:
@@ -177,8 +179,7 @@ services:
       do
           sleep 5;
         done;
-        # Add a buffer to ensure Kafka Connect
-      is fully ready
+        # Add a buffer to ensure Kafka Connect is fully ready
         sleep 10;
 
         echo 'Registering MinIO Sink Connector...';
@@ -303,7 +304,7 @@ services:
     networks:
       - quantum-net
 
-  airflow-postgres:
+  postgres:
     image: postgres:13
     container_name: airflow-postgres
     environment:
@@ -323,29 +324,28 @@ services:
     build:
       context: .
       dockerfile: ./docker/Dockerfile.airflow
+
+    image: apache/airflow:2.7.1
     container_name: airflow-init
     depends_on:
-      - airflow-postgres
+      - postgres
     environment:
-      - AIRFLOW_HOME=/opt/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
-      - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      - AIRFLOW_VERSION=2.10.5
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
     volumes:
-      - ./docker/airflow:/opt/airflow/dags
-      - ./data:/opt/airflow/data
-    command: >
-      bash -c '
-        airflow db migrate && \
-        airflow users create \
-          --email admin@quantumpipeline.com \
-          --firstname Quantum \
-          --lastname Admin \
-          --role Admin \
-          --username admin \
-          --password admin
-      '
+      - ./docker/airflow/:/opt/airflow/dags
+    command: version
+    entrypoint: >
+      /bin/bash -c "
+        airflow db upgrade
+        airflow db migrate
+        airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com &&
+        airflow connections add 'spark_default' --conn-type 'spark' --conn-host 'spark://spark-master:7077' --conn-extra '{\"queue\": \"default\"}'
+      "
     networks:
       - quantum-net
 
@@ -355,25 +355,31 @@ services:
       dockerfile: ./docker/Dockerfile.airflow
     container_name: airflow-webserver
     depends_on:
-      - airflow-postgres
-      - airflow-init
+      - postgres
     environment:
-      - AIRFLOW_HOME=/opt/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
-      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__LOGGING__BASE_LOG_FOLDER=/opt/airflow/logs
+      - AIRFLOW__LOGGING__REMOTE_LOGGING=False
+
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
     volumes:
-      - ./docker/airflow:/opt/airflow/dags
+      - ./docker/airflow/:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
     ports:
-      - "8080:8080"
-    command: airflow webserver
-    networks:
-      - quantum-net
+      - "8084:8080"
+    command: webserver
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
-      interval: 30s
+      interval: 10s
       timeout: 10s
       retries: 5
+    networks:
+      - quantum-net
+    restart: always
 
   airflow-scheduler:
     build:
@@ -381,16 +387,49 @@ services:
       dockerfile: ./docker/Dockerfile.airflow
     container_name: airflow-scheduler
     depends_on:
-      - airflow-postgres
-      - airflow-init
+      - postgres
     environment:
-      - AIRFLOW_HOME=/opt/airflow
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
-      - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      - SPARK_HOME=/opt/spark
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__LOGGING__BASE_LOG_FOLDER=/opt/airflow/logs
+      - AIRFLOW__LOGGING__REMOTE_LOGGING=False
+
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
+
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     volumes:
-      - ./docker/airflow:/opt/airflow/dags
-    command: airflow scheduler
+      - ./docker/airflow/:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
+    command: scheduler
     networks:
       - quantum-net
+    restart: always
+
+  airflow-triggerer:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.airflow
+    container_name: airflow-triggerer
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__LOGGING__BASE_LOG_FOLDER=/opt/airflow/logs
+      - AIRFLOW__LOGGING__REMOTE_LOGGING=False
+
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
+    volumes:
+      - ./docker/airflow/:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
+    command: triggerer
+    networks:
+      - quantum-net
+    restart: always

@@ -8,13 +8,17 @@ This DAG handles:
 """
 
 import os
+import sys
 from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.models import Variable
+from airflow.operators.python import ShortCircuitOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
-from airflow.sensors.filesystem import FileSensor
 from airflow.utils.email import send_email
+from airflow.utils.log.logging_mixin import LoggingMixin
+
+logger = LoggingMixin().log
 
 try:
     from scripts.quantum_incremental_processing import (
@@ -22,7 +26,6 @@ try:
         check_for_new_data,
         create_spark_session,
         list_available_topics,
-        process_experiments_incrementally,
     )
 except ImportError:
     logger.error(
@@ -42,22 +45,64 @@ default_args = {
 }
 
 
-# get configuration from Airflow variables
-def get_config():
-    """Get configuration from Airflow variables with fallbacks"""
-    config = {
-        'SPARK_MASTER': Variable.get('SPARK_MASTER', 'spark://server:7077'),
-        'S3_ENDPOINT': Variable.get('S3_ENDPOINT', 'http://server:9000'),
-        'HOST_IP': Variable.get('HOST_IP', 'station'),
-        'S3_BUCKET': Variable.get('S3_BUCKET', 's3a://local-vqe-results/experiments/'),
-        'S3_WAREHOUSE': Variable.get('S3_WAREHOUSE', 's3a://local-features/warehouse'),
-        'SPARK_SUBMIT_ARGS': Variable.get('SPARK_SUBMIT_ARGS', ''),
-        'PROCESSING_SCRIPT': Variable.get(
-            'PROCESSING_SCRIPT', '/opt/airflow/dags/scripts/quantum_feature_processing.py'
-        ),
-        'DATA_PATH': Variable.get('DATA_PATH', '/opt/airflow/data/quantum'),
-    }
-    return config
+def check_for_data_to_process(**kwargs):
+    """
+    Check for new data to process in quantum data topics
+
+    Uses the check_for_new_data function from the quantum_incremental_processing module to
+    check if there are new experiment results that need to be processed.
+    """
+    config = kwargs['config']
+    logger.info(f'Creating Spark session with config: {config}')
+
+    # create a Spark session
+    spark = create_spark_session(config)
+
+    logger.info(f'Spark session created - AppName: {spark.conf.get("spark.app.name")}')
+    logger.info(f'Spark version: {spark.version}')
+    logger.info(f'Spark master: {spark.conf.get("spark.master")}')
+    logger.info(f'Spark driver host: {spark.conf.get("spark.driver.host")}')
+    logger.info(
+        f'Spark warehouse path: {spark.conf.get("spark.sql.catalog.quantum_catalog.warehouse")}'
+    )
+    logger.info(f'S3 endpoint: {spark.conf.get("spark.hadoop.fs.s3a.endpoint")}')
+
+    logger.info(f'Driver memory: {spark.conf.get("spark.driver.memory", "default")}')
+    logger.info(f'Executor memory: {spark.conf.get("spark.executor.memory", "default")}')
+    logger.info(f'Executor cores: {spark.conf.get("spark.executor.cores", "default")}')
+    logger.info(f'Executor instances: {spark.conf.get("spark.executor.instances", "default")}')
+    logger.info(
+        f'Dynamic allocation enabled: {spark.conf.get("spark.dynamicAllocation.enabled", "default")}'
+    )
+
+    try:
+        bucket_path = config.get('S3_BUCKET', DEFAULT_CONFIG['S3_BUCKET'])
+        available_topics = list_available_topics(spark, bucket_path)
+
+        if not available_topics:
+            logger.info('No topics found in the bucket')
+            return False
+
+        has_new_data = False
+        topics_with_data = []
+
+        # check each topic for new data
+        for topic in available_topics:
+            logger.info(f'Checking topic: {topic}')
+            _, df = check_for_new_data(spark, topic, config)
+
+            if df is not None and not df.isEmpty():
+                has_new_data = True
+                topics_with_data.append(topic)
+                logger.info(f'Found new data for topic: {topic}')
+
+        # store information about which topics have data
+        kwargs['ti'].xcom_push(key='topics_with_data', value=topics_with_data)
+
+        return has_new_data
+
+    finally:
+        spark.stop()
 
 
 # function to send success email with processing results
@@ -92,142 +137,55 @@ with DAG(
     tags=['quantum', 'features', 'processing'],
     on_success_callback=send_success_email,
 ) as dag:
-    # get configuration
-    config = get_config()
+    # set default config values
+    for k, v in DEFAULT_CONFIG.items():
+        Variable.set(k, v)
 
-    check_for_data = FileSensor(
+    Variable.set('MINIO_ACCESS_KEY', os.getenv('MINIO_ACCESS_KEY'))
+    Variable.set('MINIO_SECRET_KEY', os.getenv('MINIO_SECRET_KEY'))
+
+    # check for new data using the imported functions
+    check_for_data = ShortCircuitOperator(
         task_id='check_for_data',
-        filepath=config['DATA_PATH'],
-        poke_interval=60,
-        timeout=300,
-        mode='reschedule',
+        python_callable=check_for_data_to_process,
+        op_kwargs={'config': DEFAULT_CONFIG},
+        provide_context=True,
     )
 
-    # submit spark job
+    # submit Spark job - only run if check_for_data returns True
     run_quantum_processing = SparkSubmitOperator(
         task_id='run_quantum_processing',
-        application=config['PROCESSING_SCRIPT'],
+        application='/opt/airflow/dags/scripts/quantum_incremental_processing.py',
         conn_id='spark_default',
         name='quantum_feature_processing',
         conf={
-            'spark.master': config['SPARK_MASTER'],
-            'spark.driver.memory': '4g',
-            'spark.executor.memory': '4g',
-            'spark.executor.cores': '2',
-            'spark.driver.host': config['HOST_IP'],
+            'spark.master': Variable.get('SPARK_MASTER'),
+            'spark.app.name': Variable.get('APP_NAME'),
+            'spark.hadoop.fs.s3a.endpoint': Variable.get('S3_ENDPOINT'),
+            'spark.hadoop.fs.s3a.access.key': Variable.get('MINIO_ACCESS_KEY'),
+            'spark.hadoop.fs.s3a.secret.key': Variable.get('MINIO_SECRET_KEY'),
+            'spark.hadoop.fs.s3a.path.style.access': 'true',
+            'spark.hadoop.fs.s3a.connection.ssl.enabled': 'false',
+            'spark.jars.packages': (
+                'org.slf4j:slf4j-api:2.0.17,'
+                'commons-codec:commons-codec:1.18.0,'
+                'com.google.j2objc:j2objc-annotations:3.0.0,'
+                'org.apache.spark:spark-avro_2.12:3.5.5,'
+                'org.apache.hadoop:hadoop-aws:3.3.1,'
+                'org.apache.hadoop:hadoop-common:3.3.1,'
+                'org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2,'
+            ),
         },
         env_vars={
-            'MINIO_ACCESS_KEY': '{{ var.value.MINIO_ACCESS_KEY }}',
-            'MINIO_SECRET_KEY': '{{ var.value.MINIO_SECRET_KEY }}',
-            'S3_ENDPOINT': config['S3_ENDPOINT'],
-            'S3_BUCKET': config['S3_BUCKET'],
-            'S3_WAREHOUSE': config['S3_WAREHOUSE'],
+            'MINIO_ACCESS_KEY': Variable.get('MINIO_ACCESS_KEY'),
+            'MINIO_SECRET_KEY': Variable.get('MINIO_SECRET_KEY'),
+            'S3_ENDPOINT': Variable.get('S3_ENDPOINT'),
+            'S3_BUCKET': Variable.get('S3_BUCKET'),
+            'S3_WAREHOUSE': Variable.get('S3_WAREHOUSE'),
+            'SPARK_MASTER': Variable.get('SPARK_MASTER'),
         },
-        application_args=[
-            '--s3_endpoint',
-            config['S3_ENDPOINT'],
-            '--s3_bucket',
-            config['S3_BUCKET'],
-            '--s3_warehouse',
-            config['S3_WAREHOUSE'],
-            '--spark_master',
-            config['SPARK_MASTER'],
-            '--host_ip',
-            config['HOST_IP'],
-        ],
         verbose=True,
     )
 
-    # set task dependencies
+    # task dependencies
     check_for_data >> run_quantum_processing
-
-
-def parse_cli_args():
-    """Parse command-line arguments for Airflow compatibility."""
-    import argparse
-
-    parser = argparse.ArgumentParser(description='Quantum Feature Processing')
-    parser.add_argument(
-        '--s3_endpoint',
-        default=os.getenv('S3_ENDPOINT', 'http://localhost:9000'),
-        help='S3 endpoint URL',
-    )
-    parser.add_argument(
-        '--s3_bucket',
-        default=os.getenv('S3_BUCKET', 's3a://local-vqe-results/experiments/'),
-        help='S3 bucket path',
-    )
-    parser.add_argument(
-        '--s3_warehouse',
-        default=os.getenv('S3_WAREHOUSE', 's3a://local-features/warehouse/'),
-        help='S3 warehouse path',
-    )
-    parser.add_argument(
-        '--spark_master',
-        default=os.getenv('SPARK_MASTER', 'spark://localhost:7077'),
-        help='Spark master URL',
-    )
-    parser.add_argument(
-        '--host_ip', default=os.getenv('HOST_IP', 'localhost'), help='Host IP address'
-    )
-
-    return parser.parse_args()
-
-
-def main(config=None):
-    """
-    Main entry point for the quantum feature processing script.
-
-    Args:
-        config: Optional configuration dictionary
-    """
-    # Parse CLI arguments for Airflow compatibility
-    args = parse_cli_args()
-
-    # Update config with CLI arguments
-    if config is None:
-        config = DEFAULT_CONFIG.copy()
-
-    config.update(
-        {
-            'S3_ENDPOINT': args.s3_endpoint,
-            'S3_BUCKET': args.s3_bucket,
-            'S3_WAREHOUSE': args.s3_warehouse,
-            'SPARK_MASTER': args.spark_master,
-            'HOST_IP': args.host_ip,
-        }
-    )
-
-    # create spark session
-    spark = create_spark_session(config)
-
-    try:
-        bucket_path = config.get('S3_BUCKET', DEFAULT_CONFIG['S3_BUCKET'])
-        available_topics = list_available_topics(spark, bucket_path)
-
-        # Track overall processing results
-        overall_results = {}
-
-        for topic in available_topics:
-            print(f'Found topic: {topic}')
-
-            topic_name, df = check_for_new_data(spark, topic, config)
-
-            if df is None:
-                print(f'No new data to process for topic {topic}.')
-                continue
-
-            results = process_experiments_incrementally(spark, df, topic_name)
-
-            print(f'\nProcessing Summary for topic {topic}:')
-            for table, count in results.items():
-                print(f'{table}: {count} new records processed')
-                overall_results[f'{topic}_{table}'] = count
-
-        return overall_results
-    finally:
-        spark.stop()
-
-
-if __name__ == '__main__':
-    main()
