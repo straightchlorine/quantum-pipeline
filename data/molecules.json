@@ -1,11 +1,107 @@
 [
-    {
-        "symbols": ["H", "H"],
-        "coords": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-        "multiplicity": 1,
-        "charge": 0,
-        "units": "angstrom",
-        "masses": [1.008, 1.008]
-    }
+  {
+    "symbols": ["H", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.0, 0.74]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [1.008, 1.008]
+  },
+  {
+    "symbols": ["O", "H", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.757, 0.586],
+      [0.0, -0.757, 0.586]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [15.999, 1.008, 1.008]
+  },
+  {
+    "symbols": ["He", "He"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.0, 1.2]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [4.0026, 4.0026]
+  },
+  {
+    "symbols": ["Li", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.0, 1.6]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [6.94, 1.008]
+  },
+  {
+    "symbols": ["Be", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.0, 1.3]
+    ],
+    "multiplicity": 2,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [9.0122, 1.008]
+  },
+  {
+    "symbols": ["B", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.0, 1.19]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [10.81, 1.008]
+  },
+  {
+    "symbols": ["C", "H", "H", "H", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.629, 0.629, 0.629],
+      [-0.629, -0.629, 0.629],
+      [-0.629, 0.629, -0.629],
+      [0.629, -0.629, -0.629]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [12.011, 1.008, 1.008, 1.008, 1.008]
+  },
+  {
+    "symbols": ["N", "H", "H", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.937, 0.0, -0.381],
+      [-0.469, 0.812, -0.381],
+      [-0.469, -0.812, -0.381]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [14.007, 1.008, 1.008, 1.008]
+  },
+  {
+    "symbols": ["N", "N"],
+    "coords": [
+      [0.0, 0.0, -0.55],
+      [0.0, 0.0, 0.55]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [14.007, 14.007]
+  }
 ]
-

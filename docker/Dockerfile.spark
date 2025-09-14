@@ -39,4 +39,19 @@ RUN set -ex && \
     # org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2
     curl -L https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.4.2/iceberg-spark-runtime-3.5_2.12-1.4.2.jar \
         -o /opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.2.jar && \
-    chmod 644 /opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.2.jar
+    chmod 644 /opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.2.jar && \
+    \
+    # Add AWS SDK for S3 access
+    curl -L https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.477/aws-java-sdk-bundle-1.12.477.jar \
+        -o /opt/bitnami/spark/jars/aws-java-sdk-bundle-1.12.477.jar && \
+    chmod 644 /opt/bitnami/spark/jars/aws-java-sdk-bundle-1.12.477.jar && \
+    \
+    # Add core Iceberg dependencies
+    curl -L https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-core/1.4.2/iceberg-core-1.4.2.jar \
+        -o /opt/bitnami/spark/jars/iceberg-core-1.4.2.jar && \
+    chmod 644 /opt/bitnami/spark/jars/iceberg-core-1.4.2.jar && \
+    \
+    # Add Iceberg API which contains the extensions class
+    curl -L https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-api/1.4.2/iceberg-api-1.4.2.jar \
+        -o /opt/bitnami/spark/jars/iceberg-api-1.4.2.jar && \
+    chmod 644 /opt/bitnami/spark/jars/iceberg-api-1.4.2.jar

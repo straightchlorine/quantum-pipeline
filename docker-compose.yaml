@@ -3,6 +3,12 @@ volumes:
     name: quantum-minio-data
   spark-warehouse:
     name: quantum-spark-warehouse
+  airflow-postgres-data:
+    name: quantum-airflow-postgres
+  airflow-logs:
+    name: quantum-airflow-logs
+  kafka-data:
+    name: quantum-kafka-data
 
 networks:
   quantum-net:
@@ -67,8 +73,7 @@ services:
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD", "curl", "--fail", "-s",
-        "http://localhost:8081/subjects"]
+      test: ["CMD", "curl", "--fail", "-s", "http://localhost:8081/subjects"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -95,12 +100,13 @@ services:
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh
-          --bootstrap-server kafka:9092 --list"]
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server kafka:9092 --list"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    volumes:
+      - kafka-data:/bitnami/kafka
 
   kafka-connect:
     image: confluentinc/cp-kafka-connect:${KAFKA_CONNECT_VERSION:-latest}
@@ -174,29 +180,23 @@ services:
       sh -c "
         echo 'Waiting for Kafka Connect...';
         until curl -s -o /dev/null http://kafka-connect:8083/connectors;
-      do
-          sleep 5;
+        do
+            sleep 5;
         done;
-        # Add a buffer to ensure Kafka Connect
-      is fully ready
         sleep 10;
 
         echo 'Registering MinIO Sink Connector...';
         for i in {1..5}; do
-          if curl -X POST -H 'Content-Type:
-      application/json' --data @/connectors/minio-sink-config.json
-      http://kafka-connect:8083/connectors;
-      then
-            echo 'MinIO Sink Connector registered
-      successfully!';
+          if curl -X POST -H 'Content-Type: application/json' \
+            --data @/connectors/minio-sink-config.json \
+            http://kafka-connect:8083/connectors; then
+            echo 'MinIO Sink Connector registered successfully!';
             break;
           else
-            echo 'Failed to register MinIO
-      connector, retrying in 5 seconds...';
+            echo 'Failed to register MinIO connector, retrying in 5 seconds...';
             sleep 5;
             if [ $i -eq 5 ]; then
-              echo 'Failed to register MinIO
-      connector after 5 attempts';
+              echo 'Failed to register MinIO connector after 5 attempts';
               exit 1;
             fi
           fi
@@ -218,8 +218,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_REGION_NAME: ${MINIO_REGION}
       MINIO_BROWSER_REDIRECT_URL: http://localhost:${MINIO_CONSOLE_PORT}
-    command: minio server /data --console-address
-      ":${MINIO_CONSOLE_PORT}"
+    command: minio server /data --console-address ":${MINIO_CONSOLE_PORT}"
     volumes:
       - minio-data:/data
     networks:
@@ -238,18 +237,13 @@ services:
       minio:
         condition: service_healthy
     entrypoint: >
-      /bin/sh -c " /usr/bin/mc config host
-      add ${MINIO_HOSTNAME} http://minio:9000
-      ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /bin/sh -c " /usr/bin/mc config host add ${MINIO_HOSTNAME} http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
 
-      /usr/bin/mc ls ${MINIO_HOSTNAME}/iceberg
-      || /usr/bin/mc mb ${MINIO_HOSTNAME}/iceberg;
+      /usr/bin/mc ls ${MINIO_HOSTNAME}/iceberg || /usr/bin/mc mb ${MINIO_HOSTNAME}/iceberg;
 
-      /usr/bin/mc ls ${MINIO_HOSTNAME}/${MINIO_BUCKET}
-      || /usr/bin/mc mb ${MINIO_HOSTNAME}/${MINIO_BUCKET};
+      /usr/bin/mc ls ${MINIO_HOSTNAME}/${MINIO_BUCKET} || /usr/bin/mc mb ${MINIO_HOSTNAME}/${MINIO_BUCKET};
 
-      /usr/bin/mc policy set public ${MINIO_HOSTNAME}/iceberg;
-      /usr/bin/mc policy set public ${MINIO_HOSTNAME}/${MINIO_BUCKET};
+      /usr/bin/mc policy set public ${MINIO_HOSTNAME}/iceberg; /usr/bin/mc policy set public ${MINIO_HOSTNAME}/${MINIO_BUCKET};
 
       exit 0; "
     networks:
@@ -267,22 +261,7 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
       - SPARK_USER=spark
-      - SPARK_MASTER_OPTS="-Dspark.serializer=org.apache.spark.serializer.KryoSerializer
-        -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-        -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog
-        -Dspark.sql.catalog.spark_catalog.type=hive
-        -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog
-        -Dspark.sql.catalog.iceberg.type=hadoop
-        -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse
-        -Dspark.sql.catalog.iceberg.s3.endpoint=http://minio:9000
-        -Dspark.sql.catalog.iceberg.s3.path-style-access=true
-        -Dspark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY}
-        -Dspark.hadoop.fs.s3a.secret.key=${MINIO_SECRET_KEY}
-        -Dspark.hadoop.fs.s3a.endpoint=minio:9000
-        -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
-        -Dspark.hadoop.fs.s3a.path.style.access=true
-        -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false
-        -Dspark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+      - SPARK_MASTER_OPTS="-Dspark.serializer=org.apache.spark.serializer.KryoSerializer -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog -Dspark.sql.catalog.spark_catalog.type=hive -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog -Dspark.sql.catalog.iceberg.type=hadoop -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse -Dspark.sql.catalog.iceberg.s3.endpoint=http://minio:9000 -Dspark.sql.catalog.iceberg.s3.path-style-access=true -Dspark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY} -Dspark.hadoop.fs.s3a.secret.key=${MINIO_SECRET_KEY} -Dspark.hadoop.fs.s3a.endpoint=minio:9000 -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem -Dspark.hadoop.fs.s3a.path.style.access=true -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false -Dspark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
     ports:
       - "8080:8080"
       - "7077:7077"
@@ -308,25 +287,136 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
       - SPARK_USER=spark
-      - SPARK_WORKER_OPTS="-Dspark.serializer=org.apache.spark.serializer.KryoSerializer
-        -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-        -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog
-        -Dspark.sql.catalog.spark_catalog.type=hive
-        -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog
-        -Dspark.sql.catalog.iceberg.type=hadoop
-        -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse
-        -Dspark.sql.catalog.iceberg.s3.endpoint=http://minio:9000
-        -Dspark.sql.catalog.iceberg.s3.path-style-access=true
-        -Dspark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY}
-        -Dspark.hadoop.fs.s3a.secret.key=${MINIO_SECRET_KEY}
-        -Dspark.hadoop.fs.s3a.endpoint=minio:9000
-        -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
-        -Dspark.hadoop.fs.s3a.path.style.access=true
-        -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false
-        -Dspark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
+      - SPARK_WORKER_OPTS="-Dspark.serializer=org.apache.spark.serializer.KryoSerializer -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog -Dspark.sql.catalog.spark_catalog.type=hive -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog -Dspark.sql.catalog.iceberg.type=hadoop -Dspark.sql.catalog.iceberg.warehouse=s3://iceberg/warehouse -Dspark.sql.catalog.iceberg.s3.endpoint=http://minio:9000 -Dspark.sql.catalog.iceberg.s3.path-style-access=true -Dspark.hadoop.fs.s3a.access.key=${MINIO_ACCESS_KEY} -Dspark.hadoop.fs.s3a.secret.key=${MINIO_SECRET_KEY} -Dspark.hadoop.fs.s3a.endpoint=minio:9000 -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem -Dspark.hadoop.fs.s3a.path.style.access=true -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false -Dspark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
     volumes:
       - spark-warehouse:/opt/bitnami/spark/warehouse
     depends_on:
       - spark-master
     networks:
       - quantum-net
+
+  postgres:
+    image: postgres:13
+    container_name: airflow-postgres
+    environment:
+      POSTGRES_USER: ${AIRFLOW_POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${AIRFLOW_POSTGRES_PASSWORD:-airflow}
+      POSTGRES_DB: ${AIRFLOW_POSTGRES_DB:-airflow}
+    volumes:
+      - airflow-postgres-data:/var/lib/postgresql/data
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${AIRFLOW_POSTGRES_USER:-airflow}"]
+      interval: 5s
+      retries: 5
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.airflow
+    image: apache/airflow:2.7.1
+    container_name: airflow-init
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=${AIRFLOW_DAGS_PAUSED_AT_CREATION:-True}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=${AIRFLOW_LOAD_EXAMPLES:-False}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
+    volumes:
+      - ./docker/airflow/:/opt/airflow/dags
+    command: version
+    entrypoint: >
+      /bin/bash -c "
+        airflow db upgrade
+        airflow db migrate
+
+        airflow users create --username ${AIRFLOW_ADMIN_USERNAME:-admin} --password ${AIRFLOW_ADMIN_PASSWORD:-admin} --firstname ${AIRFLOW_ADMIN_FIRSTNAME:-Admin} --lastname ${AIRFLOW_ADMIN_LASTNAME:-User} --role Admin --email ${AIRFLOW_ADMIN_EMAIL:-admin@example.com}
+
+        airflow connections add 'spark_default' --conn-type 'spark' --conn-host 'spark://${SPARK_MASTER_HOST:-spark-master}:${SPARK_MASTER_PORT:-7077}' --conn-extra '{\"queue\": \"${SPARK_DEFAULT_QUEUE:-default}\"}'"
+    networks:
+      - quantum-net
+
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.airflow
+    container_name: airflow-webserver
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=${AIRFLOW_DAGS_PAUSED_AT_CREATION:-True}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=${AIRFLOW_LOAD_EXAMPLES:-False}
+      - AIRFLOW__LOGGING__BASE_LOG_FOLDER=/opt/airflow/logs
+      - AIRFLOW__LOGGING__REMOTE_LOGGING=False
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
+    volumes:
+      - ./docker/airflow/:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
+    ports:
+      - "${AIRFLOW_WEBSERVER_PORT:-8084}:8080"
+    command: webserver
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - quantum-net
+    restart: always
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.airflow
+    container_name: airflow-scheduler
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=${AIRFLOW_DAGS_PAUSED_AT_CREATION:-True}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=${AIRFLOW_LOAD_EXAMPLES:-False}
+      - AIRFLOW__LOGGING__BASE_LOG_FOLDER=/opt/airflow/logs
+      - AIRFLOW__LOGGING__REMOTE_LOGGING=False
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    volumes:
+      - ./docker/airflow/:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
+    command: scheduler
+    networks:
+      - quantum-net
+    restart: always
+
+  airflow-triggerer:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.airflow
+    container_name: airflow-triggerer
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=${AIRFLOW_DAGS_PAUSED_AT_CREATION:-True}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=${AIRFLOW_LOAD_EXAMPLES:-False}
+      - AIRFLOW__LOGGING__BASE_LOG_FOLDER=/opt/airflow/logs
+      - AIRFLOW__LOGGING__REMOTE_LOGGING=False
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
+    volumes:
+      - ./docker/airflow/:/opt/airflow/dags
+      - airflow-logs:/opt/airflow/logs
+    command: triggerer
+    networks:
+      - quantum-net
+    restart: always

@@ -1,6 +1,9 @@
 # ignore schemas
 quantum_pipeline/stream/serialization/schemas/*
 
+# ignore jython_cache
+.jython_cache
+
 # ignore main env file
 .env
 

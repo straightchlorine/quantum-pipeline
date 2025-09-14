@@ -33,6 +33,7 @@ class VQEKafkaProducer:
         Args:
             config: Configuration for the Kafka producer.
         """
+
         self.logger = get_logger(self.__class__.__name__)
 
         self.config = config
