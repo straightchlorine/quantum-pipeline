@@ -180,26 +180,23 @@ services:
       sh -c "
         echo 'Waiting for Kafka Connect...';
         until curl -s -o /dev/null http://kafka-connect:8083/connectors;
-      do
-          sleep 5;
+        do
+            sleep 5;
         done;
-        # Add a buffer to ensure Kafka Connect is fully ready
         sleep 10;
 
         echo 'Registering MinIO Sink Connector...';
         for i in {1..5}; do
-          if curl -X POST -H 'Content-Type:
-      application/json' --data @/connectors/minio-sink-config.json http://kafka-connect:8083/connectors; then
-            echo 'MinIO Sink Connector registered
-      successfully!';
+          if curl -X POST -H 'Content-Type: application/json' \
+            --data @/connectors/minio-sink-config.json \
+            http://kafka-connect:8083/connectors; then
+            echo 'MinIO Sink Connector registered successfully!';
             break;
           else
-            echo 'Failed to register MinIO
-      connector, retrying in 5 seconds...';
+            echo 'Failed to register MinIO connector, retrying in 5 seconds...';
             sleep 5;
             if [ $i -eq 5 ]; then
-              echo 'Failed to register MinIO
-      connector after 5 attempts';
+              echo 'Failed to register MinIO connector after 5 attempts';
               exit 1;
             fi
           fi
