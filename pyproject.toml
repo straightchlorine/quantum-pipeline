@@ -12,7 +12,7 @@ maintainers = [
     {name = 'Piotr Krzysztof', email = 'piotrlis555@gmail.com'}
 ]
 
-version = "1.0.5"
+version = "1.2.5"
 requires-python = ">=3.10,<3.13"
 license = {text = "MIT"}
 readme = "README.md"
@@ -91,7 +91,7 @@ extend-exclude = '''
 '''
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
