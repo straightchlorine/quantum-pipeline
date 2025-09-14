@@ -1,5 +1,5 @@
 from unittest.mock import mock_open, patch
-
+import os
 import pytest
 
 from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
@@ -18,10 +18,18 @@ def test_required_arguments(argparser):
         argparser._validate_args(args)
 
 
-def test_ssl_basic_configuration(argparser):
-    """Test valid SSL configuration with default ssl_dir."""
+def test_ssl_basic_configuration_with_mock_dir(argparser, monkeypatch):
+    """
+    Test SSL configuration by mocking directory existence.
+
+    Uses monkeypatch to mock os.path.isdir to always return True.
+    """
+    # ensures isdir always returns True
+    monkeypatch.setattr(os.path, 'isdir', lambda path: True)
+
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--kafka', '--ssl'])
     argparser._validate_args(args)
+
     assert args.ssl is True
     assert args.ssl_dir == './secrets/'
 
@@ -131,7 +139,7 @@ def test_basis_argument(argparser):
 def test_gpu_argument(argparser):
     """Test the gpu enable argument."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--gpu'])
-    assert args.gpu == True
+    assert args.gpu
 
 
 def test_ssl_argument(argparser):
@@ -139,7 +147,7 @@ def test_ssl_argument(argparser):
     args = argparser.parser.parse_args(
         ['--file', 'molecule.json', '--ssl', '--ssl-password', 'password']
     )
-    assert args.ssl == True
+    assert args.ssl
     assert args.ssl_password == 'password'
 
 
@@ -152,7 +160,7 @@ def test_noise_argument(argparser):
 def test_noise_disable_argument(argparser):
     """Test the noise enable argument."""
     args = argparser.parser.parse_args(['--file', 'molecule.json'])
-    assert args.noise == None
+    assert args.noise is None
 
 
 def test_ansatz_reps_argument(argparser):
@@ -164,7 +172,7 @@ def test_ansatz_reps_argument(argparser):
 def test_local_backend_flag(argparser):
     """Test the --local flag for using a local backend."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--ibm'])
-    assert args.ibm is False
+    assert not args.ibm
 
 
 def test_kafka_arguments(argparser):
