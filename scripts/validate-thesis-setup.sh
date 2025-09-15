@@ -137,6 +137,17 @@ echo "🚀 Container Status:"
 if docker-compose -f docker-compose.thesis.yaml ps | grep -q "Up"; then
     echo "✅ Some thesis containers are running:"
     docker-compose -f docker-compose.thesis.yaml ps
+
+    # Check specifically for three quantum pipeline containers
+    cpu_running=$(docker-compose -f docker-compose.thesis.yaml ps | grep "quantum-pipeline-cpu" | grep -c "Up" || echo "0")
+    gpu1_running=$(docker-compose -f docker-compose.thesis.yaml ps | grep "quantum-pipeline-gpu1" | grep -c "Up" || echo "0")
+    gpu2_running=$(docker-compose -f docker-compose.thesis.yaml ps | grep "quantum-pipeline-gpu2" | grep -c "Up" || echo "0")
+
+    echo ""
+    echo "📊 Three-Way Comparison Status:"
+    echo "CPU Container (baseline): $([[ $cpu_running -eq 1 ]] && echo "✅ Running" || echo "❌ Not running")"
+    echo "GPU1 Container (GTX 1060 6GB): $([[ $gpu1_running -eq 1 ]] && echo "✅ Running" || echo "❌ Not running")"
+    echo "GPU2 Container (GTX 1050 Ti 4GB): $([[ $gpu2_running -eq 1 ]] && echo "✅ Running" || echo "❌ Not running")"
 else
     echo "ℹ️  No thesis containers currently running"
 fi
@@ -148,6 +159,7 @@ echo "📋 Setup Recommendations:"
 echo "1. Copy .env.thesis.example to .env and configure external monitoring URLs"
 echo "2. Ensure Docker has sufficient resources allocated"
 echo "3. Start with: docker-compose -f docker-compose.thesis.yaml up -d"
+echo "   Verify all three quantum containers: quantum-pipeline-cpu, quantum-pipeline-gpu1, quantum-pipeline-gpu2"
 echo "4. Connect external Grafana to receive metrics from PushGateway"
 echo "5. Connect external Dozzle to thesis-server:7007"
 echo "6. Connect external Portainer to thesis-server:9001"

@@ -254,28 +254,31 @@ class PerformanceMonitor:
                     parts = [p.strip() for p in line.split(',')]
                     if len(parts) >= 8:
                         try:
+                            # Helper function to safely parse numeric values
+                            def safe_float(value):
+                                if value in ('N/A', '[N/A]', 'N/A]', '[N/A'):
+                                    return None
+                                try:
+                                    return float(value)
+                                except ValueError:
+                                    return None
+
                             gpu_info = {
                                 'index': int(parts[0]),
                                 'name': parts[1],
-                                'temperature': float(parts[2]) if parts[2] != 'N/A' else None,
-                                'utilization_gpu': float(parts[3]) if parts[3] != 'N/A' else None,
-                                'utilization_memory': float(parts[4])
-                                if parts[4] != 'N/A'
-                                else None,
-                                'memory_total': float(parts[5]) if parts[5] != 'N/A' else None,
-                                'memory_used': float(parts[6]) if parts[6] != 'N/A' else None,
-                                'power_draw': float(parts[7]) if parts[7] != 'N/A' else None,
+                                'temperature': safe_float(parts[2]),
+                                'utilization_gpu': safe_float(parts[3]),
+                                'utilization_memory': safe_float(parts[4]),
+                                'memory_total': safe_float(parts[5]),
+                                'memory_used': safe_float(parts[6]),
+                                'power_draw': safe_float(parts[7]),
                             }
 
                             # Optional fields
                             if len(parts) >= 9:
-                                gpu_info['clock_graphics'] = (
-                                    float(parts[8]) if parts[8] != 'N/A' else None
-                                )
+                                gpu_info['clock_graphics'] = safe_float(parts[8])
                             if len(parts) >= 10:
-                                gpu_info['clock_memory'] = (
-                                    float(parts[9]) if parts[9] != 'N/A' else None
-                                )
+                                gpu_info['clock_memory'] = safe_float(parts[9])
 
                             gpu_data.append(gpu_info)
                         except (ValueError, IndexError) as e:
