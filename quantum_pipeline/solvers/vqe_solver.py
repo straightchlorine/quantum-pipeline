@@ -129,6 +129,13 @@ class VQESolver(Solver):
                 'disp': False,
             }
 
+            # COBYLA specific parameters
+            if self.optimizer == 'COBYLA':
+                # COBYLA requires maxfun to be at least num_params + 2
+                num_params = len(x0)
+                min_maxfun = num_params + 2
+                optimization_params['maxfun'] = max(self.max_iterations, min_maxfun)
+
             self.logger.info(
                 f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
             )
@@ -197,6 +204,13 @@ class VQESolver(Solver):
             'maxiter': self.max_iterations,
             'disp': False,
         }
+
+        # COBYLA specific parameters
+        if self.optimizer == 'COBYLA':
+            # COBYLA requires maxfun to be at least num_params + 2
+            num_params = len(x0)
+            min_maxfun = num_params + 2
+            optimization_params['maxfun'] = max(self.max_iterations, min_maxfun)
 
         self.logger.info(
             f'Starting the minimization process with max iterations equal to {self.max_iterations}.'

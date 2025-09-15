@@ -439,7 +439,7 @@ class PerformanceMonitor:
                         f'quantum_experiment_{key}{{container_type="{self.container_type}"}} {value}'
                     )
 
-            return '\n'.join(lines)
+            return '\n'.join(lines) + '\n'  # PushGateway requires trailing newline
 
         except Exception as e:
             self.logger.error(f'Failed to convert metrics to Prometheus format: {e}')

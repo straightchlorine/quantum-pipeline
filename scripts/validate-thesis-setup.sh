@@ -112,8 +112,8 @@ total_memory=$(free -m | awk '/^Mem:/ {print $2}')
 echo "Total CPU cores: $total_cpu"
 echo "Total Memory: ${total_memory}MB"
 
-planned_cpu_usage=$((3 + 3 + 1 + 1))  # CPU container + GPU container + Spark + Other services
-planned_memory_usage=$((8192 + 8192 + 4096 + 4096))  # In MB - reduced for external monitoring
+planned_cpu_usage=$((2 + 2 + 2 + 1 + 1))  # CPU container + GPU1 + GPU2 + Spark + Other services
+planned_memory_usage=$((10240 + 10240 + 10240 + 4096 + 4096))  # In MB - three-way comparison
 
 echo "Planned CPU usage: $planned_cpu_usage cores"
 echo "Planned Memory usage: ${planned_memory_usage}MB ($(($planned_memory_usage / 1024))GB)"

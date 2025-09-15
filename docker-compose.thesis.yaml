@@ -50,7 +50,7 @@ services:
       IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
       IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
-      CONTAINER_TYPE: "CPU"
+      CONTAINER_TYPE: "CPU_BASELINE"
       QUANTUM_PERFORMANCE_ENABLED: "true"
       QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "30"
       QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "${EXTERNAL_PUSHGATEWAY_URL}"
@@ -63,22 +63,22 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '3.0' # Half of available CPU cores
-          memory: 15G
+          cpus: '2.0' # Adjusted for three-way comparison
+          memory: 10G
         reservations:
-          cpus: '2.0'
-          memory: 5G
+          cpus: '1.5'
+          memory: 6G
 
-  # GPU-accelerated Quantum Pipeline for Thesis Comparison
-  quantum-pipeline-gpu:
-    container_name: quantum-pipeline-gpu
+  # GPU-accelerated Quantum Pipeline - GTX 1060 6GB (High-end)
+  quantum-pipeline-gpu1:
+    container_name: quantum-pipeline-gpu1
     command:
       - "--file"
       - "./data/molecules.json"
       - "--kafka"
       - "--gpu"
       - "--topic"
-      - "vqe_results_gpu"
+      - "vqe_results_gpu1"
       - "--max-iterations"
       - "${MAX_ITERATIONS:-100}"
       - "--log-level"
@@ -96,19 +96,19 @@ services:
       dockerfile: ./docker/Dockerfile.gpu
     restart: always
     volumes:
-      - ./gen/gpu:/usr/src/quantum-pipeline/gen/
+      - ./gen/gpu1:/usr/src/quantum-pipeline/gen/
       - ./data/molecules.json:/usr/src/quantum_pipeline/data/molecules.json
     environment:
       IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
       IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
       IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
-      CONTAINER_TYPE: "GPU"
+      CONTAINER_TYPE: "GPU_GTX1060_6GB"
       QUANTUM_PERFORMANCE_ENABLED: "true"
       QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "30"
       QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "${EXTERNAL_PUSHGATEWAY_URL}"
       QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
-      CUDA_VISIBLE_DEVICES: "0"
+      CUDA_VISIBLE_DEVICES: "0" # GTX 1060 6GB
     networks:
       - quantum-net
     depends_on:
@@ -117,14 +117,72 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '3.0' # Same CPU limit as CPU container for fair comparison
-          memory: 15G # Same memory limit for fair comparison
+          cpus: '2.0' # Reduced for three-way comparison
+          memory: 10G
         reservations:
-          cpus: '2.0'
-          memory: 4G
+          cpus: '1.5'
+          memory: 6G
           devices:
             - driver: nvidia
               device_ids: ['0'] # GTX 1060 6GB specifically
+              capabilities: [gpu]
+
+  # GPU-accelerated Quantum Pipeline - GTX 1050 Ti 4GB (Mid-range)
+  quantum-pipeline-gpu2:
+    container_name: quantum-pipeline-gpu2
+    command:
+      - "--file"
+      - "./data/molecules.json"
+      - "--kafka"
+      - "--gpu"
+      - "--topic"
+      - "vqe_results_gpu2"
+      - "--max-iterations"
+      - "${MAX_ITERATIONS:-100}"
+      - "--log-level"
+      - "${LOG_LEVEL:-INFO}"
+      - "--simulation-method"
+      - "${SIMULATION_METHOD:-statevector}"
+      - "--convergence"
+      - "--enable-performance-monitoring"
+      - "--performance-interval"
+      - "30"
+      - "--performance-export-format"
+      - "both"
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.gpu
+    restart: always
+    volumes:
+      - ./gen/gpu2:/usr/src/quantum-pipeline/gen/
+      - ./data/molecules.json:/usr/src/quantum_pipeline/data/molecules.json
+    environment:
+      IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
+      IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
+      IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      CONTAINER_TYPE: "GPU_GTX1050Ti_4GB"
+      QUANTUM_PERFORMANCE_ENABLED: "true"
+      QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "30"
+      QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "${EXTERNAL_PUSHGATEWAY_URL}"
+      QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
+      CUDA_VISIBLE_DEVICES: "0" # GTX 1050 Ti 4GB (mapped as device 0 inside container)
+    networks:
+      - quantum-net
+    depends_on:
+      kafka-connect-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0' # Same as GPU1 for fair comparison
+          memory: 10G
+        reservations:
+          cpus: '1.5'
+          memory: 6G
+          devices:
+            - driver: nvidia
+              device_ids: ['1'] # GTX 1050 Ti 4GB specifically
               capabilities: [gpu]
 
   schema-registry:
