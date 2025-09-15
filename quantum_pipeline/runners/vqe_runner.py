@@ -14,6 +14,7 @@ from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 from quantum_pipeline.utils.timer import Timer
 from quantum_pipeline.visual.ansatz import AnsatzViewer
+from quantum_pipeline.monitoring import get_performance_monitor
 
 
 class VQERunner(Runner):
@@ -124,6 +125,9 @@ class VQERunner(Runner):
 
         self.run_results = []
 
+        # Initialize performance monitoring
+        self.performance_monitor = get_performance_monitor()
+
     @staticmethod
     def default_backend():
         return BackendConfig.default_backend_config()
@@ -180,23 +184,44 @@ class VQERunner(Runner):
     def run(self):
         self.molecules = self.load_molecules()
 
-        for molecule_id, molecule in enumerate(self.molecules):
-            self.logger.info(f'Processing molecule {molecule_id + 1}:\n\n{molecule}\n')
-            result = self.runVQE(molecule, self.backend_config)
+        # Start performance monitoring if enabled
+        with self.performance_monitor:
+            for molecule_id, molecule in enumerate(self.molecules):
+                self.logger.info(f'Processing molecule {molecule_id + 1}:\n\n{molecule}\n')
 
-            total_time = np.float64(self.hamiltonian_time + self.mapping_time + self.vqe_time)
-            self.logger.info(f'Result provided in {total_time:.6f} seconds.')
+                # Set experiment context for monitoring
+                self.performance_monitor.set_experiment_context(
+                    molecule_id=molecule_id,
+                    molecule_symbols=''.join(molecule.symbols),
+                    basis_set=self.basis_set,
+                    optimizer=self.optimizer,
+                    max_iterations=self.max_iterations,
+                    backend_type='GPU' if getattr(self.backend_config, 'gpu', False) else 'CPU'
+                )
 
-            decorated_result = VQEDecoratedResult(
-                vqe_result=result,
-                molecule=molecule,
-                basis_set=self.basis_set,
-                molecule_id=molecule_id,
-                hamiltonian_time=np.float64(self.hamiltonian_time),
-                mapping_time=np.float64(self.mapping_time),
-                vqe_time=np.float64(self.vqe_time),
-                total_time=total_time,
-            )
+                # Collect performance snapshot before VQE
+                performance_start = self.performance_monitor.collect_metrics_snapshot()
+
+                result = self.runVQE(molecule, self.backend_config)
+
+                # Collect performance snapshot after VQE
+                performance_end = self.performance_monitor.collect_metrics_snapshot()
+
+                total_time = np.float64(self.hamiltonian_time + self.mapping_time + self.vqe_time)
+                self.logger.info(f'Result provided in {total_time:.6f} seconds.')
+
+                decorated_result = VQEDecoratedResult(
+                    vqe_result=result,
+                    molecule=molecule,
+                    basis_set=self.basis_set,
+                    molecule_id=molecule_id,
+                    hamiltonian_time=np.float64(self.hamiltonian_time),
+                    mapping_time=np.float64(self.mapping_time),
+                    vqe_time=np.float64(self.vqe_time),
+                    total_time=total_time,
+                    performance_start=performance_start if self.performance_monitor.is_enabled() else None,
+                    performance_end=performance_end if self.performance_monitor.is_enabled() else None,
+                )
             self.run_results.append(decorated_result)
             self.logger.debug('Appended run information to the result.')
 

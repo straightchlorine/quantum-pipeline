@@ -63,3 +63,10 @@ ANSATZ = 'ansatz'
 
 ANSATZ_DECOMPOSED_PLOT_DIR = Path(GRAPH_DIR, 'ansatz_decomposed')
 ANSATZ_DECOMPOSED = 'ansatz_decomposed'
+
+# Performance Monitoring Settings
+PERFORMANCE_MONITORING_ENABLED = False  # Global toggle
+PERFORMANCE_METRICS_DIR = Path(GEN_DIR, 'performance_metrics')
+PERFORMANCE_COLLECTION_INTERVAL = 30  # seconds
+PERFORMANCE_PUSHGATEWAY_URL = 'http://localhost:9091'
+PERFORMANCE_EXPORT_FORMAT = ['json', 'prometheus']  # Export formats

@@ -422,6 +422,8 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
                     {'name': 'vqe_time', 'type': 'double'},
                     {'name': 'total_time', 'type': 'double'},
                     {'name': 'molecule_id', 'type': 'int'},
+                    {'name': 'performance_start', 'type': ['null', 'string'], 'default': None},
+                    {'name': 'performance_end', 'type': ['null', 'string'], 'default': None},
                 ],
             }
             dict_schema = deepcopy(schema)
@@ -438,9 +440,27 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
             'vqe_time': float(obj.vqe_time),
             'total_time': float(obj.total_time),
             'molecule_id': obj.molecule_id,
+            'performance_start': json.dumps(obj.performance_start) if obj.performance_start else None,
+            'performance_end': json.dumps(obj.performance_end) if obj.performance_end else None,
         }
 
     def deserialize(self, data: dict[str, Any]) -> VQEDecoratedResult:
+        # Deserialize performance data if present
+        performance_start = None
+        performance_end = None
+
+        if data.get('performance_start'):
+            try:
+                performance_start = json.loads(data['performance_start'])
+            except (json.JSONDecodeError, TypeError):
+                performance_start = None
+
+        if data.get('performance_end'):
+            try:
+                performance_end = json.loads(data['performance_end'])
+            except (json.JSONDecodeError, TypeError):
+                performance_end = None
+
         return VQEDecoratedResult(
             vqe_result=self.result_interface.deserialize(data['vqe_result']),
             molecule=self.molecule_interface.deserialize(data['molecule']),
@@ -450,4 +470,6 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
             vqe_time=float64(data['vqe_time']),
             total_time=float64(data['total_time']),
             molecule_id=int(data['molecule_id']),
+            performance_start=performance_start,
+            performance_end=performance_end,
         )

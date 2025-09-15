@@ -10,6 +10,7 @@ from quantum_pipeline.configs.defaults import DEFAULTS
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.utils.logger import get_logger
+from quantum_pipeline.monitoring import init_performance_monitoring
 
 
 class ConfigurationManager:
@@ -151,6 +152,23 @@ class ConfigurationManager:
         config_dict = {key: value for key, value in vars(args).items() if key != 'local'}
         config_dict['kafka_config'] = self.create_kafka_config(args)
         config_dict['backend_config'] = self.create_backend_config(args)
+
+        # Initialize performance monitoring if enabled via command line
+        if hasattr(args, 'enable_performance_monitoring') and args.enable_performance_monitoring:
+            self.logger.info("Initializing performance monitoring from command line arguments")
+            export_formats = getattr(args, 'performance_export_format', 'both')
+            if isinstance(export_formats, str):
+                if export_formats == 'both':
+                    export_formats = ['json', 'prometheus']
+                else:
+                    export_formats = [export_formats]
+
+            init_performance_monitoring(
+                enabled=True,
+                collection_interval=getattr(args, 'performance_interval', 30),
+                pushgateway_url=getattr(args, 'performance_pushgateway', 'http://localhost:9091'),
+                export_format=export_formats
+            )
 
         if args.dump:
             self.dump(args, config_dict)
