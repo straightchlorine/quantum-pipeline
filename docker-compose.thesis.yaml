@@ -40,7 +40,7 @@ services:
       - "both"
     build:
       context: .
-      dockerfile: ./docker/Dockerfile.cpu  # CPU-only dockerfile
+      dockerfile: ./docker/Dockerfile.cpu # CPU-only dockerfile
     restart: always
     volumes:
       - ./gen/cpu:/usr/src/quantum-pipeline/gen/
@@ -63,8 +63,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '3.0'        # Half of available CPU cores
-          memory: 8G         # Conservative memory allocation
+          cpus: '3.0' # Half of available CPU cores
+          memory: 8G # Conservative memory allocation
         reservations:
           cpus: '2.0'
           memory: 4G
@@ -108,7 +108,7 @@ services:
       QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "30"
       QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "${EXTERNAL_PUSHGATEWAY_URL:-http://external-prometheus:9091}"
       QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
-      CUDA_VISIBLE_DEVICES: "0"  # Use the more powerful GTX 1060
+      CUDA_VISIBLE_DEVICES: "0" # Use the more powerful GTX 1060
     networks:
       - quantum-net
     depends_on:
@@ -117,14 +117,14 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '3.0'        # Same CPU limit as CPU container for fair comparison
-          memory: 8G         # Same memory limit for fair comparison
+          cpus: '3.0' # Same CPU limit as CPU container for fair comparison
+          memory: 8G # Same memory limit for fair comparison
         reservations:
           cpus: '2.0'
           memory: 4G
           devices:
             - driver: nvidia
-              device_ids: ['0']  # GTX 1060 6GB specifically
+              device_ids: ['0'] # GTX 1060 6GB specifically
               capabilities: [gpu]
 
   schema-registry:
@@ -351,8 +351,8 @@ services:
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=4G          # Increased for better data processing
-      - SPARK_WORKER_CORES=2            # Use remaining CPU cores
+      - SPARK_WORKER_MEMORY=4G # Increased for better data processing
+      - SPARK_WORKER_CORES=2 # Use remaining CPU cores
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
@@ -368,8 +368,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'      # Reserve 1 core for Spark to avoid interference
-          memory: 4G       # Reduced memory allocation
+          cpus: '1.0' # Reserve 1 core for Spark to avoid interference
+          memory: 4G # Reduced memory allocation
         reservations:
           cpus: '0.5'
           memory: 2G
@@ -527,7 +527,7 @@ services:
     container_name: portainer-agent
     restart: unless-stopped
     ports:
-      - "9001:9001"
+      - "9002:9001"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/run/docker/volumes:/var/lib/docker/volumes:ro
