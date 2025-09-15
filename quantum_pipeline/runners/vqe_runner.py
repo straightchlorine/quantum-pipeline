@@ -210,6 +210,17 @@ class VQERunner(Runner):
                 total_time = np.float64(self.hamiltonian_time + self.mapping_time + self.vqe_time)
                 self.logger.info(f'Result provided in {total_time:.6f} seconds.')
 
+                # Update experiment context with VQE results for Prometheus export
+                self.performance_monitor.set_experiment_context(
+                    total_time=float(total_time),
+                    minimum_energy=float(result.minimum),
+                    hamiltonian_time=float(self.hamiltonian_time),
+                    mapping_time=float(self.mapping_time),
+                    vqe_time=float(self.vqe_time),
+                    iterations_count=len(result.iteration_list),
+                    optimal_parameters_count=len(result.optimal_parameters)
+                )
+
                 decorated_result = VQEDecoratedResult(
                     vqe_result=result,
                     molecule=molecule,
