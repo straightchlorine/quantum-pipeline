@@ -155,7 +155,7 @@ class ConfigurationManager:
 
         # Initialize performance monitoring if enabled via command line
         if hasattr(args, 'enable_performance_monitoring') and args.enable_performance_monitoring:
-            self.logger.info("Initializing performance monitoring from command line arguments")
+            self.logger.info('Initializing performance monitoring from command line arguments')
             export_formats = getattr(args, 'performance_export_format', 'both')
             if isinstance(export_formats, str):
                 if export_formats == 'both':
@@ -165,9 +165,9 @@ class ConfigurationManager:
 
             init_performance_monitoring(
                 enabled=True,
-                collection_interval=getattr(args, 'performance_interval', 30),
-                pushgateway_url=getattr(args, 'performance_pushgateway', 'http://localhost:9091'),
-                export_format=export_formats
+                collection_interval=getattr(args, 'performance_interval'),
+                pushgateway_url=getattr(args, 'performance_pushgateway'),
+                export_format=export_formats,
             )
 
         if args.dump:
