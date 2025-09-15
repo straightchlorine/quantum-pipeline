@@ -34,12 +34,14 @@ class PerformanceMonitor:
     - Configurable intervals
     """
 
-    def __init__(self,
-                 enabled: bool = None,
-                 collection_interval: int = None,
-                 pushgateway_url: str = None,
-                 export_format: List[str] = None,
-                 metrics_dir: Path = None):
+    def __init__(
+        self,
+        enabled: bool = None,
+        collection_interval: int = None,
+        pushgateway_url: str = None,
+        export_format: List[str] = None,
+        metrics_dir: Path = None,
+    ):
         """
         Initialize performance monitor with configuration.
 
@@ -54,7 +56,9 @@ class PerformanceMonitor:
 
         # Configuration priority: constructor > env vars > command line > settings.py
         self.enabled = self._get_config_value('enabled', enabled, bool)
-        self.collection_interval = self._get_config_value('collection_interval', collection_interval, int)
+        self.collection_interval = self._get_config_value(
+            'collection_interval', collection_interval, int
+        )
         self.pushgateway_url = self._get_config_value('pushgateway_url', pushgateway_url, str)
         self.export_format = self._get_config_value('export_format', export_format, list)
         self.metrics_dir = metrics_dir or settings.PERFORMANCE_METRICS_DIR
@@ -68,11 +72,14 @@ class PerformanceMonitor:
         # Ensure metrics directory exists
         if self.enabled:
             self.metrics_dir.mkdir(parents=True, exist_ok=True)
-            self.logger.info(f"Performance monitoring initialized - Container: {self.container_type}")
-            self.logger.info(f"Metrics directory: {self.metrics_dir}")
-            self.logger.info(f"Collection interval: {self.collection_interval}s")
+            self.logger.info(
+                f'Performance monitoring initialized - Container: {self.container_type}'
+            )
+            self.logger.info(f'Metrics directory: {self.metrics_dir}')
+            self.logger.info(f'Push gateway url: {self.pushgateway_url}')
+            self.logger.info(f'Collection interval: {self.collection_interval}s')
         else:
-            self.logger.debug("Performance monitoring disabled")
+            self.logger.debug('Performance monitoring disabled')
 
     def _get_config_value(self, key: str, override_value: Any, expected_type: type) -> Any:
         """Get configuration value with priority: override > env > settings."""
@@ -82,7 +89,7 @@ class PerformanceMonitor:
             return override_value
 
         # Priority 2: Environment variable
-        env_key = f"QUANTUM_PERFORMANCE_{key.upper()}"
+        env_key = f'QUANTUM_PERFORMANCE_{key.upper()}'
         env_value = os.getenv(env_key)
         if env_value is not None:
             try:
@@ -95,7 +102,7 @@ class PerformanceMonitor:
                 else:
                     return env_value
             except (ValueError, AttributeError):
-                self.logger.warning(f"Invalid environment variable {env_key}={env_value}")
+                self.logger.warning(f'Invalid environment variable {env_key}={env_value}')
 
         # Priority 3: Settings.py defaults
         settings_map = {
@@ -115,24 +122,22 @@ class PerformanceMonitor:
         """Set experiment context for correlation with metrics."""
         if self.enabled:
             self.experiment_context.update(context)
-            self.logger.debug(f"Updated experiment context: {context}")
+            self.logger.debug(f'Updated experiment context: {context}')
 
     def start_monitoring(self):
         """Start background monitoring thread."""
         if not self.enabled:
-            self.logger.debug("Monitoring not enabled - skipping start")
+            self.logger.debug('Monitoring not enabled - skipping start')
             return
 
         if self.monitoring_thread and self.monitoring_thread.is_alive():
-            self.logger.warning("Monitoring already running")
+            self.logger.warning('Monitoring already running')
             return
 
-        self.logger.info("Starting performance monitoring thread")
+        self.logger.info('Starting performance monitoring thread')
         self.stop_monitoring.clear()
         self.monitoring_thread = threading.Thread(
-            target=self._monitoring_loop,
-            name="PerformanceMonitor",
-            daemon=True
+            target=self._monitoring_loop, name='PerformanceMonitor', daemon=True
         )
         self.monitoring_thread.start()
 
@@ -141,7 +146,7 @@ class PerformanceMonitor:
         if not self.enabled or not self.monitoring_thread:
             return
 
-        self.logger.info("Stopping performance monitoring thread")
+        self.logger.info('Stopping performance monitoring thread')
         self.stop_monitoring.set()
         if self.monitoring_thread.is_alive():
             self.monitoring_thread.join(timeout=5)
@@ -156,10 +161,8 @@ class PerformanceMonitor:
                 'timestamp': datetime.now().isoformat(),
                 'container_type': self.container_type,
                 'experiment_context': self.experiment_context.copy(),
-
                 # System metrics
                 'system': self._collect_system_metrics(),
-
                 # Container metrics
                 'container': self._collect_container_metrics(),
             }
@@ -172,7 +175,7 @@ class PerformanceMonitor:
             return metrics
 
         except Exception as e:
-            self.logger.error(f"Failed to collect metrics snapshot: {e}")
+            self.logger.error(f'Failed to collect metrics snapshot: {e}')
             return {'error': str(e), 'timestamp': datetime.now().isoformat()}
 
     def _collect_system_metrics(self) -> Dict[str, Any]:
@@ -221,21 +224,26 @@ class PerformanceMonitor:
                     'bytes_recv': net_io.bytes_recv if net_io else 0,
                     'packets_sent': net_io.packets_sent if net_io else 0,
                     'packets_recv': net_io.packets_recv if net_io else 0,
-                }
+                },
             }
         except Exception as e:
-            self.logger.error(f"Failed to collect system metrics: {e}")
+            self.logger.error(f'Failed to collect system metrics: {e}')
             return {'error': str(e)}
 
     def _collect_gpu_metrics(self) -> Optional[List[Dict[str, Any]]]:
         """Collect GPU metrics using nvidia-smi."""
         try:
             # Check if nvidia-smi is available
-            result = subprocess.run([
-                'nvidia-smi',
-                '--query-gpu=index,name,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.used,power.draw,clocks.current.graphics,clocks.current.memory',
-                '--format=csv,nounits,noheader'
-            ], capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                [
+                    'nvidia-smi',
+                    '--query-gpu=index,name,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.used,power.draw,clocks.current.graphics,clocks.current.memory',
+                    '--format=csv,nounits,noheader',
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
 
             if result.returncode != 0:
                 return None
@@ -251,7 +259,9 @@ class PerformanceMonitor:
                                 'name': parts[1],
                                 'temperature': float(parts[2]) if parts[2] != 'N/A' else None,
                                 'utilization_gpu': float(parts[3]) if parts[3] != 'N/A' else None,
-                                'utilization_memory': float(parts[4]) if parts[4] != 'N/A' else None,
+                                'utilization_memory': float(parts[4])
+                                if parts[4] != 'N/A'
+                                else None,
                                 'memory_total': float(parts[5]) if parts[5] != 'N/A' else None,
                                 'memory_used': float(parts[6]) if parts[6] != 'N/A' else None,
                                 'power_draw': float(parts[7]) if parts[7] != 'N/A' else None,
@@ -259,9 +269,13 @@ class PerformanceMonitor:
 
                             # Optional fields
                             if len(parts) >= 9:
-                                gpu_info['clock_graphics'] = float(parts[8]) if parts[8] != 'N/A' else None
+                                gpu_info['clock_graphics'] = (
+                                    float(parts[8]) if parts[8] != 'N/A' else None
+                                )
                             if len(parts) >= 10:
-                                gpu_info['clock_memory'] = float(parts[9]) if parts[9] != 'N/A' else None
+                                gpu_info['clock_memory'] = (
+                                    float(parts[9]) if parts[9] != 'N/A' else None
+                                )
 
                             gpu_data.append(gpu_info)
                         except (ValueError, IndexError) as e:
@@ -274,7 +288,7 @@ class PerformanceMonitor:
             # nvidia-smi not available or failed
             return None
         except Exception as e:
-            self.logger.error(f"Unexpected error collecting GPU metrics: {e}")
+            self.logger.error(f'Unexpected error collecting GPU metrics: {e}')
             return None
 
     def _collect_container_metrics(self) -> Dict[str, Any]:
@@ -283,10 +297,18 @@ class PerformanceMonitor:
             container_name = os.getenv('HOSTNAME', 'unknown')
 
             # Try to get Docker stats
-            result = subprocess.run([
-                'docker', 'stats', '--no-stream', '--format',
-                'table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}'
-            ], capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                [
+                    'docker',
+                    'stats',
+                    '--no-stream',
+                    '--format',
+                    'table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}',
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
 
             if result.returncode != 0:
                 return {'container_name': container_name, 'docker_stats_available': False}
@@ -312,7 +334,9 @@ class PerformanceMonitor:
 
     def _monitoring_loop(self):
         """Main monitoring loop running in background thread."""
-        self.logger.info(f"Performance monitoring loop started (interval: {self.collection_interval}s)")
+        self.logger.info(
+            f'Performance monitoring loop started (interval: {self.collection_interval}s)'
+        )
 
         while not self.stop_monitoring.wait(self.collection_interval):
             try:
@@ -328,43 +352,40 @@ class PerformanceMonitor:
                     self._export_prometheus(metrics)
 
             except Exception as e:
-                self.logger.error(f"Error in monitoring loop: {e}")
+                self.logger.error(f'Error in monitoring loop: {e}')
 
-        self.logger.info("Performance monitoring loop stopped")
+        self.logger.info('Performance monitoring loop stopped')
 
     def _export_json(self, metrics: Dict[str, Any]):
         """Export metrics to JSON file."""
         try:
             timestamp = int(time.time())
-            filename = f"metrics_{self.container_type.lower()}_{timestamp}.json"
+            filename = f'metrics_{self.container_type.lower()}_{timestamp}.json'
             filepath = self.metrics_dir / filename
 
             with open(filepath, 'w') as f:
                 json.dump(metrics, f, indent=2)
 
         except Exception as e:
-            self.logger.error(f"Failed to export JSON metrics: {e}")
+            self.logger.error(f'Failed to export JSON metrics: {e}')
 
     def _export_prometheus(self, metrics: Dict[str, Any]):
         """Export metrics to Prometheus PushGateway."""
         try:
             prometheus_metrics = self._convert_to_prometheus_format(metrics)
 
-            job_name = f"quantum-{self.container_type.lower()}"
-            url = f"{self.pushgateway_url}/metrics/job/{job_name}"
+            job_name = f'quantum-{self.container_type.lower()}'
+            url = f'{self.pushgateway_url}/metrics/job/{job_name}'
 
             response = requests.post(
-                url,
-                data=prometheus_metrics,
-                headers={'Content-Type': 'text/plain'},
-                timeout=10
+                url, data=prometheus_metrics, headers={'Content-Type': 'text/plain'}, timeout=10
             )
 
             if response.status_code != 200:
-                self.logger.warning(f"PushGateway returned status {response.status_code}")
+                self.logger.warning(f'PushGateway returned status {response.status_code}')
 
         except Exception as e:
-            self.logger.error(f"Failed to export Prometheus metrics: {e}")
+            self.logger.error(f'Failed to export Prometheus metrics: {e}')
 
     def _convert_to_prometheus_format(self, metrics: Dict[str, Any]) -> str:
         """Convert metrics dict to Prometheus exposition format."""
@@ -378,16 +399,24 @@ class PerformanceMonitor:
             # CPU metrics
             cpu = system.get('cpu', {})
             if cpu.get('percent') is not None:
-                lines.append(f'quantum_cpu_percent{{container_type="{self.container_type}"}} {cpu["percent"]} {timestamp_ms}')
+                lines.append(
+                    f'quantum_cpu_percent{{container_type="{self.container_type}"}} {cpu["percent"]} {timestamp_ms}'
+                )
             if cpu.get('load_avg_1m') is not None:
-                lines.append(f'quantum_cpu_load_1m{{container_type="{self.container_type}"}} {cpu["load_avg_1m"]} {timestamp_ms}')
+                lines.append(
+                    f'quantum_cpu_load_1m{{container_type="{self.container_type}"}} {cpu["load_avg_1m"]} {timestamp_ms}'
+                )
 
             # Memory metrics
             memory = system.get('memory', {})
             if memory.get('percent') is not None:
-                lines.append(f'quantum_memory_percent{{container_type="{self.container_type}"}} {memory["percent"]} {timestamp_ms}')
+                lines.append(
+                    f'quantum_memory_percent{{container_type="{self.container_type}"}} {memory["percent"]} {timestamp_ms}'
+                )
             if memory.get('used') is not None:
-                lines.append(f'quantum_memory_used_bytes{{container_type="{self.container_type}"}} {memory["used"]} {timestamp_ms}')
+                lines.append(
+                    f'quantum_memory_used_bytes{{container_type="{self.container_type}"}} {memory["used"]} {timestamp_ms}'
+                )
 
             # GPU metrics
             gpu_data = metrics.get('gpu', [])
@@ -399,19 +428,23 @@ class PerformanceMonitor:
                     for metric_name, value in gpu.items():
                         if isinstance(value, (int, float)) and value is not None:
                             prometheus_name = f'quantum_gpu_{metric_name}'
-                            lines.append(f'{prometheus_name}{{container_type="{self.container_type}",gpu="{gpu_id}",name="{gpu_name}"}} {value} {timestamp_ms}')
+                            lines.append(
+                                f'{prometheus_name}{{container_type="{self.container_type}",gpu="{gpu_id}",name="{gpu_name}"}} {value} {timestamp_ms}'
+                            )
 
             # Experiment context
             context = metrics.get('experiment_context', {})
             for key, value in context.items():
                 if isinstance(value, (int, float)):
-                    lines.append(f'quantum_experiment_{key}{{container_type="{self.container_type}"}} {value} {timestamp_ms}')
+                    lines.append(
+                        f'quantum_experiment_{key}{{container_type="{self.container_type}"}} {value} {timestamp_ms}'
+                    )
 
             return '\n'.join(lines)
 
         except Exception as e:
-            self.logger.error(f"Failed to convert metrics to Prometheus format: {e}")
-            return ""
+            self.logger.error(f'Failed to convert metrics to Prometheus format: {e}')
+            return ''
 
     def __enter__(self):
         """Context manager entry."""
@@ -463,3 +496,4 @@ def set_experiment_context(**context):
     """Set experiment context for performance correlation."""
     monitor = get_performance_monitor()
     monitor.set_experiment_context(**context)
+
