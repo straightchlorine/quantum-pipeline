@@ -269,7 +269,6 @@ class QuantumPipelineArgParser:
         perf_group.add_argument(
             '--performance-pushgateway',
             type=str,
-            default='http://localhost:9091',
             help='Prometheus PushGateway URL for metrics export',
         )
         perf_group.add_argument(

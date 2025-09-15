@@ -64,10 +64,10 @@ services:
       resources:
         limits:
           cpus: '3.0' # Half of available CPU cores
-          memory: 8G # Conservative memory allocation
+          memory: 15G
         reservations:
           cpus: '2.0'
-          memory: 4G
+          memory: 5G
 
   # GPU-accelerated Quantum Pipeline for Thesis Comparison
   quantum-pipeline-gpu:
@@ -118,7 +118,7 @@ services:
       resources:
         limits:
           cpus: '3.0' # Same CPU limit as CPU container for fair comparison
-          memory: 8G # Same memory limit for fair comparison
+          memory: 15G # Same memory limit for fair comparison
         reservations:
           cpus: '2.0'
           memory: 4G
