@@ -390,8 +390,6 @@ class PerformanceMonitor:
     def _convert_to_prometheus_format(self, metrics: Dict[str, Any]) -> str:
         """Convert metrics dict to Prometheus exposition format."""
         lines = []
-        timestamp_s = time.time()
-
         try:
             # System metrics
             system = metrics.get('system', {})
@@ -400,22 +398,22 @@ class PerformanceMonitor:
             cpu = system.get('cpu', {})
             if cpu.get('percent') is not None:
                 lines.append(
-                    f'quantum_cpu_percent{{container_type="{self.container_type}"}} {cpu["percent"]} {timestamp_s}'
+                    f'quantum_cpu_percent{{container_type="{self.container_type}"}} {cpu["percent"]}'
                 )
             if cpu.get('load_avg_1m') is not None:
                 lines.append(
-                    f'quantum_cpu_load_1m{{container_type="{self.container_type}"}} {cpu["load_avg_1m"]} {timestamp_s}'
+                    f'quantum_cpu_load_1m{{container_type="{self.container_type}"}} {cpu["load_avg_1m"]}'
                 )
 
             # Memory metrics
             memory = system.get('memory', {})
             if memory.get('percent') is not None:
                 lines.append(
-                    f'quantum_memory_percent{{container_type="{self.container_type}"}} {memory["percent"]} {timestamp_s}'
+                    f'quantum_memory_percent{{container_type="{self.container_type}"}} {memory["percent"]}'
                 )
             if memory.get('used') is not None:
                 lines.append(
-                    f'quantum_memory_used_bytes{{container_type="{self.container_type}"}} {memory["used"]} {timestamp_s}'
+                    f'quantum_memory_used_bytes{{container_type="{self.container_type}"}} {memory["used"]}'
                 )
 
             # GPU metrics
@@ -424,12 +422,13 @@ class PerformanceMonitor:
                 for gpu in gpu_data:
                     gpu_id = gpu.get('index', 0)
                     gpu_name = gpu.get('name', 'unknown')
+                    gpu_name_escaped = gpu_name.replace('\\', '\\\\').replace('"', '\\"')
 
                     for metric_name, value in gpu.items():
                         if isinstance(value, (int, float)) and value is not None:
                             prometheus_name = f'quantum_gpu_{metric_name}'
                             lines.append(
-                                f'{prometheus_name}{{container_type="{self.container_type}",gpu="{gpu_id}",name="{gpu_name}"}} {value} {timestamp_s}'
+                                f'{prometheus_name}{{container_type="{self.container_type}",gpu="{gpu_id}",name="{gpu_name_escaped}"}} {value}'
                             )
 
             # Experiment context
@@ -437,7 +436,7 @@ class PerformanceMonitor:
             for key, value in context.items():
                 if isinstance(value, (int, float)):
                     lines.append(
-                        f'quantum_experiment_{key}{{container_type="{self.container_type}"}} {value} {timestamp_s}'
+                        f'quantum_experiment_{key}{{container_type="{self.container_type}"}} {value}'
                     )
 
             return '\n'.join(lines)
