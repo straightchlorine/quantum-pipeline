@@ -1,3 +1,4 @@
+import os
 import logging
 from pathlib import Path
 
@@ -68,5 +69,7 @@ ANSATZ_DECOMPOSED = 'ansatz_decomposed'
 PERFORMANCE_MONITORING_ENABLED = False  # Global toggle
 PERFORMANCE_METRICS_DIR = Path(GEN_DIR, 'performance_metrics')
 PERFORMANCE_COLLECTION_INTERVAL = 30  # seconds
-PERFORMANCE_PUSHGATEWAY_URL = 'http://localhost:9091'
+PERFORMANCE_PUSHGATEWAY_URL = os.getenv(
+    'QUANTUM_PERFORMANCE_PUSHGATEWAY_URL', 'http://localhost:9091'
+)
 PERFORMANCE_EXPORT_FORMAT = ['json', 'prometheus']  # Export formats
