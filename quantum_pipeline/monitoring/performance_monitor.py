@@ -69,6 +69,7 @@ class PerformanceMonitor:
         self.container_type = os.getenv('CONTAINER_TYPE', 'unknown')
         self.experiment_context = {}
 
+
         # Ensure metrics directory exists
         if self.enabled:
             self.metrics_dir.mkdir(parents=True, exist_ok=True)
@@ -123,6 +124,7 @@ class PerformanceMonitor:
         if self.enabled:
             self.experiment_context.update(context)
             self.logger.debug(f'Updated experiment context: {context}')
+
 
     def start_monitoring(self):
         """Start background monitoring thread."""
@@ -268,7 +270,7 @@ class PerformanceMonitor:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=5,  # Reduced timeout for more responsive monitoring
             )
 
             if result.returncode != 0:
@@ -310,6 +312,13 @@ class PerformanceMonitor:
                         except (ValueError, IndexError) as e:
                             self.logger.debug(f"Failed to parse GPU line '{line}': {e}")
                             continue
+
+            # Log GPU utilization for debugging
+            if gpu_data:
+                for gpu in gpu_data:
+                    gpu_util = gpu.get('utilization_gpu', 0)
+                    if gpu_util and gpu_util > 0:
+                        self.logger.debug(f'GPU {gpu["index"]} ({gpu["name"]}): {gpu_util}% utilization, {gpu.get("memory_used", 0)}MB memory used')
 
             return gpu_data if gpu_data else None
 

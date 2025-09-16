@@ -6,7 +6,7 @@ DEFAULTS = {
     'max_iterations': 100,
     'convergence_threshold_enable': False,
     'convergence_threshold': 1e-6,
-    'optimizer': 'L_BFGS_B',  # Optimal for GPU acceleration and accuracy
+    'optimizer': 'L-BFGS-B',  # Optimal for GPU acceleration and accuracy
     'shots': 1024,
     'backend': {
         'local': True,
