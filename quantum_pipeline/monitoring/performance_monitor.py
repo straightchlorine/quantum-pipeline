@@ -452,6 +452,9 @@ class PerformanceMonitor:
         try:
             prometheus_metrics = self._convert_vqe_to_prometheus(vqe_data)
 
+            # Debug logging to see what we're sending
+            self.logger.debug(f'VQE metrics payload: {prometheus_metrics[:500]}...')
+
             job_name = f'quantum-vqe-{self.container_type.lower()}'
             url = f'{self.pushgateway_url}/metrics/job/{job_name}'
 
@@ -462,7 +465,7 @@ class PerformanceMonitor:
             if response.status_code in [200, 202]:
                 self.logger.debug(f'VQE metrics exported successfully for molecule {vqe_data.get("molecule_id", "unknown")} (status {response.status_code})')
             else:
-                self.logger.warning(f'PushGateway returned status {response.status_code} for VQE metrics')
+                self.logger.warning(f'PushGateway returned status {response.status_code} for VQE metrics. Response: {response.text}')
 
         except Exception as e:
             self.logger.error(f'Failed to export VQE metrics to Prometheus: {e}')
@@ -559,13 +562,13 @@ class PerformanceMonitor:
         """Convert VQE experiment data to Prometheus exposition format with full labels."""
         lines = []
         try:
-            # Extract label values
-            container_type = vqe_data.get('container_type', self.container_type)
-            molecule_id = vqe_data.get('molecule_id', 'unknown')
-            molecule_symbols = vqe_data.get('molecule_symbols', 'unknown')
-            basis_set = vqe_data.get('basis_set', 'unknown')
-            optimizer = vqe_data.get('optimizer', 'unknown')
-            backend_type = vqe_data.get('backend_type', 'unknown')
+            # Extract and sanitize label values
+            container_type = str(vqe_data.get('container_type', self.container_type)).replace('"', '\\"')
+            molecule_id = str(vqe_data.get('molecule_id', 'unknown'))
+            molecule_symbols = str(vqe_data.get('molecule_symbols', 'unknown')).replace('"', '\\"')
+            basis_set = str(vqe_data.get('basis_set', 'unknown')).replace('"', '\\"')
+            optimizer = str(vqe_data.get('optimizer', 'unknown')).replace('"', '\\"')
+            backend_type = str(vqe_data.get('backend_type', 'unknown')).replace('"', '\\"')
 
             # Create label string for consistency
             labels = f'container_type="{container_type}",molecule_id="{molecule_id}",molecule_symbols="{molecule_symbols}",basis_set="{basis_set}",optimizer="{optimizer}",backend_type="{backend_type}"'
@@ -588,11 +591,6 @@ class PerformanceMonitor:
                 value = vqe_data.get(metric_name)
                 if isinstance(value, (int, float)):
                     lines.append(f'quantum_vqe_{metric_name}{{{labels}}} {value}')
-
-            # Add timestamp
-            timestamp = int(time.time() * 1000)  # Prometheus expects milliseconds
-            for line in lines:
-                lines[lines.index(line)] = f'{line} {timestamp}'
 
             return '\n'.join(lines) + '\n'
 
