@@ -26,11 +26,10 @@ pip install -r qiskit-aer/requirements-dev.txt
 # ensure no build files are in the repository
 rm -rf qiskit-aer/_skbuild
 
-# via
-# export AER_CUDA_ARCH="6.1"
-# you can set the what architecture your GPU is compatible with
+# Set CUDA architecture for Pascal GPUs (GTX 1060/1050 Ti)
+export AER_CUDA_ARCH="6.1"
 
-cd qiskit-aer && python ./setup.py bdist_wheel -- -DAER_THRUST_BACKEND=CUDA -DAER_CUDA_ARCH="6.1" -DCMAKE_VERBOSE_MAKEFILE=true  -DAER_DEBUG=false -DAER_MPI=false -DCMAKE_CUDA_FLAGS=-std=c++14 -DAER_PYTHON_CUDA_ROOT=$VIRTUAL_ENV --
+cd qiskit-aer && python ./setup.py bdist_wheel -- -DAER_THRUST_BACKEND=CUDA -DAER_CUDA_ARCH="6.1" -DCMAKE_VERBOSE_MAKEFILE=true -DAER_DEBUG=false -DAER_MPI=false -DCMAKE_CUDA_FLAGS="-std=c++14 -O3" -DAER_PYTHON_CUDA_ROOT=$VIRTUAL_ENV --
 
 # move the wheel for easy access and remove the repo
 cd ../ && mkdir static && mv ./qiskit-aer/dist/* ./static

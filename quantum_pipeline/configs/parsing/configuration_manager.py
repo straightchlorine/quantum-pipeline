@@ -72,7 +72,7 @@ class ConfigurationManager:
                 'optimization_level': args.optimization_level,
                 'filters': None,
                 'gpu': args.gpu,
-                'gpu_opts': DEFAULTS['backend']['gpu_opts'],
+                'gpu_opts': DEFAULTS['backend']['gpu_opts'].copy(),
                 'simulation_method': args.simulation_method,
             }
         )

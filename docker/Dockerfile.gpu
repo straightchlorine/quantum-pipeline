@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu24.04
+FROM nvidia/cuda:11.8-cudnn8-devel-ubuntu22.04
 
 WORKDIR /usr/src/quantum_pipeline
 
@@ -58,7 +58,7 @@ RUN git clone --branch stable/0.16 https://github.com/Qiskit/qiskit-aer && \
 # build qiskit-aer with GPU support
 WORKDIR /usr/src/quantum_pipeline/qiskit-aer
 
-RUN python ./setup.py bdist_wheel -- -DAER_THRUST_BACKEND=CUDA -DCMAKE_VERBOSE_MAKEFILE=true  -DAER_DEBUG=false -DAER_MPI=false -DCMAKE_CUDA_FLAGS=-std=c++14 --
+RUN python ./setup.py bdist_wheel -- -DAER_THRUST_BACKEND=CUDA -DAER_CUDA_ARCH="6.1" -DCMAKE_VERBOSE_MAKEFILE=true -DAER_DEBUG=false -DAER_MPI=false -DCMAKE_CUDA_FLAGS="-std=c++14 -O3" --
 
 # move the built wheel to the static folder
 WORKDIR /usr/src/quantum_pipeline

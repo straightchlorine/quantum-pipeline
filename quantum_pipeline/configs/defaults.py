@@ -13,7 +13,7 @@ DEFAULTS = {
         'min_qubits': None,
         'optimization_level': 3,
         'filters': None,
-        'method': 'automatic',
+        'method': 'tensor_network',  # Optimized for GPU acceleration and larger circuits
         'gpu': False,
         'noise_backend': None,
         'gpu_opts': {
@@ -22,10 +22,11 @@ DEFAULTS = {
             # and your qiskit-aer is built with cuQuantum support (Dockerfile.gpu should
             # account for that)
             # https://github.com/Qiskit/qiskit-aer/blob/main/CONTRIBUTING.md
-            'cuStateVec_enable': False,
-            'blocking_enable': True,
-            'batched_shots_gpu': False,
-            'shot_branching_enable': False,
+            'cuStateVec_enable': False,  # Correct for Pascal architecture (GTX 1060/1050 Ti)
+            'blocking_enable': False,    # Reduce synchronization overhead
+            'batched_shots_gpu': True,   # Enable shot parallelization for better GPU utilization
+            'shot_branching_enable': True,  # Enable circuit branching optimization
+            'max_memory_mb': 5500,       # GTX 1060: 6GB - 500MB buffer for optimal memory usage
         },
     },
     'kafka': {
