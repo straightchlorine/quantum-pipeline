@@ -37,7 +37,7 @@ services:
       - "--convergence"
       - "--enable-performance-monitoring"
       - "--performance-interval"
-      - "30"
+      - "10"
       - "--performance-export-format"
       - "both"
     build:
@@ -54,7 +54,7 @@ services:
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
       CONTAINER_TYPE: "CPU_BASELINE"
       QUANTUM_PERFORMANCE_ENABLED: "true"
-      QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "30"
+      QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "10"
       QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "${EXTERNAL_PUSHGATEWAY_URL}"
       QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
     networks:
@@ -92,7 +92,7 @@ services:
       - "--convergence"
       - "--enable-performance-monitoring"
       - "--performance-interval"
-      - "30"
+      - "10"
       - "--performance-export-format"
       - "both"
     build:
@@ -109,7 +109,7 @@ services:
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
       CONTAINER_TYPE: "GPU_GTX1060_6GB"
       QUANTUM_PERFORMANCE_ENABLED: "true"
-      QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "30"
+      QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "10"
       QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "${EXTERNAL_PUSHGATEWAY_URL}"
       QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
       CUDA_VISIBLE_DEVICES: "0" # GTX 1060 6GB
@@ -152,7 +152,7 @@ services:
       - "--convergence"
       - "--enable-performance-monitoring"
       - "--performance-interval"
-      - "30"
+      - "10"
       - "--performance-export-format"
       - "both"
     build:
@@ -169,7 +169,7 @@ services:
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
       CONTAINER_TYPE: "GPU_GTX1050Ti_4GB"
       QUANTUM_PERFORMANCE_ENABLED: "true"
-      QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "30"
+      QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "10"
       QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "${EXTERNAL_PUSHGATEWAY_URL}"
       QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
       CUDA_VISIBLE_DEVICES: "0" # GTX 1050 Ti 4GB (mapped as device 0 inside container)
