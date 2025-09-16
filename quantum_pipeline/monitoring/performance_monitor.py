@@ -261,19 +261,39 @@ class PerformanceMonitor:
     def _collect_gpu_metrics(self) -> Optional[List[Dict[str, Any]]]:
         """Collect GPU metrics using nvidia-smi."""
         try:
-            # Check if nvidia-smi is available
-            result = subprocess.run(
-                [
-                    'nvidia-smi',
-                    '--query-gpu=index,name,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.used,power.draw,clocks.current.graphics,clocks.current.memory',
-                    '--format=csv,nounits,noheader',
-                ],
-                capture_output=True,
-                text=True,
-                timeout=5,  # Reduced timeout for more responsive monitoring
-            )
+            # Try multiple common paths for nvidia-smi
+            nvidia_smi_paths = [
+                '/usr/bin/nvidia-smi',  # Confirmed location in Docker containers
+                'nvidia-smi',  # Try PATH first
+                '/usr/local/cuda/bin/nvidia-smi',  # CUDA toolkit location
+                '/opt/nvidia/bin/nvidia-smi',  # Alternative NVIDIA location
+            ]
+
+            result = None
+            for nvidia_smi_path in nvidia_smi_paths:
+                try:
+                    result = subprocess.run(
+                        [
+                            nvidia_smi_path,
+                            '--query-gpu=index,name,temperature.gpu,utilization.gpu,utilization.memory,memory.total,memory.used,power.draw,clocks.current.graphics,clocks.current.memory',
+                            '--format=csv,nounits,noheader',
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if result.returncode == 0:
+                        self.logger.debug(f'nvidia-smi found at: {nvidia_smi_path}')
+                        break
+                except FileNotFoundError:
+                    continue
+
+            if result is None:
+                self.logger.warning('nvidia-smi not found in any common locations')
+                return None
 
             if result.returncode != 0:
+                self.logger.warning(f'nvidia-smi returned error code {result.returncode}: {result.stderr}')
                 return None
 
             gpu_data = []
@@ -324,6 +344,7 @@ class PerformanceMonitor:
 
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
             # nvidia-smi not available or failed
+            self.logger.warning('nvidia-smi command failed or timed out')
             return None
         except Exception as e:
             self.logger.error(f'Unexpected error collecting GPU metrics: {e}')
