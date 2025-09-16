@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
 from qiskit_nature.second_q.mappers import JordanWignerMapper
@@ -15,6 +16,7 @@ from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 from quantum_pipeline.utils.timer import Timer
 from quantum_pipeline.visual.ansatz import AnsatzViewer
 from quantum_pipeline.monitoring import get_performance_monitor
+from quantum_pipeline.monitoring.scientific_references import get_reference_database
 
 
 class VQERunner(Runner):
@@ -125,8 +127,9 @@ class VQERunner(Runner):
 
         self.run_results = []
 
-        # Initialize performance monitoring
+        # Initialize performance monitoring and reference database
         self.performance_monitor = get_performance_monitor()
+        self.reference_db = get_reference_database()
 
     @staticmethod
     def default_backend():
@@ -220,6 +223,47 @@ class VQERunner(Runner):
                     iterations_count=len(result.iteration_list),
                     optimal_parameters_count=len(result.optimal_parameters)
                 )
+
+                # Calculate accuracy metrics against scientific references
+                molecule_name = ''.join(molecule.symbols)
+                accuracy_metrics = self.reference_db.calculate_accuracy_metrics(
+                    molecule_name=molecule_name,
+                    vqe_energy=float(result.minimum),
+                    basis_set=self.basis_set
+                )
+
+                # Log accuracy results
+                if accuracy_metrics['reference_available']:
+                    self.logger.info(f'Accuracy assessment for {molecule_name}:')
+                    self.logger.info(f'  VQE Energy: {result.minimum:.6f} Ha')
+                    self.logger.info(f'  Reference: {accuracy_metrics["reference_energy_hartree"]:.6f} Ha ({accuracy_metrics["reference_method"]})')
+                    self.logger.info(f'  Error: {accuracy_metrics["energy_error_millihartree"]:.3f} mHa')
+                    self.logger.info(f'  Accuracy Score: {accuracy_metrics["accuracy_score"]:.1f}/100')
+                    self.logger.info(f'  Chemical Accuracy: {"✓" if accuracy_metrics["within_chemical_accuracy"] else "✗"}')
+
+                # Export VQE metrics immediately to Prometheus with full context and accuracy
+                vqe_metrics_data = {
+                    'container_type': os.getenv('CONTAINER_TYPE', 'unknown'),
+                    'molecule_id': molecule_id,
+                    'molecule_symbols': molecule_name,
+                    'basis_set': self.basis_set,
+                    'optimizer': self.optimizer,
+                    'backend_type': 'GPU' if getattr(self.backend_config, 'gpu', False) else 'CPU',
+                    'total_time': float(total_time),
+                    'hamiltonian_time': float(self.hamiltonian_time),
+                    'mapping_time': float(self.mapping_time),
+                    'vqe_time': float(self.vqe_time),
+                    'minimum_energy': float(result.minimum),
+                    'iterations_count': len(result.iteration_list),
+                    'optimal_parameters_count': len(result.optimal_parameters),
+                    # Accuracy metrics
+                    'reference_energy': accuracy_metrics.get('reference_energy_hartree', 0),
+                    'energy_error_hartree': accuracy_metrics.get('energy_error_hartree', 0),
+                    'energy_error_millihartree': accuracy_metrics.get('energy_error_millihartree', 0),
+                    'accuracy_score': accuracy_metrics.get('accuracy_score', 0),
+                    'within_chemical_accuracy': 1 if accuracy_metrics.get('within_chemical_accuracy', False) else 0
+                }
+                self.performance_monitor.export_vqe_metrics_immediate(vqe_metrics_data)
 
                 decorated_result = VQEDecoratedResult(
                     vqe_result=result,

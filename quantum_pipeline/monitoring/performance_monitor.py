@@ -141,6 +141,32 @@ class PerformanceMonitor:
         )
         self.monitoring_thread.start()
 
+    def export_metrics_immediate(self, additional_context: Dict[str, Any] = None):
+        """Export current system metrics immediately (event-driven)."""
+        if not self.enabled:
+            return
+
+        try:
+            # Merge additional context if provided
+            if additional_context:
+                self.experiment_context.update(additional_context)
+
+            metrics = self.collect_metrics_snapshot()
+            if not metrics or 'error' in metrics:
+                return
+
+            # Export in all configured formats
+            if 'json' in self.export_format or 'both' in self.export_format:
+                self._export_json(metrics)
+
+            if 'prometheus' in self.export_format or 'both' in self.export_format:
+                self._export_prometheus(metrics)
+
+            self.logger.debug('Immediate metrics export completed')
+
+        except Exception as e:
+            self.logger.error(f'Failed to export immediate metrics: {e}')
+
     def stop_monitoring_thread(self):
         """Stop background monitoring thread."""
         if not self.enabled or not self.monitoring_thread:
@@ -336,28 +362,41 @@ class PerformanceMonitor:
             return {'error': str(e), 'container_name': os.getenv('HOSTNAME', 'unknown')}
 
     def _monitoring_loop(self):
-        """Main monitoring loop running in background thread."""
+        """Background monitoring loop for system metrics only (CPU/Memory/GPU)."""
         self.logger.info(
-            f'Performance monitoring loop started (interval: {self.collection_interval}s)'
+            f'System monitoring loop started (interval: {self.collection_interval}s) - VQE metrics handled separately'
         )
 
         while not self.stop_monitoring.wait(self.collection_interval):
             try:
-                metrics = self.collect_metrics_snapshot()
-                if not metrics or 'error' in metrics:
+                # Collect only system and GPU metrics for background monitoring
+                metrics = {
+                    'timestamp': datetime.now().isoformat(),
+                    'container_type': self.container_type,
+                    'experiment_context': self.experiment_context.copy(),
+                    'system': self._collect_system_metrics(),
+                    'container': self._collect_container_metrics(),
+                }
+
+                # Add GPU metrics if available
+                gpu_metrics = self._collect_gpu_metrics()
+                if gpu_metrics:
+                    metrics['gpu'] = gpu_metrics
+
+                if 'error' in metrics.get('system', {}):
                     continue
 
-                # Export metrics in requested formats
+                # Export system metrics only
                 if 'json' in self.export_format or 'both' in self.export_format:
-                    self._export_json(metrics)
+                    self._export_json_system_only(metrics)
 
                 if 'prometheus' in self.export_format or 'both' in self.export_format:
-                    self._export_prometheus(metrics)
+                    self._export_prometheus_system_only(metrics)
 
             except Exception as e:
-                self.logger.error(f'Error in monitoring loop: {e}')
+                self.logger.error(f'Error in system monitoring loop: {e}')
 
-        self.logger.info('Performance monitoring loop stopped')
+        self.logger.info('System monitoring loop stopped')
 
     def _export_json(self, metrics: Dict[str, Any]):
         """Export metrics to JSON file."""
@@ -371,6 +410,19 @@ class PerformanceMonitor:
 
         except Exception as e:
             self.logger.error(f'Failed to export JSON metrics: {e}')
+
+    def _export_json_system_only(self, metrics: Dict[str, Any]):
+        """Export system metrics only to JSON file."""
+        try:
+            timestamp = int(time.time())
+            filename = f'system_metrics_{self.container_type.lower()}_{timestamp}.json'
+            filepath = self.metrics_dir / filename
+
+            with open(filepath, 'w') as f:
+                json.dump(metrics, f, indent=2)
+
+        except Exception as e:
+            self.logger.error(f'Failed to export system JSON metrics: {e}')
 
     def _export_prometheus(self, metrics: Dict[str, Any]):
         """Export metrics to Prometheus PushGateway."""
@@ -389,6 +441,47 @@ class PerformanceMonitor:
 
         except Exception as e:
             self.logger.error(f'Failed to export Prometheus metrics: {e}')
+
+    def export_vqe_metrics_immediate(self, vqe_data: Dict[str, Any]):
+        """Export VQE-specific metrics immediately to Prometheus with full context labels."""
+        if not self.enabled or not self.pushgateway_url:
+            return
+
+        try:
+            prometheus_metrics = self._convert_vqe_to_prometheus(vqe_data)
+
+            job_name = f'quantum-vqe-{self.container_type.lower()}'
+            url = f'{self.pushgateway_url}/metrics/job/{job_name}'
+
+            response = requests.post(
+                url, data=prometheus_metrics, headers={'Content-Type': 'text/plain'}, timeout=10
+            )
+
+            if response.status_code == 202:
+                self.logger.debug(f'VQE metrics exported successfully for molecule {vqe_data.get("molecule_id", "unknown")}')
+            else:
+                self.logger.warning(f'PushGateway returned status {response.status_code} for VQE metrics')
+
+        except Exception as e:
+            self.logger.error(f'Failed to export VQE metrics to Prometheus: {e}')
+
+    def _export_prometheus_system_only(self, metrics: Dict[str, Any]):
+        """Export system metrics only to Prometheus PushGateway."""
+        try:
+            prometheus_metrics = self._convert_system_to_prometheus_format(metrics)
+
+            job_name = f'quantum-system-{self.container_type.lower()}'
+            url = f'{self.pushgateway_url}/metrics/job/{job_name}'
+
+            response = requests.post(
+                url, data=prometheus_metrics, headers={'Content-Type': 'text/plain'}, timeout=10
+            )
+
+            if response.status_code != 202:
+                self.logger.warning(f'PushGateway returned status {response.status_code} for system metrics')
+
+        except Exception as e:
+            self.logger.error(f'Failed to export system metrics to Prometheus: {e}')
 
     def _convert_to_prometheus_format(self, metrics: Dict[str, Any]) -> str:
         """Convert metrics dict to Prometheus exposition format."""
@@ -427,25 +520,134 @@ class PerformanceMonitor:
                     gpu_name = gpu.get('name', 'unknown')
                     gpu_name_escaped = gpu_name.replace('\\', '\\\\').replace('"', '\\"')
 
+                    # Get experiment context for GPU metric labels
+                    context = metrics.get('experiment_context', {})
+                    molecule_id = context.get('molecule_id', 'unknown')
+                    molecule_symbols = context.get('molecule_symbols', 'unknown')
+
                     for metric_name, value in gpu.items():
                         if isinstance(value, (int, float)) and value is not None:
                             prometheus_name = f'quantum_gpu_{metric_name}'
                             lines.append(
-                                f'{prometheus_name}{{container_type="{self.container_type}",gpu="{gpu_id}",name="{gpu_name_escaped}"}} {value}'
+                                f'{prometheus_name}{{container_type="{self.container_type}",gpu="{gpu_id}",name="{gpu_name_escaped}",molecule_id="{molecule_id}",molecule_symbols="{molecule_symbols}"}} {value}'
                             )
 
-            # Experiment context
+            # Experiment context with enhanced labels
             context = metrics.get('experiment_context', {})
+            molecule_id = context.get('molecule_id', 'unknown')
+            molecule_symbols = context.get('molecule_symbols', 'unknown')
+            basis_set = context.get('basis_set', 'unknown')
+            backend_type = context.get('backend_type', 'unknown')
+
             for key, value in context.items():
                 if isinstance(value, (int, float)):
                     lines.append(
-                        f'quantum_experiment_{key}{{container_type="{self.container_type}"}} {value}'
+                        f'quantum_experiment_{key}{{container_type="{self.container_type}",molecule_id="{molecule_id}",molecule_symbols="{molecule_symbols}",basis_set="{basis_set}",backend_type="{backend_type}"}} {value}'
                     )
 
             return '\n'.join(lines) + '\n'  # PushGateway requires trailing newline
 
         except Exception as e:
             self.logger.error(f'Failed to convert metrics to Prometheus format: {e}')
+            return ''
+
+    def _convert_vqe_to_prometheus(self, vqe_data: Dict[str, Any]) -> str:
+        """Convert VQE experiment data to Prometheus exposition format with full labels."""
+        lines = []
+        try:
+            # Extract label values
+            container_type = vqe_data.get('container_type', self.container_type)
+            molecule_id = vqe_data.get('molecule_id', 'unknown')
+            molecule_symbols = vqe_data.get('molecule_symbols', 'unknown')
+            basis_set = vqe_data.get('basis_set', 'unknown')
+            optimizer = vqe_data.get('optimizer', 'unknown')
+            backend_type = vqe_data.get('backend_type', 'unknown')
+
+            # Create label string for consistency
+            labels = f'container_type="{container_type}",molecule_id="{molecule_id}",molecule_symbols="{molecule_symbols}",basis_set="{basis_set}",optimizer="{optimizer}",backend_type="{backend_type}"'
+
+            # VQE timing metrics
+            for metric_name in ['total_time', 'hamiltonian_time', 'mapping_time', 'vqe_time']:
+                value = vqe_data.get(metric_name)
+                if isinstance(value, (int, float)):
+                    lines.append(f'quantum_vqe_{metric_name}{{{labels}}} {value}')
+
+            # VQE result metrics
+            for metric_name in ['minimum_energy', 'iterations_count', 'optimal_parameters_count']:
+                value = vqe_data.get(metric_name)
+                if isinstance(value, (int, float)):
+                    lines.append(f'quantum_vqe_{metric_name}{{{labels}}} {value}')
+
+            # Scientific accuracy metrics
+            for metric_name in ['reference_energy', 'energy_error_hartree', 'energy_error_millihartree',
+                              'accuracy_score', 'within_chemical_accuracy']:
+                value = vqe_data.get(metric_name)
+                if isinstance(value, (int, float)):
+                    lines.append(f'quantum_vqe_{metric_name}{{{labels}}} {value}')
+
+            # Add timestamp
+            timestamp = int(time.time() * 1000)  # Prometheus expects milliseconds
+            for line in lines:
+                lines[lines.index(line)] = f'{line} {timestamp}'
+
+            return '\n'.join(lines) + '\n'
+
+        except Exception as e:
+            self.logger.error(f'Failed to convert VQE data to Prometheus format: {e}')
+            return ''
+
+    def _convert_system_to_prometheus_format(self, metrics: Dict[str, Any]) -> str:
+        """Convert system metrics to Prometheus exposition format."""
+        lines = []
+        try:
+            # System metrics
+            system = metrics.get('system', {})
+
+            # CPU metrics
+            cpu = system.get('cpu', {})
+            if cpu.get('percent') is not None:
+                lines.append(
+                    f'quantum_system_cpu_percent{{container_type="{self.container_type}"}} {cpu["percent"]}'
+                )
+            if cpu.get('load_avg_1m') is not None:
+                lines.append(
+                    f'quantum_system_cpu_load_1m{{container_type="{self.container_type}"}} {cpu["load_avg_1m"]}'
+                )
+
+            # Memory metrics
+            memory = system.get('memory', {})
+            if memory.get('percent') is not None:
+                lines.append(
+                    f'quantum_system_memory_percent{{container_type="{self.container_type}"}} {memory["percent"]}'
+                )
+            if memory.get('used') is not None:
+                lines.append(
+                    f'quantum_system_memory_used_bytes{{container_type="{self.container_type}"}} {memory["used"]}'
+                )
+
+            # GPU metrics with experiment context
+            gpu_data = metrics.get('gpu', [])
+            if isinstance(gpu_data, list):
+                context = metrics.get('experiment_context', {})
+                molecule_id = context.get('molecule_id', 'unknown')
+                molecule_symbols = context.get('molecule_symbols', 'unknown')
+
+                for gpu in gpu_data:
+                    gpu_id = gpu.get('index', 0)
+                    gpu_name = gpu.get('name', 'unknown')
+                    gpu_name_escaped = gpu_name.replace('\\\\', '\\\\\\\\').replace('"', '\\\\"')
+
+                    for metric_name, value in gpu.items():
+                        if isinstance(value, (int, float)) and value is not None:
+                            prometheus_name = f'quantum_system_gpu_{metric_name}'
+                            lines.append(
+                                f'{prometheus_name}{{container_type="{self.container_type}",gpu="{gpu_id}",name="{gpu_name_escaped}",molecule_id="{molecule_id}",molecule_symbols="{molecule_symbols}"}} {value}'
+                            )
+
+            return '\n'.join(lines) + '\n'
+
+        except Exception as e:
+            self.logger.error(f'Failed to convert system metrics to Prometheus format: {e}')
             return ''
 
     def __enter__(self):

@@ -22,7 +22,7 @@ services:
     container_name: quantum-pipeline-cpu
     command:
       - "--file"
-      - "./data/molecules.json"
+      - "./data/molecules.thesis.json"
       - "--kafka"
       - "--topic"
       - "vqe_results_cpu"
@@ -44,7 +44,7 @@ services:
     restart: always
     volumes:
       - ./gen/cpu:/usr/src/quantum-pipeline/gen/
-      - ./data/molecules.json:/usr/src/quantum_pipeline/data/molecules.json
+      - ./data/molecules.thesis.json:/usr/src/quantum_pipeline/data/molecules.thesis.json
     environment:
       IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
       IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
@@ -74,7 +74,7 @@ services:
     container_name: quantum-pipeline-gpu1
     command:
       - "--file"
-      - "./data/molecules.json"
+      - "./data/molecules.thesis.json"
       - "--kafka"
       - "--gpu"
       - "--topic"
@@ -97,7 +97,7 @@ services:
     restart: always
     volumes:
       - ./gen/gpu1:/usr/src/quantum-pipeline/gen/
-      - ./data/molecules.json:/usr/src/quantum_pipeline/data/molecules.json
+      - ./data/molecules.thesis.json:/usr/src/quantum_pipeline/data/molecules.thesis.json
     environment:
       IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
       IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
@@ -132,7 +132,7 @@ services:
     container_name: quantum-pipeline-gpu2
     command:
       - "--file"
-      - "./data/molecules.json"
+      - "./data/molecules.thesis.json"
       - "--kafka"
       - "--gpu"
       - "--topic"
@@ -155,7 +155,7 @@ services:
     restart: always
     volumes:
       - ./gen/gpu2:/usr/src/quantum-pipeline/gen/
-      - ./data/molecules.json:/usr/src/quantum_pipeline/data/molecules.json
+      - ./data/molecules.thesis.json:/usr/src/quantum_pipeline/data/molecules.thesis.json
     environment:
       IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
       IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
