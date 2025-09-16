@@ -436,8 +436,10 @@ class PerformanceMonitor:
                 url, data=prometheus_metrics, headers={'Content-Type': 'text/plain'}, timeout=10
             )
 
-            if response.status_code != 202:
+            if response.status_code not in [200, 202]:
                 self.logger.warning(f'PushGateway returned status {response.status_code}')
+            else:
+                self.logger.debug(f'Metrics exported successfully (status {response.status_code})')
 
         except Exception as e:
             self.logger.error(f'Failed to export Prometheus metrics: {e}')
@@ -457,8 +459,8 @@ class PerformanceMonitor:
                 url, data=prometheus_metrics, headers={'Content-Type': 'text/plain'}, timeout=10
             )
 
-            if response.status_code == 202:
-                self.logger.debug(f'VQE metrics exported successfully for molecule {vqe_data.get("molecule_id", "unknown")}')
+            if response.status_code in [200, 202]:
+                self.logger.debug(f'VQE metrics exported successfully for molecule {vqe_data.get("molecule_id", "unknown")} (status {response.status_code})')
             else:
                 self.logger.warning(f'PushGateway returned status {response.status_code} for VQE metrics')
 
@@ -477,8 +479,10 @@ class PerformanceMonitor:
                 url, data=prometheus_metrics, headers={'Content-Type': 'text/plain'}, timeout=10
             )
 
-            if response.status_code != 202:
+            if response.status_code not in [200, 202]:
                 self.logger.warning(f'PushGateway returned status {response.status_code} for system metrics')
+            else:
+                self.logger.debug(f'System metrics exported successfully (status {response.status_code})')
 
         except Exception as e:
             self.logger.error(f'Failed to export system metrics to Prometheus: {e}')
