@@ -260,18 +260,31 @@ class PerformanceMonitor:
 
     def _collect_gpu_metrics(self) -> Optional[List[Dict[str, Any]]]:
         """Collect GPU metrics using nvidia-smi."""
+        self.logger.debug('Starting GPU metrics collection...')
+
         try:
-            # Try multiple common paths for nvidia-smi
+            # Try multiple common paths for nvidia-smi (prioritize absolute paths)
             nvidia_smi_paths = [
                 '/usr/bin/nvidia-smi',  # Confirmed location in Docker containers
-                'nvidia-smi',  # Try PATH first
                 '/usr/local/cuda/bin/nvidia-smi',  # CUDA toolkit location
                 '/opt/nvidia/bin/nvidia-smi',  # Alternative NVIDIA location
+                'nvidia-smi',  # Try PATH last as fallback
             ]
+
+            self.logger.debug(f'Trying nvidia-smi paths: {nvidia_smi_paths}')
 
             result = None
             for nvidia_smi_path in nvidia_smi_paths:
                 try:
+                    self.logger.debug(f'Attempting to call: {nvidia_smi_path}')
+
+                    # Explicitly set environment to include common system paths
+                    env = os.environ.copy()
+                    original_path = env.get('PATH', '')
+                    env['PATH'] = '/usr/bin:/usr/local/bin:/usr/local/cuda/bin:/opt/nvidia/bin:' + original_path
+
+                    self.logger.debug(f'Using PATH: {env["PATH"][:200]}...')  # Log first 200 chars of PATH
+
                     result = subprocess.run(
                         [
                             nvidia_smi_path,
@@ -281,25 +294,47 @@ class PerformanceMonitor:
                         capture_output=True,
                         text=True,
                         timeout=5,
+                        env=env,  # Use explicit environment
                     )
+
+                    self.logger.debug(f'nvidia-smi return code: {result.returncode}')
+
                     if result.returncode == 0:
-                        self.logger.debug(f'nvidia-smi found at: {nvidia_smi_path}')
+                        self.logger.info(f'✅ nvidia-smi SUCCESS at: {nvidia_smi_path}')
+                        self.logger.debug(f'nvidia-smi output length: {len(result.stdout)} characters')
+                        if result.stdout.strip():
+                            self.logger.debug(f'nvidia-smi first line: {result.stdout.strip().split(chr(10))[0]}')
                         break
-                except FileNotFoundError:
+                    else:
+                        self.logger.warning(f'❌ nvidia-smi FAILED at {nvidia_smi_path} - stderr: {result.stderr}')
+
+                except FileNotFoundError as e:
+                    self.logger.debug(f'❌ nvidia-smi NOT FOUND at {nvidia_smi_path}: {e}')
+                    continue
+                except subprocess.TimeoutExpired:
+                    self.logger.warning(f'❌ nvidia-smi TIMEOUT at {nvidia_smi_path}')
+                    continue
+                except Exception as e:
+                    self.logger.error(f'❌ nvidia-smi EXCEPTION at {nvidia_smi_path}: {e}')
                     continue
 
             if result is None:
-                self.logger.warning('nvidia-smi not found in any common locations')
+                self.logger.error('❌ nvidia-smi not found in any common locations')
                 return None
 
             if result.returncode != 0:
-                self.logger.warning(f'nvidia-smi returned error code {result.returncode}: {result.stderr}')
+                self.logger.error(f'❌ nvidia-smi returned error code {result.returncode}: {result.stderr}')
                 return None
 
+            self.logger.debug(f'Parsing nvidia-smi output ({len(result.stdout.strip().split(chr(10)))} lines)')
+
             gpu_data = []
-            for line in result.stdout.strip().split('\n'):
+            for line_num, line in enumerate(result.stdout.strip().split('\n')):
                 if line.strip():
+                    self.logger.debug(f'Processing line {line_num + 1}: {line}')
                     parts = [p.strip() for p in line.split(',')]
+                    self.logger.debug(f'Split into {len(parts)} parts: {parts}')
+
                     if len(parts) >= 8:
                         try:
                             # Helper function to safely parse numeric values
@@ -328,19 +363,32 @@ class PerformanceMonitor:
                             if len(parts) >= 10:
                                 gpu_info['clock_memory'] = safe_float(parts[9])
 
+                            self.logger.debug(f'✅ Parsed GPU {gpu_info["index"]}: {gpu_info["utilization_gpu"]}% utilization')
                             gpu_data.append(gpu_info)
-                        except (ValueError, IndexError) as e:
-                            self.logger.debug(f"Failed to parse GPU line '{line}': {e}")
-                            continue
 
-            # Log GPU utilization for debugging
+                        except (ValueError, IndexError) as e:
+                            self.logger.warning(f"❌ Failed to parse GPU line '{line}': {e}")
+                            continue
+                    else:
+                        self.logger.warning(f"❌ GPU line has insufficient parts ({len(parts)} < 8): {line}")
+
+            # Log final GPU results
             if gpu_data:
+                self.logger.info(f'✅ Successfully collected {len(gpu_data)} GPU(s) metrics:')
                 for gpu in gpu_data:
                     gpu_util = gpu.get('utilization_gpu', 0)
-                    if gpu_util and gpu_util > 0:
-                        self.logger.debug(f'GPU {gpu["index"]} ({gpu["name"]}): {gpu_util}% utilization, {gpu.get("memory_used", 0)}MB memory used')
+                    gpu_mem_util = gpu.get('utilization_memory', 0)
+                    temp = gpu.get('temperature', 'N/A')
+                    self.logger.info(f'  GPU {gpu["index"]} ({gpu["name"]}): {gpu_util}% util, {gpu_mem_util}% mem, {temp}°C')
 
-            return gpu_data if gpu_data else None
+                    # Special logging for non-zero utilization
+                    if gpu_util and gpu_util > 0:
+                        self.logger.info(f'🔥 ACTIVE GPU {gpu["index"]}: {gpu_util}% utilization detected!')
+
+                return gpu_data
+            else:
+                self.logger.warning('❌ No GPU data parsed from nvidia-smi output')
+                return None
 
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
             # nvidia-smi not available or failed
@@ -412,6 +460,9 @@ class PerformanceMonitor:
                 gpu_metrics = self._collect_gpu_metrics()
                 if gpu_metrics:
                     metrics['gpu'] = gpu_metrics
+                    self.logger.debug(f'Added {len(gpu_metrics)} GPU(s) to metrics for export')
+                else:
+                    self.logger.debug('No GPU metrics collected - skipping GPU export')
 
                 if 'error' in metrics.get('system', {}):
                     continue
@@ -659,11 +710,13 @@ class PerformanceMonitor:
 
             # GPU metrics with experiment context
             gpu_data = metrics.get('gpu', [])
-            if isinstance(gpu_data, list):
+            if isinstance(gpu_data, list) and gpu_data:
+                self.logger.debug(f'Exporting {len(gpu_data)} GPU(s) to Prometheus')
                 context = metrics.get('experiment_context', {})
                 molecule_id = context.get('molecule_id', 'unknown')
                 molecule_symbols = context.get('molecule_symbols', 'unknown')
 
+                gpu_metrics_exported = 0
                 for gpu in gpu_data:
                     gpu_id = gpu.get('index', 0)
                     gpu_name = gpu.get('name', 'unknown')
@@ -672,9 +725,17 @@ class PerformanceMonitor:
                     for metric_name, value in gpu.items():
                         if isinstance(value, (int, float)) and value is not None:
                             prometheus_name = f'quantum_system_gpu_{metric_name}'
-                            lines.append(
-                                f'{prometheus_name}{{container_type="{self.container_type}",gpu="{gpu_id}",name="{gpu_name_escaped}",molecule_id="{molecule_id}",molecule_symbols="{molecule_symbols}"}} {value}'
-                            )
+                            metric_line = f'{prometheus_name}{{container_type="{self.container_type}",gpu="{gpu_id}",name="{gpu_name_escaped}",molecule_id="{molecule_id}",molecule_symbols="{molecule_symbols}"}} {value}'
+                            lines.append(metric_line)
+                            gpu_metrics_exported += 1
+
+                            # Log GPU utilization specifically
+                            if metric_name == 'utilization_gpu' and value > 0:
+                                self.logger.info(f'🚀 EXPORTING GPU {gpu_id} utilization: {value}% to Prometheus')
+
+                self.logger.debug(f'Exported {gpu_metrics_exported} GPU metrics to Prometheus')
+            else:
+                self.logger.debug('No GPU data available for Prometheus export')
 
             return '\n'.join(lines) + '\n'
 
