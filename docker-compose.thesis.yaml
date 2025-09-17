@@ -40,6 +40,8 @@ services:
       - "10"
       - "--performance-export-format"
       - "both"
+      - "--performance-pushgateway"
+      - "http://monit:9091"
     build:
       context: .
       dockerfile: ./docker/Dockerfile.cpu # CPU-only dockerfile
@@ -55,7 +57,7 @@ services:
       CONTAINER_TYPE: "CPU_BASELINE"
       QUANTUM_PERFORMANCE_ENABLED: "true"
       QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "10"
-      QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "${EXTERNAL_PUSHGATEWAY_URL}"
+      QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "http://monit:9091"
       QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
     networks:
       - quantum-net
@@ -95,6 +97,8 @@ services:
       - "10"
       - "--performance-export-format"
       - "both"
+      - "--performance-pushgateway"
+      - "http://monit:9091"
     build:
       context: .
       dockerfile: ./docker/Dockerfile.gpu
@@ -110,7 +114,7 @@ services:
       CONTAINER_TYPE: "GPU_GTX1060_6GB"
       QUANTUM_PERFORMANCE_ENABLED: "true"
       QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "10"
-      QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "${EXTERNAL_PUSHGATEWAY_URL}"
+      QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "http://monit:9091"
       QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
       CUDA_VISIBLE_DEVICES: "0" # GTX 1060 6GB
     networks:
@@ -155,6 +159,8 @@ services:
       - "10"
       - "--performance-export-format"
       - "both"
+      - "--performance-pushgateway"
+      - "http://monit:9091"
     build:
       context: .
       dockerfile: ./docker/Dockerfile.gpu
@@ -170,7 +176,7 @@ services:
       CONTAINER_TYPE: "GPU_GTX1050Ti_4GB"
       QUANTUM_PERFORMANCE_ENABLED: "true"
       QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "10"
-      QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "${EXTERNAL_PUSHGATEWAY_URL}"
+      QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "http://monit:9091"
       QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
       CUDA_VISIBLE_DEVICES: "0" # GTX 1050 Ti 4GB (mapped as device 0 inside container)
     networks:

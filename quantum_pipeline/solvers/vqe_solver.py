@@ -134,7 +134,14 @@ class VQESolver(Solver):
                 # COBYLA requires maxfun to be at least num_params + 2
                 num_params = len(x0)
                 min_maxfun = num_params + 2
-                optimization_params['maxfun'] = max(self.max_iterations, min_maxfun)
+                # Respect user's max_iterations limit strictly
+                optimization_params['maxfun'] = self.max_iterations
+                if self.max_iterations < min_maxfun:
+                    self.logger.warning(
+                        f'COBYLA maxiter {self.max_iterations} is less than minimum required '
+                        f'maxfun {min_maxfun} for {num_params} parameters. This may cause '
+                        f'optimization to fail early.'
+                    )
 
             self.logger.info(
                 f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
@@ -210,7 +217,14 @@ class VQESolver(Solver):
             # COBYLA requires maxfun to be at least num_params + 2
             num_params = len(x0)
             min_maxfun = num_params + 2
-            optimization_params['maxfun'] = max(self.max_iterations, min_maxfun)
+            # Respect user's max_iterations limit strictly
+            optimization_params['maxfun'] = self.max_iterations
+            if self.max_iterations < min_maxfun:
+                self.logger.warning(
+                    f'COBYLA maxiter {self.max_iterations} is less than minimum required '
+                    f'maxfun {min_maxfun} for {num_params} parameters. This may cause '
+                    f'optimization to fail early.'
+                )
 
         self.logger.info(
             f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
