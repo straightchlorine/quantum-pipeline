@@ -70,7 +70,6 @@ class PerformanceMonitor:
         self.experiment_context = {}
         self._start_time = time.time()  # Track container start time for uptime
 
-
         # Ensure metrics directory exists
         if self.enabled:
             self.metrics_dir.mkdir(parents=True, exist_ok=True)
@@ -125,7 +124,6 @@ class PerformanceMonitor:
         if self.enabled:
             self.experiment_context.update(context)
             self.logger.debug(f'Updated experiment context: {context}')
-
 
     def start_monitoring(self):
         """Start background monitoring thread."""
@@ -190,17 +188,9 @@ class PerformanceMonitor:
                 'timestamp': datetime.now().isoformat(),
                 'container_type': self.container_type,
                 'experiment_context': self.experiment_context.copy(),
-                # System metrics
                 'system': self._collect_system_metrics(),
-                # Container metrics
                 'container': self._collect_container_metrics(),
             }
-
-            # GPU metrics (if available)
-            gpu_metrics = self._collect_gpu_metrics()
-            if gpu_metrics:
-                metrics['gpu'] = gpu_metrics
-
             return metrics
 
         except Exception as e:
@@ -259,7 +249,6 @@ class PerformanceMonitor:
             self.logger.error(f'Failed to collect system metrics: {e}')
             return {'error': str(e)}
 
-
     def _collect_container_metrics(self) -> Dict[str, Any]:
         """Collect Docker container-specific metrics."""
         try:
@@ -317,7 +306,6 @@ class PerformanceMonitor:
                     'system': self._collect_system_metrics(),
                     'container': self._collect_container_metrics(),
                 }
-
 
                 if 'error' in metrics.get('system', {}):
                     continue
@@ -399,9 +387,13 @@ class PerformanceMonitor:
             )
 
             if response.status_code in [200, 202]:
-                self.logger.debug(f'VQE metrics exported successfully for molecule {vqe_data.get("molecule_id", "unknown")} (status {response.status_code})')
+                self.logger.debug(
+                    f'VQE metrics exported successfully for molecule {vqe_data.get("molecule_id", "unknown")} (status {response.status_code})'
+                )
             else:
-                self.logger.warning(f'PushGateway returned status {response.status_code} for VQE metrics. Response: {response.text}')
+                self.logger.warning(
+                    f'PushGateway returned status {response.status_code} for VQE metrics. Response: {response.text}'
+                )
 
         except Exception as e:
             self.logger.error(f'Failed to export VQE metrics to Prometheus: {e}')
@@ -419,9 +411,13 @@ class PerformanceMonitor:
             )
 
             if response.status_code not in [200, 202]:
-                self.logger.warning(f'PushGateway returned status {response.status_code} for system metrics')
+                self.logger.warning(
+                    f'PushGateway returned status {response.status_code} for system metrics'
+                )
             else:
-                self.logger.debug(f'System metrics exported successfully (status {response.status_code})')
+                self.logger.debug(
+                    f'System metrics exported successfully (status {response.status_code})'
+                )
 
         except Exception as e:
             self.logger.error(f'Failed to export system metrics to Prometheus: {e}')
@@ -479,7 +475,9 @@ class PerformanceMonitor:
         lines = []
         try:
             # Extract and sanitize label values
-            container_type = str(vqe_data.get('container_type', self.container_type)).replace('"', '\\"')
+            container_type = str(vqe_data.get('container_type', self.container_type)).replace(
+                '"', '\\"'
+            )
             molecule_id = str(vqe_data.get('molecule_id', 'unknown'))
             molecule_symbols = str(vqe_data.get('molecule_symbols', 'unknown')).replace('"', '\\"')
             basis_set = str(vqe_data.get('basis_set', 'unknown')).replace('"', '\\"')
@@ -502,8 +500,13 @@ class PerformanceMonitor:
                     lines.append(f'quantum_vqe_{metric_name}{{{labels}}} {value}')
 
             # Scientific accuracy metrics
-            for metric_name in ['reference_energy', 'energy_error_hartree', 'energy_error_millihartree',
-                              'accuracy_score', 'within_chemical_accuracy']:
+            for metric_name in [
+                'reference_energy',
+                'energy_error_hartree',
+                'energy_error_millihartree',
+                'accuracy_score',
+                'within_chemical_accuracy',
+            ]:
                 value = vqe_data.get(metric_name)
                 if isinstance(value, (int, float)):
                     lines.append(f'quantum_vqe_{metric_name}{{{labels}}} {value}')
@@ -518,7 +521,9 @@ class PerformanceMonitor:
             if vqe_time and iterations_count and iterations_count > 0:
                 # Iterations per second
                 iterations_per_second = iterations_count / vqe_time
-                lines.append(f'quantum_vqe_iterations_per_second{{{labels}}} {iterations_per_second}')
+                lines.append(
+                    f'quantum_vqe_iterations_per_second{{{labels}}} {iterations_per_second}'
+                )
 
                 # Average time per iteration
                 time_per_iteration = vqe_time / iterations_count
