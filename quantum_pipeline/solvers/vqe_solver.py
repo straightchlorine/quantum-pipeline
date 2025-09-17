@@ -160,16 +160,22 @@ class VQESolver(Solver):
                 args=(ansatz_isa, hamiltonian_isa, estimator),
                 method=self.optimizer,
                 options=optimization_params,
-                tol=self.convergence_threshold if self.convergence_threshold else None,
+                tol=self.convergence_threshold
+                if self.convergence_threshold and not self.max_iterations
+                else None,
             )
 
         # Log optimization completion details
         actual_iterations = len(self.vqe_process)
         if self.convergence_threshold:
             if res.success:
-                self.logger.info(f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})')
+                self.logger.info(
+                    f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})'
+                )
             else:
-                self.logger.info(f'VQE stopped after {actual_iterations} iterations - convergence not achieved')
+                self.logger.info(
+                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved'
+                )
         else:
             self.logger.info(f'VQE completed {actual_iterations} iterations')
 
@@ -262,9 +268,13 @@ class VQESolver(Solver):
         actual_iterations = len(self.vqe_process)
         if self.convergence_threshold:
             if res.success:
-                self.logger.info(f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})')
+                self.logger.info(
+                    f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})'
+                )
             else:
-                self.logger.info(f'VQE stopped after {actual_iterations} iterations - convergence not achieved')
+                self.logger.info(
+                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved'
+                )
         else:
             self.logger.info(f'VQE completed {actual_iterations} iterations')
 
