@@ -143,12 +143,15 @@ class VQESolver(Solver):
                         f'optimization to fail early.'
                     )
 
-            self.logger.info(
-                f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
-            )
-
             if self.convergence_threshold:
-                self.logger.info(f'Applying convergence threshold {self.convergence_threshold}.')
+                self.logger.info(
+                    f'Starting VQE optimization with convergence threshold {self.convergence_threshold} '
+                    f'(max iterations: {self.max_iterations})'
+                )
+            else:
+                self.logger.info(
+                    f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
+                )
 
         with Timer() as t:
             res = minimize(
@@ -159,6 +162,16 @@ class VQESolver(Solver):
                 options=optimization_params,
                 tol=self.convergence_threshold if self.convergence_threshold else None,
             )
+
+        # Log optimization completion details
+        actual_iterations = len(self.vqe_process)
+        if self.convergence_threshold:
+            if res.success:
+                self.logger.info(f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})')
+            else:
+                self.logger.info(f'VQE stopped after {actual_iterations} iterations - convergence not achieved')
+        else:
+            self.logger.info(f'VQE completed {actual_iterations} iterations')
 
         result = VQEResult(
             initial_data=self.init_data,
@@ -226,9 +239,15 @@ class VQESolver(Solver):
                     f'optimization to fail early.'
                 )
 
-        self.logger.info(
-            f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
-        )
+        if self.convergence_threshold:
+            self.logger.info(
+                f'Starting VQE optimization with convergence threshold {self.convergence_threshold} '
+                f'(max iterations: {self.max_iterations})'
+            )
+        else:
+            self.logger.info(
+                f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
+            )
         with Timer() as t:
             res = minimize(
                 self.computeEnergy,
@@ -238,6 +257,16 @@ class VQESolver(Solver):
                 options=optimization_params,
                 tol=self.convergence_threshold if self.convergence_threshold else None,
             )
+
+        # Log optimization completion details
+        actual_iterations = len(self.vqe_process)
+        if self.convergence_threshold:
+            if res.success:
+                self.logger.info(f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})')
+            else:
+                self.logger.info(f'VQE stopped after {actual_iterations} iterations - convergence not achieved')
+        else:
+            self.logger.info(f'VQE completed {actual_iterations} iterations')
 
         result = VQEResult(
             initial_data=self.init_data,
@@ -255,6 +284,10 @@ class VQESolver(Solver):
 
     def solve(self):
         """Run the VQE simulation and return the result."""
+        # Reset iteration counter for each solve
+        self.current_iter = 1
+        self.vqe_process = []
+
         backend = self.get_backend()
 
         result = None
