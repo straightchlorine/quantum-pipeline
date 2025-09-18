@@ -88,8 +88,15 @@ class COBYLAConfig(OptimizerConfig):
         max_iter = self.max_iterations or 1000  # scipy default
         options = {
             'disp': False,
-            'maxiter': max_iter,
         }
+
+        # For COBYLA, use maxfun instead of maxiter to avoid scipy's internal override
+        # maxfun controls the maximum number of function evaluations
+        if self.max_iterations is not None:
+            options['maxfun'] = max_iter
+        else:
+            options['maxiter'] = max_iter
+
         return options
 
     def get_minimize_tol(self) -> Optional[float]:
