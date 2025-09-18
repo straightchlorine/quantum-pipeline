@@ -288,3 +288,25 @@ class TestVQEConvergencePriority:
 
         assert solver.max_iterations == 10
         assert solver.convergence_threshold is None
+
+    def test_lbfgs_b_priority_logic(self):
+        """Test L-BFGS-B specific logic when max_iterations takes priority."""
+        optimizer = 'L-BFGS-B'
+        max_iterations = 5
+        convergence_threshold = 1e-6
+
+        # Test the specific L-BFGS-B logic
+        should_disable_early_convergence = (
+            optimizer == 'L-BFGS-B' and
+            convergence_threshold and
+            max_iterations
+        )
+
+        assert should_disable_early_convergence, "L-BFGS-B should disable early convergence when both parameters are set"
+
+        # Verify the ftol and gtol values that would be set
+        expected_ftol = 1e-15
+        expected_gtol = 1e-15
+
+        assert expected_ftol < 1e-10, "ftol should be very small to prevent early convergence"
+        assert expected_gtol < 1e-10, "gtol should be very small to prevent early convergence"

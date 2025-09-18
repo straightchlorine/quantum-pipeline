@@ -130,6 +130,16 @@ class VQESolver(Solver):
                 'maxiter': self.max_iterations,
                 'disp': False,
             }
+
+            # When max_iterations takes priority over convergence, disable early stopping for L-BFGS-B
+            if self.optimizer == 'L-BFGS-B' and self.convergence_threshold and self.max_iterations:
+                # Set very loose convergence criteria to ensure maxiter takes priority
+                optimization_params.update({
+                    'ftol': 1e-15,  # Very small function tolerance
+                    'gtol': 1e-15,  # Very small gradient tolerance
+                })
+                self.logger.debug(f'Disabled L-BFGS-B early convergence for max_iterations priority')
+
             self.logger.debug(f'Optimization params: {optimization_params}')
 
             # COBYLA specific parameters
@@ -237,6 +247,15 @@ class VQESolver(Solver):
             'maxiter': self.max_iterations,
             'disp': False,
         }
+
+        # When max_iterations takes priority over convergence, disable early stopping for L-BFGS-B
+        if self.optimizer == 'L-BFGS-B' and self.convergence_threshold and self.max_iterations:
+            # Set very loose convergence criteria to ensure maxiter takes priority
+            optimization_params.update({
+                'ftol': 1e-15,  # Very small function tolerance
+                'gtol': 1e-15,  # Very small gradient tolerance
+            })
+            self.logger.debug(f'Disabled L-BFGS-B early convergence for max_iterations priority')
 
         # COBYLA specific parameters
         if self.optimizer == 'COBYLA':
