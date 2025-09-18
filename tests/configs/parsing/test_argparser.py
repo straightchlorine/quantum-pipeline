@@ -236,6 +236,190 @@ def test_max_iterations_explicit(argparser):
     assert args.max_iterations == 3
 
 
+class TestArgparserEdgeCases:
+    """Test edge cases and input validation for argparser."""
+
+    def test_max_iterations_zero(self, argparser):
+        """Test max_iterations with zero value."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '0'])
+        assert args.max_iterations == 0
+
+    def test_max_iterations_negative(self, argparser):
+        """Test max_iterations with negative value."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '-5'])
+        assert args.max_iterations == -5
+
+    def test_max_iterations_very_large(self, argparser):
+        """Test max_iterations with very large value."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '999999'])
+        assert args.max_iterations == 999999
+
+    def test_max_iterations_string_number(self, argparser):
+        """Test max_iterations with string that converts to int."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '42'])
+        assert args.max_iterations == 42
+        assert isinstance(args.max_iterations, int)
+
+    def test_max_iterations_invalid_string(self, argparser):
+        """Test max_iterations with invalid string."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', 'invalid'])
+
+    def test_max_iterations_float_string(self, argparser):
+        """Test max_iterations with float string."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '3.14'])
+
+    def test_threshold_zero(self, argparser):
+        """Test convergence threshold with zero value."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '0'])
+        assert args.threshold == 0.0
+
+    def test_threshold_negative(self, argparser):
+        """Test convergence threshold with negative value."""
+        # Note: argparse treats negative numbers as options, so we need to use = syntax
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold=-1e-6'])
+        assert args.threshold == -1e-6
+
+    def test_threshold_very_small(self, argparser):
+        """Test convergence threshold with very small value."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '1e-20'])
+        assert args.threshold == 1e-20
+
+    def test_threshold_scientific_notation(self, argparser):
+        """Test convergence threshold with scientific notation."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '1.5e-7'])
+        assert args.threshold == 1.5e-7
+
+    def test_threshold_invalid_string(self, argparser):
+        """Test convergence threshold with invalid string."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', 'invalid'])
+
+    def test_convergence_flag_behavior(self, argparser):
+        """Test convergence flag behavior with and without threshold."""
+        # With convergence flag
+        args_with_flag = argparser.parser.parse_args(['--file', 'molecule.json', '--convergence'])
+        assert args_with_flag.convergence is True
+
+        # Without convergence flag
+        args_without_flag = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert args_without_flag.convergence is False
+
+    def test_multiple_flags_combination(self, argparser):
+        """Test various combinations of max_iterations and convergence flags."""
+        # Both specified
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--max-iterations', '10',
+            '--convergence',
+            '--threshold', '1e-6'
+        ])
+        assert args.max_iterations == 10
+        assert args.convergence is True
+        assert args.threshold == 1e-6
+
+        # Only max_iterations
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--max-iterations', '5'
+        ])
+        assert args.max_iterations == 5
+        assert args.convergence is False
+
+        # Only convergence
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--convergence',
+            '--threshold', '1e-8'
+        ])
+        assert args.max_iterations == 100  # Default value
+        assert args.convergence is True
+        assert args.threshold == 1e-8
+
+    def test_optimizer_valid_choices(self, argparser):
+        """Test optimizer with all valid choices."""
+        valid_optimizers = ['COBYLA', 'L-BFGS-B', 'COBYQA']  # Use actual supported optimizers
+
+        for optimizer in valid_optimizers:
+            args = argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--optimizer', optimizer
+            ])
+            assert args.optimizer == optimizer
+
+    def test_optimizer_invalid_choice(self, argparser):
+        """Test optimizer with invalid choice."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--optimizer', 'INVALID_OPTIMIZER'
+            ])
+
+    def test_optimizer_case_sensitivity(self, argparser):
+        """Test optimizer case sensitivity."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--optimizer', 'cobyla'  # lowercase should fail
+            ])
+
+    def test_missing_required_file(self, argparser):
+        """Test behavior when required file argument is missing."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--max-iterations', '10'])
+
+    def test_empty_file_string(self, argparser):
+        """Test behavior with empty file string."""
+        args = argparser.parser.parse_args(['--file', ''])
+        assert args.file == ''
+
+    def test_file_with_spaces(self, argparser):
+        """Test file path with spaces."""
+        args = argparser.parser.parse_args(['--file', 'path with spaces/molecule.json'])
+        assert args.file == 'path with spaces/molecule.json'
+
+    def test_special_characters_in_file(self, argparser):
+        """Test file path with special characters."""
+        special_path = 'mol@cule#data$.json'
+        args = argparser.parser.parse_args(['--file', special_path])
+        assert args.file == special_path
+
+    def test_max_iterations_boundary_values(self, argparser):
+        """Test max_iterations with boundary values."""
+        # Test with 1 (minimum meaningful value)
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '1'])
+        assert args.max_iterations == 1
+
+        # Test with maximum int value
+        import sys
+        max_int = str(sys.maxsize)
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', max_int])
+        assert args.max_iterations == sys.maxsize
+
+    def test_threshold_boundary_values(self, argparser):
+        """Test convergence threshold with boundary values."""
+        import sys
+
+        # Test with very small positive value
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '1e-308'])
+        assert args.threshold == 1e-308
+
+        # Test with 1.0 (upper boundary for typical convergence)
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '1.0'])
+        assert args.threshold == 1.0
+
+    def test_default_values_preservation(self, argparser):
+        """Test that default values are properly preserved."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+
+        # Check defaults from DEFAULTS dict
+        assert args.max_iterations == 100  # DEFAULTS['max_iterations']
+        assert args.optimizer == 'L-BFGS-B'  # DEFAULTS['optimizer']
+        assert args.convergence is False  # DEFAULTS['convergence_threshold_enable']
+        assert args.threshold == 1e-6  # DEFAULTS['convergence_threshold']
+
+
 def test_output_and_logging(argparser):
     """Test output and logging arguments."""
     args = argparser.parser.parse_args(

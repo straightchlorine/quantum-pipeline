@@ -131,14 +131,15 @@ class VQESolver(Solver):
                 'disp': False,
             }
 
-            # When max_iterations takes priority over convergence, disable early stopping for L-BFGS-B
-            if self.optimizer == 'L-BFGS-B' and self.convergence_threshold and self.max_iterations:
+            # For L-BFGS-B: disable default convergence criteria when max_iterations is specified
+            # This ensures max_iterations takes strict priority over L-BFGS-B's default ftol/gtol
+            if self.optimizer == 'L-BFGS-B' and self.max_iterations:
                 # Set very loose convergence criteria to ensure maxiter takes priority
                 optimization_params.update({
                     'ftol': 1e-15,  # Very small function tolerance
                     'gtol': 1e-15,  # Very small gradient tolerance
                 })
-                self.logger.debug(f'Disabled L-BFGS-B early convergence for max_iterations priority')
+                self.logger.debug(f'Disabled L-BFGS-B default convergence criteria for max_iterations priority')
 
             self.logger.debug(f'Optimization params: {optimization_params}')
 
@@ -165,9 +166,13 @@ class VQESolver(Solver):
                 self.logger.info(
                     f'Starting VQE optimization with convergence threshold {self.convergence_threshold}'
                 )
+            elif self.max_iterations:
+                self.logger.info(
+                    f'Starting VQE optimization with max iterations {self.max_iterations} (L-BFGS-B default convergence disabled)'
+                )
             else:
                 self.logger.info(
-                    f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
+                    f'Starting VQE optimization with default settings'
                 )
 
         with Timer() as t:
@@ -248,14 +253,15 @@ class VQESolver(Solver):
             'disp': False,
         }
 
-        # When max_iterations takes priority over convergence, disable early stopping for L-BFGS-B
-        if self.optimizer == 'L-BFGS-B' and self.convergence_threshold and self.max_iterations:
+        # For L-BFGS-B: disable default convergence criteria when max_iterations is specified
+        # This ensures max_iterations takes strict priority over L-BFGS-B's default ftol/gtol
+        if self.optimizer == 'L-BFGS-B' and self.max_iterations:
             # Set very loose convergence criteria to ensure maxiter takes priority
             optimization_params.update({
                 'ftol': 1e-15,  # Very small function tolerance
                 'gtol': 1e-15,  # Very small gradient tolerance
             })
-            self.logger.debug(f'Disabled L-BFGS-B early convergence for max_iterations priority')
+            self.logger.debug(f'Disabled L-BFGS-B default convergence criteria for max_iterations priority')
 
         # COBYLA specific parameters
         if self.optimizer == 'COBYLA':
@@ -280,9 +286,13 @@ class VQESolver(Solver):
             self.logger.info(
                 f'Starting VQE optimization with convergence threshold {self.convergence_threshold}'
             )
+        elif self.max_iterations:
+            self.logger.info(
+                f'Starting VQE optimization with max iterations {self.max_iterations} (L-BFGS-B default convergence disabled)'
+            )
         else:
             self.logger.info(
-                f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
+                f'Starting VQE optimization with default settings'
             )
         with Timer() as t:
             res = minimize(
