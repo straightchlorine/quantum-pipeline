@@ -348,7 +348,7 @@ class TestPriorityBehaviorSimulation:
             # Should still work but log a warning
             assert options['maxiter'] == 5
             assert minimize_tol == 0.1
-            assert 'maxfun' not in options  # Critical: no invalid parameter
+            assert 'maxfun' not in options  # maxfun is not a valid COBYLA parameter
 
             # Test the fix prevents scipy warnings
             with patch('scipy.optimize.minimize') as mock_minimize:

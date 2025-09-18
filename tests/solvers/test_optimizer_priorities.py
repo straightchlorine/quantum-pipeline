@@ -59,7 +59,7 @@ class TestCOBYLAPriorities:
 
         assert options['maxiter'] == 25
         assert minimize_tol == 0.02
-        assert 'maxfun' not in options  # Verify the critical bug fix
+        assert 'maxfun' not in options  # maxfun is not a valid COBYLA parameter
 
     @patch('quantum_pipeline.solvers.optimizer_config.logging.getLogger')
     def test_cobyla_validation_with_both_parameters(self, mock_logger):
@@ -116,9 +116,9 @@ class TestLBFGSBPriorities:
         minimize_tol = config.get_minimize_tol()
 
         assert options['maxiter'] == 30
-        # Should use scipy defaults for ftol/gtol, not extreme values
-        assert options.get('ftol', 0) != 1e-15  # Critical fix verification
-        assert options.get('gtol', 0) != 1e-15  # Critical fix verification
+        # For strict max_iterations mode, should use tight tolerances
+        assert options['ftol'] == 1e-15  # Tight tolerance for strict iteration control
+        assert options['gtol'] == 1e-15  # Tight tolerance for strict iteration control
         assert minimize_tol is None  # L-BFGS-B uses ftol/gtol, not global tol
 
     def test_lbfgsb_convergence_only(self):

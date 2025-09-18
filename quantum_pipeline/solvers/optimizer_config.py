@@ -47,12 +47,13 @@ class LBFGSBConfig(OptimizerConfig):
 
         # Handle convergence criteria based on user priorities
         if self.max_iterations and not self.convergence_threshold:
-            # Strict iteration limit - disable convergence criteria
+            # Strict iteration limit - use very tight convergence criteria
+            # This forces the optimizer to run closer to maxiter iterations
             options.update({
-                'ftol': 2.220446049250313e-09,  # scipy default, but will be overridden by maxiter
-                'gtol': 1e-05,  # scipy default, but will be overridden by maxiter
+                'ftol': 1e-15,  # Very tight function tolerance
+                'gtol': 1e-15,  # Very tight gradient tolerance
             })
-            self.logger.debug(f'L-BFGS-B configured for strict max_iterations={self.max_iterations}')
+            self.logger.debug(f'L-BFGS-B configured for strict max_iterations={self.max_iterations} with tight tolerances')
 
         elif self.convergence_threshold:
             # Use convergence threshold
@@ -84,9 +85,10 @@ class COBYLAConfig(OptimizerConfig):
     """Configuration for COBYLA optimizer."""
 
     def get_options(self, num_parameters: int) -> Dict[str, Any]:
+        max_iter = self.max_iterations or 1000  # scipy default
         options = {
             'disp': False,
-            'maxiter': self.max_iterations or 1000  # scipy default
+            'maxiter': max_iter,
         }
         return options
 

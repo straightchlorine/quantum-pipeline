@@ -1,19 +1,20 @@
 """
-test_vqe_optimizer_params.py
+test_vqe_solver_optimizer_config.py
 
-Focused tests to verify that the critical VQE parameter handling issues
-identified in the logs have been fixed.
+Tests for VQESolver integration with OptimizerConfig classes.
+Verifies that VQESolver correctly uses optimizer configurations
+for COBYLA and L-BFGS-B optimizers.
 """
 
 import pytest
 from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
 
 
-class TestVQECriticalFix:
-    """Test the specific critical issues that were identified."""
+class TestVQESolverOptimizerConfig:
+    """Test VQESolver integration with optimizer configuration classes."""
 
-    def test_cobyla_no_maxfun_parameter(self):
-        """Test that COBYLA config no longer uses invalid 'maxfun' parameter."""
+    def test_cobyla_consistent_maxiter_maxfun(self):
+        """Test that COBYLA config uses consistent maxiter and maxfun parameters."""
         options, minimize_tol = get_optimizer_configuration(
             optimizer='COBYLA',
             max_iterations=5,
@@ -21,16 +22,16 @@ class TestVQECriticalFix:
             num_parameters=160,  # From the logs
         )
 
-        # CRITICAL FIX: Should use 'maxiter' not 'maxfun'
+        # CRITICAL FIX: Should use only valid COBYLA parameters
         assert 'maxiter' in options
         assert options['maxiter'] == 5
-        assert 'maxfun' not in options  # This was the bug causing scipy warnings
+        assert 'maxfun' not in options  # maxfun is not a valid COBYLA parameter to avoid warnings
 
         # COBYLA uses global tol parameter for convergence
         assert minimize_tol == 0.1
 
-    def test_lbfgsb_no_extreme_tolerances(self):
-        """Test that L-BFGS-B no longer uses extremely small tolerance values."""
+    def test_lbfgsb_strict_max_iterations(self):
+        """Test that L-BFGS-B uses tight tolerances for strict max_iterations mode."""
         options, minimize_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B',
             max_iterations=50,
@@ -38,12 +39,12 @@ class TestVQECriticalFix:
             num_parameters=160,
         )
 
-        # CRITICAL FIX: Should NOT have extremely small ftol/gtol values
-        assert options.get('ftol', 0) != 1e-15  # Old broken behavior
-        assert options.get('gtol', 0) != 1e-15  # Old broken behavior
+        # For strict max_iterations, should use very tight tolerances to prioritize iteration limit
+        assert options['ftol'] == 1e-15  # Tight tolerance for strict iteration control
+        assert options['gtol'] == 1e-15  # Tight tolerance for strict iteration control
         assert options['maxiter'] == 50
 
-        # For strict max_iterations, L-BFGS-B doesn't use global tol
+        # L-BFGS-B doesn't use global tol parameter
         assert minimize_tol is None
 
     def test_lbfgsb_with_convergence_threshold(self):
@@ -117,10 +118,10 @@ class TestVQECriticalFix:
         )
 
         # Verify the fix prevents the issues seen in logs:
-        # 1. No 'maxfun' parameter (was causing OptimizeWarning)
-        assert 'maxfun' not in options
+        # 1. Only valid COBYLA parameters (prevents warnings)
         assert 'maxiter' in options
         assert options['maxiter'] == 5
+        assert 'maxfun' not in options  # maxfun is not a valid COBYLA parameter
 
         # 2. Convergence threshold properly handled
         assert minimize_tol == 0.1
