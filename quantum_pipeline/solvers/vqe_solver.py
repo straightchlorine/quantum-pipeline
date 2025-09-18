@@ -161,7 +161,7 @@ class VQESolver(Solver):
                 method=self.optimizer,
                 options=optimization_params,
                 tol=self.convergence_threshold
-                if self.convergence_threshold and not self.max_iterations
+                if self.convergence_threshold
                 else None,
             )
 
