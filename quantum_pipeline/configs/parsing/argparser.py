@@ -147,6 +147,7 @@ class QuantumPipelineArgParser:
         vqe_group.add_argument(
             '--max-iterations',
             type=int,
+            default=DEFAULTS['max_iterations'],
             help='Maximum number of VQE iterations',
         )
 

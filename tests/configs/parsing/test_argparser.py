@@ -224,6 +224,18 @@ def test_vqe_parameters(argparser):
     assert args.optimizer == 'COBYLA'
 
 
+def test_max_iterations_default(argparser):
+    """Test that max_iterations uses default when not specified."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json'])
+    assert args.max_iterations == 100  # Should use DEFAULTS['max_iterations']
+
+
+def test_max_iterations_explicit(argparser):
+    """Test that max_iterations uses explicit value when provided."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '3'])
+    assert args.max_iterations == 3
+
+
 def test_output_and_logging(argparser):
     """Test output and logging arguments."""
     args = argparser.parser.parse_args(

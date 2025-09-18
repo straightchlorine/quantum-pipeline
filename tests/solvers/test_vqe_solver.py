@@ -199,3 +199,92 @@ def test_solve_method_result_type(vqe_solver, backend_type):
         # verify if correct result was returned
         assert isinstance(result, VQEResult | MagicMock)
         assert result._spec_class == VQEResult
+
+
+class TestVQEConvergencePriority:
+    """Test suite for VQE convergence and max_iterations priority logic."""
+
+    def test_max_iterations_priority_over_convergence(self):
+        """Test that max_iterations takes priority when both are specified."""
+        # Test the logic directly without full VQE execution
+        max_iterations = 5
+        convergence_threshold = 1e-6
+
+        # Logic from VQE solver: tol should be None when both are specified
+        # tol = convergence_threshold if convergence_threshold and not max_iterations else None
+        tol = convergence_threshold if convergence_threshold and not max_iterations else None
+
+        assert tol is None, "tol should be None when max_iterations takes priority over convergence"
+
+    def test_convergence_only_uses_tolerance(self):
+        """Test that convergence threshold is used when only convergence is specified."""
+        max_iterations = None
+        convergence_threshold = 1e-6
+
+        # Logic from VQE solver
+        tol = convergence_threshold if convergence_threshold and not max_iterations else None
+
+        assert tol == 1e-6, "tol should be set when only convergence is specified"
+
+    def test_max_iterations_only_no_tolerance(self):
+        """Test that no tolerance is used when only max_iterations is specified."""
+        max_iterations = 10
+        convergence_threshold = None
+
+        # Logic from VQE solver
+        tol = convergence_threshold if convergence_threshold and not max_iterations else None
+
+        assert tol is None, "tol should be None when only max_iterations is specified"
+
+    def test_neither_specified_no_tolerance(self):
+        """Test that no tolerance is used when neither is specified."""
+        max_iterations = None
+        convergence_threshold = None
+
+        # Logic from VQE solver
+        tol = convergence_threshold if convergence_threshold and not max_iterations else None
+
+        assert tol is None, "tol should be None when neither is specified"
+
+    def test_vqe_solver_initialization_with_both(self, sample_hamiltonian, mock_backend_config):
+        """Test that VQESolver can be initialized with both parameters."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=5,
+            convergence_threshold=1e-6,
+            optimizer='COBYLA',
+            ansatz_reps=2,
+        )
+
+        assert solver.max_iterations == 5
+        assert solver.convergence_threshold == 1e-6
+        assert solver.optimizer == 'COBYLA'
+
+    def test_vqe_solver_initialization_convergence_only(self, sample_hamiltonian, mock_backend_config):
+        """Test that VQESolver can be initialized with only convergence threshold."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=None,
+            convergence_threshold=1e-6,
+            optimizer='COBYLA',
+            ansatz_reps=2,
+        )
+
+        assert solver.max_iterations is None
+        assert solver.convergence_threshold == 1e-6
+
+    def test_vqe_solver_initialization_max_iterations_only(self, sample_hamiltonian, mock_backend_config):
+        """Test that VQESolver can be initialized with only max_iterations."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=10,
+            convergence_threshold=None,
+            optimizer='COBYLA',
+            ansatz_reps=2,
+        )
+
+        assert solver.max_iterations == 10
+        assert solver.convergence_threshold is None

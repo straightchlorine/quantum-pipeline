@@ -46,6 +46,8 @@ class VQESolver(Solver):
         self.vqe_process: list[VQEProcess] = []
         self.current_iter = 1
         self.convergence_threshold = convergence_threshold
+        # Priority Logic: When both max_iterations and convergence_threshold are specified,
+        # max_iterations takes priority and convergence_threshold is ignored
         self.optimization_level = optimization_level
 
     def _optimize_circuits(self, ansatz, hamiltonian, backend):
@@ -128,6 +130,7 @@ class VQESolver(Solver):
                 'maxiter': self.max_iterations,
                 'disp': False,
             }
+            self.logger.debug(f'Optimization params: {optimization_params}')
 
             # COBYLA specific parameters
             if self.optimizer == 'COBYLA':
@@ -143,10 +146,14 @@ class VQESolver(Solver):
                         f'optimization to fail early.'
                     )
 
-            if self.convergence_threshold:
+            if self.convergence_threshold and self.max_iterations:
                 self.logger.info(
-                    f'Starting VQE optimization with convergence threshold {self.convergence_threshold} '
-                    f'(max iterations: {self.max_iterations})'
+                    f'Starting VQE optimization with max iterations {self.max_iterations} taking priority over '
+                    f'convergence threshold {self.convergence_threshold}'
+                )
+            elif self.convergence_threshold:
+                self.logger.info(
+                    f'Starting VQE optimization with convergence threshold {self.convergence_threshold}'
                 )
             else:
                 self.logger.info(
@@ -161,7 +168,7 @@ class VQESolver(Solver):
                 method=self.optimizer,
                 options=optimization_params,
                 tol=self.convergence_threshold
-                if self.convergence_threshold
+                if self.convergence_threshold and not self.max_iterations
                 else None,
             )
 
@@ -245,10 +252,14 @@ class VQESolver(Solver):
                     f'optimization to fail early.'
                 )
 
-        if self.convergence_threshold:
+        if self.convergence_threshold and self.max_iterations:
             self.logger.info(
-                f'Starting VQE optimization with convergence threshold {self.convergence_threshold} '
-                f'(max iterations: {self.max_iterations})'
+                f'Starting VQE optimization with max iterations {self.max_iterations} taking priority over '
+                f'convergence threshold {self.convergence_threshold}'
+            )
+        elif self.convergence_threshold:
+            self.logger.info(
+                f'Starting VQE optimization with convergence threshold {self.convergence_threshold}'
             )
         else:
             self.logger.info(
@@ -261,7 +272,9 @@ class VQESolver(Solver):
                 args=(ansatz_isa, hamiltonian_isa, estimator),
                 method=self.optimizer,
                 options=optimization_params,
-                tol=self.convergence_threshold if self.convergence_threshold else None,
+                tol=self.convergence_threshold
+                if self.convergence_threshold and not self.max_iterations
+                else None,
             )
 
         # Log optimization completion details
