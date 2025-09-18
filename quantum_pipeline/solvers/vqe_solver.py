@@ -15,6 +15,7 @@ from scipy.optimize import minimize
 
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.solvers.solver import Solver
+from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
 from quantum_pipeline.structures.vqe_observation import (
     VQEInitialData,
     VQEProcess,
@@ -126,36 +127,17 @@ class VQESolver(Solver):
             estimator = EstimatorV2(mode=session)
             estimator.options.default_shots = self.default_shots
 
-            optimization_params = {
-                'maxiter': self.max_iterations,
-                'disp': False,
-            }
-
-            # For L-BFGS-B: disable default convergence criteria when max_iterations is specified
-            # This ensures max_iterations takes strict priority over L-BFGS-B's default ftol/gtol
-            if self.optimizer == 'L-BFGS-B' and self.max_iterations:
-                # Set very loose convergence criteria to ensure maxiter takes priority
-                optimization_params.update({
-                    'ftol': 1e-15,  # Very small function tolerance
-                    'gtol': 1e-15,  # Very small gradient tolerance
-                })
-                self.logger.debug(f'Disabled L-BFGS-B default convergence criteria for max_iterations priority')
+            # Get optimizer-specific configuration
+            optimization_params, minimize_tol = get_optimizer_configuration(
+                optimizer=self.optimizer,
+                max_iterations=self.max_iterations,
+                convergence_threshold=self.convergence_threshold,
+                num_parameters=len(x0)
+            )
 
             self.logger.debug(f'Optimization params: {optimization_params}')
-
-            # COBYLA specific parameters
-            if self.optimizer == 'COBYLA':
-                # COBYLA requires maxfun to be at least num_params + 2
-                num_params = len(x0)
-                min_maxfun = num_params + 2
-                # Respect user's max_iterations limit strictly
-                optimization_params['maxfun'] = self.max_iterations
-                if self.max_iterations < min_maxfun:
-                    self.logger.warning(
-                        f'COBYLA maxiter {self.max_iterations} is less than minimum required '
-                        f'maxfun {min_maxfun} for {num_params} parameters. This may cause '
-                        f'optimization to fail early.'
-                    )
+            if minimize_tol is not None:
+                self.logger.debug(f'Minimize tolerance: {minimize_tol}')
 
             if self.convergence_threshold and self.max_iterations:
                 self.logger.info(
@@ -182,9 +164,7 @@ class VQESolver(Solver):
                 args=(ansatz_isa, hamiltonian_isa, estimator),
                 method=self.optimizer,
                 options=optimization_params,
-                tol=self.convergence_threshold
-                if self.convergence_threshold and not self.max_iterations
-                else None,
+                tol=minimize_tol,
             )
 
         # Log optimization completion details
@@ -248,34 +228,17 @@ class VQESolver(Solver):
         estimator = EstimatorV2(mode=backend)
         estimator.options.default_shots = self.default_shots
 
-        optimization_params = {
-            'maxiter': self.max_iterations,
-            'disp': False,
-        }
+        # Get optimizer-specific configuration
+        optimization_params, minimize_tol = get_optimizer_configuration(
+            optimizer=self.optimizer,
+            max_iterations=self.max_iterations,
+            convergence_threshold=self.convergence_threshold,
+            num_parameters=len(x0)
+        )
 
-        # For L-BFGS-B: disable default convergence criteria when max_iterations is specified
-        # This ensures max_iterations takes strict priority over L-BFGS-B's default ftol/gtol
-        if self.optimizer == 'L-BFGS-B' and self.max_iterations:
-            # Set very loose convergence criteria to ensure maxiter takes priority
-            optimization_params.update({
-                'ftol': 1e-15,  # Very small function tolerance
-                'gtol': 1e-15,  # Very small gradient tolerance
-            })
-            self.logger.debug(f'Disabled L-BFGS-B default convergence criteria for max_iterations priority')
-
-        # COBYLA specific parameters
-        if self.optimizer == 'COBYLA':
-            # COBYLA requires maxfun to be at least num_params + 2
-            num_params = len(x0)
-            min_maxfun = num_params + 2
-            # Respect user's max_iterations limit strictly
-            optimization_params['maxfun'] = self.max_iterations
-            if self.max_iterations < min_maxfun:
-                self.logger.warning(
-                    f'COBYLA maxiter {self.max_iterations} is less than minimum required '
-                    f'maxfun {min_maxfun} for {num_params} parameters. This may cause '
-                    f'optimization to fail early.'
-                )
+        self.logger.debug(f'Optimization params: {optimization_params}')
+        if minimize_tol is not None:
+            self.logger.debug(f'Minimize tolerance: {minimize_tol}')
 
         if self.convergence_threshold and self.max_iterations:
             self.logger.info(
@@ -301,9 +264,7 @@ class VQESolver(Solver):
                 args=(ansatz_isa, hamiltonian_isa, estimator),
                 method=self.optimizer,
                 options=optimization_params,
-                tol=self.convergence_threshold
-                if self.convergence_threshold and not self.max_iterations
-                else None,
+                tol=minimize_tol,
             )
 
         # Log optimization completion details
