@@ -47,8 +47,6 @@ class VQESolver(Solver):
         self.vqe_process: list[VQEProcess] = []
         self.current_iter = 1
         self.convergence_threshold = convergence_threshold
-        # Priority Logic: When both max_iterations and convergence_threshold are specified,
-        # max_iterations takes priority and convergence_threshold is ignored
         self.optimization_level = optimization_level
 
     def _optimize_circuits(self, ansatz, hamiltonian, backend):
@@ -63,18 +61,7 @@ class VQESolver(Solver):
         return ansatz_isa, hamiltonian_isa
 
     def computeEnergy(self, params, ansatz, hamiltonian, estimator):
-        """Return estimate of energy from estimator
-
-        Parameters:
-            params (ndarray): Array of ansatz parameters
-            ansatz (QuantumCircuit): Parameterized ansatz circuit
-            hamiltonian (SparsePauliOp): Operator representation of Hamiltonian
-            estimator (EstimatorV2): Estimator primitive instance
-            cost_history_dict: Dictionary for storing intermediate results
-
-        Returns:
-            float: Energy estimate
-        """
+        """Return estimate of energy from estimator"""
         pub = (ansatz, [hamiltonian], [params])
         result = estimator.run(pubs=[pub]).result()
         energy, std = result[0].data.evs[0], result[0].data.stds[0]
@@ -127,7 +114,6 @@ class VQESolver(Solver):
             estimator = EstimatorV2(mode=session)
             estimator.options.default_shots = self.default_shots
 
-            # Get optimizer-specific configuration
             optimization_params, minimize_tol = get_optimizer_configuration(
                 optimizer=self.optimizer,
                 max_iterations=self.max_iterations,
@@ -150,7 +136,7 @@ class VQESolver(Solver):
                 )
             elif self.max_iterations:
                 self.logger.info(
-                    f'Starting VQE optimization with max iterations {self.max_iterations} (L-BFGS-B default convergence disabled)'
+                    f'Starting VQE optimization with max iterations {self.max_iterations}'
                 )
             else:
                 self.logger.info(
@@ -167,7 +153,6 @@ class VQESolver(Solver):
                 tol=minimize_tol,
             )
 
-        # Log optimization completion details
         actual_iterations = len(self.vqe_process)
         if self.convergence_threshold:
             if res.success:
@@ -228,7 +213,6 @@ class VQESolver(Solver):
         estimator = EstimatorV2(mode=backend)
         estimator.options.default_shots = self.default_shots
 
-        # Get optimizer-specific configuration
         optimization_params, minimize_tol = get_optimizer_configuration(
             optimizer=self.optimizer,
             max_iterations=self.max_iterations,
@@ -251,7 +235,7 @@ class VQESolver(Solver):
             )
         elif self.max_iterations:
             self.logger.info(
-                f'Starting VQE optimization with max iterations {self.max_iterations} (L-BFGS-B default convergence disabled)'
+                f'Starting VQE optimization with max iterations {self.max_iterations}'
             )
         else:
             self.logger.info(
@@ -267,7 +251,6 @@ class VQESolver(Solver):
                 tol=minimize_tol,
             )
 
-        # Log optimization completion details
         actual_iterations = len(self.vqe_process)
         if self.convergence_threshold:
             if res.success:
@@ -297,7 +280,6 @@ class VQESolver(Solver):
 
     def solve(self):
         """Run the VQE simulation and return the result."""
-        # Reset iteration counter for each solve
         self.current_iter = 1
         self.vqe_process = []
 

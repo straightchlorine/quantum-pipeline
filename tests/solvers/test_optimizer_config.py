@@ -52,9 +52,9 @@ class TestLBFGSBConfig:
         options = config.get_options(num_parameters=10)
 
         assert options['disp'] is False
-        assert options['maxiter'] == 50
-        assert 'ftol' in options
-        assert 'gtol' in options
+        assert options['maxfun'] == 50
+        assert 'ftol' not in options
+        assert 'gtol' not in options
 
     def test_get_options_convergence_threshold_only(self):
         """Test get_options with convergence_threshold only."""
@@ -62,7 +62,7 @@ class TestLBFGSBConfig:
         options = config.get_options(num_parameters=10)
 
         assert options['disp'] is False
-        assert options['maxiter'] == 15000  # default
+        assert 'maxfun' not in options
         assert options['ftol'] == 0.001
         assert options['gtol'] == 0.001
 
@@ -71,7 +71,7 @@ class TestLBFGSBConfig:
         config = LBFGSBConfig(max_iterations=30, convergence_threshold=0.001)
         options = config.get_options(num_parameters=10)
 
-        assert options['maxiter'] == 30
+        assert options['maxfun'] == 30
         assert options['ftol'] == 0.001
         assert options['gtol'] == 0.001
 
@@ -81,7 +81,7 @@ class TestLBFGSBConfig:
         options = config.get_options(num_parameters=10)
 
         assert options['disp'] is False
-        assert options['maxiter'] == 15000
+        assert 'maxfun' not in options
         assert 'ftol' not in options or options.get('ftol') == 2.220446049250313e-09
         assert 'gtol' not in options or options.get('gtol') == 1e-05
 
@@ -341,7 +341,7 @@ class TestGetOptimizerConfiguration:
         )
 
         assert isinstance(options, dict)
-        assert options['maxiter'] == 50
+        assert options['maxfun'] == 50
         assert options['ftol'] == 0.01
         assert options['gtol'] == 0.01
         assert minimize_tol is None
@@ -452,8 +452,13 @@ class TestOptimizerConfigIntegration:
         assert isinstance(options, dict)
         assert 'disp' in options
         assert options['disp'] is False
-        assert 'maxiter' in options
-        assert options['maxiter'] == max_iterations
+        assert 'maxfun' in options or 'maxiter' in options  # L-BFGS-B uses maxfun, others use maxiter
+        # Check maxfun/maxiter depending on optimizer
+        if optimizer == 'L-BFGS-B':
+            if 'maxfun' in options:
+                assert options['maxfun'] == max_iterations
+        else:
+            assert options['maxiter'] == max_iterations
         assert minimize_tol is None or isinstance(minimize_tol, float)
 
     def test_convenience_function_matches_direct_usage(self):

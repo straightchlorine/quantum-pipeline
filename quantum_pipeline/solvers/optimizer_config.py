@@ -42,41 +42,23 @@ class LBFGSBConfig(OptimizerConfig):
     def get_options(self, num_parameters: int) -> Dict[str, Any]:
         options = {
             'disp': False,
-            'maxiter': self.max_iterations or 15000  # scipy default
         }
 
-        # Handle convergence criteria based on user priorities
-        if self.max_iterations and not self.convergence_threshold:
-            # Strict iteration limit - use very tight convergence criteria
-            # This forces the optimizer to run closer to maxiter iterations
-            options.update({
-                'ftol': 1e-15,  # Very tight function tolerance
-                'gtol': 1e-15,  # Very tight gradient tolerance
-            })
-            self.logger.debug(f'L-BFGS-B configured for strict max_iterations={self.max_iterations} with tight tolerances')
+        if self.max_iterations:
+            options['maxfun'] = self.max_iterations
 
-        elif self.convergence_threshold:
-            # Use convergence threshold
+        if self.convergence_threshold:
             options.update({
                 'ftol': self.convergence_threshold,
                 'gtol': self.convergence_threshold,
             })
-            if self.max_iterations:
-                self.logger.debug(
-                    f'L-BFGS-B will stop at convergence {self.convergence_threshold} '
-                    f'or max_iterations {self.max_iterations}, whichever comes first'
-                )
-            else:
-                self.logger.debug(f'L-BFGS-B will stop at convergence threshold {self.convergence_threshold}')
 
         return options
 
     def get_minimize_tol(self) -> Optional[float]:
-        """L-BFGS-B uses ftol/gtol in options, not the global tol parameter."""
         return None
 
     def validate_parameters(self, num_parameters: int) -> None:
-        """L-BFGS-B generally doesn't have strict parameter requirements."""
         if self.max_iterations is not None and self.max_iterations < 1:
             self.logger.warning(f'L-BFGS-B max_iterations {self.max_iterations} should be >= 1')
 
@@ -93,13 +75,10 @@ class COBYLAConfig(OptimizerConfig):
         return options
 
     def get_minimize_tol(self) -> Optional[float]:
-        """COBYLA uses the global tol parameter for convergence."""
         return self.convergence_threshold
 
     def validate_parameters(self, num_parameters: int) -> None:
-        """Validate COBYLA-specific requirements."""
         if self.max_iterations:
-            # COBYLA documentation suggests it needs reasonable number of iterations
             min_recommended = num_parameters + 2
             if self.max_iterations < min_recommended:
                 self.logger.warning(
@@ -123,11 +102,9 @@ class SLSQPConfig(OptimizerConfig):
         return options
 
     def get_minimize_tol(self) -> Optional[float]:
-        """SLSQP can use both options and global tol."""
         return self.convergence_threshold if not self.max_iterations else None
 
     def validate_parameters(self, num_parameters: int) -> None:
-        """SLSQP validation."""
         if self.max_iterations is not None and self.max_iterations < 1:
             self.logger.warning(f'SLSQP max_iterations {self.max_iterations} should be >= 1')
 
