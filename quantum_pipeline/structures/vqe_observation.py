@@ -39,7 +39,7 @@ class VQEResult:
     iteration_list: list[VQEProcess]
     minimum: np.float64
     optimal_parameters: np.ndarray
-    maxcv: np.float64
+    maxcv: np.float64 | None
     minimization_time: np.float64
 
 

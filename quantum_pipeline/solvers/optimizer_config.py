@@ -45,7 +45,12 @@ class LBFGSBConfig(OptimizerConfig):
         }
 
         if self.max_iterations:
+            # Set both maxfun and maxiter to prevent hanging
+            # maxfun: maximum function evaluations
+            # maxiter: maximum algorithm iterations
+            # Both are needed as independent stopping conditions
             options['maxfun'] = self.max_iterations
+            options['maxiter'] = self.max_iterations
 
         if self.convergence_threshold:
             options.update({

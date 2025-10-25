@@ -171,7 +171,7 @@ class VQESolver(Solver):
             iteration_list=self.vqe_process,
             minimum=res.fun,
             optimal_parameters=res.x,
-            maxcv=res.maxcv,
+            maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
         )
 
@@ -269,7 +269,7 @@ class VQESolver(Solver):
             iteration_list=self.vqe_process,
             minimum=res.fun,
             optimal_parameters=res.x,
-            maxcv=res.maxcv,
+            maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
         )
 

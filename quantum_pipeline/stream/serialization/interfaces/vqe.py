@@ -292,7 +292,7 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
                     },
                     {'name': 'minimum', 'type': 'double'},
                     {'name': 'optimal_parameters', 'type': {'type': 'array', 'items': 'double'}},
-                    {'name': 'maxcv', 'type': 'double'},
+                    {'name': 'maxcv', 'type': ['null', 'double'], 'default': None},
                     {'name': 'minimization_time', 'type': 'double'},
                 ],
             }
@@ -306,7 +306,7 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
             'iteration_list': [self.process_interface.serialize(p) for p in obj.iteration_list],
             'minimum': float(obj.minimum),
             'optimal_parameters': self._convert_to_primitives(obj.optimal_parameters),
-            'maxcv': float(obj.maxcv),
+            'maxcv': float(obj.maxcv) if obj.maxcv is not None else None,
             'minimization_time': float(obj.minimization_time),
         }
 
@@ -316,7 +316,7 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
             iteration_list=[self.process_interface.deserialize(p) for p in data['iteration_list']],
             minimum=float64(data['minimum']),
             optimal_parameters=self._convert_to_numpy(data['optimal_parameters']),
-            maxcv=float64(data['maxcv']),
+            maxcv=float64(data['maxcv']) if data['maxcv'] is not None else None,
             minimization_time=float64(data['minimization_time']),
         )
 
