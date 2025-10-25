@@ -35,7 +35,7 @@ services:
       - "--optimizer"
       - "COBYLA"
       - "--max-iterations"
-      - "50"
+      - "500"
       - "--convergence"
       - "--threshold"
       - "1e-4"
@@ -46,6 +46,7 @@ services:
       - "both"
       - "--performance-pushgateway"
       - "http://monit:9091"
+      - "--report"
     build:
       context: .
       dockerfile: ./docker/Dockerfile.cpu # CPU-only dockerfile
@@ -96,7 +97,7 @@ services:
       - "--optimizer"
       - "COBYLA"
       - "--max-iterations"
-      - "50"
+      - "500"
       - "--convergence"
       - "--threshold"
       - "1e-4"
@@ -107,6 +108,7 @@ services:
       - "both"
       - "--performance-pushgateway"
       - "http://monit:9091"
+      - "--report"
     build:
       context: .
       dockerfile: ./docker/Dockerfile.gpu
@@ -162,7 +164,7 @@ services:
       - "--optimizer"
       - "COBYLA"
       - "--max-iterations"
-      - "50"
+      - "500"
       - "--convergence"
       - "--threshold"
       - "1e-4"
@@ -173,6 +175,7 @@ services:
       - "both"
       - "--performance-pushgateway"
       - "http://monit:9091"
+      - "--report"
     build:
       context: .
       dockerfile: ./docker/Dockerfile.gpu
