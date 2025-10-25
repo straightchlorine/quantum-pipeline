@@ -277,29 +277,29 @@ class VQERunner(Runner):
                     performance_start=performance_start if self.performance_monitor.is_enabled() else None,
                     performance_end=performance_end if self.performance_monitor.is_enabled() else None,
                 )
-            self.run_results.append(decorated_result)
-            self.logger.debug('Appended run information to the result.')
+                self.run_results.append(decorated_result)
+                self.logger.debug('Appended run information to the result.')
 
-            if self.kafka:
-                try:
-                    self.producer = VQEKafkaProducer(self.kafka_config)
-
+                if self.kafka:
                     try:
-                        self.producer.send_result(decorated_result)
+                        self.producer = VQEKafkaProducer(self.kafka_config)
+
+                        try:
+                            self.producer.send_result(decorated_result)
+                        except Exception as e:
+                            self.logger.error('Unable to send the result to the Kafka broker.')
+                            self.logger.debug(f'Error: {e}')
+
                     except Exception as e:
-                        self.logger.error('Unable to send the result to the Kafka broker.')
+                        self.logger.error(
+                            'Unable to create Kafka Producer, cannot send the results to the broker.'
+                        )
                         self.logger.debug(f'Error: {e}')
 
-                except Exception as e:
-                    self.logger.error(
-                        'Unable to create Kafka Producer, cannot send the results to the broker.'
-                    )
-                    self.logger.debug(f'Error: {e}')
-
-            if self.report:
-                self.logger.info(f'Generating report for molecule {molecule_id + 1}...')
-                self.generate_report()
-                self.logger.info(f'Generated the report for molecule {molecule_id + 1}.')
+                if self.report:
+                    self.logger.info(f'Generating report for molecule {molecule_id + 1}...')
+                    self.generate_report()
+                    self.logger.info(f'Generated the report for molecule {molecule_id + 1}.')
 
         self.logger.info('All molecules processed.')
 

@@ -138,7 +138,7 @@ class PerformanceMonitor:
         self.logger.info('Starting performance monitoring thread')
         self.stop_monitoring.clear()
         self.monitoring_thread = threading.Thread(
-            target=self._monitoring_loop, name='PerformanceMonitor', daemon=True
+            target=self._monitoring_loop, name='PerformanceMonitor', daemon=False
         )
         self.monitoring_thread.start()
 
@@ -176,7 +176,15 @@ class PerformanceMonitor:
         self.logger.info('Stopping performance monitoring thread')
         self.stop_monitoring.set()
         if self.monitoring_thread.is_alive():
-            self.monitoring_thread.join(timeout=5)
+            # Give it enough time to finish current collection + interval wait
+            timeout = self.collection_interval + 10
+            self.logger.debug(f'Waiting up to {timeout}s for monitoring thread to stop')
+            self.monitoring_thread.join(timeout=timeout)
+
+            if self.monitoring_thread.is_alive():
+                self.logger.warning(f'Monitoring thread did not stop within {timeout}s timeout')
+            else:
+                self.logger.info('Monitoring thread stopped successfully')
 
     def collect_metrics_snapshot(self) -> Dict[str, Any]:
         """Collect a single snapshot of all metrics."""
@@ -296,7 +304,7 @@ class PerformanceMonitor:
             f'System monitoring loop started (interval: {self.collection_interval}s) - VQE metrics handled separately'
         )
 
-        while not self.stop_monitoring.wait(self.collection_interval):
+        while not self.stop_monitoring.is_set():
             try:
                 # Collect only system and GPU metrics for background monitoring
                 metrics = {
@@ -308,6 +316,9 @@ class PerformanceMonitor:
                 }
 
                 if 'error' in metrics.get('system', {}):
+                    # Wait before continuing, but check stop event frequently
+                    if self.stop_monitoring.wait(self.collection_interval):
+                        break
                     continue
 
                 # Export system metrics only
@@ -319,6 +330,10 @@ class PerformanceMonitor:
 
             except Exception as e:
                 self.logger.error(f'Error in system monitoring loop: {e}')
+
+            # Wait for the collection interval, but break early if stop is signaled
+            if self.stop_monitoring.wait(self.collection_interval):
+                break
 
         self.logger.info('System monitoring loop stopped')
 
