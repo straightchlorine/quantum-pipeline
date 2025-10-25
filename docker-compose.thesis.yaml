@@ -27,21 +27,21 @@ services:
       - "--topic"
       - "vqe_results_cpu"
       - "--basis"
-      - "sto-3g"  # Small basis set: 4-18 qubits (H2 to CO2)
+      - "sto3g" # Small basis set: 4-18 qubits (H2 to CO2)
       - "--log-level"
       - "${LOG_LEVEL:-INFO}"
       - "--simulation-method"
-      - "statevector"  # Optimal for small systems with sto-3g
+      - "statevector" # Optimal for small systems with sto-3g
       - "--optimizer"
-      - "L-BFGS-B"  # Best gradient-based optimizer for VQE: fast + accurate convergence
+      - "L-BFGS-B" # Best gradient-based optimizer for VQE: fast + accurate convergence
       - "--max-iterations"
-      - "300"  # Balanced: enough for larger molecules (CO2), not excessive for H2
+      - "300" # Balanced: enough for larger molecules (CO2), not excessive for H2
       - "--convergence"
       - "--threshold"
-      - "1e-6"  # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
+      - "1e-6" # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
       - "--enable-performance-monitoring"
       - "--performance-interval"
-      - "10"  # Balanced sampling interval for molecules of varying complexity
+      - "10" # Balanced sampling interval for molecules of varying complexity
       - "--performance-export-format"
       - "both"
       - "--performance-pushgateway"
@@ -72,8 +72,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'  # Adequate for up to 18 qubits with sto-3g
-          memory: 10G  # 18 qubits = 2^18 = 262K amplitudes × 16 bytes ≈ 4MB statevector, but needs overhead
+          cpus: '2.0' # Adequate for up to 18 qubits with sto-3g
+          memory: 10G # 18 qubits = 2^18 = 262K amplitudes × 16 bytes ≈ 4MB statevector, but needs overhead
         reservations:
           cpus: '1.5'
           memory: 6G
@@ -89,18 +89,18 @@ services:
       - "--topic"
       - "vqe_results_gpu1"
       - "--basis"
-      - "sto-3g"  # Small basis set: 4-18 qubits (H2 to CO2)
+      - "sto3g" # Small basis set: 4-18 qubits (H2 to CO2)
       - "--log-level"
       - "${LOG_LEVEL:-INFO}"
       - "--simulation-method"
-      - "statevector"  # GPU-accelerated statevector simulation
+      - "statevector" # GPU-accelerated statevector simulation
       - "--optimizer"
-      - "L-BFGS-B"  # Best gradient-based optimizer for VQE: fast + accurate convergence
+      - "L-BFGS-B" # Best gradient-based optimizer for VQE: fast + accurate convergence
       - "--max-iterations"
-      - "300"  # Balanced: enough for larger molecules (CO2), not excessive for H2
+      - "300" # Balanced: enough for larger molecules (CO2), not excessive for H2
       - "--convergence"
       - "--threshold"
-      - "1e-6"  # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
+      - "1e-6" # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
       - "--enable-performance-monitoring"
       - "--performance-interval"
       - "10"
@@ -156,18 +156,18 @@ services:
       - "--topic"
       - "vqe_results_gpu2"
       - "--basis"
-      - "sto-3g"  # Small basis set: 4-18 qubits (H2 to CO2)
+      - "sto3g" # Small basis set: 4-18 qubits (H2 to CO2)
       - "--log-level"
       - "${LOG_LEVEL:-INFO}"
       - "--simulation-method"
-      - "statevector"  # GPU-accelerated statevector simulation
+      - "statevector" # GPU-accelerated statevector simulation
       - "--optimizer"
-      - "L-BFGS-B"  # Best gradient-based optimizer for VQE: fast + accurate convergence
+      - "L-BFGS-B" # Best gradient-based optimizer for VQE: fast + accurate convergence
       - "--max-iterations"
-      - "300"  # Balanced: enough for larger molecules (CO2), not excessive for H2
+      - "300" # Balanced: enough for larger molecules (CO2), not excessive for H2
       - "--convergence"
       - "--threshold"
-      - "1e-6"  # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
+      - "1e-6" # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
       - "--enable-performance-monitoring"
       - "--performance-interval"
       - "10"
