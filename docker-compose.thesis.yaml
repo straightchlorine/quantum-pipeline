@@ -27,21 +27,21 @@ services:
       - "--topic"
       - "vqe_results_cpu"
       - "--basis"
-      - "${BASIS_SET:-sto-3g}"
+      - "sto-3g"  # Small basis set: 4-18 qubits (H2 to CO2)
       - "--log-level"
       - "${LOG_LEVEL:-INFO}"
       - "--simulation-method"
-      - "${SIMULATION_METHOD:-statevector}"
+      - "statevector"  # Optimal for small systems with sto-3g
       - "--optimizer"
-      - "COBYLA"
+      - "L-BFGS-B"  # Best gradient-based optimizer for VQE: fast + accurate convergence
       - "--max-iterations"
-      - "500"
+      - "300"  # Balanced: enough for larger molecules (CO2), not excessive for H2
       - "--convergence"
       - "--threshold"
-      - "1e-4"
+      - "1e-6"  # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
       - "--enable-performance-monitoring"
       - "--performance-interval"
-      - "10"
+      - "10"  # Balanced sampling interval for molecules of varying complexity
       - "--performance-export-format"
       - "both"
       - "--performance-pushgateway"
@@ -49,7 +49,7 @@ services:
       - "--report"
     build:
       context: .
-      dockerfile: ./docker/Dockerfile.cpu # CPU-only dockerfile
+      dockerfile: ./docker/Dockerfile.cpu
     restart: always
     volumes:
       - ./gen/cpu:/usr/src/quantum-pipeline/gen/
@@ -72,8 +72,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0' # Adjusted for three-way comparison
-          memory: 10G
+          cpus: '2.0'  # Adequate for up to 18 qubits with sto-3g
+          memory: 10G  # 18 qubits = 2^18 = 262K amplitudes × 16 bytes ≈ 4MB statevector, but needs overhead
         reservations:
           cpus: '1.5'
           memory: 6G
@@ -89,18 +89,18 @@ services:
       - "--topic"
       - "vqe_results_gpu1"
       - "--basis"
-      - "${BASIS_SET:-sto-3g}"
+      - "sto-3g"  # Small basis set: 4-18 qubits (H2 to CO2)
       - "--log-level"
       - "${LOG_LEVEL:-INFO}"
       - "--simulation-method"
-      - "${SIMULATION_METHOD:-statevector}"
+      - "statevector"  # GPU-accelerated statevector simulation
       - "--optimizer"
-      - "COBYLA"
+      - "L-BFGS-B"  # Best gradient-based optimizer for VQE: fast + accurate convergence
       - "--max-iterations"
-      - "500"
+      - "300"  # Balanced: enough for larger molecules (CO2), not excessive for H2
       - "--convergence"
       - "--threshold"
-      - "1e-4"
+      - "1e-6"  # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
       - "--enable-performance-monitoring"
       - "--performance-interval"
       - "10"
@@ -156,18 +156,18 @@ services:
       - "--topic"
       - "vqe_results_gpu2"
       - "--basis"
-      - "${BASIS_SET:-sto-3g}"
+      - "sto-3g"  # Small basis set: 4-18 qubits (H2 to CO2)
       - "--log-level"
       - "${LOG_LEVEL:-INFO}"
       - "--simulation-method"
-      - "${SIMULATION_METHOD:-statevector}"
+      - "statevector"  # GPU-accelerated statevector simulation
       - "--optimizer"
-      - "COBYLA"
+      - "L-BFGS-B"  # Best gradient-based optimizer for VQE: fast + accurate convergence
       - "--max-iterations"
-      - "500"
+      - "300"  # Balanced: enough for larger molecules (CO2), not excessive for H2
       - "--convergence"
       - "--threshold"
-      - "1e-4"
+      - "1e-6"  # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
       - "--enable-performance-monitoring"
       - "--performance-interval"
       - "10"

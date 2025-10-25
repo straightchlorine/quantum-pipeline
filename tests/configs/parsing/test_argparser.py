@@ -557,3 +557,142 @@ def test_conflicting_config_options(argparser):
     """Test conflicting configuration options."""
     with pytest.raises(SystemExit):
         argparser.parser.parse_args(['--dump', '--load', 'config.json', '--file', 'molecule.json'])
+
+
+class TestPerformanceMonitoringArguments:
+    """Test performance monitoring related arguments."""
+
+    def test_enable_performance_monitoring_flag(self, argparser):
+        """Test --enable-performance-monitoring flag."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--enable-performance-monitoring'
+        ])
+        assert args.enable_performance_monitoring is True
+
+    def test_performance_monitoring_disabled_by_default(self, argparser):
+        """Test that performance monitoring is disabled by default."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert hasattr(args, 'enable_performance_monitoring')
+        assert args.enable_performance_monitoring is False
+
+    def test_performance_interval_argument(self, argparser):
+        """Test --performance-interval argument."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-interval', '30'
+        ])
+        assert args.performance_interval == 30
+
+    def test_performance_interval_default(self, argparser):
+        """Test default value for performance interval."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert args.performance_interval == 30
+
+    def test_performance_pushgateway_argument(self, argparser):
+        """Test --performance-pushgateway argument."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-pushgateway', 'http://monit:9091'
+        ])
+        assert args.performance_pushgateway == 'http://monit:9091'
+
+    def test_performance_export_format_json(self, argparser):
+        """Test --performance-export-format with json."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-export-format', 'json'
+        ])
+        assert args.performance_export_format == 'json'
+
+    def test_performance_export_format_prometheus(self, argparser):
+        """Test --performance-export-format with prometheus."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-export-format', 'prometheus'
+        ])
+        assert args.performance_export_format == 'prometheus'
+
+    def test_performance_export_format_both(self, argparser):
+        """Test --performance-export-format with both."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-export-format', 'both'
+        ])
+        assert args.performance_export_format == 'both'
+
+    def test_performance_export_format_default(self, argparser):
+        """Test default value for performance export format."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert args.performance_export_format == 'both'
+
+    def test_invalid_performance_export_format(self, argparser):
+        """Test invalid performance export format."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--performance-export-format', 'invalid'
+            ])
+
+    def test_complete_performance_monitoring_configuration(self, argparser):
+        """Test complete performance monitoring configuration."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--enable-performance-monitoring',
+            '--performance-interval', '10',
+            '--performance-pushgateway', 'http://monit:9091',
+            '--performance-export-format', 'both'
+        ])
+        assert args.enable_performance_monitoring is True
+        assert args.performance_interval == 10
+        assert args.performance_pushgateway == 'http://monit:9091'
+        assert args.performance_export_format == 'both'
+
+    def test_performance_interval_zero(self, argparser):
+        """Test performance interval with zero value."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-interval', '0'
+        ])
+        assert args.performance_interval == 0
+
+    def test_performance_interval_large_value(self, argparser):
+        """Test performance interval with large value."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-interval', '3600'
+        ])
+        assert args.performance_interval == 3600
+
+    def test_performance_interval_invalid_string(self, argparser):
+        """Test performance interval with invalid string."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--performance-interval', 'invalid'
+            ])
+
+    def test_performance_pushgateway_url_formats(self, argparser):
+        """Test various URL formats for pushgateway."""
+        test_urls = [
+            'http://localhost:9091',
+            'http://monit:9091',
+            'http://192.168.1.100:9091',
+            'http://monitoring-server.example.com:9091',
+        ]
+
+        for url in test_urls:
+            args = argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--performance-pushgateway', url
+            ])
+            assert args.performance_pushgateway == url
+
+    @pytest.mark.parametrize('export_format', ['json', 'prometheus', 'both'])
+    def test_all_valid_export_formats(self, argparser, export_format):
+        """Test all valid export format options."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-export-format', export_format
+        ])
+        assert args.performance_export_format == export_format
