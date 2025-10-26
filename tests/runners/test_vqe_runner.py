@@ -40,6 +40,7 @@ class TestVQERunner:
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
             mock_result.initial_data.optimizer = 'COBYLA'
             mock_result.initial_data.ansatz_reps = 3
@@ -243,6 +244,7 @@ class TestVQERunner:
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
             mock_result.initial_data.optimizer = 'COBYLA'
             mock_result.initial_data.ansatz_reps = 3
@@ -301,6 +303,7 @@ class TestVQERunner:
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
             mock_result.initial_data.optimizer = 'COBYLA'
             mock_result.initial_data.ansatz_reps = 3
@@ -357,6 +360,7 @@ class TestVQERunner:
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
             mock_result.initial_data.optimizer = 'COBYLA'
             mock_result.initial_data.ansatz_reps = 3
@@ -412,6 +416,7 @@ class TestVQERunner:
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
             mock_result.initial_data.optimizer = 'COBYLA'
             mock_result.initial_data.ansatz_reps = 3
@@ -505,6 +510,7 @@ class TestVQERunner:
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
             mock_result.initial_data.optimizer = 'COBYLA'
             mock_result.initial_data.ansatz_reps = 3
@@ -559,6 +565,7 @@ class TestVQERunner:
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
             mock_result.initial_data.optimizer = 'COBYLA'
             mock_result.initial_data.ansatz_reps = 3

@@ -15,6 +15,7 @@ from scipy.optimize import minimize
 
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.solvers.solver import Solver
+from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
 from quantum_pipeline.structures.vqe_observation import (
     VQEInitialData,
     VQEProcess,
@@ -60,18 +61,7 @@ class VQESolver(Solver):
         return ansatz_isa, hamiltonian_isa
 
     def computeEnergy(self, params, ansatz, hamiltonian, estimator):
-        """Return estimate of energy from estimator
-
-        Parameters:
-            params (ndarray): Array of ansatz parameters
-            ansatz (QuantumCircuit): Parameterized ansatz circuit
-            hamiltonian (SparsePauliOp): Operator representation of Hamiltonian
-            estimator (EstimatorV2): Estimator primitive instance
-            cost_history_dict: Dictionary for storing intermediate results
-
-        Returns:
-            float: Energy estimate
-        """
+        """Return estimate of energy from estimator"""
         pub = (ansatz, [hamiltonian], [params])
         result = estimator.run(pubs=[pub]).result()
         energy, std = result[0].data.evs[0], result[0].data.stds[0]
@@ -124,17 +114,34 @@ class VQESolver(Solver):
             estimator = EstimatorV2(mode=session)
             estimator.options.default_shots = self.default_shots
 
-            optimization_params = {
-                'maxiter': self.max_iterations,
-                'disp': False,
-            }
-
-            self.logger.info(
-                f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
+            optimization_params, minimize_tol = get_optimizer_configuration(
+                optimizer=self.optimizer,
+                max_iterations=self.max_iterations,
+                convergence_threshold=self.convergence_threshold,
+                num_parameters=len(x0)
             )
 
-            if self.convergence_threshold:
-                self.logger.info(f'Applying convergence threshold {self.convergence_threshold}.')
+            self.logger.debug(f'Optimization params: {optimization_params}')
+            if minimize_tol is not None:
+                self.logger.debug(f'Minimize tolerance: {minimize_tol}')
+
+            if self.convergence_threshold and self.max_iterations:
+                self.logger.info(
+                    f'Starting VQE optimization with max iterations {self.max_iterations} taking priority over '
+                    f'convergence threshold {self.convergence_threshold}'
+                )
+            elif self.convergence_threshold:
+                self.logger.info(
+                    f'Starting VQE optimization with convergence threshold {self.convergence_threshold}'
+                )
+            elif self.max_iterations:
+                self.logger.info(
+                    f'Starting VQE optimization with max iterations {self.max_iterations}'
+                )
+            else:
+                self.logger.info(
+                    f'Starting VQE optimization with default settings'
+                )
 
         with Timer() as t:
             res = minimize(
@@ -143,15 +150,28 @@ class VQESolver(Solver):
                 args=(ansatz_isa, hamiltonian_isa, estimator),
                 method=self.optimizer,
                 options=optimization_params,
-                tol=self.convergence_threshold if self.convergence_threshold else None,
+                tol=minimize_tol,
             )
+
+        actual_iterations = len(self.vqe_process)
+        if self.convergence_threshold:
+            if res.success:
+                self.logger.info(
+                    f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})'
+                )
+            else:
+                self.logger.info(
+                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved'
+                )
+        else:
+            self.logger.info(f'VQE completed {actual_iterations} iterations')
 
         result = VQEResult(
             initial_data=self.init_data,
             iteration_list=self.vqe_process,
             minimum=res.fun,
             optimal_parameters=res.x,
-            maxcv=res.maxcv,
+            maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
         )
 
@@ -193,14 +213,34 @@ class VQESolver(Solver):
         estimator = EstimatorV2(mode=backend)
         estimator.options.default_shots = self.default_shots
 
-        optimization_params = {
-            'maxiter': self.max_iterations,
-            'disp': False,
-        }
-
-        self.logger.info(
-            f'Starting the minimization process with max iterations equal to {self.max_iterations}.'
+        optimization_params, minimize_tol = get_optimizer_configuration(
+            optimizer=self.optimizer,
+            max_iterations=self.max_iterations,
+            convergence_threshold=self.convergence_threshold,
+            num_parameters=len(x0)
         )
+
+        self.logger.debug(f'Optimization params: {optimization_params}')
+        if minimize_tol is not None:
+            self.logger.debug(f'Minimize tolerance: {minimize_tol}')
+
+        if self.convergence_threshold and self.max_iterations:
+            self.logger.info(
+                f'Starting VQE optimization with max iterations {self.max_iterations} taking priority over '
+                f'convergence threshold {self.convergence_threshold}'
+            )
+        elif self.convergence_threshold:
+            self.logger.info(
+                f'Starting VQE optimization with convergence threshold {self.convergence_threshold}'
+            )
+        elif self.max_iterations:
+            self.logger.info(
+                f'Starting VQE optimization with max iterations {self.max_iterations}'
+            )
+        else:
+            self.logger.info(
+                f'Starting VQE optimization with default settings'
+            )
         with Timer() as t:
             res = minimize(
                 self.computeEnergy,
@@ -208,15 +248,28 @@ class VQESolver(Solver):
                 args=(ansatz_isa, hamiltonian_isa, estimator),
                 method=self.optimizer,
                 options=optimization_params,
-                tol=self.convergence_threshold if self.convergence_threshold else None,
+                tol=minimize_tol,
             )
+
+        actual_iterations = len(self.vqe_process)
+        if self.convergence_threshold:
+            if res.success:
+                self.logger.info(
+                    f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})'
+                )
+            else:
+                self.logger.info(
+                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved'
+                )
+        else:
+            self.logger.info(f'VQE completed {actual_iterations} iterations')
 
         result = VQEResult(
             initial_data=self.init_data,
             iteration_list=self.vqe_process,
             minimum=res.fun,
             optimal_parameters=res.x,
-            maxcv=res.maxcv,
+            maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
         )
 
@@ -227,6 +280,9 @@ class VQESolver(Solver):
 
     def solve(self):
         """Run the VQE simulation and return the result."""
+        self.current_iter = 1
+        self.vqe_process = []
+
         backend = self.get_backend()
 
         result = None

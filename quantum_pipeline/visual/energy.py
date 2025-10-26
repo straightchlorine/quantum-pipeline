@@ -37,23 +37,25 @@ class EnergyPlotter:
         Filters points to avoid clutter on the graph.
 
         Returns:
-            Tuple of filtered iterations and energy values.
+            Tuple of filtered iterations, energy values, and standard deviations.
         """
         total_points = len(self.iterations)
         if total_points <= self.max_points:
-            return self.iterations, self.energy_values
+            return self.iterations, self.energy_values, self.stds
 
         # downsample points to a maximum of max_points
         step = max(1, total_points // self.max_points)
         filtered_iterations = self.iterations[::step]
         filtered_energy_values = self.energy_values[::step]
+        filtered_stds = self.stds[::step]
 
         # last point always included
         if self.iterations[-1] not in filtered_iterations:
             filtered_iterations.append(self.iterations[-1])
             filtered_energy_values.append(self.energy_values[-1])
+            filtered_stds.append(self.stds[-1])
 
-        return filtered_iterations, filtered_energy_values
+        return filtered_iterations, filtered_energy_values, filtered_stds
 
     def plot_convergence(self, title='Energy Convergence'):
         """
@@ -63,14 +65,14 @@ class EnergyPlotter:
             title: Title of the plot.
             save_path: Path to save the plot (optional).
         """
-        iterations, energy_values = self._filter_points()
+        iterations, energy_values, stds = self._filter_points()
 
         plt.figure(figsize=(10, 6))
         # plt.plot(iterations, energy_values, marker='o', label='Energy')
         plt.errorbar(
             iterations,
             energy_values,
-            yerr=self.stds,
+            yerr=stds,
             fmt='o-',
             label='Energy',
             capsize=5,

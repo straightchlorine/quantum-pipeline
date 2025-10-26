@@ -13,3 +13,5 @@ scipy>=1.15.2
 pyscf>=2.8.0
 cryptography>=44.0.1
 pyspark>=3.5.5
+psutil==7.1.2
+pylatexenc==2.10

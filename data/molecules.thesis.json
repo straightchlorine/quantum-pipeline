@@ -1,0 +1,147 @@
+[
+  {
+    "name": "H2",
+    "symbols": ["H", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.0, 0.7414]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [1.008, 1.008],
+    "description": "Hydrogen molecule - benchmark system for VQE algorithms",
+    "expected_qubits": 4,
+    "complexity_level": 1,
+    "experimental_bond_length_angstrom": 0.7414,
+    "reference": "NIST CCCBDB, experimental spectroscopic data"
+  },
+  {
+    "name": "HeH+",
+    "symbols": ["He", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.0, 0.7719]
+    ],
+    "multiplicity": 1,
+    "charge": 1,
+    "units": "angstrom",
+    "masses": [4.0026, 1.008],
+    "description": "Helium hydride cation - first molecule formed in universe",
+    "expected_qubits": 4,
+    "complexity_level": 1,
+    "experimental_bond_length_angstrom": 0.7719,
+    "reference": "Roberge & Dalgarno, ApJ 1982; Güsten et al. Nature 2019"
+  },
+  {
+    "name": "LiH",
+    "symbols": ["Li", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.0, 1.5949]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [6.94, 1.008],
+    "description": "Lithium hydride - ionic character and correlation effects",
+    "expected_qubits": 8,
+    "complexity_level": 2,
+    "experimental_bond_length_angstrom": 1.5949,
+    "reference": "Herzberg G., Molecular Spectra and Molecular Structure"
+  },
+  {
+    "name": "BeH2",
+    "symbols": ["Be", "H", "H"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.0, 1.3264],
+      [0.0, 0.0, -1.3264]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [9.0122, 1.008, 1.008],
+    "description": "Beryllium dihydride - linear molecule, electron correlation",
+    "expected_qubits": 12,
+    "complexity_level": 3,
+    "experimental_bond_length_angstrom": 1.3264,
+    "bond_angle_degrees": 180.0,
+    "reference": "CCSD(T) calculations, Dunning basis sets"
+  },
+  {
+    "name": "H2O",
+    "symbols": ["O", "H", "H"],
+    "coords": [
+      [0.0, 0.0, 0.1173],
+      [0.0, 0.7572, -0.4692],
+      [0.0, -0.7572, -0.4692]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [15.999, 1.008, 1.008],
+    "description": "Water molecule - bent geometry, lone pairs",
+    "expected_qubits": 14,
+    "complexity_level": 3,
+    "experimental_bond_length_angstrom": 0.9584,
+    "bond_angle_degrees": 104.478,
+    "reference": "NIST Webbook, microwave spectroscopy"
+  },
+  {
+    "name": "NH3",
+    "symbols": ["N", "H", "H", "H"],
+    "coords": [
+      [0.0, 0.0, 0.1128],
+      [0.0, 0.9395, -0.2632],
+      [0.8137, -0.4698, -0.2632],
+      [-0.8137, -0.4698, -0.2632]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [14.007, 1.008, 1.008, 1.008],
+    "description": "Ammonia molecule - trigonal pyramidal, lone pair effects",
+    "expected_qubits": 16,
+    "complexity_level": 4,
+    "experimental_bond_length_angstrom": 1.0124,
+    "bond_angle_degrees": 106.67,
+    "reference": "Microwave spectroscopy, Townes & Schawlow"
+  },
+  {
+    "name": "CO2",
+    "symbols": ["C", "O", "O"],
+    "coords": [
+      [0.0, 0.0, 0.0],
+      [0.0, 0.0, 1.1621],
+      [0.0, 0.0, -1.1621]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [12.011, 15.999, 15.999],
+    "description": "Carbon dioxide - linear, double bonds, atmospheric relevance",
+    "expected_qubits": 18,
+    "complexity_level": 4,
+    "experimental_bond_length_angstrom": 1.1621,
+    "bond_angle_degrees": 180.0,
+    "reference": "NIST Webbook, infrared spectroscopy"
+  },
+  {
+    "name": "N2",
+    "symbols": ["N", "N"],
+    "coords": [
+      [0.0, 0.0, -0.5488],
+      [0.0, 0.0, 0.5488]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [14.007, 14.007],
+    "description": "Nitrogen molecule - triple bond, strong correlation",
+    "expected_qubits": 10,
+    "complexity_level": 3,
+    "experimental_bond_length_angstrom": 1.0975,
+    "reference": "NIST CCCBDB, experimental spectroscopic data"
+  }
+]

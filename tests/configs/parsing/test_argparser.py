@@ -224,6 +224,202 @@ def test_vqe_parameters(argparser):
     assert args.optimizer == 'COBYLA'
 
 
+def test_max_iterations_default(argparser):
+    """Test that max_iterations uses default when not specified."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json'])
+    assert args.max_iterations == 100  # Should use DEFAULTS['max_iterations']
+
+
+def test_max_iterations_explicit(argparser):
+    """Test that max_iterations uses explicit value when provided."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '3'])
+    assert args.max_iterations == 3
+
+
+class TestArgparserEdgeCases:
+    """Test edge cases and input validation for argparser."""
+
+    def test_max_iterations_zero(self, argparser):
+        """Test max_iterations with zero value."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '0'])
+        assert args.max_iterations == 0
+
+    def test_max_iterations_negative(self, argparser):
+        """Test max_iterations with negative value."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '-5'])
+        assert args.max_iterations == -5
+
+    def test_max_iterations_very_large(self, argparser):
+        """Test max_iterations with very large value."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '999999'])
+        assert args.max_iterations == 999999
+
+    def test_max_iterations_string_number(self, argparser):
+        """Test max_iterations with string that converts to int."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '42'])
+        assert args.max_iterations == 42
+        assert isinstance(args.max_iterations, int)
+
+    def test_max_iterations_invalid_string(self, argparser):
+        """Test max_iterations with invalid string."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', 'invalid'])
+
+    def test_max_iterations_float_string(self, argparser):
+        """Test max_iterations with float string."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '3.14'])
+
+    def test_threshold_zero(self, argparser):
+        """Test convergence threshold with zero value."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '0'])
+        assert args.threshold == 0.0
+
+    def test_threshold_negative(self, argparser):
+        """Test convergence threshold with negative value."""
+        # Note: argparse treats negative numbers as options, so we need to use = syntax
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold=-1e-6'])
+        assert args.threshold == -1e-6
+
+    def test_threshold_very_small(self, argparser):
+        """Test convergence threshold with very small value."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '1e-20'])
+        assert args.threshold == 1e-20
+
+    def test_threshold_scientific_notation(self, argparser):
+        """Test convergence threshold with scientific notation."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '1.5e-7'])
+        assert args.threshold == 1.5e-7
+
+    def test_threshold_invalid_string(self, argparser):
+        """Test convergence threshold with invalid string."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', 'invalid'])
+
+    def test_convergence_flag_behavior(self, argparser):
+        """Test convergence flag behavior with and without threshold."""
+        # With convergence flag
+        args_with_flag = argparser.parser.parse_args(['--file', 'molecule.json', '--convergence'])
+        assert args_with_flag.convergence is True
+
+        # Without convergence flag
+        args_without_flag = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert args_without_flag.convergence is False
+
+    def test_multiple_flags_combination(self, argparser):
+        """Test various combinations of max_iterations and convergence flags."""
+        # Both specified
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--max-iterations', '10',
+            '--convergence',
+            '--threshold', '1e-6'
+        ])
+        assert args.max_iterations == 10
+        assert args.convergence is True
+        assert args.threshold == 1e-6
+
+        # Only max_iterations
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--max-iterations', '5'
+        ])
+        assert args.max_iterations == 5
+        assert args.convergence is False
+
+        # Only convergence
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--convergence',
+            '--threshold', '1e-8'
+        ])
+        assert args.max_iterations == 100  # Default value
+        assert args.convergence is True
+        assert args.threshold == 1e-8
+
+    def test_optimizer_valid_choices(self, argparser):
+        """Test optimizer with all valid choices."""
+        valid_optimizers = ['COBYLA', 'L-BFGS-B', 'COBYQA']  # Use actual supported optimizers
+
+        for optimizer in valid_optimizers:
+            args = argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--optimizer', optimizer
+            ])
+            assert args.optimizer == optimizer
+
+    def test_optimizer_invalid_choice(self, argparser):
+        """Test optimizer with invalid choice."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--optimizer', 'INVALID_OPTIMIZER'
+            ])
+
+    def test_optimizer_case_sensitivity(self, argparser):
+        """Test optimizer case sensitivity."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--optimizer', 'cobyla'  # lowercase should fail
+            ])
+
+    def test_missing_required_file(self, argparser):
+        """Test behavior when required file argument is missing."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--max-iterations', '10'])
+
+    def test_empty_file_string(self, argparser):
+        """Test behavior with empty file string."""
+        args = argparser.parser.parse_args(['--file', ''])
+        assert args.file == ''
+
+    def test_file_with_spaces(self, argparser):
+        """Test file path with spaces."""
+        args = argparser.parser.parse_args(['--file', 'path with spaces/molecule.json'])
+        assert args.file == 'path with spaces/molecule.json'
+
+    def test_special_characters_in_file(self, argparser):
+        """Test file path with special characters."""
+        special_path = 'mol@cule#data$.json'
+        args = argparser.parser.parse_args(['--file', special_path])
+        assert args.file == special_path
+
+    def test_max_iterations_boundary_values(self, argparser):
+        """Test max_iterations with boundary values."""
+        # Test with 1 (minimum meaningful value)
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '1'])
+        assert args.max_iterations == 1
+
+        # Test with maximum int value
+        import sys
+        max_int = str(sys.maxsize)
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', max_int])
+        assert args.max_iterations == sys.maxsize
+
+    def test_threshold_boundary_values(self, argparser):
+        """Test convergence threshold with boundary values."""
+        import sys
+
+        # Test with very small positive value
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '1e-308'])
+        assert args.threshold == 1e-308
+
+        # Test with 1.0 (upper boundary for typical convergence)
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '1.0'])
+        assert args.threshold == 1.0
+
+    def test_default_values_preservation(self, argparser):
+        """Test that default values are properly preserved."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+
+        # Check defaults from DEFAULTS dict
+        assert args.max_iterations == 100  # DEFAULTS['max_iterations']
+        assert args.optimizer == 'L-BFGS-B'  # DEFAULTS['optimizer']
+        assert args.convergence is False  # DEFAULTS['convergence_threshold_enable']
+        assert args.threshold == 1e-6  # DEFAULTS['convergence_threshold']
+
+
 def test_output_and_logging(argparser):
     """Test output and logging arguments."""
     args = argparser.parser.parse_args(
@@ -361,3 +557,142 @@ def test_conflicting_config_options(argparser):
     """Test conflicting configuration options."""
     with pytest.raises(SystemExit):
         argparser.parser.parse_args(['--dump', '--load', 'config.json', '--file', 'molecule.json'])
+
+
+class TestPerformanceMonitoringArguments:
+    """Test performance monitoring related arguments."""
+
+    def test_enable_performance_monitoring_flag(self, argparser):
+        """Test --enable-performance-monitoring flag."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--enable-performance-monitoring'
+        ])
+        assert args.enable_performance_monitoring is True
+
+    def test_performance_monitoring_disabled_by_default(self, argparser):
+        """Test that performance monitoring is disabled by default."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert hasattr(args, 'enable_performance_monitoring')
+        assert args.enable_performance_monitoring is False
+
+    def test_performance_interval_argument(self, argparser):
+        """Test --performance-interval argument."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-interval', '30'
+        ])
+        assert args.performance_interval == 30
+
+    def test_performance_interval_default(self, argparser):
+        """Test default value for performance interval."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert args.performance_interval == 30
+
+    def test_performance_pushgateway_argument(self, argparser):
+        """Test --performance-pushgateway argument."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-pushgateway', 'http://monit:9091'
+        ])
+        assert args.performance_pushgateway == 'http://monit:9091'
+
+    def test_performance_export_format_json(self, argparser):
+        """Test --performance-export-format with json."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-export-format', 'json'
+        ])
+        assert args.performance_export_format == 'json'
+
+    def test_performance_export_format_prometheus(self, argparser):
+        """Test --performance-export-format with prometheus."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-export-format', 'prometheus'
+        ])
+        assert args.performance_export_format == 'prometheus'
+
+    def test_performance_export_format_both(self, argparser):
+        """Test --performance-export-format with both."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-export-format', 'both'
+        ])
+        assert args.performance_export_format == 'both'
+
+    def test_performance_export_format_default(self, argparser):
+        """Test default value for performance export format."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert args.performance_export_format == 'both'
+
+    def test_invalid_performance_export_format(self, argparser):
+        """Test invalid performance export format."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--performance-export-format', 'invalid'
+            ])
+
+    def test_complete_performance_monitoring_configuration(self, argparser):
+        """Test complete performance monitoring configuration."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--enable-performance-monitoring',
+            '--performance-interval', '10',
+            '--performance-pushgateway', 'http://monit:9091',
+            '--performance-export-format', 'both'
+        ])
+        assert args.enable_performance_monitoring is True
+        assert args.performance_interval == 10
+        assert args.performance_pushgateway == 'http://monit:9091'
+        assert args.performance_export_format == 'both'
+
+    def test_performance_interval_zero(self, argparser):
+        """Test performance interval with zero value."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-interval', '0'
+        ])
+        assert args.performance_interval == 0
+
+    def test_performance_interval_large_value(self, argparser):
+        """Test performance interval with large value."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-interval', '3600'
+        ])
+        assert args.performance_interval == 3600
+
+    def test_performance_interval_invalid_string(self, argparser):
+        """Test performance interval with invalid string."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--performance-interval', 'invalid'
+            ])
+
+    def test_performance_pushgateway_url_formats(self, argparser):
+        """Test various URL formats for pushgateway."""
+        test_urls = [
+            'http://localhost:9091',
+            'http://monit:9091',
+            'http://192.168.1.100:9091',
+            'http://monitoring-server.example.com:9091',
+        ]
+
+        for url in test_urls:
+            args = argparser.parser.parse_args([
+                '--file', 'molecule.json',
+                '--performance-pushgateway', url
+            ])
+            assert args.performance_pushgateway == url
+
+    @pytest.mark.parametrize('export_format', ['json', 'prometheus', 'both'])
+    def test_all_valid_export_formats(self, argparser, export_format):
+        """Test all valid export format options."""
+        args = argparser.parser.parse_args([
+            '--file', 'molecule.json',
+            '--performance-export-format', export_format
+        ])
+        assert args.performance_export_format == export_format

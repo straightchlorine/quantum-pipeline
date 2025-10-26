@@ -15,7 +15,7 @@ def sample_backend_defaults() -> Dict[str, Any]:
             'min_num_qubits': None,
             'filters': None,
             'gpu': False,
-            'method': 'automatic',
+            'method': 'tensor_network',
             'gpu_opts': {'cuStateVec_enable': True},
             'noise_backend': None,
         }

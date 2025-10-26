@@ -253,6 +253,31 @@ class QuantumPipelineArgParser:
             help='Choose, which noise model to base the simulation on.',
         )
 
+        # Performance Monitoring Options
+        perf_group = self.parser.add_argument_group('Performance Monitoring')
+        perf_group.add_argument(
+            '--enable-performance-monitoring',
+            action='store_true',
+            help='Enable detailed performance and resource monitoring for thesis analysis',
+        )
+        perf_group.add_argument(
+            '--performance-interval',
+            type=int,
+            default=30,
+            help='Performance metrics collection interval in seconds (default: 30)',
+        )
+        perf_group.add_argument(
+            '--performance-pushgateway',
+            type=str,
+            help='Prometheus PushGateway URL for metrics export',
+        )
+        perf_group.add_argument(
+            '--performance-export-format',
+            choices=['json', 'prometheus', 'both'],
+            default='both',
+            help='Performance metrics export format',
+        )
+
     def _add_security_options(self):
         security_group = self.parser.add_argument_group(
             'Security settings for Apache Kafka connection'

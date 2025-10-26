@@ -99,7 +99,7 @@ with DAG(
                 'org.apache.spark:spark-avro_2.12:3.5.5,'
                 'org.apache.hadoop:hadoop-aws:3.3.1,'
                 'org.apache.hadoop:hadoop-common:3.3.1,'
-                'org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2,'
+                'org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2'
             ),
         },
         env_vars={

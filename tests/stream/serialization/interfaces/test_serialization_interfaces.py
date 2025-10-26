@@ -567,7 +567,7 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
         self.assertIsInstance(schema, dict)
         self.assertEqual(schema['name'], 'VQEDecoratedResult')
-        self.assertEqual(len(schema['fields']), 8)
+        self.assertEqual(len(schema['fields']), 10)  # Updated for performance_start and performance_end fields
 
     def test_serialize(self):
         """Test serialization of VQEDecoratedResult."""
@@ -584,6 +584,49 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
         self.mock_result.assert_called_once_with(self.vqe_decorated_result.vqe_result)
         self.mock_molecule.assert_called_once_with(self.vqe_decorated_result.molecule)
+
+    def test_serialize_with_performance_data(self):
+        """Test serialization of VQEDecoratedResult with performance monitoring data."""
+        # Add performance data to the test object
+        performance_start = {
+            'timestamp': '2024-01-01T12:00:00',
+            'system': {'cpu': {'percent': 25.5}, 'memory': {'used': 1024*1024*100}},
+            'gpu': [{'index': 0, 'utilization_gpu': 80.0}]
+        }
+        performance_end = {
+            'timestamp': '2024-01-01T12:01:00',
+            'system': {'cpu': {'percent': 35.2}, 'memory': {'used': 1024*1024*150}},
+            'gpu': [{'index': 0, 'utilization_gpu': 95.0}]
+        }
+
+        self.vqe_decorated_result.performance_start = performance_start
+        self.vqe_decorated_result.performance_end = performance_end
+
+        serialized = self.interface.serialize(self.vqe_decorated_result)
+
+        # Check that performance data is serialized as JSON strings
+        self.assertIsNotNone(serialized['performance_start'])
+        self.assertIsNotNone(serialized['performance_end'])
+
+        # Verify the JSON strings can be parsed back
+        import json
+        deserialized_start = json.loads(serialized['performance_start'])
+        deserialized_end = json.loads(serialized['performance_end'])
+
+        self.assertEqual(deserialized_start['system']['cpu']['percent'], 25.5)
+        self.assertEqual(deserialized_end['system']['cpu']['percent'], 35.2)
+        self.assertEqual(deserialized_start['gpu'][0]['utilization_gpu'], 80.0)
+
+    def test_serialize_with_none_performance_data(self):
+        """Test serialization of VQEDecoratedResult with None performance data."""
+        self.vqe_decorated_result.performance_start = None
+        self.vqe_decorated_result.performance_end = None
+
+        serialized = self.interface.serialize(self.vqe_decorated_result)
+
+        # Check that None values are preserved
+        self.assertIsNone(serialized['performance_start'])
+        self.assertIsNone(serialized['performance_end'])
 
     def test_deserialize(self):
         """Test deserialization of VQEDecoratedResult."""
@@ -620,6 +663,82 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
                 mock_result_deserialize.assert_called_once_with({'mock': 'vqe_result'})
                 mock_molecule_deserialize.assert_called_once_with({'mock': 'molecule'})
+
+    def test_deserialize_with_performance_data(self):
+        """Test deserialization of VQEDecoratedResult with performance monitoring data."""
+        import json
+
+        performance_start = {
+            'timestamp': '2024-01-01T12:00:00',
+            'system': {'cpu': {'percent': 25.5}, 'memory': {'used': 104857600}},
+            'gpu': [{'index': 0, 'utilization_gpu': 80.0}]
+        }
+        performance_end = {
+            'timestamp': '2024-01-01T12:01:00',
+            'system': {'cpu': {'percent': 35.2}, 'memory': {'used': 157286400}},
+            'gpu': [{'index': 0, 'utilization_gpu': 95.0}]
+        }
+
+        with patch.object(
+            self.interface.result_interface, 'deserialize'
+        ) as mock_result_deserialize:
+            with patch.object(
+                self.interface.molecule_interface, 'deserialize'
+            ) as mock_molecule_deserialize:
+                mock_result_deserialize.return_value = self.vqe_decorated_result.vqe_result
+                mock_molecule_deserialize.return_value = self.vqe_decorated_result.molecule
+
+                data = {
+                    'vqe_result': {'mock': 'vqe_result'},
+                    'molecule': {'mock': 'molecule'},
+                    'basis_set': 'sto-3g',
+                    'hamiltonian_time': 1.5,
+                    'mapping_time': 0.5,
+                    'vqe_time': 10.5,
+                    'total_time': 12.5,
+                    'molecule_id': 1,
+                    'performance_start': json.dumps(performance_start),
+                    'performance_end': json.dumps(performance_end),
+                }
+
+                deserialized = self.interface.deserialize(data)
+
+                # Check that performance data is properly deserialized
+                self.assertIsNotNone(deserialized.performance_start)
+                self.assertIsNotNone(deserialized.performance_end)
+                self.assertEqual(deserialized.performance_start['system']['cpu']['percent'], 25.5)
+                self.assertEqual(deserialized.performance_end['system']['cpu']['percent'], 35.2)
+                self.assertEqual(deserialized.performance_start['gpu'][0]['utilization_gpu'], 80.0)
+
+    def test_deserialize_with_none_performance_data(self):
+        """Test deserialization of VQEDecoratedResult with None performance data."""
+        with patch.object(
+            self.interface.result_interface, 'deserialize'
+        ) as mock_result_deserialize:
+            with patch.object(
+                self.interface.molecule_interface, 'deserialize'
+            ) as mock_molecule_deserialize:
+                mock_result_deserialize.return_value = self.vqe_decorated_result.vqe_result
+                mock_molecule_deserialize.return_value = self.vqe_decorated_result.molecule
+
+                data = {
+                    'vqe_result': {'mock': 'vqe_result'},
+                    'molecule': {'mock': 'molecule'},
+                    'basis_set': 'sto-3g',
+                    'hamiltonian_time': 1.5,
+                    'mapping_time': 0.5,
+                    'vqe_time': 10.5,
+                    'total_time': 12.5,
+                    'molecule_id': 1,
+                    'performance_start': None,
+                    'performance_end': None,
+                }
+
+                deserialized = self.interface.deserialize(data)
+
+                # Check that None values are preserved
+                self.assertIsNone(deserialized.performance_start)
+                self.assertIsNone(deserialized.performance_end)
 
     def test_to_avro_bytes(self):
         """Test conversion to Avro binary format."""
