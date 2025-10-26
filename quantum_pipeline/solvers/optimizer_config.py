@@ -16,6 +16,13 @@ class OptimizerConfig(ABC):
 
     def __init__(self, max_iterations: Optional[int] = None,
                  convergence_threshold: Optional[float] = None):
+        # Validate mutually exclusive parameters
+        if max_iterations is not None and convergence_threshold is not None:
+            raise ValueError(
+                "max_iterations and convergence_threshold are mutually exclusive. "
+                "Please specify only one."
+            )
+
         self.max_iterations = max_iterations
         self.convergence_threshold = convergence_threshold
         self.logger = logging.getLogger(__name__)
@@ -37,26 +44,37 @@ class OptimizerConfig(ABC):
 
 
 class LBFGSBConfig(OptimizerConfig):
-    """Configuration for L-BFGS-B optimizer."""
+    """Configuration for L-BFGS-B optimizer.
+
+    Simplified behavior:
+    - If max_iterations is set: Use it with tight tolerances (1e-15) to enforce iteration limit
+    - If convergence_threshold is set: Use it with high max iterations (15000) to let it converge
+    - If neither is set: Use defaults (15000 iterations, standard scipy tolerances)
+    """
 
     def get_options(self, num_parameters: int) -> Dict[str, Any]:
-        options = {
-            'disp': False,
-        }
+        options = {'disp': False}
 
-        if self.max_iterations:
+        if self.max_iterations is not None:
+            # Mode: Strict iteration control
             # Set both maxfun and maxiter to prevent hanging
-            # maxfun: maximum function evaluations
-            # maxiter: maximum algorithm iterations
-            # Both are needed as independent stopping conditions
             options['maxfun'] = self.max_iterations
             options['maxiter'] = self.max_iterations
+            # Use tight tolerances to ensure iteration limit is respected
+            options['ftol'] = 1e-15
+            options['gtol'] = 1e-15
 
-        if self.convergence_threshold:
-            options.update({
-                'ftol': self.convergence_threshold,
-                'gtol': self.convergence_threshold,
-            })
+        elif self.convergence_threshold is not None:
+            # Mode: Convergence-based optimization
+            # Use high iteration limit to allow convergence
+            options['maxiter'] = 15000
+            options['ftol'] = self.convergence_threshold
+            options['gtol'] = self.convergence_threshold
+
+        else:
+            # Mode: Defaults
+            options['maxiter'] = 15000
+            # Let scipy use its default tolerances
 
         return options
 
@@ -69,21 +87,34 @@ class LBFGSBConfig(OptimizerConfig):
 
 
 class COBYLAConfig(OptimizerConfig):
-    """Configuration for COBYLA optimizer."""
+    """Configuration for COBYLA optimizer.
+
+    Simplified behavior:
+    - If max_iterations is set: Use it as the iteration limit
+    - If convergence_threshold is set: Use it with default iterations (1000)
+    - If neither is set: Use scipy defaults (1000 iterations)
+    """
 
     def get_options(self, num_parameters: int) -> Dict[str, Any]:
-        max_iter = self.max_iterations or 1000  # scipy default
+        if self.max_iterations is not None:
+            maxiter = self.max_iterations
+        elif self.convergence_threshold is not None:
+            maxiter = 1000  # Default when using convergence
+        else:
+            maxiter = 1000  # scipy default
+
         options = {
             'disp': False,
-            'maxiter': max_iter,
+            'maxiter': maxiter,
         }
         return options
 
     def get_minimize_tol(self) -> Optional[float]:
+        # COBYLA uses global tolerance parameter
         return self.convergence_threshold
 
     def validate_parameters(self, num_parameters: int) -> None:
-        if self.max_iterations:
+        if self.max_iterations is not None:
             min_recommended = num_parameters + 2
             if self.max_iterations < min_recommended:
                 self.logger.warning(
@@ -93,21 +124,35 @@ class COBYLAConfig(OptimizerConfig):
 
 
 class SLSQPConfig(OptimizerConfig):
-    """Configuration for SLSQP optimizer."""
+    """Configuration for SLSQP optimizer.
+
+    Simplified behavior:
+    - If max_iterations is set: Use it as the iteration limit
+    - If convergence_threshold is set: Use it with default iterations (100)
+    - If neither is set: Use scipy defaults (100 iterations)
+    """
 
     def get_options(self, num_parameters: int) -> Dict[str, Any]:
+        if self.max_iterations is not None:
+            maxiter = self.max_iterations
+        elif self.convergence_threshold is not None:
+            maxiter = 100  # Default when using convergence
+        else:
+            maxiter = 100  # scipy default
+
         options = {
             'disp': False,
-            'maxiter': self.max_iterations or 100  # scipy default
+            'maxiter': maxiter
         }
 
-        if self.convergence_threshold:
+        if self.convergence_threshold is not None:
             options['ftol'] = self.convergence_threshold
 
         return options
 
     def get_minimize_tol(self) -> Optional[float]:
-        return self.convergence_threshold if not self.max_iterations else None
+        # SLSQP uses global tolerance when convergence_threshold is set
+        return self.convergence_threshold
 
     def validate_parameters(self, num_parameters: int) -> None:
         if self.max_iterations is not None and self.max_iterations < 1:

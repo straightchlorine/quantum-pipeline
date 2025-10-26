@@ -34,11 +34,10 @@ class TestLBFGSBConfig:
         assert config.max_iterations is None
         assert config.convergence_threshold == 0.01
 
-    def test_init_with_both_parameters(self):
-        """Test initialization with both parameters."""
-        config = LBFGSBConfig(max_iterations=100, convergence_threshold=0.01)
-        assert config.max_iterations == 100
-        assert config.convergence_threshold == 0.01
+    def test_init_with_both_parameters_raises_error(self):
+        """Test that initialization with both parameters raises ValueError."""
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            LBFGSBConfig(max_iterations=100, convergence_threshold=0.01)
 
     def test_init_with_no_parameters(self):
         """Test initialization with no parameters."""
@@ -53,8 +52,10 @@ class TestLBFGSBConfig:
 
         assert options['disp'] is False
         assert options['maxfun'] == 50
-        assert 'ftol' not in options
-        assert 'gtol' not in options
+        assert options['maxiter'] == 50
+        # For strict max_iterations mode, should use tight tolerances
+        assert options['ftol'] == 1e-15
+        assert options['gtol'] == 1e-15
 
     def test_get_options_convergence_threshold_only(self):
         """Test get_options with convergence_threshold only."""
@@ -62,18 +63,15 @@ class TestLBFGSBConfig:
         options = config.get_options(num_parameters=10)
 
         assert options['disp'] is False
-        assert 'maxfun' not in options
+        # When only convergence_threshold is specified, use default maxiter
+        assert options['maxiter'] == 15000
         assert options['ftol'] == 0.001
         assert options['gtol'] == 0.001
 
-    def test_get_options_both_parameters(self):
-        """Test get_options with both parameters - max_iterations priority."""
-        config = LBFGSBConfig(max_iterations=30, convergence_threshold=0.001)
-        options = config.get_options(num_parameters=10)
-
-        assert options['maxfun'] == 30
-        assert options['ftol'] == 0.001
-        assert options['gtol'] == 0.001
+    def test_get_options_both_parameters_raises_error(self):
+        """Test that both parameters together raises ValueError."""
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            LBFGSBConfig(max_iterations=30, convergence_threshold=0.001)
 
     def test_get_options_no_parameters(self):
         """Test get_options with no parameters - uses defaults."""
@@ -118,11 +116,10 @@ class TestLBFGSBConfig:
 class TestCOBYLAConfig:
     """Test cases for COBYLA optimizer configuration."""
 
-    def test_init(self):
-        """Test COBYLA config initialization."""
-        config = COBYLAConfig(max_iterations=200, convergence_threshold=0.05)
-        assert config.max_iterations == 200
-        assert config.convergence_threshold == 0.05
+    def test_init_raises_error_with_both_parameters(self):
+        """Test COBYLA config raises error when both parameters are provided."""
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            COBYLAConfig(max_iterations=200, convergence_threshold=0.05)
 
     def test_get_options_with_max_iterations(self):
         """Test get_options with max_iterations."""
@@ -186,19 +183,18 @@ class TestCOBYLAConfig:
 class TestSLSQPConfig:
     """Test cases for SLSQP optimizer configuration."""
 
-    def test_init(self):
-        """Test SLSQP config initialization."""
-        config = SLSQPConfig(max_iterations=80, convergence_threshold=0.001)
-        assert config.max_iterations == 80
-        assert config.convergence_threshold == 0.001
+    def test_init_raises_error_with_both_parameters(self):
+        """Test SLSQP config raises error when both parameters are provided."""
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            SLSQPConfig(max_iterations=80, convergence_threshold=0.001)
 
     def test_get_options_with_convergence(self):
         """Test get_options with convergence_threshold."""
-        config = SLSQPConfig(max_iterations=60, convergence_threshold=0.005)
+        config = SLSQPConfig(convergence_threshold=0.005)
         options = config.get_options(num_parameters=8)
 
         assert options['disp'] is False
-        assert options['maxiter'] == 60
+        assert options['maxiter'] == 100  # Default when using convergence
         assert options['ftol'] == 0.005
 
     def test_get_options_without_convergence(self):
@@ -219,7 +215,7 @@ class TestSLSQPConfig:
 
     def test_get_minimize_tol_with_max_iterations(self):
         """Test get_minimize_tol returns None when max_iterations is set."""
-        config = SLSQPConfig(max_iterations=50, convergence_threshold=0.01)
+        config = SLSQPConfig(max_iterations=50)
         assert config.get_minimize_tol() is None
 
     def test_get_minimize_tol_without_max_iterations(self):
@@ -245,16 +241,24 @@ class TestOptimizerConfigFactory:
     """Test cases for OptimizerConfigFactory."""
 
     def test_create_config_lbfgsb(self):
-        """Test creating L-BFGS-B config."""
+        """Test creating L-BFGS-B config with max_iterations."""
         config = OptimizerConfigFactory.create_config(
             optimizer='L-BFGS-B',
-            max_iterations=100,
-            convergence_threshold=0.01
+            max_iterations=100
         )
 
         assert isinstance(config, LBFGSBConfig)
         assert config.max_iterations == 100
-        assert config.convergence_threshold == 0.01
+        assert config.convergence_threshold is None
+
+    def test_create_config_lbfgsb_raises_with_both(self):
+        """Test that factory raises error when both parameters are provided."""
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            OptimizerConfigFactory.create_config(
+                optimizer='L-BFGS-B',
+                max_iterations=100,
+                convergence_threshold=0.01
+            )
 
     def test_create_config_cobyla(self):
         """Test creating COBYLA config."""
@@ -332,31 +336,56 @@ class TestGetOptimizerConfiguration:
     """Test cases for the convenience function."""
 
     def test_get_optimizer_configuration_lbfgsb(self):
-        """Test convenience function with L-BFGS-B."""
+        """Test convenience function with L-BFGS-B max_iterations."""
         options, minimize_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B',
             max_iterations=50,
-            convergence_threshold=0.01,
             num_parameters=10
         )
 
         assert isinstance(options, dict)
         assert options['maxfun'] == 50
+        assert options['maxiter'] == 50
+        assert options['ftol'] == 1e-15  # Tight tolerance
+        assert options['gtol'] == 1e-15
+        assert minimize_tol is None
+
+    def test_get_optimizer_configuration_lbfgsb_convergence(self):
+        """Test convenience function with L-BFGS-B convergence_threshold."""
+        options, minimize_tol = get_optimizer_configuration(
+            optimizer='L-BFGS-B',
+            convergence_threshold=0.01,
+            num_parameters=10
+        )
+
+        assert isinstance(options, dict)
+        assert options['maxiter'] == 15000  # High default
         assert options['ftol'] == 0.01
         assert options['gtol'] == 0.01
         assert minimize_tol is None
 
     def test_get_optimizer_configuration_cobyla(self):
-        """Test convenience function with COBYLA."""
+        """Test convenience function with COBYLA max_iterations."""
         options, minimize_tol = get_optimizer_configuration(
             optimizer='COBYLA',
             max_iterations=100,
-            convergence_threshold=0.02,
             num_parameters=5
         )
 
         assert isinstance(options, dict)
         assert options['maxiter'] == 100
+        assert minimize_tol is None
+
+    def test_get_optimizer_configuration_cobyla_convergence(self):
+        """Test convenience function with COBYLA convergence_threshold."""
+        options, minimize_tol = get_optimizer_configuration(
+            optimizer='COBYLA',
+            convergence_threshold=0.02,
+            num_parameters=5
+        )
+
+        assert isinstance(options, dict)
+        assert options['maxiter'] == 1000  # Default
         assert minimize_tol == 0.02
 
     @patch('quantum_pipeline.solvers.optimizer_config.logging.getLogger')
@@ -415,12 +444,28 @@ class TestOptimizerConfigAbstractBase:
             def validate_parameters(self, num_parameters: int):
                 pass
 
-        # Should be able to instantiate
-        config = ConcreteConfig(max_iterations=10, convergence_threshold=0.01)
+        # Should be able to instantiate with one parameter
+        config = ConcreteConfig(max_iterations=10)
         assert config.max_iterations == 10
-        assert config.convergence_threshold == 0.01
+        assert config.convergence_threshold is None
         assert config.get_options(5) == {'test': True}
         assert config.get_minimize_tol() == 0.01
+
+    def test_concrete_implementation_raises_with_both(self):
+        """Test that validation works in abstract base class."""
+        class ConcreteConfig(OptimizerConfig):
+            def get_options(self, num_parameters: int):
+                return {'test': True}
+
+            def get_minimize_tol(self):
+                return 0.01
+
+            def validate_parameters(self, num_parameters: int):
+                pass
+
+        # Should raise error with both parameters
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            ConcreteConfig(max_iterations=10, convergence_threshold=0.01)
 
 
 # Integration tests
@@ -429,16 +474,14 @@ class TestOptimizerConfigIntegration:
 
     @pytest.mark.parametrize("optimizer", ['L-BFGS-B', 'COBYLA', 'SLSQP'])
     def test_full_workflow_all_optimizers(self, optimizer):
-        """Test complete workflow for all supported optimizers."""
+        """Test complete workflow for all supported optimizers with max_iterations."""
         max_iterations = 50
-        convergence_threshold = 0.01
         num_parameters = 10
 
-        # Create config
+        # Create config with max_iterations only
         config = OptimizerConfigFactory.create_config(
             optimizer=optimizer,
-            max_iterations=max_iterations,
-            convergence_threshold=convergence_threshold
+            max_iterations=max_iterations
         )
 
         # Validate
@@ -452,27 +495,46 @@ class TestOptimizerConfigIntegration:
         assert isinstance(options, dict)
         assert 'disp' in options
         assert options['disp'] is False
-        assert 'maxfun' in options or 'maxiter' in options  # L-BFGS-B uses maxfun, others use maxiter
-        # Check maxfun/maxiter depending on optimizer
-        if optimizer == 'L-BFGS-B':
-            if 'maxfun' in options:
-                assert options['maxfun'] == max_iterations
-        else:
-            assert options['maxiter'] == max_iterations
+        assert 'maxiter' in options
+        assert options['maxiter'] == max_iterations
+        assert minimize_tol is None or isinstance(minimize_tol, float)
+
+    @pytest.mark.parametrize("optimizer", ['L-BFGS-B', 'COBYLA', 'SLSQP'])
+    def test_full_workflow_convergence(self, optimizer):
+        """Test complete workflow for all supported optimizers with convergence_threshold."""
+        convergence_threshold = 0.01
+        num_parameters = 10
+
+        # Create config with convergence_threshold only
+        config = OptimizerConfigFactory.create_config(
+            optimizer=optimizer,
+            convergence_threshold=convergence_threshold
+        )
+
+        # Validate
+        config.validate_parameters(num_parameters)
+
+        # Get configuration
+        options = config.get_options(num_parameters)
+        minimize_tol = config.get_minimize_tol()
+
+        # Basic assertions
+        assert isinstance(options, dict)
+        assert 'disp' in options
+        assert options['disp'] is False
+        assert 'maxiter' in options  # All should have maxiter in convergence mode
         assert minimize_tol is None or isinstance(minimize_tol, float)
 
     def test_convenience_function_matches_direct_usage(self):
         """Test that convenience function produces same result as direct usage."""
         optimizer = 'L-BFGS-B'
         max_iterations = 100
-        convergence_threshold = 0.005
         num_parameters = 8
 
         # Direct usage
         config = OptimizerConfigFactory.create_config(
             optimizer=optimizer,
-            max_iterations=max_iterations,
-            convergence_threshold=convergence_threshold
+            max_iterations=max_iterations
         )
         config.validate_parameters(num_parameters)
         direct_options = config.get_options(num_parameters)
@@ -482,7 +544,6 @@ class TestOptimizerConfigIntegration:
         conv_options, conv_tol = get_optimizer_configuration(
             optimizer=optimizer,
             max_iterations=max_iterations,
-            convergence_threshold=convergence_threshold,
             num_parameters=num_parameters
         )
 

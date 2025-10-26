@@ -114,20 +114,15 @@ class TestLBFGSBMaxfunFix:
         assert options['ftol'] == 1e-4
         assert options['gtol'] == 1e-4
 
-    def test_lbfgsb_priority_maxfun_over_convergence(self):
-        """Test that maxfun takes priority when both are specified"""
-        options, minimize_tol = get_optimizer_configuration(
-            optimizer='L-BFGS-B',
-            max_iterations=25,
-            convergence_threshold=1e-6,
-            num_parameters=5
-        )
-
-        # Should have both maxfun and convergence settings
-        assert 'maxfun' in options
-        assert options['maxfun'] == 25
-        assert 'ftol' in options
-        assert options['ftol'] == 1e-6
+    def test_lbfgsb_mutual_exclusion(self):
+        """Test that both parameters raises error"""
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            get_optimizer_configuration(
+                optimizer='L-BFGS-B',
+                max_iterations=25,
+                convergence_threshold=1e-6,
+                num_parameters=5
+            )
 
     def test_cobyla_unchanged(self):
         """Test that COBYLA behavior is unchanged"""
