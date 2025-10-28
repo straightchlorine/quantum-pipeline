@@ -48,6 +48,7 @@ quantum_pipeline/
 ├── drivers/              # Molecule loading and basis set validation
 ├── features/             # Quantum circuit and Hamiltonian features
 ├── mappers/              # Fermionic-to-qubit mapping implementations
+├── monitoring/           # Performance monitoring (Prometheus/Grafana integration)
 ├── report/               # Report generation utilities
 ├── runners/              # VQE execution logic
 ├── solvers/              # VQE solver implementations
@@ -55,7 +56,7 @@ quantum_pipeline/
 ├── structures/           # Quantum and classical data structures
 ├── utils/                # Utility functions (logging, visualization, etc.)
 ├── visual/               # Visualization tools for molecules and operators
-├── docker/               # Docker configurations and deployment files
+├── docker/               # Docker configurations and deployment files (see docker/README.md)
 │   ├── airflow/          # Airflow DAGs and Spark processing scripts
 │   ├── connectors/       # Kafka Connect configurations
 │   ├── Dockerfile.cpu    # CPU-optimized container
@@ -100,17 +101,24 @@ quantum_pipeline/
    - Apache Airflow (webserver, scheduler, triggerer)
    - MinIO object storage
    - PostgreSQL database
+   - Prometheus & Grafana monitoring (optional)
+
+   **For detailed Docker configuration, environment variables, and troubleshooting, see [docker/README.md](docker/README.md).**
 
 5. **(Alternative) Build Individual Containers**:
+
+   Available Dockerfiles:
+   - `docker/Dockerfile.cpu` - CPU-optimized quantum simulation
+   - `docker/Dockerfile.gpu` - GPU-accelerated with CUDA support (requires NVIDIA Docker)
+   - `docker/Dockerfile.spark` - Apache Spark cluster nodes
+   - `docker/Dockerfile.airflow` - Apache Airflow workflow orchestration
+
    ```bash
    # CPU-optimized container
-   docker build -f docker/Dockerfile.cpu .
+   docker build -f docker/Dockerfile.cpu -t quantum-pipeline:cpu .
 
    # GPU-accelerated container (requires NVIDIA Docker)
-   docker build -f docker/Dockerfile.gpu .
-
-   # Spark processing container
-   docker build -f docker/Dockerfile.spark .
+   docker build -f docker/Dockerfile.gpu -t quantum-pipeline:gpu .
    ```
 
 6. **(Production) Use Pre-built Images**:
@@ -214,6 +222,89 @@ docker-compose exec quantum-pipeline python quantum_pipeline.py -f data/molecule
 # MinIO console at http://localhost:9001
 # Kafka UI available through connect APIs
 ```
+
+---
+
+## Optimizer Configuration
+
+The pipeline supports multiple optimizers with configurable parameters. The optimizer behavior is controlled by two **mutually exclusive** parameters:
+
+- `--max-iterations MAX_ITERATIONS`: Sets a hard limit on optimization iterations
+- `--convergence THRESHOLD`: Enables convergence-based optimization with specified threshold
+
+**Supported Optimizers**:
+- `L-BFGS-B` (default) - Recommended for GPU acceleration and accuracy
+- `COBYLA` - Constrained optimization by linear approximation
+- `SLSQP` - Sequential least squares programming
+
+**Best Practices**:
+- Use `--max-iterations` for controlled runtime (e.g., `--max-iterations 100`)
+- Use `--convergence` for accuracy-focused optimization (e.g., `--convergence 1e-6`)
+- For larger molecules, use high `--max-iterations` values (200-500+) as they require more calculations
+- **Never use both parameters simultaneously** - see Troubleshooting below
+
+**Configuration is handled in** `quantum_pipeline/solvers/optimizer_config.py:18-24`
+
+---
+
+## Performance Monitoring
+
+The pipeline includes comprehensive performance monitoring with Prometheus and Grafana integration. Monitor system resources (CPU, GPU, memory), VQE metrics, and convergence patterns in real-time.
+
+**For detailed monitoring setup and configuration, see [monitoring/README.md](monitoring/README.md).**
+
+Quick enable:
+```bash
+# Enable monitoring via environment variable
+export QUANTUM_PERFORMANCE_ENABLED=true
+export QUANTUM_PERFORMANCE_PUSHGATEWAY_URL=http://localhost:9091
+
+# Or via docker-compose with monitoring stack
+docker-compose -f docker-compose.yaml -f docker-compose.monitoring.yaml up
+```
+
+---
+
+## Troubleshooting
+
+### Optimizer Configuration Issues
+
+**Problem**: Calculations freeze or stop silently with no CPU/GPU usage
+
+**Symptoms**:
+- VQE optimization appears to hang
+- CPU/GPU usage drops to 0% during optimization
+- PerformanceMonitor (if enabled) still sends metrics to Prometheus, but no progress
+- No error messages in logs
+
+**Common Causes**:
+1. **Using both `--max-iterations` and `--convergence` simultaneously**
+   - These parameters are mutually exclusive
+   - The optimizer configuration will raise a `ValueError` if both are set
+   - If this check is bypassed, it can cause silent freezing
+
+2. **Insufficient `--max-iterations` for molecule complexity**
+   - Larger molecules require more iterations to converge
+   - Too few iterations can cause premature termination
+   - Recommendation: Start with 200-500 iterations for complex molecules
+
+**Solutions**:
+```bash
+# Good: Use only max-iterations
+python quantum_pipeline.py -f data/molecule.json --max-iterations 200 --optimizer L-BFGS-B
+
+# Good: Use only convergence threshold
+python quantum_pipeline.py -f data/molecule.json --convergence 1e-6 --optimizer L-BFGS-B
+
+# Bad: Don't use both (will raise ValueError)
+python quantum_pipeline.py -f data/molecule.json --max-iterations 100 --convergence 1e-6  # ❌ ERROR
+```
+
+**Recommendations**:
+- For production runs: Use `--max-iterations` with a generous limit
+- For research/accuracy: Use `--convergence` with appropriate threshold (1e-6 typical)
+- Monitor logs for optimizer warnings about parameter recommendations
+- Enable performance monitoring to detect silent failures early
 
 ---
 
