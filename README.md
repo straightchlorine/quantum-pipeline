@@ -480,5 +480,5 @@ This project is licensed under the MIT License. See the `LICENSE` file for more 
 ## Contact
 
 For questions or support, please reach out to:
-- **Email:** piotrlis555@gmail.com
+- **Email:** piotrkrzysztoflis@pm.me
 - **GitHub:** [straightchlorine](https://github.com/straightchlorine)
