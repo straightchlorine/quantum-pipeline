@@ -32,22 +32,21 @@ class ScientificReferenceDatabase:
             'H2': [
                 ScientificReference(
                     molecule_name='H2',
-                    ground_state_energy_hartree=-1.17447901,
-                    method='FCI',
-                    basis_set='cc-pVQZ',
-                    source='Kolos & Wolniewicz, J. Chem. Phys. 1968',
-                    doi='10.1063/1.1669199',
-                    uncertainty_hartree=1e-8,
-                    note='Near-exact non-relativistic limit'
+                    ground_state_energy_hartree=-1.164025030884,
+                    method='Nonrelativistic Schrödinger',
+                    basis_set='naJC exponentials',
+                    source='Pachucki & Komasa, J. Chem. Phys. 2016',
+                    doi='10.1063/1.4948309',
+                    uncertainty_hartree=1e-12,
+                    note='Unprecedented accuracy 10⁻¹². D₀ = 36118.7977463(2) cm⁻¹. Table I, p. 2'
                 ),
                 ScientificReference(
                     molecule_name='H2',
-                    ground_state_energy_hartree=-1.1744,
-                    method='Experimental',
-                    basis_set='N/A',
-                    source='Herzberg, Molecular Spectra and Molecular Structure',
-                    uncertainty_hartree=1e-4,
-                    note='Spectroscopic determination at equilibrium'
+                    ground_state_energy_hartree=-1.117,
+                    method='HF',
+                    basis_set='sto-3g',
+                    source='Szabo & Ostlund, Modern Quantum Chemistry, p. 108; Pachucki & Komasa, J. Chem. Phys. 2016, Table I, p. 2',
+                    note='Hartree-Fock with STO-3G basis set'
                 )
             ],
 
@@ -55,13 +54,11 @@ class ScientificReferenceDatabase:
             'HeH+': [
                 ScientificReference(
                     molecule_name='HeH+',
-                    ground_state_energy_hartree=-2.97884,
-                    method='CCSD(T)',
-                    basis_set='aug-cc-pVQZ',
-                    source='Bishop & Cheung, J. Phys. Chem. Ref. Data 1982',
-                    doi='10.1063/1.555713',
-                    uncertainty_hartree=1e-5,
-                    note='High-level ab initio calculation'
+                    ground_state_energy_hartree=-2.927,
+                    method='Full CI',
+                    basis_set='sto-3g',
+                    source='Szabo & Ostlund, Modern Quantum Chemistry, p. 231; Table 3.6, p. 178',
+                    note='Full Configuration Interaction with STO-3G basis set'
                 )
             ],
 
@@ -69,13 +66,11 @@ class ScientificReferenceDatabase:
             'LiH': [
                 ScientificReference(
                     molecule_name='LiH',
-                    ground_state_energy_hartree=-8.07055,
-                    method='CCSD(T)',
-                    basis_set='cc-pVQZ',
-                    source='Peterson et al., J. Chem. Phys. 2002',
-                    doi='10.1063/1.1520138',
-                    uncertainty_hartree=1e-5,
-                    note='Coupled cluster with large basis set'
+                    ground_state_energy_hartree=-7.882,
+                    method='CCSD',
+                    basis_set='sto-3g',
+                    source='Szabo & Ostlund, Modern Quantum Chemistry, p. 286; Avramidis et al., arXiv:2401.17054, Table I, p. 4',
+                    note='Coupled Cluster Singles and Doubles with STO-3G. VQE with UCCSD ansatz in Qiskit simulator'
                 )
             ],
 
@@ -83,13 +78,13 @@ class ScientificReferenceDatabase:
             'BeH2': [
                 ScientificReference(
                     molecule_name='BeH2',
-                    ground_state_energy_hartree=-15.86407,
-                    method='CCSD(T)',
-                    basis_set='cc-pVQZ',
-                    source='Martin & Taylor, J. Chem. Phys. 1994',
-                    doi='10.1063/1.467411',
+                    ground_state_energy_hartree=-15.56089,
+                    method='FCI',
+                    basis_set='CAS(2,3)',
+                    source='Belaloui et al., arXiv:2412.02606, 2024',
+                    doi='10.48550/arXiv.2412.02606',
                     uncertainty_hartree=1e-5,
-                    note='Linear geometry, coupled cluster'
+                    note='FCI with CAS(2,3) approximation, Be-H bond length 1.326 Å. VQE on IBM Fez QPU achieved -15.55901 Ha'
                 )
             ],
 
@@ -97,13 +92,11 @@ class ScientificReferenceDatabase:
             'H2O': [
                 ScientificReference(
                     molecule_name='H2O',
-                    ground_state_energy_hartree=-76.43832,
-                    method='CCSD(T)',
-                    basis_set='cc-pVQZ',
-                    source='Peterson et al., J. Chem. Phys. 1994',
-                    doi='10.1063/1.467146',
-                    uncertainty_hartree=1e-5,
-                    note='Equilibrium geometry, benchmark quality'
+                    ground_state_energy_hartree=-74.963,
+                    method='HF',
+                    basis_set='sto-3g',
+                    source='Szabo & Ostlund, Modern Quantum Chemistry, p. 108; Table 3.13, p. 192',
+                    note='Hartree-Fock with STO-3G for ten-electron series (CH4, NH3, H2O, FH)'
                 )
             ],
 
@@ -111,43 +104,14 @@ class ScientificReferenceDatabase:
             'NH3': [
                 ScientificReference(
                     molecule_name='NH3',
-                    ground_state_energy_hartree=-56.56388,
-                    method='CCSD(T)',
-                    basis_set='cc-pVQZ',
-                    source='Martin & Lee, Chem. Phys. Lett. 1996',
-                    doi='10.1016/0009-2614(96)00898-6',
-                    uncertainty_hartree=1e-5,
-                    note='Pyramid geometry, high-level correlation'
+                    ground_state_energy_hartree=-55.454,
+                    method='HF',
+                    basis_set='sto-3g',
+                    source='Szabo & Ostlund, Modern Quantum Chemistry, p. 108; Table 3.13, p. 192',
+                    note='Hartree-Fock with STO-3G for ten-electron series (CH4, NH3, H2O, FH)'
                 )
             ],
 
-            # Carbon dioxide
-            'CO2': [
-                ScientificReference(
-                    molecule_name='CO2',
-                    ground_state_energy_hartree=-188.65318,
-                    method='CCSD(T)',
-                    basis_set='cc-pVQZ',
-                    source='Martin & Taylor, J. Chem. Phys. 1997',
-                    doi='10.1063/1.473863',
-                    uncertainty_hartree=1e-5,
-                    note='Linear geometry, benchmark calculation'
-                )
-            ],
-
-            # Nitrogen molecule
-            'N2': [
-                ScientificReference(
-                    molecule_name='N2',
-                    ground_state_energy_hartree=-109.53931,
-                    method='CCSD(T)',
-                    basis_set='cc-pV5Z',
-                    source='Feller et al., J. Chem. Phys. 2013',
-                    doi='10.1063/1.4818725',
-                    uncertainty_hartree=1e-6,
-                    note='Triple bond, very high accuracy'
-                )
-            ]
         }
 
     def get_reference(self, molecule_name: str, method: str = 'CCSD(T)') -> Optional[ScientificReference]:

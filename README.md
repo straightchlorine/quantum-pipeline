@@ -1,5 +1,14 @@
 # Quantum Pipeline
 
+<div align="center">
+
+[![PyPI version](https://badge.fury.io/py/quantum-pipeline.svg)](https://pypi.org/project/quantum-pipeline/)
+[![Total Downloads](https://static.pepy.tech/badge/quantum-pipeline)](https://pepy.tech/project/quantum-pipeline)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/quantum-pipeline)](https://pypi.org/project/quantum-pipeline/)
+
+[![Docker Pulls](https://img.shields.io/docker/pulls/straightchlorine/quantum-pipeline.svg)](https://hub.docker.com/r/straightchlorine/quantum-pipeline)
+</div>
+
 ## Overview
 
 The Quantum Pipeline project is an extensible framework designed for exploring Variational Quantum Eigensolver (VQE) algorithms. It combines quantum and classical computing to estimate the ground-state energy of molecular systems with a comprehensive data engineering pipeline.
@@ -29,6 +38,7 @@ Currently, it offers VQE as its primary algorithm with production-grade data pro
 ### Analytics and Visualization
 - **Visualization Tools:** Plot molecular structures, energy convergence, and operator coefficients.
 - **Report Generation:** Automatically generate detailed reports for each processed molecule.
+- **Scientific Reference Validation:** Compare VQE results against experimentally verified and high-level theoretical ground state energies from peer-reviewed literature for 8+ molecules (H₂, HeH⁺, LiH, BeH₂, H₂O, NH₃, CO₂, N₂) with accuracy metrics and chemical accuracy tracking.
 - **Feature Tables:** Access structured data through 9 specialized ML feature tables (molecules, iterations, parameters, etc.).
 - **Processing Metadata:** Track data lineage and processing history with comprehensive metadata management.
 
@@ -170,18 +180,36 @@ python quantum_pipeline.py -f data/molecule.json -b sto-3g --max-iterations 100 
 
 Defaults for each option can be found in `configs/defaults.py` and the help message (`python quantum_pipeline.py -h`). Other available parameters include:
 
+**Core Parameters:**
 - `-f FILE, --file FILE`: Path to the molecule data file (required).
-- `-b BASIS, --basis BASIS`: Specify the basis set for the simulation.
-- `--local`: Use a local quantum simulator instead of IBM Quantum.
+- `-b BASIS, --basis BASIS`: Specify the basis set for the simulation (sto-3g, 6-31g, cc-pvdz).
+- `--ibm`: Use IBM Quantum backend (default is local simulator).
 - `--min-qubits MIN_QUBITS`: Specify the minimum number of qubits required.
-- `--max-iterations MAX_ITERATIONS`: Set the maximum number of VQE iterations.
-- `--optimizer OPTIMIZER`: Choose from a variety of optimization algorithms.
+- `--max-iterations MAX_ITERATIONS`: Set the maximum number of VQE iterations (mutually exclusive with `--convergence`).
+- `--convergence THRESHOLD`: Enable convergence-based optimization with specified threshold (mutually exclusive with `--max-iterations`).
+- `--optimizer OPTIMIZER`: Choose from 16+ optimization algorithms (see Optimizer Configuration section).
+- `-ar, --ansatz-reps REPS`: Number of ansatz repetitions (default: 3).
 - `--output-dir OUTPUT_DIR`: Specify the directory for storing output files.
 - `--log-level {DEBUG,INFO,WARNING,ERROR}`: Set the logging level.
+
+**Simulation Configuration:**
+- `--simulation-method METHOD`: Choose backend method (automatic, statevector, density_matrix, stabilizer, extended_stabilizer, matrix_product_state, unitary, superop, tensor_network).
 - `--shots SHOTS`: Number of shots for quantum circuit execution.
 - `--optimization-level {0,1,2,3}`: Circuit optimization level.
+- `--noise MODEL`: Choose noise model for simulation.
+- `--gpu`: Enable GPU acceleration (requires CUDA-enabled backend).
+
+**Data & Reporting:**
 - `--report`: Generate a PDF report after simulation.
 - `--kafka`: Stream data to Apache Kafka for real-time processing.
+- `--dump FILE`: Save current configuration to JSON file.
+- `--load FILE`: Load configuration from JSON file.
+
+**Performance Monitoring:**
+- `--enable-performance-monitoring`: Enable comprehensive performance metrics collection.
+- `--performance-interval SECONDS`: Metrics collection interval (default: 30s).
+- `--performance-pushgateway URL`: Prometheus PushGateway URL for metrics export.
+- `--performance-export-format {json,prometheus,both}`: Metrics export format.
 
 ### Example Configurations
 
@@ -197,10 +225,16 @@ python quantum_pipeline.py -f data/molecule.json -b cc-pvdz --max-iterations 200
 
 ### 3. Data Platform Integration
 
-**Kafka Streaming**: Enable real-time streaming to Apache Kafka:
+**Kafka Streaming**: Enable real-time streaming to Apache Kafka with Avro serialization:
 ```bash
 python quantum_pipeline.py -f data/molecule.json --kafka
 ```
+
+Data is serialized using **Avro** format with Schema Registry integration for type-safe messaging:
+- Binary Avro encoding for efficient transmission
+- Automatic numpy type conversion (float64 → double, int64 → long)
+- Schema versioning and evolution support
+- Deserialization interface: `quantum_pipeline.stream.serialization.interfaces.vqe`
 
 **Full Platform Deployment**: Launch with complete data processing pipeline:
 ```bash
@@ -211,15 +245,23 @@ docker-compose up -d
 docker-compose exec quantum-pipeline python quantum_pipeline.py -f data/molecules.json --kafka --gpu
 ```
 
-**Airflow Orchestration**: Access the Airflow web interface at `http://localhost:8084` to:
-- Monitor automated daily processing workflows
+**Airflow Orchestration**: Access the Airflow web interface at `http://airflow:8084` to:
+- Monitor automated daily processing workflows (DAG: `quantum_processing_dag`)
 - View data processing logs and metrics
 - Manage DAG schedules and configurations
+- Track incremental loading to Iceberg tables
+- Receive email alerts on success/failure
+
+The `quantum_processing_dag` DAG (`docker/airflow/quantum_processing_dag.py`) runs daily and:
+- Ingests VQE results from Kafka topics
+- Transforms data using Spark into ML features
+- Loads processed data into Apache Iceberg tables with time-travel support
+- Manages configuration via Airflow Variables
 
 **Spark Analytics**: Process and analyze quantum experiment data:
 ```bash
-# Access Spark master UI at http://localhost:8080
-# MinIO console at http://localhost:9001
+# Access Spark master UI at http://spark-master:8080
+# MinIO console at http://minio:9001
 # Kafka UI available through connect APIs
 ```
 
@@ -232,16 +274,42 @@ The pipeline supports multiple optimizers with configurable parameters. The opti
 - `--max-iterations MAX_ITERATIONS`: Sets a hard limit on optimization iterations
 - `--convergence THRESHOLD`: Enables convergence-based optimization with specified threshold
 
-**Supported Optimizers**:
-- `L-BFGS-B` (default) - Recommended for GPU acceleration and accuracy
+**Supported Optimizers** (16 total):
+
+**Gradient-Based (Recommended):**
+- `L-BFGS-B` (default) - Limited-memory BFGS with bounds; recommended for GPU acceleration and accuracy
+- `BFGS` - Broyden-Fletcher-Goldfarb-Shanno algorithm
+- `CG` - Conjugate gradient method
+- `Newton-CG` - Newton conjugate gradient
+- `TNC` - Truncated Newton with bounds
+
+**Trust-Region Methods:**
+- `trust-constr` - Trust-region constrained optimization
+- `trust-ncg` - Trust-region Newton conjugate gradient
+- `trust-exact` - Trust-region exact Hessian
+- `trust-krylov` - Trust-region Krylov method
+- `dogleg` - Dog-leg trust-region algorithm
+
+**Derivative-Free:**
 - `COBYLA` - Constrained optimization by linear approximation
+- `COBYQA` - Constrained optimization by quadratic approximation
+- `Powell` - Powell's method
+- `Nelder-Mead` - Simplex algorithm
+
+**Sequential Methods:**
 - `SLSQP` - Sequential least squares programming
 
+**Custom:**
+- `custom` - User-defined optimization function
+
 **Best Practices**:
+- Use `L-BFGS-B` for most cases - best balance of speed and accuracy
 - Use `--max-iterations` for controlled runtime (e.g., `--max-iterations 100`)
 - Use `--convergence` for accuracy-focused optimization (e.g., `--convergence 1e-6`)
 - For larger molecules, use high `--max-iterations` values (200-500+) as they require more calculations
-- **Never use both parameters simultaneously** - see Troubleshooting below
+- Gradient-based optimizers (L-BFGS-B, BFGS, CG) converge faster on smooth energy landscapes
+- Derivative-free optimizers (COBYLA, Powell) are more robust to noisy cost functions
+- **Never use both `--max-iterations` and `--convergence` simultaneously** - see Troubleshooting below
 
 **Configuration is handled in** `quantum_pipeline/solvers/optimizer_config.py:18-24`
 
@@ -249,7 +317,15 @@ The pipeline supports multiple optimizers with configurable parameters. The opti
 
 ## Performance Monitoring
 
-The pipeline includes comprehensive performance monitoring with Prometheus and Grafana integration. Monitor system resources (CPU, GPU, memory), VQE metrics, and convergence patterns in real-time.
+The pipeline includes comprehensive performance monitoring with Prometheus and Grafana integration, providing deep insights into quantum simulations and system performance.
+
+**Monitoring Capabilities:**
+- **System Metrics:** CPU, GPU, memory, disk I/O, and container resource usage
+- **VQE Metrics:** Energy convergence, iteration timing, optimization progress, parameter evolution
+- **Scientific Accuracy:** Real-time validation against reference database with error tracking
+- **Efficiency Metrics:** Iterations per second, overhead ratio, time per iteration
+- **Background Collection:** Non-blocking thread-based metrics gathering
+- **Multi-Format Export:** Prometheus PushGateway integration and JSON file export
 
 **For detailed monitoring setup and configuration, see [monitoring/README.md](monitoring/README.md).**
 
@@ -259,9 +335,20 @@ Quick enable:
 export QUANTUM_PERFORMANCE_ENABLED=true
 export QUANTUM_PERFORMANCE_PUSHGATEWAY_URL=http://localhost:9091
 
+# Or via CLI parameters
+python quantum_pipeline.py -f data/molecules.json \
+  --enable-performance-monitoring \
+  --performance-interval 30 \
+  --performance-pushgateway http://localhost:9091 \
+  --performance-export-format both
+
 # Or via docker-compose with monitoring stack
 docker-compose -f docker-compose.yaml -f docker-compose.monitoring.yaml up
 ```
+
+Access dashboards:
+- **Grafana:** http://grafana:3000 (comprehensive VQE and system metrics)
+- **Prometheus:** http://prometheus:9090 (raw metrics and queries)
 
 ---
 
