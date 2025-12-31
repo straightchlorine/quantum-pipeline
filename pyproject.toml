@@ -31,33 +31,60 @@ classifiers = [
 ]
 
 dependencies = [
+    # Quantum computing
     "qiskit>=1.4.2",
     "qiskit-ibm-runtime>=0.37.0",
     "qiskit-aer>=0.15.1",
     "qiskit-nature>=0.7.2",
     "pyscf>=2.8.0",
 
+    # Visualization and reporting
     "reportlab>=4.3.1",
     "matplotlib>=3.10.0",
+    "pylatexenc>=2.10",
+
+    # Scientific computing
     "scipy>=1.15.2",
     "numpy>=2.2.3",
-    "pyscf>=2.8.0",
-    "pylatexenc>=2.10",
     "psutil>=7.1.2",
 
+    # Data streaming and processing
     "avro>=1.12.0",
     "kafka-python-ng>=2.2.3",
-    "Requests>=2.32.3",
     "pyspark>=3.5.5",
 
+    # Utilities
     "cryptography>=44.0.1",
-    "Jinja2>=3.1.6"
+    "Jinja2>=3.1.6",
+    "Requests>=2.32.3",
 ]
 
 [project.optional-dependencies]
+# Development dependencies: testing, debugging, code quality
 dev = [
+    "pytest>=8.3.4",
+    "pytest-cov>=7.0.0",
     "debugpy>=1.8.12",
-    "pytest>=8.3.4"
+    "ruff>=0.6.0",
+    "black>=24.0.0",
+    "mypy>=1.10.0",
+    "flake8>=7.0.0",
+    "testcontainers>=4.13.3",
+    "pytest-mock>=3.15.1",
+]
+
+# Documentation generation and serving
+docs = [
+    "mkdocs>=1.5.3",
+    "mkdocs-material>=9.5.3",
+    "mkdocs-git-revision-date-localized-plugin>=1.2.2",
+    "pymdown-extensions>=10.7",
+]
+
+# Apache Airflow orchestration integration
+airflow = [
+    "apache-airflow>=2.10.5",
+    "apache-airflow-providers-apache-spark>=5.1.1",
 ]
 
 [project.urls]
