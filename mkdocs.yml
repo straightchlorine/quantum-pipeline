@@ -1,0 +1,177 @@
+site_name: Quantum Pipeline
+site_description: Extensible framework for exploring VQE algorithms with production-grade data engineering
+site_author: Piotr Krzysztof Lis
+site_url: https://straightchlorine.github.io/quantum-pipeline
+
+repo_name: straightchlorine/quantum-pipeline
+repo_url: https://github.com/straightchlorine/quantum-pipeline
+edit_uri: edit/master/docs/
+
+copyright: Copyright &copy; 2025 Piotr Krzysztof Lis
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+plugins:
+  - search:
+      lang: en
+  # - privacy: {}
+  - panzoom:
+  - git-revision-date-localized:
+      enable_creation_date: true
+      enable_git_follow: false
+      type: timeago
+
+markdown_extensions:
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+  # PyMdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/straightchlorine
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/straightchlorine/quantum-pipeline
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/quantum-pipeline/
+
+  version:
+    provider: mike
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quick-start.md
+      - Basic Usage: getting-started/basic-usage.md
+
+  - Usage:
+      - Overview: usage/index.md
+      - Configuration: usage/configuration.md
+      - Optimizers: usage/optimizers.md
+      - Simulation Methods: usage/simulation-methods.md
+      - Examples: usage/examples.md
+
+  - Architecture:
+      - Overview: architecture/index.md
+      - System Design: architecture/system-design.md
+      - Data Flow: architecture/data-flow.md
+      - Avro Serialization: architecture/avro-serialization.md
+
+  - Data Platform:
+      - Overview: data-platform/index.md
+      - Kafka Streaming: data-platform/kafka-streaming.md
+      - Spark Processing: data-platform/spark-processing.md
+      - Airflow Orchestration: data-platform/airflow-orchestration.md
+      - Iceberg Storage: data-platform/iceberg-storage.md
+
+  - Deployment:
+      - Overview: deployment/index.md
+      - Docker Basics: deployment/docker-basics.md
+      - Docker Compose: deployment/docker-compose.md
+      - GPU Acceleration: deployment/gpu-acceleration.md
+      - Environment Variables: deployment/environment-variables.md
+
+  - Monitoring:
+      - Overview: monitoring/index.md
+      - Performance Metrics: monitoring/performance-metrics.md
+      - Grafana Dashboards: monitoring/grafana-dashboards.md
+
+  - Scientific:
+      - Overview: scientific/index.md
+      - VQE Algorithm: scientific/vqe-algorithm.md
+      - Basis Sets: scientific/basis-sets.md
+      - Benchmarking: scientific/benchmarking.md
+
+  - Reference:
+      - Troubleshooting: reference/troubleshooting.md
+      - FAQ: reference/faq.md
+      - Changelog: reference/changelog.md

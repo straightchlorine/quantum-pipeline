@@ -77,7 +77,7 @@ docs = [
     "mkdocs>=1.5.3",
     "mkdocs-material>=9.5.3",
     "mkdocs-git-revision-date-localized-plugin>=1.2.2",
-    "mkdocs-mermaid-zoom>=0.1.0",
+    "mkdocs-panzoom-plugin>=0.5.2",
     "pymdown-extensions>=10.7",
 ]
 
