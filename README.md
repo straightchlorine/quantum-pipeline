@@ -1,11 +1,12 @@
 # Quantum Pipeline
 
+**Repository:** [Codeberg](https://codeberg.org/piotrkrzysztof/cloud) (primary) · [GitHub](https://github.com/straightchlorine/cloud) (mirror)
+
 <div align="center">
 
 [![PyPI version](https://badge.fury.io/py/quantum-pipeline.svg)](https://pypi.org/project/quantum-pipeline/)
 [![Total Downloads](https://static.pepy.tech/badge/quantum-pipeline)](https://pepy.tech/project/quantum-pipeline)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/quantum-pipeline)](https://pypi.org/project/quantum-pipeline/)
-
 [![Docker Pulls](https://img.shields.io/docker/pulls/straightchlorine/quantum-pipeline.svg)](https://hub.docker.com/r/straightchlorine/quantum-pipeline)
 </div>
 
