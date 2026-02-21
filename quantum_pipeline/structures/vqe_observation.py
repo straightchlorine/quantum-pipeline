@@ -57,8 +57,8 @@ class VQEDecoratedResult:
     molecule_id: int
 
     # Optional performance monitoring data
-    performance_start: dict = None
-    performance_end: dict = None
+    performance_start: dict | None = None
+    performance_end: dict | None = None
 
     def get_result_suffix(self) -> str:
         """Return the result suffix for Avro serialization."""

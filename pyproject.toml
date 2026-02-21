@@ -36,6 +36,7 @@ dependencies = [
     "qiskit-ibm-runtime>=0.37.0",
     "qiskit-aer>=0.15.1",
     "qiskit-nature>=0.7.2",
+    "qiskit-qasm3-import>=0.6.0",
     "pyscf>=2.8.0",
 
     # Visualization and reporting
@@ -65,10 +66,8 @@ dev = [
     "pytest>=8.3.4",
     "pytest-cov>=7.0.0",
     "debugpy>=1.8.12",
-    "ruff>=0.6.0",
-    "black>=24.0.0",
+    "ruff>=1.15.1",
     "mypy>=1.10.0",
-    "flake8>=7.0.0",
     "testcontainers>=4.13.3",
     "pytest-mock>=3.15.1",
 ]
@@ -95,7 +94,7 @@ line-length = 99
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "ASYNC", "S", "C4"]
+select = ["E", "F", "W", "I", "N", "UP", "ASYNC", "S", "C4", "B", "RET", "SIM", "PERF", "T20", "RUF", "TCH", "PIE"]
 ignore = ["E501"]
 
 [tool.ruff.format]
@@ -103,55 +102,63 @@ quote-style = "single"
 indent-style = "space"
 docstring-code-format = true
 
-[tool.black]
-line-length = 99
-target-version = ['py310']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
-
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = [
+    "qiskit.*",
+    "qiskit_aer.*",
+    "qiskit_nature.*",
+    "pyscf.*",
+    "kafka.*",
+    "pyspark.*",
+    "avro.*",
+    "reportlab.*",
+    "pylatexenc.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q"
+addopts = "-ra -q --strict-markers --strict-config"
 testpaths = [
     "tests"
 ]
 pythonpath = [
     "."
 ]
+markers = [
+    "integration: integration tests",
+    "slow: slow-running tests",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+]
 
 [tool.coverage.run]
 source = ["quantum_pipeline"]
 omit = ["tests/*"]
+branch = true
 
-[tool.flake8]
-max-line-length = 127
-max-complexity = 10
-ignore = ["C901"]
-select = ["E9", "F63", "F7", "F82"]
-exclude = [
-    ".git",
-    "__pycache__",
-    "venv",
-    "build",
-    "dist",
+[tool.coverage.report]
+fail_under = 50
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
 ]
 
 [project.scripts]

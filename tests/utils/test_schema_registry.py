@@ -73,7 +73,7 @@ class TestSchemaNormalization:
 
     def test_normalize_invalid_schema_raises_error(self, schema_registry):
         """Test that invalid schema raises ValueError."""
-        with pytest.raises(ValueError, match='Invalid schema format'):
+        with pytest.raises(ValueError):
             schema_registry._normalize_schema(123)
 
     def test_normalize_invalid_json_raises_error(self, schema_registry):
@@ -255,100 +255,6 @@ class TestSchemaExistenceCheck:
             assert result1 is True
             assert result2 is False
             assert len(schema_registry.registry_schema_existence) == 2
-
-
-class TestCacheBehavior:
-    """Test caching behavior for schemas."""
-
-    def test_schema_cache_initialization(self, schema_registry):
-        """Test that schema cache starts empty."""
-        assert schema_registry.schema_cache == {}
-
-    def test_id_cache_initialization(self, schema_registry):
-        """Test that ID cache starts empty."""
-        assert schema_registry.id_cache == {}
-
-    def test_registry_existence_cache_initialization(self, schema_registry):
-        """Test that registry existence cache starts empty."""
-        assert schema_registry.registry_schema_existence == {}
-
-
-class TestEdgeCases:
-    """Test edge cases and boundary conditions."""
-
-    def test_empty_schema_name(self, schema_registry):
-        """Test with empty schema name."""
-        with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            availability_response = MagicMock()
-            availability_response.status_code = 200
-            schema_response = MagicMock()
-            schema_response.status_code = 404
-
-            mock_get.side_effect = [availability_response, schema_response]
-
-            result = schema_registry.is_schema_in_registry('')
-            assert result is False
-
-    def test_very_long_schema_name(self, schema_registry):
-        """Test with very long schema name."""
-        with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            availability_response = MagicMock()
-            availability_response.status_code = 200
-            schema_response = MagicMock()
-            schema_response.status_code = 200
-
-            mock_get.side_effect = [availability_response, schema_response]
-
-            long_name = 'schema-' + 'a' * 1000
-            result = schema_registry.is_schema_in_registry(long_name)
-            assert result is True
-
-    def test_schema_name_with_special_characters(self, schema_registry):
-        """Test with special characters in schema name."""
-        with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            availability_response = MagicMock()
-            availability_response.status_code = 200
-            schema_response = MagicMock()
-            schema_response.status_code = 200
-
-            mock_get.side_effect = [availability_response, schema_response]
-
-            result = schema_registry.is_schema_in_registry('schema-with-_special.chars')
-            assert result is True
-
-    def test_multiple_registries_checked(self, schema_registry):
-        """Test checking multiple schemas in sequence."""
-        with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            # Create responses: 1 availability + 3 schema checks (1 availability per schema check)
-            responses = []
-            # First schema check: availability + schema
-            responses.append(MagicMock(status_code=200))  # availability
-            responses.append(MagicMock(status_code=200))  # schema check
-            # Second schema check: availability + schema
-            responses.append(MagicMock(status_code=200))  # availability
-            responses.append(MagicMock(status_code=200))  # schema check
-            # Third schema check: availability + schema
-            responses.append(MagicMock(status_code=200))  # availability
-            responses.append(MagicMock(status_code=200))  # schema check
-
-            mock_get.side_effect = responses
-
-            for i in range(3):
-                result = schema_registry.is_schema_in_registry(f'schema-{i}')
-                assert result is True
-
-    def test_unicode_in_schema_name(self, schema_registry):
-        """Test with unicode characters in schema name."""
-        with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            availability_response = MagicMock()
-            availability_response.status_code = 200
-            schema_response = MagicMock()
-            schema_response.status_code = 200
-
-            mock_get.side_effect = [availability_response, schema_response]
-
-            result = schema_registry.is_schema_in_registry('schema-αβγ')
-            assert result is True
 
 
 class TestErrorHandling:

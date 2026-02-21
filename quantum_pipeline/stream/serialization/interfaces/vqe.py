@@ -118,7 +118,10 @@ class AvroInterfaceBase(ABC, Generic[T]):
         bytes_reader.read(4)
 
         # parse the schema and deserialize the object
-        parsed_schema = avro.schema.parse(self.schema)
+        schema = self.schema
+        parsed_schema = avro.schema.parse(
+            json.dumps(schema) if isinstance(schema, dict) else schema
+        )
         reader = DatumReader(parsed_schema)
         decoder = BinaryDecoder(bytes_reader)
         return self.deserialize(reader.read(decoder))

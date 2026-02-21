@@ -177,7 +177,7 @@ class VQESolver(Solver):
 
         self.logger.info('Session closed.')
         self.logger.info(
-            f'Calculations on quantum hardware via IBMQ completed in {t.elapsed:}.6f seconds.'
+            f'Calculations on quantum hardware via IBMQ completed in {t.elapsed:.6f} seconds.'
         )
         return result
 

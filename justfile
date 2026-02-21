@@ -170,29 +170,21 @@ test-watch:
 # CODE QUALITY AND FORMATTING
 # ============================================================================
 
-# Format code with ruff and black
+# Format code with ruff
 format:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Formatting code..."
-    echo "  Running ruff formatter..."
     pdm run ruff format quantum_pipeline/ tests/
-    echo "  Running black formatter..."
-    pdm run black quantum_pipeline/ tests/ --line-length=99
     echo ""
     echo "✓ Code formatted successfully"
 
-# Run linting checks (ruff + flake8)
+# Run linting checks with ruff
 lint:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Running linting checks..."
-    echo ""
-    echo "  Ruff linting..."
     pdm run ruff check quantum_pipeline/ tests/ --show-fixes
-    echo ""
-    echo "  Flake8 linting..."
-    pdm run flake8 quantum_pipeline/ tests/
     echo ""
     echo "✓ Linting checks complete"
 
@@ -216,20 +208,12 @@ quality:
     pdm run ruff check quantum_pipeline/ tests/
 
     echo ""
-    echo "2. Flake8 linting..."
-    pdm run flake8 quantum_pipeline/ tests/
-
-    echo ""
-    echo "3. Type checking with mypy..."
+    echo "2. Type checking with mypy..."
     pdm run mypy quantum_pipeline/
 
     echo ""
-    echo "4. Checking code formatting with ruff..."
+    echo "3. Checking code formatting with ruff..."
     pdm run ruff format --check quantum_pipeline/ tests/
-
-    echo ""
-    echo "4. Checking code formatting with black..."
-    pdm run black --check quantum_pipeline/ tests/ --line-length=99
 
     echo ""
     echo "✓ All quality checks passed!"
@@ -254,7 +238,6 @@ check:
     echo ""
     echo "2. Running linting checks..."
     pdm run ruff check quantum_pipeline/ tests/
-    pdm run flake8 quantum_pipeline/ tests/
 
     echo ""
     echo "3. Running type checks..."

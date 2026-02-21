@@ -1,13 +1,11 @@
-import logging
 import os
-import sys
 
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel
 from qiskit_ibm_runtime import QiskitRuntimeService
 
 from quantum_pipeline.configs.module.backend import BackendConfig
-from quantum_pipeline.configs.settings import LOG_LEVEL, SUPPORTED_OPTIMIZERS
+from quantum_pipeline.configs.settings import SUPPORTED_OPTIMIZERS
 from quantum_pipeline.utils.logger import get_logger
 
 
@@ -23,6 +21,7 @@ class Solver:
         supported_optimizers = ''
         for opt, description in SUPPORTED_OPTIMIZERS.items():
             supported_optimizers += f'{opt}: {description}'
+        return supported_optimizers
 
     def __validate_env(self):
         """Validates the environment variables required for IBM Quantum authentication.
@@ -70,12 +69,9 @@ class Solver:
 
             return service
 
-        except Exception:
+        except Exception as e:
             self.logger.error('IBM Quantum connection failed.')
-            if LOG_LEVEL == logging.DEBUG:
-                raise RuntimeError('IBM Quantum connection failed.')
-            else:
-                sys.exit(1)
+            raise RuntimeError('IBM Quantum connection failed.') from e
 
     def _get_noise_model(self, backend):
         provider = self._get_service()
@@ -86,12 +82,9 @@ class Solver:
             noise_model = NoiseModel.from_backend(backend)
             self.logger.info('Initialized noise model.')
             self.logger.debug(f'Model:\n\n{noise_model}')
-        except Exception:
+        except Exception as e:
             self.logger.error(f'Failed to get the noise model for backend {backend}.')
-            if LOG_LEVEL == logging.DEBUG:
-                raise RuntimeError(f'Failed to get the noise model for backend {backend}.')
-            else:
-                sys.exit(1)
+            raise RuntimeError(f'Failed to get the noise model for backend {backend}.') from e
 
         return noise_model
 
