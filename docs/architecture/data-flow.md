@@ -251,7 +251,7 @@ The schema registry client tries three sources in order: in-memory cache, remote
             "ansatz": "<QASM3 string>",
             "noise_backend": "undef",
             "default_shots": 1024,
-            "ansatz_reps": 3
+            "ansatz_reps": 2
         },
         "iteration_list": [
             {"iteration": 1, "parameters": ["..."], "result": -1.0, "std": 0.01}
@@ -271,7 +271,7 @@ The schema registry client tries three sources in order: in-memory cache, remote
             "masses": null
         }
     },
-    "basis_set": "sto-3g",
+    "basis_set": "sto3g",
     "hamiltonian_time": 2.34,
     "mapping_time": 0.45,
     "vqe_time": 45.67,

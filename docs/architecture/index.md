@@ -83,17 +83,15 @@ graph TD
 
 **Apache Kafka**
 
-- Distributed message broker
-- Topic-based publish/subscribe
-- Message persistence and replay
-- Partitioning for parallelism
+- Streams VQE results from simulation containers to storage
+- Topic-per-configuration naming for schema isolation
+- Message persistence enables replay and late consumers
 
 **Schema Registry**
 
-- Centralized Avro schema management
-- Schema versioning and evolution
-- Schema versioning (compatibility mode: NONE in development)
-- Automatic topic suffix generation
+- Centralized Avro schema management for VQE result schemas
+- Compatibility mode: NONE in development
+- Automatic topic suffix generation from simulation parameters
 
 **Kafka Connect**
 
@@ -110,11 +108,9 @@ graph TD
 
 **Apache Airflow**
 
-- DAG-based workflow orchestration
-- Daily scheduling for batch processing
+- Orchestrates daily Spark feature-engineering jobs
 - Retry logic (3 retries, 20-minute delay)
 - Email alerting on success/failure
-- PostgreSQL for metadata storage
 
 **Key DAG**: `quantum_feature_processing`
 
@@ -131,10 +127,8 @@ graph TD
 
 **Apache Spark Cluster**
 
-- Master node for job coordination
-- Worker nodes for distributed processing
-- In-memory computation engine
-- Support for Avro, Parquet, Iceberg
+- Master-worker configuration for distributed feature engineering
+- Reads raw Avro from MinIO, writes Iceberg feature tables in Parquet
 
 **Processing Pattern**
 
@@ -163,25 +157,18 @@ graph TD
 
 **MinIO (S3-Compatible Object Storage)**
 
-- Raw Avro files from Kafka Connect
-- Parquet files from Spark processing
-- Iceberg table data files
+- Stores raw Avro files (from Kafka Connect) and Parquet feature tables (from Spark)
 - Bucket: `local-vqe-results`
 
 **Apache Iceberg (Data Lake Metadata)**
 
-- ACID transaction support
-- Time-travel queries
-- Schema evolution
-- Snapshot isolation
-- Partition management
+- ACID transactions and snapshot isolation for feature tables
+- Time-travel queries for experiment reproducibility
+- Partition pruning for efficient queries
 
 **PostgreSQL**
 
 - Airflow metadata database
-- DAG run history
-- Task state tracking
-- Connection management
 
 ---
 
@@ -189,17 +176,11 @@ graph TD
 
 **Prometheus PushGateway**
 
-- Receives metrics from short-lived jobs
-- Gateway for container metrics
-- Time-series data storage
-- Label-based querying
+- Receives metrics from simulation containers (short-lived jobs)
 
 **Grafana**
 
-- Visualization dashboards
-- Real-time metric monitoring
-- Custom query panels
-- Alert management
+- Dashboards for VQE metrics, system resource usage, and experiment tracking
 
 **Monitored Metrics**:
 

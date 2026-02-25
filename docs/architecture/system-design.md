@@ -178,7 +178,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
 |-------|------|-------------|
 | `vqe_result` | VQEResult (nested) | Complete VQE optimization results |
 | `molecule` | MoleculeInfo (nested) | Molecular structure information |
-| `basis_set` | string | Basis set used (e.g., "sto-3g", "cc-pvdz") |
+| `basis_set` | string | Basis set used (e.g., `sto3g`, `cc-pvdz`) |
 | `hamiltonian_time` | double | Hamiltonian construction time (seconds) |
 | `mapping_time` | double | Fermionic-to-qubit mapping time (seconds) |
 | `vqe_time` | double | VQE optimization execution time (seconds) |
@@ -323,12 +323,8 @@ The Schema Registry provides several key capabilities:
 3. **Schema Evolution**: Supports adding/removing fields with default values
 4. **Centralized Schema Store**: Single source of truth for data structures
 
-!!! warning "Schema Compatibility Modes"
-    The system uses `NONE` compatibility mode in the connector configuration, allowing unrestricted schema evolution. In production systems, consider using:
-
-    - `BACKWARD`: New schema can read old data
-    - `FORWARD`: Old schema can read new data
-    - `FULL`: Both backward and forward compatible
+!!! warning "Schema Compatibility"
+    The system uses `NONE` compatibility mode in the connector configuration, allowing unrestricted schema evolution. For production, consider `BACKWARD` or `FULL` compatibility. See the [Confluent Schema Evolution docs](https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html) for details.
 
 ### Kafka Configuration Parameters
 
@@ -479,8 +475,8 @@ The following configuration defines how data is stored, the serialization format
 }
 ```
 
-!!! note "Connector Configuration Details"
-    For detailed S3 Sink connector parameter documentation, see the [Confluent S3 Sink Connector docs](https://docs.confluent.io/kafka-connectors/s3-sink/current/overview.html). Key project-specific choices: `flush.size: 1` for immediate write-through, `schema.compatibility: NONE` for unrestricted schema evolution, and `s3.path.style.access: true` required for MinIO.
+!!! note "Connector Configuration"
+    Key project-specific choices: `flush.size: 1` for immediate write-through, `schema.compatibility: NONE` for unrestricted schema evolution, and `s3.path.style.access: true` required for MinIO. See the [Confluent S3 Sink Connector docs](https://docs.confluent.io/kafka-connectors/s3-sink/current/overview.html) for parameter details.
 
 ### Directory Structure in MinIO
 
@@ -619,9 +615,9 @@ with DAG(
 
 The DAG runs daily with `catchup=False` (no backfill), retries up to 3 times with 20-minute delays, and sends email notifications on success/failure. For Airflow scheduling and retry configuration details, see the [Apache Airflow docs](https://airflow.apache.org/docs/apache-airflow/stable/index.html).
 
-The `SparkSubmitOperator` delegates to the Spark cluster. All connection parameters (MinIO credentials, Spark master URL, S3 endpoints) are managed through Airflow Variables, initialized from `DEFAULT_CONFIG` defaults and environment variables.
+The `SparkSubmitOperator` delegates to the Spark cluster. All connection parameters (MinIO credentials, Spark master URL, S3 endpoints) are managed through Airflow Variables, initialized from the `DEFAULT_CONFIG` dict in `quantum_incremental_processing.py` and environment variables.
 
-**Default Configuration Values:**
+**Default Configuration Values** (from `DEFAULT_CONFIG` in the processing script):
 
 ```python
 DEFAULT_CONFIG = {
@@ -1064,7 +1060,7 @@ The system creates 9 specialized feature tables:
     |--------|------|-------------|
     | experiment_id | string | Unique experiment identifier |
     | molecule_id | int | Molecule identifier |
-    | basis_set | string | Basis set (sto-3g, etc.) |
+    | basis_set | string | Basis set (e.g., `sto3g`) |
     | ansatz | string | QASM3 circuit representation |
     | ansatz_reps | int | Number of repetitions |
 
@@ -1206,7 +1202,7 @@ df = spark.read.format('iceberg') \
 ```sql
 -- Filter pushed to storage layer
 SELECT * FROM quantum_catalog.quantum_features.vqe_results
-WHERE basis_set = 'sto-3g' AND minimum_energy < -1.0;
+WHERE basis_set = 'sto3g' AND minimum_energy < -1.0;
 ```
 
 #### 3. Metadata-Only Queries

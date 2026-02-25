@@ -321,9 +321,9 @@ topic_name = f"vqe_decorated_result{suffix}"
 
 ```mermaid
 graph LR
-    P1[Producer v1<br/>H2, sto-3g, CPU] -->|topic_v1| K[Kafka]
-    P2[Producer v2<br/>H2, cc-pvdz, GPU] -->|topic_v2| K
-    P3[Producer v3<br/>LiH, sto-3g, GPU] -->|topic_v3| K
+    P1[Producer v1<br/>H2, STO-3G, CPU] -->|topic_v1| K[Kafka]
+    P2[Producer v2<br/>H2, cc-pVDZ, GPU] -->|topic_v2| K
+    P3[Producer v3<br/>LiH, STO-3G, GPU] -->|topic_v3| K
 
     K -->|topics.regex| C[Kafka Connect<br/>vqe_decorated_result_.*]
 
