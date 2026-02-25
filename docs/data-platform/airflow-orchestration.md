@@ -10,7 +10,7 @@
 
 ## DAG Structure
 
-The `quantum_feature_processing` DAG consists of a single task that submits a PySpark application to the Spark cluster.
+The [`quantum_feature_processing`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py) DAG consists of a single task that submits a PySpark application to the Spark cluster.
 
 ### DAG Configuration
 
@@ -52,8 +52,6 @@ with DAG(
 | `retry_delay` | `timedelta(minutes=20)` | 20-minute pause between retries |
 | `tags` | `['quantum', 'ML', ...]` | Tags for filtering in the Airflow UI |
 
-!!! info "Catchup Behavior"
-    With `catchup=False`, missed DAG runs are not backfilled. The next run picks up all unprocessed data.
 
 <figure>
   <img src="https://qp-docs.codextechnologies.org/mkdocs/airflow_dag_view.png"
@@ -109,7 +107,7 @@ quantum_simulation_results_processing = SparkSubmitOperator(
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
-| `application` | `/opt/airflow/dags/scripts/quantum_incremental_processing.py` | Path to the PySpark script inside the Airflow container |
+| `application` | `/opt/airflow/dags/scripts/quantum_incremental_processing.py` | Path to the PySpark script inside the Airflow container ([source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py)) |
 | `conn_id` | `spark_default` | Airflow connection ID for the Spark cluster |
 | `name` | `quantum_feature_processing` | Application name visible in the Spark Web UI |
 | `verbose` | `True` | Enables detailed Spark logging in Airflow task logs |

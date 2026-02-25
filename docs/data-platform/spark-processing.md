@@ -10,13 +10,14 @@
 
 ## Cluster Architecture
 
-The cluster runs in standalone master-worker mode with one master and two worker nodes. See the [Spark documentation](https://spark.apache.org/docs/latest/) for general cluster configuration.
+The cluster runs in standalone master-worker mode via a custom Spark Docker image ([`docker/Dockerfile.spark`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.spark)). See the [Spark documentation](https://spark.apache.org/docs/latest/) for general cluster configuration.
 
 | Node | Role | Resources |
 |------|------|-----------|
-| `spark-master` | Coordinator | 2 cores, 2 GB RAM |
-| `spark-worker-1` | Executor | 4 cores, 8 GB RAM |
-| `spark-worker-2` | Executor | 4 cores, 8 GB RAM |
+| `spark-master` | Coordinator | Default (no explicit limits) |
+| `spark-worker` | Executor | 1 core, 1 GB RAM ([`docker-compose.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.yaml)) |
+
+The thesis compose file ([`docker-compose.thesis.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.thesis.yaml)) increases the worker to 2 cores and 4 GB RAM with explicit resource limits.
 
 - Workers register with the master at `spark://spark-master:7077`
 - Airflow submits jobs via the `SparkSubmitOperator`
@@ -37,7 +38,7 @@ A 6-step workflow transforms raw VQE results into nine feature tables. Each run 
 
 ### Step 1: Create Spark Session
 
-A `SparkSession` is initialized with configuration for S3A (MinIO connectivity), Iceberg catalog integration, and adaptive query execution.
+A `SparkSession` is initialized with S3A (MinIO connectivity), Iceberg catalog integration, and adaptive query execution. The configuration is defined in `DEFAULT_CONFIG` at the top of the processing script.
 
 ```python
 spark = (
@@ -61,6 +62,11 @@ spark = (
 )
 ```
 
+Default S3 paths from `DEFAULT_CONFIG`:
+
+- Experiment bucket: `s3a://local-vqe-results/experiments/`
+- Feature warehouse: `s3a://local-features/warehouse/`
+
 ### Step 2: Initialize Iceberg Metadata
 
 The job reads or initializes the Iceberg metadata catalog. If this is the first run, the catalog and database are created. On subsequent runs, existing metadata is loaded to determine which data has already been processed.
@@ -81,7 +87,7 @@ def list_available_topics(spark, bucket_path):
 
 ### Step 3: Filter New Data
 
-New records are identified via anti-join against existing Iceberg table keys.
+New records are identified by joining against existing Iceberg table keys. A marker-column approach is used instead of `left_anti` to handle edge cases.
 
 ```python
 def identify_new_records(spark, new_data_df, table_name, key_columns):
@@ -98,32 +104,40 @@ def identify_new_records(spark, new_data_df, table_name, key_columns):
     if existing_keys.isEmpty():
         return new_data_df
 
-    # Anti-join to find only new records
-    new_keys = (new_data_df.select(*key_columns).distinct()
-                .join(existing_keys, on=key_columns, how='left_anti'))
+    # Marker-column join to find only new records
+    new_with_marker = (new_data_df.select(*key_columns).distinct()
+                       .withColumn('is_new', lit(1)))
+    existing_with_marker = existing_keys.withColumn('exists', lit(1))
+    joined = new_with_marker.join(existing_with_marker,
+                                  on=key_columns, how='left')
+    new_keys = joined.filter(col('exists').isNull()).select(*key_columns)
     return new_data_df.join(new_keys, on=key_columns, how='inner')
 ```
 
 ### Step 4: Extract Features
 
-Raw VQE data is transformed into nine specialized feature tables covering molecular structure, optimization, iterations, parameters, and Hamiltonians.
+Raw VQE data is transformed into nine specialized feature tables. The `transform_quantum_data` function flattens nested Avro fields and adds metadata columns (`experiment_id`, `processing_timestamp`, `processing_date`, `processing_batch_id`).
 
 ```python
 def transform_quantum_data(df):
     """Transform raw VQE data into specialized feature tables."""
     base_df = add_metadata_columns(df, 'quantum_base_processing')
+    # Flatten nested Avro fields into a wide DataFrame, then
+    # select columns for each feature table:
     return {
-        'molecules': extract_molecule_features(base_df),
-        'ansatz_info': extract_ansatz_features(base_df),
-        'performance_metrics': extract_performance_features(base_df),
-        'vqe_results': extract_vqe_features(base_df),
-        'initial_parameters': extract_initial_params(base_df),
-        'optimal_parameters': extract_optimal_params(base_df),
-        'vqe_iterations': extract_iteration_features(base_df),
-        'iteration_parameters': extract_iteration_params(base_df),
-        'hamiltonian_terms': extract_hamiltonian_features(base_df),
+        'molecules': df_molecule,
+        'ansatz_info': df_ansatz,
+        'performance_metrics': df_metrics,
+        'vqe_results': df_vqe,
+        'initial_parameters': df_initial_parameters,
+        'optimal_parameters': df_optimal_parameters,
+        'vqe_iterations': df_iterations,
+        'iteration_parameters': df_iteration_parameters,
+        'hamiltonian_terms': df_hamiltonian,
     }
 ```
+
+See [`docker/airflow/scripts/quantum_incremental_processing.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py) for the full implementation of each extraction.
 
 ### Step 5: Write Parquet to MinIO
 
@@ -153,7 +167,7 @@ def process_incremental_data(spark, new_data_df, table_name, key_columns,
 
 ### Step 6: Update Iceberg Snapshots
 
-After writing, a tagged Iceberg snapshot records the processing batch ID for time-travel queries.
+After writing, a tagged Iceberg snapshot records the processing batch ID for time-travel queries. Initial writes use `v_{batch_id}` tags; incremental appends use `v_incr_{batch_id}`.
 
 ```python
 snapshot_id = spark.sql(
@@ -181,7 +195,7 @@ Nine tables stored as Iceberg-managed Parquet files in MinIO under `quantum_cata
   <figcaption>Figure 2. Preview of processed feature data in Parquet format, queried with DuckDB.</figcaption>
 </figure>
 
-### 1. molecules
+### 1. `molecules`
 
 Molecular structure information for each simulated molecule.
 
@@ -198,7 +212,7 @@ Molecular structure information for each simulated molecule.
 
 **Partitioned by:** `processing_date`
 
-### 2. ansatz_info
+### 2. `ansatz_info`
 
 Quantum circuit ansatz configurations used in each experiment.
 
@@ -206,13 +220,13 @@ Quantum circuit ansatz configurations used in each experiment.
 |--------|------|-------------|
 | `experiment_id` | string | Unique experiment identifier |
 | `molecule_id` | int | Molecule identifier |
-| `basis_set` | string | Basis set (e.g., sto-3g, cc-pvdz) |
+| `basis_set` | string | Basis set (e.g., `sto3g`, `cc-pvdz`) |
 | `ansatz` | string | QASM3 circuit representation |
 | `ansatz_reps` | int | Number of ansatz repetitions |
 
 **Partitioned by:** `processing_date`, `basis_set`
 
-### 3. performance_metrics
+### 3. `performance_metrics`
 
 Execution timing and performance data for each simulation.
 
@@ -226,10 +240,11 @@ Execution timing and performance data for each simulation.
 | `vqe_time` | double | VQE optimization time (seconds) |
 | `total_time` | double | Total simulation time (seconds) |
 | `minimization_time` | double | Optimizer execution time (seconds) |
+| `computed_total_time` | double | Sum of `hamiltonian_time` + `mapping_time` + `vqe_time` |
 
 **Partitioned by:** `processing_date`, `basis_set`
 
-### 4. vqe_results
+### 4. `vqe_results`
 
 Core VQE optimization results including the minimum energy found.
 
@@ -238,15 +253,19 @@ Core VQE optimization results including the minimum energy found.
 | `experiment_id` | string | Unique experiment identifier |
 | `molecule_id` | int | Molecule identifier |
 | `basis_set` | string | Basis set |
-| `backend` | string | Qiskit backend (e.g., aer_simulator) |
+| `backend` | string | Qiskit backend (e.g., `aer_simulator`) |
 | `num_qubits` | int | Number of qubits in the circuit |
-| `optimizer` | string | Optimizer algorithm (e.g., L-BFGS-B, COBYLA) |
+| `optimizer` | string | Optimizer algorithm (e.g., `L-BFGS-B`, `COBYLA`) |
+| `noise_backend` | string | Noise model used (if any) |
+| `default_shots` | int | Number of shots per circuit execution |
+| `ansatz_reps` | int | Number of ansatz repetitions |
 | `minimum_energy` | double | Ground state energy estimate (Hartree) |
+| `maxcv` | double | Maximum constraint violation |
 | `total_iterations` | int | Number of optimizer iterations |
 
 **Partitioned by:** `processing_date`, `basis_set`, `backend`
 
-### 5. initial_parameters
+### 5. `initial_parameters`
 
 Starting variational parameters for each experiment.
 
@@ -255,12 +274,15 @@ Starting variational parameters for each experiment.
 | `parameter_id` | string | Unique parameter identifier |
 | `experiment_id` | string | Experiment identifier |
 | `molecule_id` | int | Molecule identifier |
+| `basis_set` | string | Basis set |
+| `backend` | string | Qiskit backend |
+| `num_qubits` | int | Number of qubits |
 | `parameter_index` | int | Parameter position in the circuit |
 | `initial_parameter_value` | double | Starting parameter value |
 
 **Partitioned by:** `processing_date`, `basis_set`
 
-### 6. optimal_parameters
+### 6. `optimal_parameters`
 
 Optimized variational parameters after VQE convergence.
 
@@ -269,12 +291,15 @@ Optimized variational parameters after VQE convergence.
 | `parameter_id` | string | Unique parameter identifier |
 | `experiment_id` | string | Experiment identifier |
 | `molecule_id` | int | Molecule identifier |
+| `basis_set` | string | Basis set |
+| `backend` | string | Qiskit backend |
+| `num_qubits` | int | Number of qubits |
 | `parameter_index` | int | Parameter position in the circuit |
 | `optimal_parameter_value` | double | Optimized parameter value |
 
 **Partitioned by:** `processing_date`, `basis_set`
 
-### 7. vqe_iterations
+### 7. `vqe_iterations`
 
 Per-iteration optimization data recording the energy at each step.
 
@@ -283,13 +308,16 @@ Per-iteration optimization data recording the energy at each step.
 | `iteration_id` | string | Unique iteration identifier |
 | `experiment_id` | string | Experiment identifier |
 | `molecule_id` | int | Molecule identifier |
+| `basis_set` | string | Basis set |
+| `backend` | string | Qiskit backend |
+| `num_qubits` | int | Number of qubits |
 | `iteration_step` | int | Iteration number |
 | `iteration_energy` | double | Energy at this step (Hartree) |
 | `energy_std_dev` | double | Standard deviation of measurement |
 
 **Partitioned by:** `processing_date`, `basis_set`, `backend`
 
-### 8. iteration_parameters
+### 8. `iteration_parameters`
 
 Parameter values at each optimizer iteration, enabling convergence analysis.
 
@@ -298,12 +326,16 @@ Parameter values at each optimizer iteration, enabling convergence analysis.
 | `parameter_id` | string | Unique parameter identifier |
 | `iteration_id` | string | Iteration identifier |
 | `experiment_id` | string | Experiment identifier |
+| `molecule_id` | int | Molecule identifier |
+| `basis_set` | string | Basis set |
+| `backend` | string | Qiskit backend |
+| `num_qubits` | int | Number of qubits |
 | `iteration_step` | int | Iteration number |
 | `parameter_value` | double | Parameter value at this iteration |
 
 **Partitioned by:** `processing_date`, `basis_set`
 
-### 9. hamiltonian_terms
+### 9. `hamiltonian_terms`
 
 Hamiltonian Pauli operator terms and their complex coefficients.
 
@@ -312,6 +344,8 @@ Hamiltonian Pauli operator terms and their complex coefficients.
 | `term_id` | string | Unique term identifier |
 | `experiment_id` | string | Experiment identifier |
 | `molecule_id` | int | Molecule identifier |
+| `basis_set` | string | Basis set |
+| `backend` | string | Qiskit backend |
 | `term_label` | string | Pauli string (e.g., "XYZI", "IIZZ") |
 | `coeff_real` | double | Real part of the coefficient |
 | `coeff_imag` | double | Imaginary part of the coefficient |
@@ -331,18 +365,6 @@ Spark uses Iceberg metadata to identify and process only new records on each run
 3. **Compute delta** - New files are identified as the difference between current files and previously processed files.
 4. **Process delta only** - Only the new files are read, transformed, and appended to the feature tables.
 5. **Update snapshot** - A new Iceberg snapshot is created, recording the current set of processed files.
-
-### Performance Impact
-
-| Operation | 10K records | 100K records |
-|-----------|-------------|--------------|
-| Full reprocessing | ~45 seconds | ~8 minutes |
-| Incremental (1K new) | ~5 seconds | ~5 seconds |
-| Metadata-only query | ~100 ms | ~100 ms |
-| Partition pruning | ~2 seconds | ~10 seconds |
-
-!!! info "Performance Improvement"
-    Incremental processing reduces processing time by 90-95% compared to full reprocessing.
 
 ---
 

@@ -138,13 +138,21 @@ The system uses two MinIO buckets:
 ```json
 {
   "connector.class": "io.confluent.connect.s3.S3SinkConnector",
+  "tasks.max": "1",
   "topics.regex": "vqe_decorated_result_.*",
+  "topics.dir": "experiments",
   "s3.bucket.name": "local-vqe-results",
   "store.url": "http://minio:9000",
-  "format.class": "io.confluent.connect.s3.format.avro.AvroFormat",
-  "flush.size": "1"
+  "s3.region": "us-east-1",
+  "s3.path.style.access": "true",
+  "flush.size": "1",
+  "schema.compatibility": "NONE",
+  "storage.class": "io.confluent.connect.s3.storage.S3Storage",
+  "format.class": "io.confluent.connect.s3.format.avro.AvroFormat"
 }
 ```
+
+Full configuration: [`docker/connectors/minio-sink-config.json`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/connectors/minio-sink-config.json)
 
 ### Raw Data Directory Layout
 
@@ -175,22 +183,23 @@ s3://local-vqe-results/
 
 ```yaml
 minio:
-  image: minio/minio:latest
-  command: server /data --console-address ":9001"
+  image: minio/minio:${MINIO_VERSION:-latest}
+  command: minio server /data --console-address ":${MINIO_CONSOLE_PORT}"
   ports:
-    - "9000:9000"   # S3 API
-    - "9001:9001"   # Web Console
+    - "${MINIO_API_PORT}:9000"       # S3 API
+    - "${MINIO_CONSOLE_PORT}:9001"   # Web Console
   environment:
-    MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
-    MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    MINIO_REGION_NAME: ${MINIO_REGION}
   volumes:
     - minio-data:/data
 ```
 
 | Port | Service | Description |
 |------|---------|-------------|
-| 9000 | S3 API | Used by Kafka Connect and Spark for data access |
-| 9001 | Web Console | Browser-based management interface |
+| `${MINIO_API_PORT}` | S3 API | Used by Kafka Connect and Spark for data access |
+| `${MINIO_CONSOLE_PORT}` | Web Console | Browser-based management interface |
 
 ---
 
@@ -215,13 +224,13 @@ Partitioning is optimized for expected query patterns:
 Iceberg uses partition metadata to skip irrelevant data files at query time:
 
 ```sql
--- Only scans partitions for sto-3g basis set on a specific date
+-- Only scans partitions for sto3g basis set on a specific date
 SELECT * FROM quantum_catalog.quantum_features.vqe_results
 WHERE processing_date = DATE '2025-01-12'
-  AND basis_set = 'sto-3g';
+  AND basis_set = 'sto3g';
 ```
 
-Iceberg reads only files in matching partitions, reducing I/O by orders of magnitude on large datasets.
+Iceberg reads only files in matching partitions, reducing I/O for partition-filtered queries.
 
 ---
 
