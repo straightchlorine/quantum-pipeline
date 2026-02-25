@@ -60,10 +60,10 @@ graph TD
     DISK -->|Not Found| GEN[Generate Schema]
     GEN -->|Register| SR
 
-    style CACHE fill:#90EE90
-    style SR fill:#FFD700
-    style DISK fill:#87CEEB
-    style USE fill:#e8f5e9
+    style CACHE fill:#a5d6a7,color:#1b5e20
+    style SR fill:#ffe082,color:#000
+    style DISK fill:#90caf9,color:#0d47a1
+    style USE fill:#e8f5e9,color:#1b5e20
 ```
 
 ### Lookup Flow
@@ -510,11 +510,12 @@ graph LR
 
     C -->|Write All| M[MinIO]
 
-    style P1 fill:#e1f5ff
-    style P2 fill:#e1f5ff
-    style P3 fill:#e1f5ff
-    style K fill:#fff4e1
-    style M fill:#e8f5e9
+    style P1 fill:#e1f5ff,color:#1a237e
+    style P2 fill:#e1f5ff,color:#1a237e
+    style P3 fill:#e1f5ff,color:#1a237e
+    style K fill:#ffe082,color:#000
+    style C fill:#ffe082,color:#000
+    style M fill:#b39ddb,color:#311b92
 ```
 
 **Benefits:**

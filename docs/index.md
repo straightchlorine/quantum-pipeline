@@ -174,7 +174,7 @@ graph TB
 
 ### General Architecture
 
-The project is configurable -- Kafka can stream directly to Spark consumers, bypassing the MinIO
+The project is configurable - Kafka can stream directly to Spark consumers, bypassing the MinIO
 intermediate storage. This is useful for real-time processing scenarios.
 
 ```mermaid
