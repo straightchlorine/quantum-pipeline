@@ -22,7 +22,7 @@ Only one option is strictly required:
 python quantum_pipeline.py --file <path-to-molecules.json>
 ```
 
-All other parameters have sensible defaults defined in `quantum_pipeline/configs/defaults.py`.
+All other parameters have sensible defaults defined in [`quantum_pipeline/configs/defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
 
 ### Common Workflows
 
