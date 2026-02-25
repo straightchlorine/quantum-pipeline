@@ -1,51 +1,19 @@
 # Avro Serialization and Schema Management
 
-This page provides an in-depth exploration of the Avro serialization pattern used throughout the Quantum Pipeline,
+This page covers the Avro serialization pattern used throughout the Quantum Pipeline,
 including schema registry integration, versioning strategies, and the nested schema architecture.
 
 ---
 
 ## Overview
 
-Apache Avro is a **data serialization framework** that provides:
+Apache Avro was chosen for all data interchange between pipeline services for its compact binary format, native Kafka/Schema Registry integration, and schema evolution support. Avro provides a compact binary format, smaller than JSON, while enforcing strict type safety and supporting the nested data structures required by quantum simulation output.
 
-- **Compact binary format** - Efficient storage and network transmission
-- **Schema evolution** - Add, remove, or modify fields without breaking compatibility
-- **Language independence** - Schemas defined in JSON, usable across languages
-- **Self-describing data** - Schema embedded with data for reliable deserialization
-
-The Quantum Pipeline uses Avro for all data interchange between services, ensuring type safety and compatibility.
-
----
-
-## Why Avro?
-
-### Comparison with Alternatives
-
-| Feature | Avro | JSON | Protocol Buffers | Parquet |
-|---------|------|------|------------------|---------|
-| **Binary Format** | Yes | No | Yes | Yes |
-| **Schema Evolution** | Excellent | No | Good | Excellent |
-| **Compression** | Good | Poor | Good | Excellent |
-| **Splittable** | Yes | No | No | Yes |
-| **Complex Types** | Yes | Limited | Yes | Yes |
-| **Schema Registry** | Native | Yes | Yes | No[^1] |
-
-[^1]: Parquet has no native Schema Registry support - it is a columnar storage format, not a message serialization format.
-
-**Why Avro for Quantum Pipeline:**
-
-1. **Native Kafka Integration** - Confluent Schema Registry built for Avro
-2. **Schema Evolution** - Backward/forward compatibility during development
-3. **Compact Size** - 60-80% smaller than JSON for VQE results
-4. **Type Safety** - Strict typing prevents data corruption
-5. **Nested Schemas** -  For hierarchical VQE data structures
+For general Avro concepts, see the [Apache Avro specification](https://avro.apache.org/docs/current/specification/).
 
 ---
 
 ## Schema Registry Architecture
-
-### Three-Tier Lookup System
 
 The Schema Registry implements a caching strategy to minimize network calls:
 
@@ -66,80 +34,7 @@ graph TD
     style USE fill:#e8f5e9,color:#1b5e20
 ```
 
-### Lookup Flow
-
-**Step 1: Check Local Cache**
-```python
-def get_schema(self, schema_name: str) -> dict:
-    """Retrieve schema with three-tier lookup."""
-    # Check in-memory cache first
-    if schema_name in self.schema_cache:
-        return self.schema_cache[schema_name]
-
-    # Cache miss, proceed to registry
-    return self._fetch_from_registry(schema_name)
-```
-
-**Step 2: Query Schema Registry**
-```python
-def _fetch_from_registry(self, schema_name: str) -> dict:
-    """Fetch schema from Confluent Schema Registry."""
-    url = f"{self.registry_url}/subjects/{schema_name}/versions/latest"
-
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        schema_data = response.json()
-
-        # Cache the schema
-        self.schema_cache[schema_name] = schema_data['schema']
-        self.id_cache[schema_name] = schema_data['id']
-
-        return schema_data['schema']
-    except requests.HTTPError as e:
-        if e.response.status_code == 404:
-            return self._load_from_disk(schema_name)
-        raise
-```
-
-**Step 3: Fallback to Disk**
-```python
-def _load_from_disk(self, schema_name: str) -> dict:
-    """Load schema from local disk cache."""
-    cache_dir = Path.home() / '.cache' / 'quantum_pipeline' / 'schemas'
-    schema_file = cache_dir / f'{schema_name}.avsc'
-
-    if schema_file.exists():
-        with open(schema_file, 'r') as f:
-            schema = json.load(f)
-            self.schema_cache[schema_name] = schema
-            return schema
-
-    # Schema not found anywhere, will be created
-    raise FileNotFoundError(f"Schema {schema_name} not found")
-```
-
-**Step 4: Register New Schema**
-```python
-def save_schema(self, schema_name: str, schema: dict) -> int:
-    """Register new schema with Schema Registry."""
-    url = f"{self.registry_url}/subjects/{schema_name}/versions"
-
-    payload = {'schema': json.dumps(schema)}
-    response = requests.post(url, json=payload)
-    response.raise_for_status()
-
-    schema_id = response.json()['id']
-
-    # Update caches
-    self.schema_cache[schema_name] = schema
-    self.id_cache[schema_name] = schema_id
-
-    # Save to disk for offline use
-    self._save_to_disk(schema_name, schema)
-
-    return schema_id
-```
+Schemas are resolved through a three-tier lookup: in-memory cache, Confluent Schema Registry, and local disk fallback. If no schema is found, a new one is generated and registered. See the [Confluent Schema Registry documentation](https://docs.confluent.io/platform/current/schema-registry/) for details on the registry API.
 
 ---
 
@@ -210,6 +105,8 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
                 {'name': 'vqe_time', 'type': 'double'},
                 {'name': 'total_time', 'type': 'double'},
                 {'name': 'molecule_id', 'type': 'int'},
+                {'name': 'performance_start', 'type': ['null', 'string'], 'default': None},
+                {'name': 'performance_end', 'type': ['null', 'string'], 'default': None},
             ],
         }
 ```
@@ -254,7 +151,9 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
     {"name": "mapping_time", "type": "double"},
     {"name": "vqe_time", "type": "double"},
     {"name": "total_time", "type": "double"},
-    {"name": "molecule_id", "type": "int"}
+    {"name": "molecule_id", "type": "int"},
+    {"name": "performance_start", "type": ["null", "string"], "default": null},
+    {"name": "performance_end", "type": ["null", "string"], "default": null}
   ]
 }
 ```
@@ -338,22 +237,32 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
 {
   "type": "record",
   "name": "MoleculeInfo",
+  "namespace": "quantum_pipeline",
   "fields": [
-    {"name": "symbols", "type": {"type": "array", "items": "string"}},
     {
-      "name": "coords",
+      "name": "molecule_data",
       "type": {
-        "type": "array",
-        "items": {"type": "array", "items": "double"}
+        "type": "record",
+        "name": "MoleculeData",
+        "fields": [
+          {"name": "symbols", "type": {"type": "array", "items": "string"}},
+          {
+            "name": "coords",
+            "type": {
+              "type": "array",
+              "items": {"type": "array", "items": "double"}
+            }
+          },
+          {"name": "multiplicity", "type": "int"},
+          {"name": "charge", "type": "int"},
+          {"name": "units", "type": "string"},
+          {
+            "name": "masses",
+            "type": ["null", {"type": "array", "items": "double"}],
+            "default": null
+          }
+        ]
       }
-    },
-    {"name": "multiplicity", "type": "int"},
-    {"name": "charge", "type": "int"},
-    {"name": "units", "type": "string"},
-    {
-      "name": "masses",
-      "type": ["null", {"type": "array", "items": "double"}],
-      "default": null
     }
   ]
 }
@@ -361,96 +270,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
 
 ---
 
-## Schema Evolution Strategies
-
-### Backward Compatibility
-
-**Definition:** New schema can read data written with old schema.
-
-```python
-# Old schema (v1)
-{
-  "type": "record",
-  "name": "VQEResult",
-  "fields": [
-    {"name": "minimum", "type": "double"},
-    {"name": "optimal_parameters", "type": {"type": "array", "items": "double"}}
-  ]
-}
-
-# New schema (v2) - Backward compatible
-{
-  "type": "record",
-  "name": "VQEResult",
-  "fields": [
-    {"name": "minimum", "type": "double"},
-    {"name": "optimal_parameters", "type": {"type": "array", "items": "double"}},
-    {"name": "convergence_tolerance", "type": "double", "default": 1e-6}  # New field with default
-  ]
-}
-```
-
-**Rules for Backward Compatibility:**
-
-- **Permitted:** Add fields with default values
-- **Permitted:** Remove fields (readers ignore unknown fields)
-- **Permitted:** Promote types (int -> long, float -> double)
-- **Not permitted:** Remove fields without defaults
-- **Not permitted:** Change field types incompatibly
-- **Not permitted:** Rename fields without aliases
-
-### Forward Compatibility
-
-**Definition:** Old schema can read data written with new schema.
-
-```python
-# Schema v2 writes extra field
-data_v2 = {
-    "minimum": -1.137,
-    "optimal_parameters": [0.1, 0.2, 0.3],
-    "convergence_tolerance": 1e-8  # New field
-}
-
-# Schema v1 reader ignores unknown field
-data_v1 = reader_v1.deserialize(data_v2)
-# Result: {"minimum": -1.137, "optimal_parameters": [0.1, 0.2, 0.3]}
-```
-
-**Rules for Forward Compatibility:**
-
-- **Permitted:** Old readers ignore new fields
-- **Permitted:** New fields must have defaults for old writers
-- **Not permitted:** New required fields break forward compatibility
-
-### Full Compatibility
-
-**Both backward and forward compatible:**
-
-```python
-# Strategy: Only add optional fields with defaults
-
-# v1
-{"name": "experiment_id", "type": "string"}
-
-# v2 (fully compatible)
-{
-  "fields": [
-    {"name": "experiment_id", "type": "string"},
-    {"name": "processing_timestamp", "type": "long", "default": 0}
-  ]
-}
-
-# v3 (fully compatible)
-{
-  "fields": [
-    {"name": "experiment_id", "type": "string"},
-    {"name": "processing_timestamp", "type": "long", "default": 0},
-    {"name": "processing_version", "type": "string", "default": "unknown"}
-  ]
-}
-```
-
-### Quantum Pipeline Strategy
+## Schema Evolution
 
 The project uses **NONE** compatibility mode during development in the Kafka Connect [sink config](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/connectors/minio-sink-config.json#L23):
 
@@ -460,14 +280,13 @@ The project uses **NONE** compatibility mode during development in the Kafka Con
 }
 ```
 
-
 This allows unrestricted schema changes but requires:
 
 1. New topic for each incompatible change
 2. Kafka Connect `topics.regex` pattern to consume all versions
 3. Spark jobs handle multiple schema versions
 
-**Production Recommendation:** Use `BACKWARD` or `FULL` compatibility.
+**Production Recommendation:** Use `BACKWARD` or `FULL` compatibility. For details on schema evolution strategies (backward, forward, and full compatibility), see the [Confluent Schema Evolution documentation](https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html).
 
 ---
 
@@ -530,69 +349,11 @@ graph LR
 
 ## Serialization Process
 
-### Binary Encoding with Schema ID
-
-Avro data in Kafka follows the **Confluent Wire Format**:
-
-```
-[Magic Byte] [Schema ID] [Avro Binary Data]
-    0x00       4 bytes      Variable length
-```
-
-```python
-def to_avro_bytes(self, obj: VQEDecoratedResult) -> bytes:
-    """Serialize object to Confluent Wire Format."""
-    # 1. Get or register schema
-    schema = self.schema
-    schema_id = self.registry.get_or_register_schema(self.schema_name, schema)
-
-    # 2. Serialize object using Avro
-    parsed_schema = avro.schema.parse(json.dumps(schema))
-    writer = DatumWriter(parsed_schema)
-    bytes_writer = io.BytesIO()
-
-    # 3. Write Confluent header
-    bytes_writer.write(bytes([0]))  # Magic byte
-    bytes_writer.write(schema_id.to_bytes(4, byteorder='big'))  # Schema ID
-
-    # 4. Write Avro data
-    encoder = BinaryEncoder(bytes_writer)
-    writer.write(self.serialize(obj), encoder)
-
-    return bytes_writer.getvalue()
-```
-
-### Deserialization Process
-
-```python
-def from_avro_bytes(self, data: bytes) -> VQEDecoratedResult:
-    """Deserialize from Confluent Wire Format."""
-    bytes_reader = io.BytesIO(data)
-
-    # 1. Read header
-    magic_byte = bytes_reader.read(1)
-    if magic_byte != b'\x00':
-        raise ValueError(f"Invalid magic byte: {magic_byte}")
-
-    schema_id_bytes = bytes_reader.read(4)
-    schema_id = int.from_bytes(schema_id_bytes, byteorder='big')
-
-    # 2. Fetch schema by ID
-    schema = self.registry.get_schema_by_id(schema_id)
-
-    # 3. Deserialize Avro data
-    parsed_schema = avro.schema.parse(json.dumps(schema))
-    reader = DatumReader(parsed_schema)
-    decoder = BinaryDecoder(bytes_reader)
-    avro_data = reader.read(decoder)
-
-    # 4. Convert to Python object
-    return self.deserialize(avro_data)
-```
+Avro data in Kafka follows the [Confluent Wire Format](https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format): a magic byte (`0x00`), a 4-byte schema ID, followed by the Avro binary payload. The pipeline serializes `VQEDecoratedResult` objects into this format for Kafka production and deserializes them on consumption by looking up the schema ID from the registry.
 
 ---
 
-## Type Conversion Strategies
+## Type Conversion for Quantum Data
 
 ### Python/NumPy to Avro
 
@@ -654,60 +415,15 @@ def deserialize_complex(data: dict) -> complex:
 
 ---
 
-## Performance Optimization
-
-### Schema Caching
-
-```python
-class SchemaRegistry:
-    def __init__(self, registry_url: str):
-        self.registry_url = registry_url
-        self.schema_cache: Dict[str, dict] = {}  # Name -> Schema
-        self.id_cache: Dict[str, int] = {}  # Name -> Schema ID
-        self.id_to_schema: Dict[int, dict] = {}  # Schema ID -> Schema
-
-    def get_or_register_schema(self, name: str, schema: dict) -> int:
-        """Get existing schema ID or register new schema."""
-        if name in self.id_cache:
-            return self.id_cache[name]  # Cache hit
-
-        # Check registry
-        schema_id = self._register_schema(name, schema)
-
-        # Update caches
-        self.schema_cache[name] = schema
-        self.id_cache[name] = schema_id
-        self.id_to_schema[schema_id] = schema
-
-        return schema_id
-```
-
----
-
-### Schema Evolution
-
-```python
-# GOOD: Backward compatible change
-{
-  "fields": [
-    {"name": "energy", "type": "double"},
-    {"name": "iterations", "type": "int", "default": 0}  # New field with default
-  ]
-}
-
-# BAD: Breaking change
-{
-  "fields": [
-    {"name": "energy_value", "type": "double"},  # Renamed field
-    {"name": "iteration_count", "type": "int"}  # Required new field
-  ]
-}
-```
-
----
-
 ## Next Steps
 
 - **[Data Flow](data-flow.md)** - See how Avro data flows through the pipeline
 - **[System Design](system-design.md)** - Understand component integration
 - **[Kafka Streaming](../data-platform/kafka-streaming.md)** - Kafka + Avro details
+
+## References
+
+- [Apache Avro Specification](https://avro.apache.org/docs/current/specification/)
+- [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/)
+- [Schema Evolution and Compatibility](https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html)
+- [Confluent Wire Format](https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format)

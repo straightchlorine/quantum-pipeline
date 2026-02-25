@@ -23,11 +23,6 @@ The architecture follows these core principles:
 !!! tip "Loose Coupling"
     Components communicate through well-defined interfaces (Avro schemas) allowing independent scaling and deployment.
 
-!!! tip "Scalability"
-    - Horizontal scaling for Spark workers
-    - Vertical/Horizontal scaling for GPU containers
-    - Partitioned Kafka topics for parallelism
-
 !!! tip "Fault Tolerance"
     - Kafka message persistence
     - Airflow retry mechanisms
@@ -97,7 +92,7 @@ graph TD
 
 - Centralized Avro schema management
 - Schema versioning and evolution
-- Backward/forward compatibility checks
+- Schema versioning (compatibility mode: NONE in development)
 - Automatic topic suffix generation
 
 **Kafka Connect**
@@ -117,13 +112,13 @@ graph TD
 
 - DAG-based workflow orchestration
 - Daily scheduling for batch processing
-- Retry logic with exponential backoff
+- Retry logic (3 retries, 20-minute delay)
 - Email alerting on success/failure
 - PostgreSQL for metadata storage
 
-**Key DAG**: `quantum_processing_dag`
+**Key DAG**: `quantum_feature_processing`
 
-- Ingests VQE results from Kafka
+- Triggers Spark to read VQE results from MinIO
 - Triggers Spark feature engineering jobs
 - Loads processed data into Iceberg tables
 - Manages incremental processing state
@@ -149,17 +144,18 @@ graph TD
 4. Write to Iceberg in Parquet format
 5. Update metadata snapshots
 
-**Feature Tables** (9 tables):
+**Feature Tables** (10 tables):
 
 - `molecules` - Molecular structures
+- `ansatz_info` - Quantum circuit configurations
+- `performance_metrics` - Execution timing
 - `vqe_results` - Optimization results
-- `vqe_iterations` - Iteration history
-- `vqe_parameters` - Optimal parameters
-- `hamiltonians` - Operator coefficients
-- `timing_metrics` - Performance data
-- `accuracy_metrics` - Scientific validation
-- `system_metrics` - Resource usage
-- `processing_metadata` - Data lineage
+- `initial_parameters` - Starting parameter values
+- `optimal_parameters` - Optimized parameter values
+- `vqe_iterations` - Per-iteration optimization data
+- `iteration_parameters` - Parameters at each iteration
+- `hamiltonian_terms` - Pauli operator coefficients
+- `processing_metadata` - Data lineage tracking
 
 ---
 
@@ -207,10 +203,9 @@ graph TD
 
 **Monitored Metrics**:
 
-- System: CPU%, memory%, disk I/O
-- VQE: Energy convergence, iterations, timing
-- Scientific: Accuracy vs reference database
-- Data: Kafka lag, Spark job duration
+- System: CPU%, memory% (via `quantum_system_cpu_percent`, `quantum_system_memory_percent`)
+- VQE: Energy, iterations, timing (via `quantum_vqe_minimum_energy`, `quantum_vqe_iterations_count`, `quantum_vqe_total_time`)
+- Experiment: Molecule ID, basis set, backend metadata
 
 ---
 
@@ -257,18 +252,16 @@ Example
 ```mermaid
 graph LR
     E[VQE Simulation<br/>Event] --> K[Kafka Topic]
-    K --> C1[Consumer 1:<br/>MinIO Storage]
-    K --> C2[Consumer 2:<br/>Real-time Analytics]
-    K --> C3[Consumer 3:<br/>ML Pipeline]
+    K --> KC[Kafka Connect:<br/>S3 Sink to MinIO]
 
-    style E fill:#e1f5ff,color:#3f51b5
-    style K fill:#f9a825,color:#000
+    style E fill:#c5cae9,color:#1a237e
+    style K fill:#ffe082,color:#000
+    style KC fill:#ffe082,color:#000
 ```
 
 **Benefits**:
 
 - Decoupling producers from consumers
-- Multiple consumers for same data
 - Message persistence and replay
 - Asynchronous processing
 
@@ -287,7 +280,7 @@ graph TB
     T2 --> KC
     T3 --> KC
 
-    style V3 fill:#4caf50,color:#fff
+    style V3 fill:#a5d6a7,color:#1b5e20
 ```
 
 **Benefits**:
@@ -306,8 +299,8 @@ graph LR
 
     S3 --> P[Spark Job:<br/>Process only D]
 
-    style S3 fill:#7e57c2,color:#fff
-    style P fill:#4caf50,color:#fff
+    style S3 fill:#b39ddb,color:#311b92
+    style P fill:#a5d6a7,color:#1b5e20
 ```
 
 **Benefits**:
