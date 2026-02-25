@@ -14,8 +14,8 @@ GPU acceleration configuration and environment variable reference.
 | **Docker Compose** | Full platform (all services) | Production, thesis experiments |
 
 The **PyPI package** is the simplest option. Install with `pip install quantum-pipeline`
-and run simulations directly. This approach does not include infrastructure services
-such as Kafka, Spark, or Airflow.
+and run simulations directly. This does however require the user to set up other services
+as well as ensure connectivity.
 
 A **single Docker container** provides an isolated environment with all Python
 dependencies pre-installed. The GPU variant includes CUDA libraries and a custom-built
@@ -27,23 +27,13 @@ containers (CPU and GPU), Apache Kafka with Schema Registry, Spark cluster, Airf
 orchestrator, MinIO object storage, and monitoring services. This is the configuration
 used for thesis experiments.
 
-## Resource Requirements
-
-| Component | CPU | RAM | GPU | Storage |
-|---|---|---|---|---|
-| CPU Pipeline | 2 cores | 10 GB | -- | 2 GB |
-| GPU Pipeline | 2 cores | 10 GB | NVIDIA (4+ GB VRAM) | 8 GB |
-| Infrastructure | 1 core | 8 GB | -- | 10 GB |
-| Monitoring | 0.5 cores | 2 GB | -- | 1 GB |
-| **Full Platform** | **6 cores** | **30 GB** | **1-2 GPUs** | **20 GB** |
+## Resource Allocation
 
 The thesis experiments used a system with an Intel Core i5-8500 (6 cores), 56 GB RAM,
 and two NVIDIA GPUs (GTX 1060 6GB + GTX 1050 Ti 4GB).
 
-!!! note "Minimum Requirements"
-    For development and testing, 4 CPU cores and 16 GB RAM are sufficient when running
-    a subset of services. GPU acceleration requires an NVIDIA GPU with CUDA compute
-    capability 6.0 or higher.
+It was stable and functioned well for extended periods of time. I'd imagine minimal
+requirements are much lower - naturally, while accepting longer times of iteration.
 
 ## Guides
 

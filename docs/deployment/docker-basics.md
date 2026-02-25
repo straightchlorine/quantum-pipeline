@@ -12,10 +12,10 @@ repository.
 
 | Image Tag | Base Image | Purpose |
 |---|---|---|
-| `straightchlorine/quantum-pipeline:latest` | `python:3.12-slim-bullseye` | CPU-only simulations |
-| `straightchlorine/quantum-pipeline:latest-gpu` | `nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04` | GPU-accelerated simulations |
-| `straightchlorine/quantum-pipeline:spark` | `bitnamilegacy/spark` | Spark master and worker nodes |
-| `straightchlorine/quantum-pipeline:airflow` | `apache/airflow:2.10.5` | Airflow scheduler, webserver, triggerer |
+| [`straightchlorine/quantum-pipeline:latest`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.cpu) | `python:3.12-slim-bullseye` | CPU-only simulations |
+| [`straightchlorine/quantum-pipeline:latest-gpu`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.gpu) | `nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04` | GPU-accelerated simulations |
+| [`straightchlorine/quantum-pipeline:spark`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.spark) | `bitnamilegacy/spark` | Spark master and worker nodes |
+| [`straightchlorine/quantum-pipeline:airflow`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.airflow) | `apache/airflow:2.10.5` | Airflow scheduler, webserver, triggerer |
 
 ### CPU Image
 
@@ -40,7 +40,7 @@ Python dependencies to the official Apache Airflow base image.
 
 ## Building from Source
 
-Build instructions are provided in the repository Dockerfiles under `docker/`. Each image can be built with:
+Build instructions are provided in the repository Dockerfiles under [`docker/`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker) — see [`Dockerfile.cpu`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.cpu), [`Dockerfile.gpu`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.gpu), [`Dockerfile.spark`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.spark), and [`Dockerfile.airflow`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.airflow). Each image can be built with:
 
 ```bash
 docker build -t quantum-pipeline:<variant> -f docker/Dockerfile.<variant> .
@@ -49,9 +49,9 @@ docker build -t quantum-pipeline:<variant> -f docker/Dockerfile.<variant> .
 where `<variant>` is `cpu`, `gpu`, `spark`, or `airflow`.
 
 !!! warning "GPU Build Time"
-    Building the GPU image compiles Qiskit Aer from source with CUDA Thrust backend support. Expect 15-30 minutes depending on hardware. To target a different GPU architecture, set `AER_CUDA_ARCH` in the Dockerfile (e.g., `7.5` for Turing, `8.0` for Ampere).
+    Building the GPU image compiles Qiskit Aer from source with CUDA Thrust backend support. To target a different GPU architecture, set `AER_CUDA_ARCH` in the Dockerfile (e.g., `7.5` for Turing, `8.0` for Ampere).
 
-See the [Dockerfiles in the repository](https://github.com/straightchlorine/quantum-pipeline/tree/master/docker) for full build details and configuration options.
+See the [Dockerfiles in the repository](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker) for full build details and configuration options.
 
 ## Running Containers
 
@@ -123,17 +123,3 @@ docker run --rm --gpus all \
 | `--report` | Generate a report after simulation |
 | `--enable-performance-monitoring` | Enable resource monitoring |
 | `--performance-pushgateway <url>` | Prometheus PushGateway URL |
-
-## CI/CD Pipeline
-
-CI/CD is handled by GitHub Actions workflows in the repository. Three workflows automate the build, test, and publish process:
-
-- **`docker-image.yml`** -- Runs tests (pytest, flake8), builds the Docker image, and scans with Trivy on every push/PR.
-- **`docker-publish.yml`** -- Builds multi-platform images, signs with cosign, and publishes to [Docker Hub](https://hub.docker.com/r/straightchlorine/quantum-pipeline).
-- **`pypi-publish.yml`** -- Runs the test suite, builds the wheel, and publishes to [PyPI](https://pypi.org/project/quantum-pipeline/) on tagged releases.
-
-<figure>
-  <img src="https://qp-docs.codextechnologies.org/mkdocs/github_actions.png"
-       alt="GitHub Actions workflows showing successful runs of build, test, and publish pipelines">
-  <figcaption>Figure 1. GitHub Actions interface showing the three CI/CD workflows.</figcaption>
-</figure>
