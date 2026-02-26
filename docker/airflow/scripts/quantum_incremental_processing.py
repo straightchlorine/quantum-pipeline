@@ -240,7 +240,7 @@ def identify_new_records(spark, new_data_df, table_name, key_columns):
         return truly_new_data
 
     except Exception as e:
-        raise RuntimeError(f'Error identifying new records: {str(e)}') from e
+        raise RuntimeError(f'Error identifying new records: {e!s}') from e
 
 
 def process_incremental_data(
@@ -757,7 +757,7 @@ def process_experiments_incrementally(spark, df, topic_name=None):
         record_counts.append(count)
 
     # update metadata tracking
-    source_info = f'Incremental VQE simulation data processing' + (
+    source_info = 'Incremental VQE simulation data processing' + (
         f' from topic {topic_name}' if topic_name else ''
     )
     update_metadata_table(spark, dfs, table_names, table_versions, record_counts, source_info)

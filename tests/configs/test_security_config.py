@@ -1,5 +1,7 @@
+from typing import Any
+
 import pytest
-from typing import Dict, Any
+
 from quantum_pipeline.configs.module.security import (
     CertConfig,
     SaslSslOpts,
@@ -8,7 +10,7 @@ from quantum_pipeline.configs.module.security import (
 
 
 @pytest.fixture
-def sample_defaults() -> Dict[str, Any]:
+def sample_defaults() -> dict[str, Any]:
     """Fixture to provide sample default configurations."""
     return {
         'kafka': {

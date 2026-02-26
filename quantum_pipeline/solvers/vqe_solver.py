@@ -14,8 +14,8 @@ from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
 from quantum_pipeline.configs.module.backend import BackendConfig
-from quantum_pipeline.solvers.solver import Solver
 from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
+from quantum_pipeline.solvers.solver import Solver
 from quantum_pipeline.structures.vqe_observation import (
     VQEInitialData,
     VQEProcess,
@@ -140,7 +140,7 @@ class VQESolver(Solver):
                 )
             else:
                 self.logger.info(
-                    f'Starting VQE optimization with default settings'
+                    'Starting VQE optimization with default settings'
                 )
 
         with Timer() as t:
@@ -239,7 +239,7 @@ class VQESolver(Solver):
             )
         else:
             self.logger.info(
-                f'Starting VQE optimization with default settings'
+                'Starting VQE optimization with default settings'
             )
         with Timer() as t:
             res = minimize(

@@ -5,10 +5,11 @@ Tests verify that the configuration manager properly initializes monitoring
 when --enable-performance-monitoring is passed via command line arguments.
 """
 
-import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
+import pytest
 
 from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
 from quantum_pipeline.configs.parsing.configuration_manager import ConfigurationManager

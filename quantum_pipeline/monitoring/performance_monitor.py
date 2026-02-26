@@ -7,13 +7,14 @@ that can be completely switched on/off via settings, command line args, or env v
 
 import json
 import os
-import psutil
 import subprocess
 import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any
+
+import psutil
 import requests
 
 from quantum_pipeline.configs import settings
@@ -39,7 +40,7 @@ class PerformanceMonitor:
         enabled: bool = None,
         collection_interval: int = None,
         pushgateway_url: str = None,
-        export_format: List[str] = None,
+        export_format: list[str] = None,
         metrics_dir: Path = None,
     ):
         """
@@ -96,12 +97,11 @@ class PerformanceMonitor:
             try:
                 if expected_type == bool:
                     return env_value.lower() in ('true', '1', 'yes', 'on')
-                elif expected_type == int:
+                if expected_type == int:
                     return int(env_value)
-                elif expected_type == list:
+                if expected_type == list:
                     return env_value.split(',') if env_value else []
-                else:
-                    return env_value
+                return env_value
             except (ValueError, AttributeError):
                 self.logger.warning(f'Invalid environment variable {env_key}={env_value}')
 
@@ -142,7 +142,7 @@ class PerformanceMonitor:
         )
         self.monitoring_thread.start()
 
-    def export_metrics_immediate(self, additional_context: Dict[str, Any] = None):
+    def export_metrics_immediate(self, additional_context: dict[str, Any] = None):
         """Export current system metrics immediately (event-driven)."""
         if not self.enabled:
             return
@@ -186,7 +186,7 @@ class PerformanceMonitor:
             else:
                 self.logger.info('Monitoring thread stopped successfully')
 
-    def collect_metrics_snapshot(self) -> Dict[str, Any]:
+    def collect_metrics_snapshot(self) -> dict[str, Any]:
         """Collect a single snapshot of all metrics."""
         if not self.enabled:
             return {}
@@ -205,7 +205,7 @@ class PerformanceMonitor:
             self.logger.error(f'Failed to collect metrics snapshot: {e}')
             return {'error': str(e), 'timestamp': datetime.now().isoformat()}
 
-    def _collect_system_metrics(self) -> Dict[str, Any]:
+    def _collect_system_metrics(self) -> dict[str, Any]:
         """Collect system-level metrics."""
         try:
             # CPU metrics
@@ -257,7 +257,7 @@ class PerformanceMonitor:
             self.logger.error(f'Failed to collect system metrics: {e}')
             return {'error': str(e)}
 
-    def _collect_container_metrics(self) -> Dict[str, Any]:
+    def _collect_container_metrics(self) -> dict[str, Any]:
         """Collect Docker container-specific metrics."""
         try:
             container_name = os.getenv('HOSTNAME', 'unknown')
@@ -337,7 +337,7 @@ class PerformanceMonitor:
 
         self.logger.info('System monitoring loop stopped')
 
-    def _export_json(self, metrics: Dict[str, Any]):
+    def _export_json(self, metrics: dict[str, Any]):
         """Export metrics to JSON file."""
         try:
             timestamp = int(time.time())
@@ -350,7 +350,7 @@ class PerformanceMonitor:
         except Exception as e:
             self.logger.error(f'Failed to export JSON metrics: {e}')
 
-    def _export_json_system_only(self, metrics: Dict[str, Any]):
+    def _export_json_system_only(self, metrics: dict[str, Any]):
         """Export system metrics only to JSON file."""
         try:
             timestamp = int(time.time())
@@ -363,7 +363,7 @@ class PerformanceMonitor:
         except Exception as e:
             self.logger.error(f'Failed to export system JSON metrics: {e}')
 
-    def _export_prometheus(self, metrics: Dict[str, Any]):
+    def _export_prometheus(self, metrics: dict[str, Any]):
         """Export metrics to Prometheus PushGateway."""
         try:
             prometheus_metrics = self._convert_to_prometheus_format(metrics)
@@ -383,7 +383,7 @@ class PerformanceMonitor:
         except Exception as e:
             self.logger.error(f'Failed to export Prometheus metrics: {e}')
 
-    def export_vqe_metrics_immediate(self, vqe_data: Dict[str, Any]):
+    def export_vqe_metrics_immediate(self, vqe_data: dict[str, Any]):
         """Export VQE-specific metrics immediately to Prometheus with full context labels."""
         if not self.enabled or not self.pushgateway_url:
             return
@@ -413,7 +413,7 @@ class PerformanceMonitor:
         except Exception as e:
             self.logger.error(f'Failed to export VQE metrics to Prometheus: {e}')
 
-    def _export_prometheus_system_only(self, metrics: Dict[str, Any]):
+    def _export_prometheus_system_only(self, metrics: dict[str, Any]):
         """Export system metrics only to Prometheus PushGateway."""
         try:
             prometheus_metrics = self._convert_system_to_prometheus_format(metrics)
@@ -437,7 +437,7 @@ class PerformanceMonitor:
         except Exception as e:
             self.logger.error(f'Failed to export system metrics to Prometheus: {e}')
 
-    def _convert_to_prometheus_format(self, metrics: Dict[str, Any]) -> str:
+    def _convert_to_prometheus_format(self, metrics: dict[str, Any]) -> str:
         """Convert metrics dict to Prometheus exposition format."""
         lines = []
         try:
@@ -485,7 +485,7 @@ class PerformanceMonitor:
             self.logger.error(f'Failed to convert metrics to Prometheus format: {e}')
             return ''
 
-    def _convert_vqe_to_prometheus(self, vqe_data: Dict[str, Any]) -> str:
+    def _convert_vqe_to_prometheus(self, vqe_data: dict[str, Any]) -> str:
         """Convert VQE experiment data to Prometheus exposition format with full labels."""
         lines = []
         try:
@@ -566,7 +566,7 @@ class PerformanceMonitor:
             self.logger.error(f'Failed to convert VQE data to Prometheus format: {e}')
             return ''
 
-    def _convert_system_to_prometheus_format(self, metrics: Dict[str, Any]) -> str:
+    def _convert_system_to_prometheus_format(self, metrics: dict[str, Any]) -> str:
         """Convert system metrics to Prometheus exposition format."""
         lines = []
         try:
@@ -620,7 +620,7 @@ class PerformanceMonitor:
 
 
 # Global instance for easy access
-_global_monitor: Optional[PerformanceMonitor] = None
+_global_monitor: PerformanceMonitor | None = None
 
 
 def get_performance_monitor(**kwargs) -> PerformanceMonitor:
@@ -647,7 +647,7 @@ def is_monitoring_enabled() -> bool:
     return monitor.is_enabled()
 
 
-def collect_performance_snapshot() -> Dict[str, Any]:
+def collect_performance_snapshot() -> dict[str, Any]:
     """Collect a performance metrics snapshot."""
     monitor = get_performance_monitor()
     return monitor.collect_metrics_snapshot()

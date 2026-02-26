@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+import avro.schema
 import requests
 
-import avro.schema
 from quantum_pipeline.configs.settings import SCHEMA_DIR, SCHEMA_REGISTRY_URL
 from quantum_pipeline.utils.logger import get_logger
 
@@ -27,7 +27,7 @@ class SchemaRegistry:
         if isinstance(schema, dict):
             schema_str = json.dumps(schema)
             return json.loads(schema_str)
-        elif isinstance(schema, str):
+        if isinstance(schema, str):
             return json.loads(schema)
         raise ValueError('Invalid schema format.')
 
@@ -88,7 +88,7 @@ class SchemaRegistry:
             self.registry_schema_existence[schema_name] = False
             return False
 
-    def get_schema(self, schema_name: str) -> dict[str, Any]:  # noqa: C901
+    def get_schema(self, schema_name: str) -> dict[str, Any]:
         """Get Avro schema by name, trying cache, registry, and local file in sequence.
 
         Args:
@@ -130,9 +130,8 @@ class SchemaRegistry:
                 if schema:
                     self.logger.debug(f'Retrieved schema {schema_name} from registry.')
                     return self._normalize_schema(schema)
-                else:
-                    # update tracking if failed to get it
-                    self.registry_schema_existence[schema_name] = False
+                # update tracking if failed to get it
+                self.registry_schema_existence[schema_name] = False
 
         # if unable to get from cache and unable to get form the registry, try
         # the local file
@@ -201,8 +200,7 @@ class SchemaRegistry:
                     self.id_cache[schema_name] = schema_id
 
                 return self._normalize_schema(schema)
-            else:
-                self.logger.warning('Unable to find schema at the schema registry.')
+            self.logger.warning('Unable to find schema at the schema registry.')
         except requests.RequestException as e:
             self.logger.warning(f'Failed to fetch schema from registry: {e}')
 
@@ -239,10 +237,10 @@ class SchemaRegistry:
 
         except json.JSONDecodeError as e:
             self.logger.error(f'Validation of {schema_name} schema failed: Invalid JSON')
-            raise ValueError(f'Invalid JSON in schema file {schema_file}: {str(e)}')
+            raise ValueError(f'Invalid JSON in schema file {schema_file}: {e!s}')
         except Exception as e:
             self.logger.error(f'Error loading {schema_name} schema: {e}')
-            raise ValueError(f'Invalid Avro schema in {schema_file}: {str(e)}')
+            raise ValueError(f'Invalid Avro schema in {schema_file}: {e!s}')
 
     def save_schema(self, schema_name: str, schema_dict: dict[str, Any]) -> None:
         """Save the given schema to registry and file system if different from existing.

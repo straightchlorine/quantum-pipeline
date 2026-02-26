@@ -5,9 +5,9 @@ Generates PDF reports with improved modularity and flexibility.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
+
 from quantum_pipeline.configs import settings
 from quantum_pipeline.report.configuration import ReportConfiguration
 from quantum_pipeline.report.content_builder import ReportContentBuilder
@@ -25,7 +25,7 @@ class ReportGenerator:
         self,
         report_name: str = 'quantum_report.pdf',
         logger=None,
-        config: Optional[ReportConfiguration] = None,
+        config: ReportConfiguration | None = None,
     ):
         """
         Initialize the report generator.
@@ -49,11 +49,11 @@ class ReportGenerator:
         """Add a header to the report."""
         self.content_builder.add_header(header)
 
-    def add_table(self, data: List[List], col_widths=None):
+    def add_table(self, data: list[list], col_widths=None):
         """Add a table to the report."""
         self.content_builder.add_table(data, col_widths)
 
-    def add_metrics(self, metrics: Dict):
+    def add_metrics(self, metrics: dict):
         """Add metrics to the report."""
         self.content_builder.add_metrics(metrics)
 

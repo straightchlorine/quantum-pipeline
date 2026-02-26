@@ -61,8 +61,8 @@ class VQEKafkaProducer:
             self.logger.error('No brokers available. Check the Kafka broker configuration.')
             raise KafkaProducerError('No brokers available.')
         except Exception as e:
-            self.logger.error(f'Failed to initialize KafkaProducer: {str(e)}')
-            raise KafkaProducerError(f'Failed to initialize producer: {str(e)}')
+            self.logger.error(f'Failed to initialize KafkaProducer: {e!s}')
+            raise KafkaProducerError(f'Failed to initialize producer: {e!s}')
 
     def _serialize_result(self, result: VQEDecoratedResult) -> bytes:
         """Serialize the result.
@@ -84,7 +84,7 @@ class VQEKafkaProducer:
             )
         except Exception as e:
             self.logger.error('Object serialization failed!')
-            raise KafkaProducerError(f'Serialization failed: {str(e)}')
+            raise KafkaProducerError(f'Serialization failed: {e!s}')
 
     def _send_with_retry(self, avro_bytes: bytes) -> bool:
         """Send message with retry logic.
@@ -117,7 +117,7 @@ class VQEKafkaProducer:
 
             except KafkaError as ke:
                 self.logger.warning(
-                    f'Attempt {attempt}/{self.config.retries}: Kafka error: {str(ke)}'
+                    f'Attempt {attempt}/{self.config.retries}: Kafka error: {ke!s}'
                 )
 
                 # restart if attempts left
@@ -125,11 +125,11 @@ class VQEKafkaProducer:
                     sleep(self.config.retry_delay)
                     continue
 
-                raise KafkaProducerError(f'Failed after {self.config.retries} retries: {str(ke)}')
+                raise KafkaProducerError(f'Failed after {self.config.retries} retries: {ke!s}')
 
             except Exception as e:
-                self.logger.error(f'Unexpected error during send: {str(e)}')
-                raise KafkaProducerError(f'Send failed: {str(e)}')
+                self.logger.error(f'Unexpected error during send: {e!s}')
+                raise KafkaProducerError(f'Send failed: {e!s}')
 
         return False
 
@@ -195,11 +195,11 @@ class VQEKafkaProducer:
         try:
             self._send_and_flush(result)
         except KafkaProducerError as e:
-            self.logger.error(f'Failed to send result: {str(e)}')
+            self.logger.error(f'Failed to send result: {e!s}')
             raise
         except Exception as e:
-            self.logger.error(f'Unexpected error: {str(e)}')
-            raise KafkaProducerError(f'Unexpected error during send: {str(e)}')
+            self.logger.error(f'Unexpected error: {e!s}')
+            raise KafkaProducerError(f'Unexpected error during send: {e!s}')
 
     def close(self) -> None:
         """Close the producer safely."""
@@ -208,8 +208,8 @@ class VQEKafkaProducer:
                 self.producer.close()
                 self.logger.info('Kafka producer closed successfully.')
             except Exception as e:
-                self.logger.error(f'Error closing producer: {str(e)}')
-                raise KafkaProducerError(f'Failed to close producer: {str(e)}')
+                self.logger.error(f'Error closing producer: {e!s}')
+                raise KafkaProducerError(f'Failed to close producer: {e!s}')
 
     def __enter__(self):
         return self

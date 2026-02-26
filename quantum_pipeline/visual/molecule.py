@@ -1,8 +1,8 @@
 import pathlib
-import numpy as np
 
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.lines import Line2D
 from mpl_toolkits.mplot3d import Axes3D
 

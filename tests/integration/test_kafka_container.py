@@ -5,7 +5,6 @@ via testcontainers. Schema Registry interactions are mocked since those
 are covered separately in test_schema_registry_container.py.
 """
 
-import json
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -21,7 +20,6 @@ from testcontainers.kafka import KafkaContainer
 
 from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.configs.module.security import SecurityConfig
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

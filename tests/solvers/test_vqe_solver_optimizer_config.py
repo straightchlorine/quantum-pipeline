@@ -7,6 +7,7 @@ for COBYLA and L-BFGS-B optimizers.
 """
 
 import pytest
+
 from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
 
 
@@ -80,8 +81,7 @@ class TestVQESolverOptimizerConfig:
 
     def test_cobyla_validation_warning(self):
         """Test that COBYLA warns about insufficient iterations."""
-        import logging
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         with patch('quantum_pipeline.solvers.optimizer_config.logging.getLogger') as mock_logger:
             mock_logger_instance = MagicMock()
@@ -130,7 +130,6 @@ class TestVQESolverOptimizerConfig:
 
     def test_all_supported_optimizers_work(self):
         """Test that all supported optimizers have valid configurations."""
-        from quantum_pipeline.solvers.optimizer_config import OptimizerConfigFactory
 
         # Test only the core optimizers, not test-specific ones
         core_optimizers = ['L-BFGS-B', 'COBYLA', 'SLSQP']

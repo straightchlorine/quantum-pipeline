@@ -11,13 +11,12 @@ Covers:
 """
 
 import os
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.solvers.solver import Solver
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -129,22 +128,19 @@ class TestValidateEnv:
     ])
     def test_missing_env_var_raises(self, solver, missing_key):
         env = {k: v for k, v in self.VALID_ENV.items() if k != missing_key}
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(RuntimeError):
-                solver._Solver__validate_env()
+        with patch.dict(os.environ, env, clear=True), pytest.raises(RuntimeError):
+            solver._Solver__validate_env()
 
     def test_all_env_vars_empty_raises(self, solver):
-        env = {k: '' for k in self.VALID_ENV}
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(RuntimeError):
-                solver._Solver__validate_env()
+        env = dict.fromkeys(self.VALID_ENV, '')
+        with patch.dict(os.environ, env, clear=True), pytest.raises(RuntimeError):
+            solver._Solver__validate_env()
 
     @pytest.mark.parametrize('bad_channel', ['ibm_fake', '', 'quantum', 'LOCAL'])
     def test_invalid_channel_raises(self, solver, bad_channel):
         env = {**self.VALID_ENV, 'IBM_RUNTIME_CHANNEL': bad_channel}
-        with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(RuntimeError):
-                solver._Solver__validate_env()
+        with patch.dict(os.environ, env, clear=True), pytest.raises(RuntimeError):
+            solver._Solver__validate_env()
 
     @pytest.mark.parametrize('channel', ['ibm_quantum', 'ibm_cloud', 'local'])
     def test_valid_channel_returns_tuple(self, solver, channel):
@@ -175,9 +171,8 @@ class TestGetService:
             assert service == mock_qrs.return_value
 
     def test_raises_on_validation_failure(self, solver):
-        with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(RuntimeError):
-                solver._get_service()
+        with patch.dict(os.environ, {}, clear=True), pytest.raises(RuntimeError):
+            solver._get_service()
 
     @patch('quantum_pipeline.solvers.solver.QiskitRuntimeService', side_effect=Exception('boom'))
     def test_raises_on_connection_failure(self, mock_qrs, solver):

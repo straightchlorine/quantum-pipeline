@@ -2,6 +2,7 @@
 
 import pytest
 from qiskit_nature.second_q.operators import FermionicOp
+
 from quantum_pipeline.mappers import JordanWignerMapper
 
 

@@ -11,19 +11,19 @@ Tests cover:
 """
 
 import json
-import os
-import pytest
 import tempfile
 import time
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
+
+import pytest
 
 from quantum_pipeline.monitoring.performance_monitor import (
     PerformanceMonitor,
+    collect_performance_snapshot,
     get_performance_monitor,
     init_performance_monitoring,
     is_monitoring_enabled,
-    collect_performance_snapshot,
 )
 
 
@@ -328,7 +328,7 @@ class TestJSONExport:
 
         # Read the JSON file
         json_files = list(temp_metrics_dir.glob('*.json'))
-        with open(json_files[0], 'r') as f:
+        with open(json_files[0]) as f:
             data = json.load(f)
 
         # Verify structure

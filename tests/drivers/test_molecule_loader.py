@@ -1,7 +1,8 @@
-import unittest
 import json
 import os
 import tempfile
+import unittest
+
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 from qiskit_nature.units import DistanceUnit
 

@@ -18,20 +18,13 @@ tc_kafka = pytest.importorskip(
 
 from kafka import KafkaConsumer
 
-from quantum_pipeline.configs.module.producer import ProducerConfig
-from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
-from quantum_pipeline.stream.serialization.interfaces.vqe import (
-    VQEDecoratedResultInterface,
-)
 from quantum_pipeline.structures.vqe_observation import (
     VQEDecoratedResult,
     VQEInitialData,
     VQEProcess,
     VQEResult,
 )
-from quantum_pipeline.utils.schema_registry import SchemaRegistry
-
 
 # ---------------------------------------------------------------------------
 # Helpers

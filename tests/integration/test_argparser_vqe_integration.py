@@ -1,14 +1,15 @@
 """Integration tests between argparser and VQE solver configuration."""
 
-import pytest
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
+import pytest
+from qiskit.quantum_info import SparsePauliOp
+
+from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
 from quantum_pipeline.configs.parsing.configuration_manager import ConfigurationManager
 from quantum_pipeline.solvers.vqe_solver import VQESolver
-from quantum_pipeline.configs.module.backend import BackendConfig
-from qiskit.quantum_info import SparsePauliOp
 
 
 class TestArgparserVQEIntegration:

@@ -6,16 +6,16 @@ for scipy.optimize.minimize. It handles the proper parameter mapping and
 validation for different optimizers used in VQE optimization.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Tuple
 import logging
+from abc import ABC, abstractmethod
+from typing import Any
 
 
 class OptimizerConfig(ABC):
     """Abstract base class for optimizer configurations."""
 
-    def __init__(self, max_iterations: Optional[int] = None,
-                 convergence_threshold: Optional[float] = None):
+    def __init__(self, max_iterations: int | None = None,
+                 convergence_threshold: float | None = None):
         # Validate mutually exclusive parameters
         if max_iterations is not None and convergence_threshold is not None:
             raise ValueError(
@@ -28,19 +28,16 @@ class OptimizerConfig(ABC):
         self.logger = logging.getLogger(__name__)
 
     @abstractmethod
-    def get_options(self, num_parameters: int) -> Dict[str, Any]:
+    def get_options(self, num_parameters: int) -> dict[str, Any]:
         """Get optimizer-specific options dict for scipy.optimize.minimize."""
-        pass
 
     @abstractmethod
-    def get_minimize_tol(self) -> Optional[float]:
+    def get_minimize_tol(self) -> float | None:
         """Get the tolerance parameter for scipy.optimize.minimize."""
-        pass
 
     @abstractmethod
     def validate_parameters(self, num_parameters: int) -> None:
         """Validate parameters and log warnings if needed."""
-        pass
 
 
 class LBFGSBConfig(OptimizerConfig):
@@ -52,7 +49,7 @@ class LBFGSBConfig(OptimizerConfig):
     - If neither is set: Use defaults (15000 iterations, standard scipy tolerances)
     """
 
-    def get_options(self, num_parameters: int) -> Dict[str, Any]:
+    def get_options(self, num_parameters: int) -> dict[str, Any]:
         options = {'disp': False}
 
         if self.max_iterations is not None:
@@ -78,7 +75,7 @@ class LBFGSBConfig(OptimizerConfig):
 
         return options
 
-    def get_minimize_tol(self) -> Optional[float]:
+    def get_minimize_tol(self) -> float | None:
         return None
 
     def validate_parameters(self, num_parameters: int) -> None:
@@ -95,7 +92,7 @@ class COBYLAConfig(OptimizerConfig):
     - If neither is set: Use scipy defaults (1000 iterations)
     """
 
-    def get_options(self, num_parameters: int) -> Dict[str, Any]:
+    def get_options(self, num_parameters: int) -> dict[str, Any]:
         if self.max_iterations is not None:
             maxiter = self.max_iterations
         elif self.convergence_threshold is not None:
@@ -109,7 +106,7 @@ class COBYLAConfig(OptimizerConfig):
         }
         return options
 
-    def get_minimize_tol(self) -> Optional[float]:
+    def get_minimize_tol(self) -> float | None:
         # COBYLA uses global tolerance parameter
         return self.convergence_threshold
 
@@ -132,7 +129,7 @@ class SLSQPConfig(OptimizerConfig):
     - If neither is set: Use scipy defaults (100 iterations)
     """
 
-    def get_options(self, num_parameters: int) -> Dict[str, Any]:
+    def get_options(self, num_parameters: int) -> dict[str, Any]:
         if self.max_iterations is not None:
             maxiter = self.max_iterations
         elif self.convergence_threshold is not None:
@@ -150,7 +147,7 @@ class SLSQPConfig(OptimizerConfig):
 
         return options
 
-    def get_minimize_tol(self) -> Optional[float]:
+    def get_minimize_tol(self) -> float | None:
         # SLSQP uses global tolerance when convergence_threshold is set
         return self.convergence_threshold
 
@@ -169,8 +166,8 @@ class OptimizerConfigFactory:
     }
 
     @classmethod
-    def create_config(cls, optimizer: str, max_iterations: Optional[int] = None,
-                     convergence_threshold: Optional[float] = None) -> OptimizerConfig:
+    def create_config(cls, optimizer: str, max_iterations: int | None = None,
+                     convergence_threshold: float | None = None) -> OptimizerConfig:
         """
         Create optimizer-specific configuration.
 
@@ -204,9 +201,9 @@ class OptimizerConfigFactory:
         cls._configs[name] = config_class
 
 
-def get_optimizer_configuration(optimizer: str, max_iterations: Optional[int] = None,
-                               convergence_threshold: Optional[float] = None,
-                               num_parameters: int = 0) -> Tuple[Dict[str, Any], Optional[float]]:
+def get_optimizer_configuration(optimizer: str, max_iterations: int | None = None,
+                               convergence_threshold: float | None = None,
+                               num_parameters: int = 0) -> tuple[dict[str, Any], float | None]:
     """
     Convenience function to get optimizer configuration.
 

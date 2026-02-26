@@ -5,7 +5,7 @@ context-manager protocol, and the _update_topic helper that the
 existing test_kafka_interface.py does not exercise deeply.
 """
 
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 from kafka.errors import KafkaError, NoBrokersAvailable
@@ -14,7 +14,6 @@ from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.stream.kafka_interface import KafkaProducerError, VQEKafkaProducer
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -249,9 +248,8 @@ class TestSendResult:
 
         with patch.object(
             producer, "_send_and_flush", side_effect=TypeError("bad type")
-        ):
-            with pytest.raises(KafkaProducerError):
-                producer.send_result(mock_result)
+        ), pytest.raises(KafkaProducerError):
+            producer.send_result(mock_result)
 
     def test_kafka_producer_error_propagated(self, producer, mock_result):
         """KafkaProducerError from _send_and_flush should propagate as-is."""
@@ -263,9 +261,8 @@ class TestSendResult:
             producer,
             "_send_and_flush",
             side_effect=KafkaProducerError("inner fail"),
-        ):
-            with pytest.raises(KafkaProducerError, match="inner fail"):
-                producer.send_result(mock_result)
+        ), pytest.raises(KafkaProducerError, match="inner fail"):
+            producer.send_result(mock_result)
 
 
 # ---------------------------------------------------------------------------

@@ -1,9 +1,11 @@
 """Extended tests for VQE solver covering additional scenarios."""
 
 from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 from qiskit.quantum_info import SparsePauliOp
+
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.solvers.vqe_solver import VQESolver
 
@@ -298,7 +300,7 @@ class TestVQESolverDifferentHamiltonians:
         """Test that solver can handle various Hamiltonian sizes."""
         for num_qubits in [2, 4, 8, 12]:
             # Create a simple Hamiltonian with identity and X on first qubit
-            terms = [(f'X' + 'I' * (num_qubits - 1), 0.5)]
+            terms = [('X' + 'I' * (num_qubits - 1), 0.5)]
             ham = SparsePauliOp.from_list(terms)
 
             solver = VQESolver(
