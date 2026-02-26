@@ -61,7 +61,7 @@ class TestVQESolverOptimizerConfig:
 
     def test_lbfgsb_mutual_exclusion(self):
         """Test L-BFGS-B raises error with both parameters."""
-        with pytest.raises(ValueError, match="mutually exclusive"):
+        with pytest.raises(ValueError, match='mutually exclusive'):
             get_optimizer_configuration(
                 optimizer='L-BFGS-B',
                 max_iterations=100,
@@ -71,12 +71,12 @@ class TestVQESolverOptimizerConfig:
 
     def test_cobyla_mutual_exclusion(self):
         """Test COBYLA raises error with both parameters."""
-        with pytest.raises(ValueError, match="mutually exclusive"):
+        with pytest.raises(ValueError, match='mutually exclusive'):
             get_optimizer_configuration(
                 optimizer='COBYLA',
                 max_iterations=15,
                 convergence_threshold=0.05,
-                num_parameters=160
+                num_parameters=160,
             )
 
     def test_cobyla_validation_warning(self):
@@ -88,7 +88,7 @@ class TestVQESolverOptimizerConfig:
             mock_logger.return_value = mock_logger_instance
 
             # This should trigger a warning: 5 < (160 + 2)
-            options, minimize_tol = get_optimizer_configuration(
+            options, _minimize_tol = get_optimizer_configuration(
                 optimizer='COBYLA',
                 max_iterations=5,
                 convergence_threshold=None,
@@ -136,7 +136,7 @@ class TestVQESolverOptimizerConfig:
 
         for optimizer in core_optimizers:
             # Test with max_iterations only
-            options, minimize_tol = get_optimizer_configuration(
+            options, _minimize_tol = get_optimizer_configuration(
                 optimizer=optimizer,
                 max_iterations=50,
                 num_parameters=10,
@@ -167,4 +167,3 @@ class TestVQESolverOptimizerConfig:
         )
         assert 'maxiter' in options
         assert options['maxiter'] == 15000  # L-BFGS-B default
-

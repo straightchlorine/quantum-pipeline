@@ -9,6 +9,7 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_molecule(symbols, coords, masses):
     """Create a lightweight molecule mock."""
     mol = MagicMock()
@@ -21,6 +22,7 @@ def _make_molecule(symbols, coords, masses):
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def h2_molecule():
@@ -66,12 +68,14 @@ def multi_element_molecule():
 # hex_to_rgb
 # ---------------------------------------------------------------------------
 
+
 class TestHexToRgb:
     """Test MoleculePlotter.hex_to_rgb static method."""
 
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_basic_colors(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
 
         assert MoleculePlotter.hex_to_rgb('#FF0000') == (255, 0, 0)
@@ -81,6 +85,7 @@ class TestHexToRgb:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_black_and_white(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
 
         assert MoleculePlotter.hex_to_rgb('#000000') == (0, 0, 0)
@@ -89,6 +94,7 @@ class TestHexToRgb:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_without_hash(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
 
         assert MoleculePlotter.hex_to_rgb('FF0000') == (255, 0, 0)
@@ -96,6 +102,7 @@ class TestHexToRgb:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_invalid_hex_raises(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
 
         with pytest.raises(ValueError):
@@ -104,6 +111,7 @@ class TestHexToRgb:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_short_hex_raises(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
 
         with pytest.raises(ValueError):
@@ -114,12 +122,14 @@ class TestHexToRgb:
 # get_text_color
 # ---------------------------------------------------------------------------
 
+
 class TestGetTextColor:
     """Test MoleculePlotter.get_text_color static method."""
 
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_dark_background_returns_white(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
 
         assert MoleculePlotter.get_text_color('#000000') == 'white'
@@ -128,6 +138,7 @@ class TestGetTextColor:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_light_background_returns_black(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
 
         assert MoleculePlotter.get_text_color('#FFFFFF') == 'black'
@@ -136,6 +147,7 @@ class TestGetTextColor:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_invalid_color_returns_black(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
 
         assert MoleculePlotter.get_text_color('#ZZZ') == 'black'
@@ -145,12 +157,14 @@ class TestGetTextColor:
 # _get_atom_color
 # ---------------------------------------------------------------------------
 
+
 class TestGetAtomColor:
     """Test MoleculePlotter._get_atom_color."""
 
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_known_elements(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
         mock_plt.figure.return_value.add_subplot.return_value = MagicMock()
 
@@ -162,6 +176,7 @@ class TestGetAtomColor:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_unknown_element_returns_default(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
         mock_plt.figure.return_value.add_subplot.return_value = MagicMock()
 
@@ -173,12 +188,14 @@ class TestGetAtomColor:
 # _validate_molecule
 # ---------------------------------------------------------------------------
 
+
 class TestValidateMolecule:
     """Test MoleculePlotter._validate_molecule."""
 
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_valid_data_passes(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
         mock_plt.figure.return_value.add_subplot.return_value = MagicMock()
 
@@ -189,6 +206,7 @@ class TestValidateMolecule:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_mismatched_lengths_raises(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
         mock_plt.figure.return_value.add_subplot.return_value = MagicMock()
 
@@ -200,6 +218,7 @@ class TestValidateMolecule:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_mismatched_masses_raises(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
         mock_plt.figure.return_value.add_subplot.return_value = MagicMock()
 
@@ -213,12 +232,14 @@ class TestValidateMolecule:
 # _calculate_atom_sizes
 # ---------------------------------------------------------------------------
 
+
 class TestCalculateAtomSizes:
     """Test MoleculePlotter._calculate_atom_sizes."""
 
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_equal_masses_same_size(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
         mock_plt.figure.return_value.add_subplot.return_value = MagicMock()
 
@@ -230,6 +251,7 @@ class TestCalculateAtomSizes:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_heavier_atoms_larger(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
         mock_plt.figure.return_value.add_subplot.return_value = MagicMock()
 
@@ -240,6 +262,7 @@ class TestCalculateAtomSizes:
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_custom_base_size(self, mock_plt):
         from quantum_pipeline.visual.molecule import MoleculePlotter
+
         mock_plt.figure.return_value = MagicMock()
         mock_plt.figure.return_value.add_subplot.return_value = MagicMock()
 
@@ -253,10 +276,11 @@ class TestCalculateAtomSizes:
 # plot_molecule (integration-level, heavily mocked)
 # ---------------------------------------------------------------------------
 
+
 class TestPlotMolecule:
     """Test MoleculePlotter.plot_molecule with mocked matplotlib."""
 
-    @patch('quantum_pipeline.visual.molecule.savePlot')
+    @patch('quantum_pipeline.visual.molecule.save_plot')
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_returns_plot_path(self, mock_plt, mock_save, h2_molecule):
         from quantum_pipeline.visual.molecule import MoleculePlotter
@@ -273,7 +297,7 @@ class TestPlotMolecule:
         assert result == '/tmp/mol.png'
         mock_save.assert_called_once()
 
-    @patch('quantum_pipeline.visual.molecule.savePlot')
+    @patch('quantum_pipeline.visual.molecule.save_plot')
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_scatter_called_per_unique_symbol(self, mock_plt, mock_save, water_molecule):
         from quantum_pipeline.visual.molecule import MoleculePlotter
@@ -290,7 +314,7 @@ class TestPlotMolecule:
         # H2O has 2 unique symbols (O, H) → 2 scatter calls
         assert mock_ax.scatter.call_count == 2
 
-    @patch('quantum_pipeline.visual.molecule.savePlot')
+    @patch('quantum_pipeline.visual.molecule.save_plot')
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_scatter_per_unique_multi_element(self, mock_plt, mock_save, multi_element_molecule):
         from quantum_pipeline.visual.molecule import MoleculePlotter
@@ -307,7 +331,7 @@ class TestPlotMolecule:
         # C, N, O, S, H → 5 unique symbols → 5 scatter calls
         assert mock_ax.scatter.call_count == 5
 
-    @patch('quantum_pipeline.visual.molecule.savePlot')
+    @patch('quantum_pipeline.visual.molecule.save_plot')
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_axes_configured(self, mock_plt, mock_save, h2_molecule):
         from quantum_pipeline.visual.molecule import MoleculePlotter
@@ -327,7 +351,7 @@ class TestPlotMolecule:
         mock_ax.set_title.assert_called_once()
         mock_ax.view_init.assert_called_once_with(elev=20, azim=45)
 
-    @patch('quantum_pipeline.visual.molecule.savePlot')
+    @patch('quantum_pipeline.visual.molecule.save_plot')
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_legend_created(self, mock_plt, mock_save, water_molecule):
         from quantum_pipeline.visual.molecule import MoleculePlotter
@@ -343,7 +367,7 @@ class TestPlotMolecule:
 
         mock_ax.legend.assert_called_once()
 
-    @patch('quantum_pipeline.visual.molecule.savePlot')
+    @patch('quantum_pipeline.visual.molecule.save_plot')
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_tight_layout_called(self, mock_plt, mock_save, h2_molecule):
         from quantum_pipeline.visual.molecule import MoleculePlotter
@@ -359,7 +383,7 @@ class TestPlotMolecule:
 
         mock_plt.tight_layout.assert_called_once()
 
-    @patch('quantum_pipeline.visual.molecule.savePlot')
+    @patch('quantum_pipeline.visual.molecule.save_plot')
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_invalid_molecule_raises(self, mock_plt, mock_save):
         from quantum_pipeline.visual.molecule import MoleculePlotter
@@ -379,7 +403,7 @@ class TestPlotMolecule:
         with pytest.raises(ValueError, match='Mismatch'):
             plotter.plot_molecule(bad_mol)
 
-    @patch('quantum_pipeline.visual.molecule.savePlot')
+    @patch('quantum_pipeline.visual.molecule.save_plot')
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_atom_labels_added(self, mock_plt, mock_save, h2_molecule):
         from quantum_pipeline.visual.molecule import MoleculePlotter
@@ -396,7 +420,7 @@ class TestPlotMolecule:
         # H2 has 2 atoms, both H, one scatter call, 2 text calls for labels
         assert mock_ax.text.call_count == 2
 
-    @patch('quantum_pipeline.visual.molecule.savePlot')
+    @patch('quantum_pipeline.visual.molecule.save_plot')
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_plot_bounds_set(self, mock_plt, mock_save, h2_molecule):
         from quantum_pipeline.visual.molecule import MoleculePlotter
@@ -412,7 +436,7 @@ class TestPlotMolecule:
 
         mock_ax.set_box_aspect.assert_called_once_with([1.0, 1.0, 1.0])
 
-    @patch('quantum_pipeline.visual.molecule.savePlot')
+    @patch('quantum_pipeline.visual.molecule.save_plot')
     @patch('quantum_pipeline.visual.molecule.plt')
     def test_custom_figsize(self, mock_plt, mock_save, h2_molecule):
         from quantum_pipeline.visual.molecule import MoleculePlotter
@@ -423,5 +447,5 @@ class TestPlotMolecule:
         mock_plt.figure.return_value = mock_fig
         mock_save.return_value = '/tmp/mol.png'
 
-        plotter = MoleculePlotter(figsize=(20, 16))
+        MoleculePlotter(figsize=(20, 16))
         mock_plt.figure.assert_called_with(figsize=(20, 16))

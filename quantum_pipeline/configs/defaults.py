@@ -23,10 +23,10 @@ DEFAULTS = {
             # account for that)
             # https://github.com/Qiskit/qiskit-aer/blob/main/CONTRIBUTING.md
             'cuStateVec_enable': False,  # Correct for Pascal architecture (GTX 1060/1050 Ti)
-            'blocking_enable': False,    # Reduce synchronization overhead
-            'batched_shots_gpu': True,   # Enable shot parallelization for better GPU utilization
+            'blocking_enable': False,  # Reduce synchronization overhead
+            'batched_shots_gpu': True,  # Enable shot parallelization for better GPU utilization
             'shot_branching_enable': True,  # Enable circuit branching optimization
-            'max_memory_mb': 5500,       # GTX 1060: 6GB - 500MB buffer for optimal memory usage
+            'max_memory_mb': 5500,  # GTX 1060: 6GB - 500MB buffer for optimal memory usage
         },
     },
     'kafka': {

@@ -443,7 +443,9 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
             'vqe_time': float(obj.vqe_time),
             'total_time': float(obj.total_time),
             'molecule_id': obj.molecule_id,
-            'performance_start': json.dumps(obj.performance_start) if obj.performance_start else None,
+            'performance_start': json.dumps(obj.performance_start)
+            if obj.performance_start
+            else None,
             'performance_end': json.dumps(obj.performance_end) if obj.performance_end else None,
         }
 

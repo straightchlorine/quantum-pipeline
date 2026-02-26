@@ -8,19 +8,20 @@ validation for different optimizers used in VQE optimization.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, ClassVar
 
 
 class OptimizerConfig(ABC):
     """Abstract base class for optimizer configurations."""
 
-    def __init__(self, max_iterations: int | None = None,
-                 convergence_threshold: float | None = None):
+    def __init__(
+        self, max_iterations: int | None = None, convergence_threshold: float | None = None
+    ):
         # Validate mutually exclusive parameters
         if max_iterations is not None and convergence_threshold is not None:
             raise ValueError(
-                "max_iterations and convergence_threshold are mutually exclusive. "
-                "Please specify only one."
+                'max_iterations and convergence_threshold are mutually exclusive. '
+                'Please specify only one.'
             )
 
         self.max_iterations = max_iterations
@@ -100,11 +101,10 @@ class COBYLAConfig(OptimizerConfig):
         else:
             maxiter = 1000  # scipy default
 
-        options = {
+        return {
             'disp': False,
             'maxiter': maxiter,
         }
-        return options
 
     def get_minimize_tol(self) -> float | None:
         # COBYLA uses global tolerance parameter
@@ -137,10 +137,7 @@ class SLSQPConfig(OptimizerConfig):
         else:
             maxiter = 100  # scipy default
 
-        options = {
-            'disp': False,
-            'maxiter': maxiter
-        }
+        options = {'disp': False, 'maxiter': maxiter}
 
         if self.convergence_threshold is not None:
             options['ftol'] = self.convergence_threshold
@@ -159,15 +156,19 @@ class SLSQPConfig(OptimizerConfig):
 class OptimizerConfigFactory:
     """Factory class for creating optimizer-specific configurations."""
 
-    _configs = {
+    _configs: ClassVar[dict] = {
         'L-BFGS-B': LBFGSBConfig,
         'COBYLA': COBYLAConfig,
         'SLSQP': SLSQPConfig,
     }
 
     @classmethod
-    def create_config(cls, optimizer: str, max_iterations: int | None = None,
-                     convergence_threshold: float | None = None) -> OptimizerConfig:
+    def create_config(
+        cls,
+        optimizer: str,
+        max_iterations: int | None = None,
+        convergence_threshold: float | None = None,
+    ) -> OptimizerConfig:
         """
         Create optimizer-specific configuration.
 
@@ -183,12 +184,15 @@ class OptimizerConfigFactory:
             ValueError: If optimizer is not supported
         """
         if optimizer not in cls._configs:
-            raise ValueError(f"Unsupported optimizer: {optimizer}. "
-                           f"Supported optimizers: {list(cls._configs.keys())}")
+            raise ValueError(
+                f'Unsupported optimizer: {optimizer}. '
+                f'Supported optimizers: {list(cls._configs.keys())}'
+            )
 
         config_class = cls._configs[optimizer]
-        return config_class(max_iterations=max_iterations,
-                          convergence_threshold=convergence_threshold)
+        return config_class(
+            max_iterations=max_iterations, convergence_threshold=convergence_threshold
+        )
 
     @classmethod
     def get_supported_optimizers(cls) -> list[str]:
@@ -201,9 +205,12 @@ class OptimizerConfigFactory:
         cls._configs[name] = config_class
 
 
-def get_optimizer_configuration(optimizer: str, max_iterations: int | None = None,
-                               convergence_threshold: float | None = None,
-                               num_parameters: int = 0) -> tuple[dict[str, Any], float | None]:
+def get_optimizer_configuration(
+    optimizer: str,
+    max_iterations: int | None = None,
+    convergence_threshold: float | None = None,
+    num_parameters: int = 0,
+) -> tuple[dict[str, Any], float | None]:
     """
     Convenience function to get optimizer configuration.
 
@@ -219,7 +226,7 @@ def get_optimizer_configuration(optimizer: str, max_iterations: int | None = Non
     config = OptimizerConfigFactory.create_config(
         optimizer=optimizer,
         max_iterations=max_iterations,
-        convergence_threshold=convergence_threshold
+        convergence_threshold=convergence_threshold,
     )
 
     config.validate_parameters(num_parameters)

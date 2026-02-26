@@ -16,6 +16,7 @@ from quantum_pipeline.structures.vqe_observation import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def sample_initial_data():
     """Minimal VQEInitialData for reuse across tests."""
@@ -84,6 +85,7 @@ def sample_decorated_result(sample_vqe_result, sample_molecule):
 # VQEProcess
 # ---------------------------------------------------------------------------
 
+
 class TestVQEProcess:
     """Tests for the VQEProcess dataclass."""
 
@@ -118,6 +120,7 @@ class TestVQEProcess:
 # VQEInitialData
 # ---------------------------------------------------------------------------
 
+
 class TestVQEInitialData:
     """Tests for the VQEInitialData dataclass."""
 
@@ -140,6 +143,7 @@ class TestVQEInitialData:
 # ---------------------------------------------------------------------------
 # VQEResult
 # ---------------------------------------------------------------------------
+
 
 class TestVQEResult:
     """Tests for the VQEResult dataclass."""
@@ -168,6 +172,7 @@ class TestVQEResult:
 # ---------------------------------------------------------------------------
 # VQEDecoratedResult
 # ---------------------------------------------------------------------------
+
 
 class TestVQEDecoratedResult:
     """Tests for the VQEDecoratedResult dataclass."""
@@ -275,7 +280,7 @@ class TestGetPerformanceDelta:
 
     def test_memory_delta(self, sample_vqe_result, sample_molecule):
         mem_start = 2 * 1024**3  # 2 GB
-        mem_end = 4 * 1024**3    # 4 GB
+        mem_end = 4 * 1024**3  # 4 GB
         decorated = VQEDecoratedResult(
             vqe_result=sample_vqe_result,
             molecule=sample_molecule,

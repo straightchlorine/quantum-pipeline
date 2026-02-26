@@ -1,19 +1,25 @@
-import pathlib
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
 
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
-from mpl_toolkits.mplot3d import Axes3D
+
+if TYPE_CHECKING:
+    import pathlib
+
+    from mpl_toolkits.mplot3d import Axes3D
 
 from quantum_pipeline.configs import settings
-from quantum_pipeline.utils.dir import savePlot
+from quantum_pipeline.utils.dir import save_plot
 
 
 class MoleculePlotter:
     """A class to handle 3D molecular structure visualization."""
 
-    ATOM_COLORS: dict[str, str] = {
+    ATOM_COLORS: ClassVar[dict[str, str]] = {
         'H': '#FFFFFF',  # white
         'C': '#808080',  # gray
         'N': '#0000FF',  # blue
@@ -190,11 +196,9 @@ class MoleculePlotter:
         )
 
         plt.tight_layout()
-        plot_path = savePlot(
+        return save_plot(
             plt,
             settings.MOLECULE_PLOT_DIR,
             settings.MOLECULE_PLOT,
             molecule.symbols,
         )
-
-        return plot_path

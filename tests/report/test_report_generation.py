@@ -121,7 +121,7 @@ class TestContentManipulation:
 
     def test_unicode_content(self, report_generator):
         """Test content with unicode characters."""
-        report_generator.add_insight('Greek', 'α β γ δ ε')
+        report_generator.add_insight('Greek', 'α β γ δ ε')  # noqa: RUF001
 
 
 class TestReportConfiguration:
@@ -228,10 +228,7 @@ class TestEdgeCases:
 
     def test_multiple_generators(self):
         """Test creating multiple generator instances."""
-        generators = [
-            ReportGenerator(report_name=f'report_{i}.pdf')
-            for i in range(10)
-        ]
+        generators = [ReportGenerator(report_name=f'report_{i}.pdf') for i in range(10)]
         assert len(generators) == 10
         for i, gen in enumerate(generators):
             assert gen.report_name == f'report_{i}.pdf'
@@ -303,25 +300,15 @@ class TestReportGeneratorWithVQEData:
         """Test that generator can be created with VQE data."""
         # Should be able to create generator and add VQE-related content
         report_generator.add_insight(
-            'VQE Results',
-            f'Completed {len(sample_vqe_processes)} iterations'
+            'VQE Results', f'Completed {len(sample_vqe_processes)} iterations'
         )
 
     def test_report_with_convergence_data(self, report_generator):
         """Test report with convergence data."""
         energies = [2.0, 1.8, 1.6, 1.4, 1.2]
-        report_generator.add_insight(
-            'Energy Convergence',
-            f'Minimum energy: {min(energies)}'
-        )
+        report_generator.add_insight('Energy Convergence', f'Minimum energy: {min(energies)}')
 
     def test_report_with_optimization_results(self, report_generator):
         """Test report with optimization results."""
-        report_generator.add_insight(
-            'Optimization Results',
-            'Final energy: -1.2 Ha'
-        )
-        report_generator.add_insight(
-            'Parameters',
-            'θ0=0.5, θ1=1.2, θ2=0.8, θ3=2.1'
-        )
+        report_generator.add_insight('Optimization Results', 'Final energy: -1.2 Ha')
+        report_generator.add_insight('Parameters', 'θ0=0.5, θ1=1.2, θ2=0.8, θ3=2.1')

@@ -89,7 +89,7 @@ class TestJordanWignerMapper:
     def test_large_operator(self, mapper):
         """Test mapping large fermionic operator."""
         # Create operator with many orbitals
-        terms = {f'+_{i} -_{i+1}': 1.0 / (i + 1) for i in range(5)}
+        terms = {f'+_{i} -_{i + 1}': 1.0 / (i + 1) for i in range(5)}
         fermionic_op = FermionicOp(terms)
         qubit_op = mapper.map(fermionic_op)
         assert qubit_op is not None

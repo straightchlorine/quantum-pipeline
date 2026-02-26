@@ -39,16 +39,14 @@ def load_molecule(file_path: str):
         data = json.load(file)
         validate_molecule_data(data)
 
-        molecules = []
-        for mol in data:
-            molecules.append(
-                MoleculeInfo(
-                    symbols=mol['symbols'],
-                    coords=mol['coords'],
-                    multiplicity=mol.get('multiplicity', 1),
-                    charge=mol.get('charge', 0),
-                    units=DistanceUnit[mol.get('units', 'angstrom').upper()],
-                    masses=mol.get('masses', None),
-                )
+        return [
+            MoleculeInfo(
+                symbols=mol['symbols'],
+                coords=mol['coords'],
+                multiplicity=mol.get('multiplicity', 1),
+                charge=mol.get('charge', 0),
+                units=DistanceUnit[mol.get('units', 'angstrom').upper()],
+                masses=mol.get('masses', None),
             )
-        return molecules
+            for mol in data
+        ]

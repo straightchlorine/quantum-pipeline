@@ -34,22 +34,26 @@ def hamiltonian_2q():
 @pytest.fixture
 def hamiltonian_4q():
     """4-qubit test Hamiltonian."""
-    return SparsePauliOp.from_list([
-        ('IIII', 0.1),
-        ('IIXI', 0.2),
-        ('XIXI', 0.3),
-        ('XXII', 0.15),
-    ])
+    return SparsePauliOp.from_list(
+        [
+            ('IIII', 0.1),
+            ('IIXI', 0.2),
+            ('XIXI', 0.3),
+            ('XXII', 0.15),
+        ]
+    )
 
 
 @pytest.fixture
 def hamiltonian_8q():
     """8-qubit test Hamiltonian for larger molecules."""
-    return SparsePauliOp.from_list([
-        ('I' * 8, 0.1),
-        ('X' + 'I' * 7, 0.2),
-        ('X' * 4 + 'I' * 4, 0.3),
-    ])
+    return SparsePauliOp.from_list(
+        [
+            ('I' * 8, 0.1),
+            ('X' + 'I' * 7, 0.2),
+            ('X' * 4 + 'I' * 4, 0.3),
+        ]
+    )
 
 
 class TestVQESolverInitialization:
@@ -129,7 +133,7 @@ class TestVQESolverInitialization:
 
 
 class TestVQESolverComputeEnergy:
-    """Test computeEnergy method with various scenarios."""
+    """Test compute_energy method with various scenarios."""
 
     @pytest.fixture
     def solver(self, hamiltonian_4q, backend_config):
@@ -150,7 +154,7 @@ class TestVQESolverComputeEnergy:
 
         params = np.array([0.1, 0.2, 0.3, 0.4])
         with patch.object(solver.logger, 'debug'):
-            energy = solver.computeEnergy(params, MagicMock(), MagicMock(), mock_estimator)
+            energy = solver.compute_energy(params, MagicMock(), MagicMock(), mock_estimator)
 
         assert energy == 1.5
         assert len(solver.vqe_process) == 1
@@ -169,7 +173,7 @@ class TestVQESolverComputeEnergy:
 
             params = np.random.random(4)
             with patch.object(solver.logger, 'debug'):
-                energy = solver.computeEnergy(params, MagicMock(), MagicMock(), mock_estimator)
+                energy = solver.compute_energy(params, MagicMock(), MagicMock(), mock_estimator)
 
             assert energy == energy_val
 
@@ -186,7 +190,7 @@ class TestVQESolverComputeEnergy:
 
         params = np.array([0.0] * 4)
         with patch.object(solver.logger, 'debug'):
-            energy = solver.computeEnergy(params, MagicMock(), MagicMock(), mock_estimator)
+            energy = solver.compute_energy(params, MagicMock(), MagicMock(), mock_estimator)
 
         assert energy == 0.5
         assert solver.vqe_process[0].std == 0.0
@@ -201,7 +205,7 @@ class TestVQESolverComputeEnergy:
 
         params = np.random.random(4)
         with patch.object(solver.logger, 'debug'):
-            energy = solver.computeEnergy(params, MagicMock(), MagicMock(), mock_estimator)
+            energy = solver.compute_energy(params, MagicMock(), MagicMock(), mock_estimator)
 
         assert energy == 1.5
         assert solver.vqe_process[0].std == 0.5
@@ -216,7 +220,7 @@ class TestVQESolverComputeEnergy:
 
         params = np.array([0.1, 0.2, 0.3, 0.4])
         with patch.object(solver.logger, 'debug'):
-            energy = solver.computeEnergy(params, MagicMock(), MagicMock(), mock_estimator)
+            energy = solver.compute_energy(params, MagicMock(), MagicMock(), mock_estimator)
 
         assert energy == -1.5
 
@@ -230,7 +234,7 @@ class TestVQESolverComputeEnergy:
 
         test_params = np.array([0.1, 0.2, 0.3, 0.4])
         with patch.object(solver.logger, 'debug'):
-            solver.computeEnergy(test_params, MagicMock(), MagicMock(), mock_estimator)
+            solver.compute_energy(test_params, MagicMock(), MagicMock(), mock_estimator)
 
         stored_params = solver.vqe_process[0].parameters
         np.testing.assert_array_almost_equal(stored_params, test_params)
@@ -246,7 +250,9 @@ class TestVQESolverComputeEnergy:
         assert solver.current_iter == 1
         for i in range(5):
             with patch.object(solver.logger, 'debug'):
-                solver.computeEnergy(np.random.random(4), MagicMock(), MagicMock(), mock_estimator)
+                solver.compute_energy(
+                    np.random.random(4), MagicMock(), MagicMock(), mock_estimator
+                )
             assert solver.current_iter == i + 2
 
     def test_vqe_process_tracking(self, solver):
@@ -254,14 +260,16 @@ class TestVQESolverComputeEnergy:
         mock_estimator = MagicMock()
         energies = [2.0, 1.5, 1.0]
 
-        for idx, energy_val in enumerate(energies):
+        for _idx, energy_val in enumerate(energies):
             mock_result = MagicMock()
             mock_result.data.evs = [energy_val]
             mock_result.data.stds = [0.05]
             mock_estimator.run.return_value.result.return_value = [mock_result]
 
             with patch.object(solver.logger, 'debug'):
-                solver.computeEnergy(np.random.random(4), MagicMock(), MagicMock(), mock_estimator)
+                solver.compute_energy(
+                    np.random.random(4), MagicMock(), MagicMock(), mock_estimator
+                )
 
         assert len(solver.vqe_process) == 3
         for idx, process in enumerate(solver.vqe_process):

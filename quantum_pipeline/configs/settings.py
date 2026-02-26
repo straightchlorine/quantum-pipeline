@@ -5,7 +5,7 @@ SUPPORTED_OPTIMIZERS = {
     'Nelder-Mead': 'A simplex algorithm for unconstrained optimization.',
     'Powell': 'A directional set method for unconstrained optimization.',
     'CG': 'Non-linear conjugate gradient method for unconstrained optimization.',
-    'BFGS': 'Quasi-Newton method using the Broyden–Fletcher–Goldfarb–Shanno algorithm.',
+    'BFGS': 'Quasi-Newton method using the Broyden-Fletcher-Goldfarb-Shanno algorithm.',
     'Newton-CG': "Newton's method with conjugate gradient for unconstrained optimization.",
     'L-BFGS-B': 'Limited-memory BFGS with box constraints.',
     'TNC': 'Truncated Newton method for bound-constrained optimization.',

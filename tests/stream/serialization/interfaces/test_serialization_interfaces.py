@@ -140,18 +140,18 @@ class TestAvroInterfaceBase(unittest.TestCase):
         mock_result = Mock()
         mock_result.value = 42
 
-        # patch the deserialize method
-        with patch.object(self.interface, 'deserialize', return_value=mock_result):
-            # patch the schema perse method to avoid the schema validation
-            with patch('avro.schema.parse'):
-                # patch the datum reader to avoid internal processing
-                with patch('avro.io.DatumReader.read', return_value={'value': 42}):
-                    # check the result
-                    result = self.interface.from_avro_bytes(test_bytes)
-                    self.assertEqual(result.value, 42)
+        # patch the deserialize method, schema parse, and datum reader
+        with (
+            patch.object(self.interface, 'deserialize', return_value=mock_result),
+            patch('avro.schema.parse'),
+            patch('avro.io.DatumReader.read', return_value={'value': 42}),
+        ):
+            # check the result
+            result = self.interface.from_avro_bytes(test_bytes)
+            self.assertEqual(result.value, 42)
 
-                    # check if correct argument was passed
-                    self.interface.deserialize.assert_called_once_with({'value': 42})
+            # check if correct argument was passed
+            self.interface.deserialize.assert_called_once_with({'value': 42})
 
     def test_from_avro_bytes_invalid_magic(self):
         """Test error handling with invalid magic byte."""
@@ -494,11 +494,14 @@ class TestVQEResultInterface(unittest.TestCase):
 
     def test_deserialize(self):
         """Test deserialization of VQEResult."""
-        with patch.object(
-            self.interface.initial_data_interface, 'deserialize'
-        ) as mock_initial_deserialize, patch.object(
-            self.interface.process_interface, 'deserialize'
-        ) as mock_process_deserialize:
+        with (
+            patch.object(
+                self.interface.initial_data_interface, 'deserialize'
+            ) as mock_initial_deserialize,
+            patch.object(
+                self.interface.process_interface, 'deserialize'
+            ) as mock_process_deserialize,
+        ):
             mock_initial_deserialize.return_value = self.vqe_result.initial_data
             mock_process_deserialize.return_value = self.vqe_result.iteration_list[0]
 
@@ -566,7 +569,9 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
         self.assertIsInstance(schema, dict)
         self.assertEqual(schema['name'], 'VQEDecoratedResult')
-        self.assertEqual(len(schema['fields']), 10)  # Updated for performance_start and performance_end fields
+        self.assertEqual(
+            len(schema['fields']), 10
+        )  # Updated for performance_start and performance_end fields
 
     def test_serialize(self):
         """Test serialization of VQEDecoratedResult."""
@@ -589,13 +594,13 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
         # Add performance data to the test object
         performance_start = {
             'timestamp': '2024-01-01T12:00:00',
-            'system': {'cpu': {'percent': 25.5}, 'memory': {'used': 1024*1024*100}},
-            'gpu': [{'index': 0, 'utilization_gpu': 80.0}]
+            'system': {'cpu': {'percent': 25.5}, 'memory': {'used': 1024 * 1024 * 100}},
+            'gpu': [{'index': 0, 'utilization_gpu': 80.0}],
         }
         performance_end = {
             'timestamp': '2024-01-01T12:01:00',
-            'system': {'cpu': {'percent': 35.2}, 'memory': {'used': 1024*1024*150}},
-            'gpu': [{'index': 0, 'utilization_gpu': 95.0}]
+            'system': {'cpu': {'percent': 35.2}, 'memory': {'used': 1024 * 1024 * 150}},
+            'gpu': [{'index': 0, 'utilization_gpu': 95.0}],
         }
 
         self.vqe_decorated_result.performance_start = performance_start
@@ -609,6 +614,7 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
         # Verify the JSON strings can be parsed back
         import json
+
         deserialized_start = json.loads(serialized['performance_start'])
         deserialized_end = json.loads(serialized['performance_end'])
 
@@ -629,11 +635,14 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
     def test_deserialize(self):
         """Test deserialization of VQEDecoratedResult."""
-        with patch.object(
-            self.interface.result_interface, 'deserialize'
-        ) as mock_result_deserialize, patch.object(
-            self.interface.molecule_interface, 'deserialize'
-        ) as mock_molecule_deserialize:
+        with (
+            patch.object(
+                self.interface.result_interface, 'deserialize'
+            ) as mock_result_deserialize,
+            patch.object(
+                self.interface.molecule_interface, 'deserialize'
+            ) as mock_molecule_deserialize,
+        ):
             mock_result_deserialize.return_value = self.vqe_decorated_result.vqe_result
             mock_molecule_deserialize.return_value = self.vqe_decorated_result.molecule
 
@@ -669,19 +678,22 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
         performance_start = {
             'timestamp': '2024-01-01T12:00:00',
             'system': {'cpu': {'percent': 25.5}, 'memory': {'used': 104857600}},
-            'gpu': [{'index': 0, 'utilization_gpu': 80.0}]
+            'gpu': [{'index': 0, 'utilization_gpu': 80.0}],
         }
         performance_end = {
             'timestamp': '2024-01-01T12:01:00',
             'system': {'cpu': {'percent': 35.2}, 'memory': {'used': 157286400}},
-            'gpu': [{'index': 0, 'utilization_gpu': 95.0}]
+            'gpu': [{'index': 0, 'utilization_gpu': 95.0}],
         }
 
-        with patch.object(
-            self.interface.result_interface, 'deserialize'
-        ) as mock_result_deserialize, patch.object(
-            self.interface.molecule_interface, 'deserialize'
-        ) as mock_molecule_deserialize:
+        with (
+            patch.object(
+                self.interface.result_interface, 'deserialize'
+            ) as mock_result_deserialize,
+            patch.object(
+                self.interface.molecule_interface, 'deserialize'
+            ) as mock_molecule_deserialize,
+        ):
             mock_result_deserialize.return_value = self.vqe_decorated_result.vqe_result
             mock_molecule_deserialize.return_value = self.vqe_decorated_result.molecule
 
@@ -709,11 +721,14 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
     def test_deserialize_with_none_performance_data(self):
         """Test deserialization of VQEDecoratedResult with None performance data."""
-        with patch.object(
-            self.interface.result_interface, 'deserialize'
-        ) as mock_result_deserialize, patch.object(
-            self.interface.molecule_interface, 'deserialize'
-        ) as mock_molecule_deserialize:
+        with (
+            patch.object(
+                self.interface.result_interface, 'deserialize'
+            ) as mock_result_deserialize,
+            patch.object(
+                self.interface.molecule_interface, 'deserialize'
+            ) as mock_molecule_deserialize,
+        ):
             mock_result_deserialize.return_value = self.vqe_decorated_result.vqe_result
             mock_molecule_deserialize.return_value = self.vqe_decorated_result.molecule
 
@@ -848,21 +863,21 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
             'molecule_id': 1,
         }
 
-        # patched deserialize method
-        with patch.object(self.interface, 'deserialize') as mock_deserialize:
+        # patched deserialize method, schema parse, and datum reader
+        with (
+            patch.object(self.interface, 'deserialize') as mock_deserialize,
+            patch('avro.schema.parse'),
+            patch('avro.io.DatumReader.read', return_value=dummy_data),
+        ):
             mock_deserialize.return_value = self.vqe_decorated_result
 
-            # avoid schema validation
-            with patch('avro.schema.parse'):
-                # datum reader should return the dummy data
-                with patch('avro.io.DatumReader.read', return_value=dummy_data):
-                    result = self.interface.from_avro_bytes(test_bytes)
+            result = self.interface.from_avro_bytes(test_bytes)
 
-                    # verify whether the method was called with the dummy data
-                    mock_deserialize.assert_called_once_with(dummy_data)
+            # verify whether the method was called with the dummy data
+            mock_deserialize.assert_called_once_with(dummy_data)
 
-                    # verify if everything aligns
-                    self.assertEqual(result, self.vqe_decorated_result)
+            # verify if everything aligns
+            self.assertEqual(result, self.vqe_decorated_result)
 
     def test_get_result_suffix(self):
         """Test get_result_suffix method."""
