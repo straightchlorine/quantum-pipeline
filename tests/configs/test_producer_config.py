@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -7,7 +7,7 @@ from quantum_pipeline.configs.module.security import SecurityConfig
 
 
 @pytest.fixture
-def sample_producer_defaults() -> Dict[str, Any]:
+def sample_producer_defaults() -> dict[str, Any]:
     """Fixture to provide sample default producer configurations."""
     return {
         'kafka': {

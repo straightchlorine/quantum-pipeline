@@ -16,26 +16,20 @@ tc_kafka = pytest.importorskip(
     'testcontainers.kafka', reason='testcontainers[kafka] not installed'
 )
 
-from kafka import KafkaConsumer
+from kafka import KafkaConsumer  # noqa: E402
 
-from quantum_pipeline.configs.module.producer import ProducerConfig
-from quantum_pipeline.configs.module.security import SecurityConfig
-from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
-from quantum_pipeline.stream.serialization.interfaces.vqe import (
-    VQEDecoratedResultInterface,
-)
-from quantum_pipeline.structures.vqe_observation import (
+from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer  # noqa: E402
+from quantum_pipeline.structures.vqe_observation import (  # noqa: E402
     VQEDecoratedResult,
     VQEInitialData,
     VQEProcess,
     VQEResult,
 )
-from quantum_pipeline.utils.schema_registry import SchemaRegistry
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_consumer(bootstrap_servers, topic, **kwargs):
     """Create a KafkaConsumer with sensible test defaults."""
@@ -173,12 +167,17 @@ def e2e_producer(producer_config, pipeline_env):
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.integration
 class TestKafkaPipelineE2E:
     """End-to-end tests exercising Kafka + Schema Registry via testcontainers."""
 
     def test_full_pipeline_produce_consume_roundtrip(
-        self, e2e_producer, kafka_bootstrap_servers, producer_config, pipeline_env,
+        self,
+        e2e_producer,
+        kafka_bootstrap_servers,
+        producer_config,
+        pipeline_env,
     ):
         """Full round-trip: serialize -> produce -> consume -> deserialize -> verify."""
         result = _build_decorated_result()
@@ -186,7 +185,8 @@ class TestKafkaPipelineE2E:
 
         # Serialize via the producer's serializer
         avro_bytes = e2e_producer.serializer.to_avro_bytes(
-            result, schema_name=e2e_producer.serializer.schema_name,
+            result,
+            schema_name=e2e_producer.serializer.schema_name,
         )
         assert isinstance(avro_bytes, bytes)
         assert len(avro_bytes) > 0
@@ -220,12 +220,18 @@ class TestKafkaPipelineE2E:
             assert deserialized.molecule_id == result.molecule_id
             assert float(deserialized.total_time) == pytest.approx(float(result.total_time))
             assert float(deserialized.vqe_time) == pytest.approx(float(result.vqe_time))
-            assert float(deserialized.hamiltonian_time) == pytest.approx(float(result.hamiltonian_time))
+            assert float(deserialized.hamiltonian_time) == pytest.approx(
+                float(result.hamiltonian_time)
+            )
             assert float(deserialized.mapping_time) == pytest.approx(float(result.mapping_time))
 
             # Verify nested VQEResult fields
-            assert float(deserialized.vqe_result.minimum) == pytest.approx(float(result.vqe_result.minimum))
-            assert len(deserialized.vqe_result.iteration_list) == len(result.vqe_result.iteration_list)
+            assert float(deserialized.vqe_result.minimum) == pytest.approx(
+                float(result.vqe_result.minimum)
+            )
+            assert len(deserialized.vqe_result.iteration_list) == len(
+                result.vqe_result.iteration_list
+            )
             np.testing.assert_allclose(
                 deserialized.vqe_result.optimal_parameters,
                 result.vqe_result.optimal_parameters,
@@ -244,7 +250,9 @@ class TestKafkaPipelineE2E:
             assert deserialized.molecule.multiplicity == result.molecule.multiplicity
 
     def test_schema_auto_registration_on_produce(
-        self, e2e_producer, pipeline_env,
+        self,
+        e2e_producer,
+        pipeline_env,
     ):
         """Producing a result should auto-register the schema in the real registry."""
         result = _build_decorated_result()
@@ -252,7 +260,8 @@ class TestKafkaPipelineE2E:
 
         # Serialize (triggers schema registration via the interface property)
         e2e_producer.serializer.to_avro_bytes(
-            result, schema_name=e2e_producer.serializer.schema_name,
+            result,
+            schema_name=e2e_producer.serializer.schema_name,
         )
 
         # Query the Schema Registry REST API directly to verify registration
@@ -282,14 +291,22 @@ class TestKafkaPipelineE2E:
         assert 'basis_set' in field_names
 
     def test_multiple_observations_batch(
-        self, e2e_producer, kafka_bootstrap_servers, pipeline_env,
+        self,
+        e2e_producer,
+        kafka_bootstrap_servers,
+        pipeline_env,
     ):
         """Send multiple different VQEDecoratedResults, consume all, verify each."""
         topic = 'test-batch-observations'
         test_configs = [
             {'molecule_symbols': ['H', 'H'], 'basis_set': 'sto-3g', 'molecule_id': 0},
             {'molecule_symbols': ['Li', 'H'], 'basis_set': '6-31g', 'molecule_id': 1},
-            {'molecule_symbols': ['H', 'H'], 'basis_set': 'cc-pvdz', 'molecule_id': 2, 'num_iterations': 3},
+            {
+                'molecule_symbols': ['H', 'H'],
+                'basis_set': 'cc-pvdz',
+                'molecule_id': 2,
+                'num_iterations': 3,
+            },
             {'molecule_symbols': ['O', 'H', 'H'], 'basis_set': 'sto-3g', 'molecule_id': 3},
         ]
 
@@ -297,7 +314,8 @@ class TestKafkaPipelineE2E:
         for config in test_configs:
             result = _build_decorated_result(**config)
             avro_bytes = e2e_producer.serializer.to_avro_bytes(
-                result, schema_name=e2e_producer.serializer.schema_name,
+                result,
+                schema_name=e2e_producer.serializer.schema_name,
             )
             e2e_producer.producer.send(topic, avro_bytes).get(timeout=10)
             sent_bytes.append(avro_bytes)
@@ -316,7 +334,7 @@ class TestKafkaPipelineE2E:
         # Verify each message can be deserialized if the Confluent header is present
         schema_name = e2e_producer.serializer.schema_name
         if e2e_producer.registry.id_cache.get(schema_name):
-            for i, (config, consumed) in enumerate(zip(test_configs, received)):
+            for i, (config, consumed) in enumerate(zip(test_configs, received, strict=False)):
                 deserialized = e2e_producer.serializer.from_avro_bytes(consumed)
                 assert deserialized.basis_set == config['basis_set'], (
                     f'Message {i}: basis_set mismatch'
@@ -337,11 +355,13 @@ class TestKafkaPipelineE2E:
             assert b in received
 
     def test_topic_suffix_from_result(
-        self, producer_config, pipeline_env,
+        self,
+        producer_config,
+        pipeline_env,
     ):
         """Verify _update_topic() appends the correct schema suffix."""
         producer = VQEKafkaProducer(producer_config)
-        original_topic = producer.config.topic
+        _original_topic = producer.config.topic
 
         result = _build_decorated_result(
             molecule_symbols=['H', 'H'],
@@ -377,7 +397,8 @@ class TestKafkaPipelineE2E:
         producer.close()
 
     def test_avro_schema_compatibility(
-        self, pipeline_env,
+        self,
+        pipeline_env,
     ):
         """Register a schema, then verify a backward-compatible evolved version works."""
         sr_url = pipeline_env['schema_registry_url']
@@ -424,9 +445,7 @@ class TestKafkaPipelineE2E:
             json={'schema': json.dumps(evolved_schema)},
             timeout=10,
         )
-        assert resp2.status_code == 200, (
-            f'Evolved schema should be compatible: {resp2.text}'
-        )
+        assert resp2.status_code == 200, f'Evolved schema should be compatible: {resp2.text}'
         evolved_id = resp2.json()['id']
         assert evolved_id != base_id, 'Evolved schema should get a different ID'
 
@@ -449,7 +468,10 @@ class TestKafkaPipelineE2E:
         assert 'convergence_delta' in field_names
 
     def test_pipeline_with_performance_data(
-        self, e2e_producer, kafka_bootstrap_servers, pipeline_env,
+        self,
+        e2e_producer,
+        kafka_bootstrap_servers,
+        pipeline_env,
     ):
         """Test round-trip with VQEDecoratedResult containing performance data."""
         perf_start = {
@@ -488,7 +510,8 @@ class TestKafkaPipelineE2E:
 
         # Serialize and produce
         avro_bytes = e2e_producer.serializer.to_avro_bytes(
-            result, schema_name=e2e_producer.serializer.schema_name,
+            result,
+            schema_name=e2e_producer.serializer.schema_name,
         )
         e2e_producer.producer.send(topic, avro_bytes).get(timeout=10)
         e2e_producer.producer.flush()

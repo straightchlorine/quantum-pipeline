@@ -112,5 +112,3 @@ with DAG(
         },
         verbose=True,
     )
-
-    quantum_simulation_results_processing

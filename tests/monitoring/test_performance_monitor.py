@@ -11,19 +11,19 @@ Tests cover:
 """
 
 import json
-import os
-import pytest
 import tempfile
 import time
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
+
+import pytest
 
 from quantum_pipeline.monitoring.performance_monitor import (
     PerformanceMonitor,
+    collect_performance_snapshot,
     get_performance_monitor,
     init_performance_monitoring,
     is_monitoring_enabled,
-    collect_performance_snapshot,
 )
 
 
@@ -38,6 +38,7 @@ def temp_metrics_dir():
 def clean_global_monitor():
     """Reset global monitor before and after tests."""
     from quantum_pipeline.monitoring import performance_monitor
+
     original_monitor = performance_monitor._global_monitor
     performance_monitor._global_monitor = None
     yield
@@ -50,8 +51,8 @@ class TestPerformanceMonitorInitialization:
     def test_initialization_disabled_by_default(self, temp_metrics_dir):
         """Test that monitoring is disabled by default."""
         monitor = PerformanceMonitor(metrics_dir=temp_metrics_dir)
-        assert monitor.enabled == False
-        assert monitor.is_enabled() == False
+        assert monitor.enabled is False
+        assert monitor.is_enabled() is False
 
     def test_initialization_enabled_via_constructor(self, temp_metrics_dir):
         """Test enabling monitoring via constructor parameter."""
@@ -60,9 +61,9 @@ class TestPerformanceMonitorInitialization:
             collection_interval=30,
             pushgateway_url='http://test:9091',
             export_format=['json', 'prometheus'],
-            metrics_dir=temp_metrics_dir
+            metrics_dir=temp_metrics_dir,
         )
-        assert monitor.enabled == True
+        assert monitor.enabled is True
         assert monitor.collection_interval == 30
         assert monitor.pushgateway_url == 'http://test:9091'
         assert monitor.export_format == ['json', 'prometheus']
@@ -76,7 +77,7 @@ class TestPerformanceMonitorInitialization:
 
         monitor = PerformanceMonitor(metrics_dir=temp_metrics_dir)
 
-        assert monitor.enabled == True
+        assert monitor.enabled is True
         assert monitor.collection_interval == 45
         assert monitor.pushgateway_url == 'http://env:9091'
         assert monitor.export_format == ['json', 'prometheus']
@@ -87,12 +88,10 @@ class TestPerformanceMonitorInitialization:
         monkeypatch.setenv('QUANTUM_PERFORMANCE_COLLECTION_INTERVAL', '45')
 
         monitor = PerformanceMonitor(
-            enabled=True,
-            collection_interval=10,
-            metrics_dir=temp_metrics_dir
+            enabled=True, collection_interval=10, metrics_dir=temp_metrics_dir
         )
 
-        assert monitor.enabled == True  # Constructor overrides env
+        assert monitor.enabled is True  # Constructor overrides env
         assert monitor.collection_interval == 10  # Constructor overrides env
 
     def test_metrics_directory_creation(self, temp_metrics_dir):
@@ -100,10 +99,7 @@ class TestPerformanceMonitorInitialization:
         metrics_path = temp_metrics_dir / 'test_metrics'
         assert not metrics_path.exists()
 
-        monitor = PerformanceMonitor(
-            enabled=True,
-            metrics_dir=metrics_path
-        )
+        PerformanceMonitor(enabled=True, metrics_dir=metrics_path)
 
         assert metrics_path.exists()
         assert metrics_path.is_dir()
@@ -163,10 +159,7 @@ class TestMetricsCollection:
         monitor = PerformanceMonitor(enabled=True, metrics_dir=temp_metrics_dir)
 
         monitor.set_experiment_context(
-            molecule_id=5,
-            molecule_symbols='H2O',
-            basis_set='sto3g',
-            optimizer='COBYLA'
+            molecule_id=5, molecule_symbols='H2O', basis_set='sto3g', optimizer='COBYLA'
         )
 
         assert monitor.experiment_context['molecule_id'] == 5
@@ -178,10 +171,7 @@ class TestMetricsCollection:
         """Test that experiment context is included in snapshot."""
         monitor = PerformanceMonitor(enabled=True, metrics_dir=temp_metrics_dir)
 
-        monitor.set_experiment_context(
-            molecule_id=0,
-            molecule_symbols='H2'
-        )
+        monitor.set_experiment_context(molecule_id=0, molecule_symbols='H2')
 
         snapshot = monitor.collect_metrics_snapshot()
 
@@ -213,7 +203,7 @@ class TestPrometheusExport:
             'reference_energy': -1.17447901,
             'energy_error_hartree': 0.00007901,
             'accuracy_score': 99.2,
-            'within_chemical_accuracy': 1
+            'within_chemical_accuracy': 1,
         }
 
         prometheus_output = monitor._convert_vqe_to_prometheus(vqe_data)
@@ -260,9 +250,7 @@ class TestPrometheusExport:
         mock_post.return_value.status_code = 200
 
         monitor = PerformanceMonitor(
-            enabled=True,
-            pushgateway_url='http://test:9091',
-            metrics_dir=temp_metrics_dir
+            enabled=True, pushgateway_url='http://test:9091', metrics_dir=temp_metrics_dir
         )
 
         vqe_data = {
@@ -303,9 +291,7 @@ class TestJSONExport:
     def test_json_export_creates_file(self, temp_metrics_dir):
         """Test that JSON export creates a file."""
         monitor = PerformanceMonitor(
-            enabled=True,
-            export_format=['json'],
-            metrics_dir=temp_metrics_dir
+            enabled=True, export_format=['json'], metrics_dir=temp_metrics_dir
         )
 
         snapshot = monitor.collect_metrics_snapshot()
@@ -318,9 +304,7 @@ class TestJSONExport:
     def test_json_export_valid_structure(self, temp_metrics_dir):
         """Test that exported JSON has valid structure."""
         monitor = PerformanceMonitor(
-            enabled=True,
-            export_format=['json'],
-            metrics_dir=temp_metrics_dir
+            enabled=True, export_format=['json'], metrics_dir=temp_metrics_dir
         )
 
         snapshot = monitor.collect_metrics_snapshot()
@@ -328,7 +312,7 @@ class TestJSONExport:
 
         # Read the JSON file
         json_files = list(temp_metrics_dir.glob('*.json'))
-        with open(json_files[0], 'r') as f:
+        with open(json_files[0]) as f:
             data = json.load(f)
 
         # Verify structure
@@ -339,16 +323,14 @@ class TestJSONExport:
     def test_json_export_system_only(self, temp_metrics_dir):
         """Test JSON export of system metrics only."""
         monitor = PerformanceMonitor(
-            enabled=True,
-            export_format=['json'],
-            metrics_dir=temp_metrics_dir
+            enabled=True, export_format=['json'], metrics_dir=temp_metrics_dir
         )
 
         metrics = {
             'timestamp': '2025-01-01T00:00:00',
             'container_type': 'test',
             'system': {'cpu': {'percent': 50.0}},
-            'container': {}
+            'container': {},
         }
 
         monitor._export_json_system_only(metrics)
@@ -364,9 +346,7 @@ class TestMonitoringThread:
     def test_start_monitoring_thread(self, temp_metrics_dir):
         """Test starting the monitoring thread."""
         monitor = PerformanceMonitor(
-            enabled=True,
-            collection_interval=1,
-            metrics_dir=temp_metrics_dir
+            enabled=True, collection_interval=1, metrics_dir=temp_metrics_dir
         )
 
         monitor.start_monitoring()
@@ -381,9 +361,7 @@ class TestMonitoringThread:
     def test_stop_monitoring_thread(self, temp_metrics_dir):
         """Test stopping the monitoring thread."""
         monitor = PerformanceMonitor(
-            enabled=True,
-            collection_interval=1,
-            metrics_dir=temp_metrics_dir
+            enabled=True, collection_interval=1, metrics_dir=temp_metrics_dir
         )
 
         monitor.start_monitoring()
@@ -409,9 +387,7 @@ class TestMonitoringThread:
     def test_context_manager_starts_and_stops_thread(self, temp_metrics_dir):
         """Test that context manager properly starts and stops monitoring."""
         monitor = PerformanceMonitor(
-            enabled=True,
-            collection_interval=1,
-            metrics_dir=temp_metrics_dir
+            enabled=True, collection_interval=1, metrics_dir=temp_metrics_dir
         )
 
         with monitor:
@@ -436,12 +412,10 @@ class TestGlobalMonitorFunctions:
     def test_init_performance_monitoring(self, clean_global_monitor, temp_metrics_dir):
         """Test initializing performance monitoring globally."""
         monitor = init_performance_monitoring(
-            enabled=True,
-            collection_interval=30,
-            metrics_dir=temp_metrics_dir
+            enabled=True, collection_interval=30, metrics_dir=temp_metrics_dir
         )
 
-        assert monitor.enabled == True
+        assert monitor.enabled is True
         assert monitor.collection_interval == 30
 
         # Verify it's the global instance
@@ -452,7 +426,7 @@ class TestGlobalMonitorFunctions:
         """Test is_monitoring_enabled convenience function."""
         init_performance_monitoring(enabled=True, metrics_dir=temp_metrics_dir)
 
-        assert is_monitoring_enabled() == True
+        assert is_monitoring_enabled() is True
 
     def test_collect_performance_snapshot_function(self, clean_global_monitor, temp_metrics_dir):
         """Test collect_performance_snapshot convenience function."""
@@ -475,14 +449,13 @@ class TestConfigurationEdgeCases:
 
         # Should fall back to settings default
         from quantum_pipeline.configs import settings
+
         assert monitor.collection_interval == settings.PERFORMANCE_COLLECTION_INTERVAL
 
     def test_export_format_both_expands_to_list(self, temp_metrics_dir):
         """Test that 'both' export format is expanded correctly."""
         monitor = PerformanceMonitor(
-            enabled=True,
-            export_format=['both'],
-            metrics_dir=temp_metrics_dir
+            enabled=True, export_format=['both'], metrics_dir=temp_metrics_dir
         )
 
         # When checking for formats, 'both' should work
@@ -491,12 +464,10 @@ class TestConfigurationEdgeCases:
     @patch('requests.post')
     def test_pushgateway_connection_failure_handling(self, mock_post, temp_metrics_dir):
         """Test handling of PushGateway connection failure."""
-        mock_post.side_effect = Exception("Connection refused")
+        mock_post.side_effect = Exception('Connection refused')
 
         monitor = PerformanceMonitor(
-            enabled=True,
-            pushgateway_url='http://unreachable:9091',
-            metrics_dir=temp_metrics_dir
+            enabled=True, pushgateway_url='http://unreachable:9091', metrics_dir=temp_metrics_dir
         )
 
         vqe_data = {'total_time': 45.23}
@@ -508,7 +479,7 @@ class TestConfigurationEdgeCases:
         """Test handling of metrics collection failure."""
         monitor = PerformanceMonitor(enabled=True, metrics_dir=temp_metrics_dir)
 
-        with patch('psutil.cpu_percent', side_effect=Exception("Mock error")):
+        with patch('psutil.cpu_percent', side_effect=Exception('Mock error')):
             snapshot = monitor.collect_metrics_snapshot()
 
             # Should return snapshot with error in system metrics instead of raising
@@ -529,7 +500,7 @@ class TestPerformanceMonitorIntegration:
             collection_interval=30,
             pushgateway_url='http://test:9091',
             export_format=['json', 'prometheus'],
-            metrics_dir=temp_metrics_dir
+            metrics_dir=temp_metrics_dir,
         )
 
         # Step 1: Set experiment context
@@ -538,7 +509,7 @@ class TestPerformanceMonitorIntegration:
             molecule_symbols='H2',
             basis_set='sto3g',
             optimizer='COBYLA',
-            backend_type='CPU'
+            backend_type='CPU',
         )
 
         # Step 2: Collect before snapshot
@@ -577,7 +548,7 @@ class TestPerformanceMonitorIntegration:
             enabled=True,
             collection_interval=1,
             export_format=['json'],
-            metrics_dir=temp_metrics_dir
+            metrics_dir=temp_metrics_dir,
         )
 
         with monitor:

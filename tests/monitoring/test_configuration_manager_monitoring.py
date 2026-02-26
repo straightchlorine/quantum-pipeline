@@ -5,10 +5,11 @@ Tests verify that the configuration manager properly initializes monitoring
 when --enable-performance-monitoring is passed via command line arguments.
 """
 
-import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
+import pytest
 
 from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
 from quantum_pipeline.configs.parsing.configuration_manager import ConfigurationManager
@@ -26,6 +27,7 @@ def temp_metrics_dir():
 def clean_global_monitor():
     """Reset global monitor before and after tests."""
     from quantum_pipeline.monitoring import performance_monitor
+
     original_monitor = performance_monitor._global_monitor
     performance_monitor._global_monitor = None
     yield
@@ -36,6 +38,7 @@ def clean_global_monitor():
 def mock_sys_argv():
     """Mock sys.argv for argparser tests."""
     import sys
+
     original_argv = sys.argv
     yield
     sys.argv = original_argv
@@ -44,23 +47,30 @@ def mock_sys_argv():
 class TestConfigurationManagerMonitoringInit:
     """Test ConfigurationManager's monitoring initialization from arguments."""
 
-    def test_monitoring_initialized_from_args(self, mock_sys_argv, clean_global_monitor, monkeypatch):
+    def test_monitoring_initialized_from_args(
+        self, mock_sys_argv, clean_global_monitor, monkeypatch
+    ):
         """Test that monitoring is initialized when --enable-performance-monitoring is set."""
         import sys
+
         sys.argv = [
             'test',
-            '--file', 'data/molecules.thesis.simple.json',
+            '--file',
+            'data/molecules.thesis.simple.json',
             '--enable-performance-monitoring',
-            '--performance-interval', '10',
-            '--performance-pushgateway', 'http://monit:9091',
-            '--performance-export-format', 'both'
+            '--performance-interval',
+            '10',
+            '--performance-pushgateway',
+            'http://monit:9091',
+            '--performance-export-format',
+            'both',
         ]
 
         # Set temp metrics dir via env var
         monkeypatch.setenv('QUANTUM_PERFORMANCE_METRICS_DIR', '/tmp/test_metrics')
 
         parser = QuantumPipelineArgParser()
-        config = parser.get_config()
+        parser.get_config()
 
         # Get the global monitor instance
         monitor = get_performance_monitor()
@@ -72,10 +82,8 @@ class TestConfigurationManagerMonitoringInit:
     def test_monitoring_not_initialized_without_flag(self, mock_sys_argv, clean_global_monitor):
         """Test that monitoring is not initialized when flag is not set."""
         import sys
-        sys.argv = [
-            'test',
-            '--file', 'data/molecules.thesis.simple.json'
-        ]
+
+        sys.argv = ['test', '--file', 'data/molecules.thesis.simple.json']
 
         parser = QuantumPipelineArgParser()
         args = parser.parse_args()
@@ -85,17 +93,20 @@ class TestConfigurationManagerMonitoringInit:
     def test_monitoring_export_format_conversion(self, mock_sys_argv, clean_global_monitor):
         """Test that export format 'both' is converted to list."""
         import sys
+
         sys.argv = [
             'test',
-            '--file', 'data/molecules.thesis.simple.json',
+            '--file',
+            'data/molecules.thesis.simple.json',
             '--enable-performance-monitoring',
-            '--performance-export-format', 'both'
+            '--performance-export-format',
+            'both',
         ]
 
         parser = QuantumPipelineArgParser()
         config_manager = ConfigurationManager()
         args = parser.parse_args()
-        config = config_manager.get_config(args)
+        config_manager.get_config(args)
 
         monitor = get_performance_monitor()
 
@@ -107,30 +118,37 @@ class TestConfigurationManagerMonitoringInit:
     def test_monitoring_export_format_single_value(self, mock_sys_argv, clean_global_monitor):
         """Test that single export format value is converted to list."""
         import sys
+
         sys.argv = [
             'test',
-            '--file', 'data/molecules.thesis.simple.json',
+            '--file',
+            'data/molecules.thesis.simple.json',
             '--enable-performance-monitoring',
-            '--performance-export-format', 'json'
+            '--performance-export-format',
+            'json',
         ]
 
         parser = QuantumPipelineArgParser()
         config_manager = ConfigurationManager()
         args = parser.parse_args()
-        config = config_manager.get_config(args)
+        config_manager.get_config(args)
 
         monitor = get_performance_monitor()
 
         assert isinstance(monitor.export_format, list)
         assert 'json' in monitor.export_format
 
-    def test_configuration_manager_logs_initialization(self, mock_sys_argv, clean_global_monitor, caplog):
+    def test_configuration_manager_logs_initialization(
+        self, mock_sys_argv, clean_global_monitor, caplog
+    ):
         """Test that configuration manager logs monitoring initialization."""
         import sys
+
         sys.argv = [
             'test',
-            '--file', 'data/molecules.thesis.simple.json',
-            '--enable-performance-monitoring'
+            '--file',
+            'data/molecules.thesis.simple.json',
+            '--enable-performance-monitoring',
         ]
 
         parser = QuantumPipelineArgParser()
@@ -138,18 +156,18 @@ class TestConfigurationManagerMonitoringInit:
         args = parser.parse_args()
 
         with caplog.at_level('INFO'):
-            config = config_manager.get_config(args)
+            config_manager.get_config(args)
 
         # Check that initialization was logged
-        assert any('Initializing performance monitoring' in record.message for record in caplog.records)
+        assert any(
+            'Initializing performance monitoring' in record.message for record in caplog.records
+        )
 
     def test_monitoring_disabled_by_default_in_config(self, mock_sys_argv, clean_global_monitor):
         """Test that monitoring is disabled by default in configuration."""
         import sys
-        sys.argv = [
-            'test',
-            '--file', 'data/molecules.thesis.simple.json'
-        ]
+
+        sys.argv = ['test', '--file', 'data/molecules.thesis.simple.json']
 
         parser = QuantumPipelineArgParser()
         args = parser.parse_args()
@@ -161,13 +179,18 @@ class TestConfigurationManagerMonitoringInit:
     def test_config_dict_contains_monitoring_settings(self, mock_sys_argv, clean_global_monitor):
         """Test that config dict contains all monitoring-related settings."""
         import sys
+
         sys.argv = [
             'test',
-            '--file', 'data/molecules.thesis.simple.json',
+            '--file',
+            'data/molecules.thesis.simple.json',
             '--enable-performance-monitoring',
-            '--performance-interval', '45',
-            '--performance-pushgateway', 'http://test:9091',
-            '--performance-export-format', 'prometheus'
+            '--performance-interval',
+            '45',
+            '--performance-pushgateway',
+            'http://test:9091',
+            '--performance-export-format',
+            'prometheus',
         ]
 
         parser = QuantumPipelineArgParser()
@@ -204,15 +227,18 @@ class TestMonitoringConfigurationPriority:
     def test_command_line_via_config_manager(self, mock_sys_argv, clean_global_monitor):
         """Test that command line args initialize monitoring correctly."""
         import sys
+
         sys.argv = [
             'test',
-            '--file', 'data/molecules.thesis.simple.json',
+            '--file',
+            'data/molecules.thesis.simple.json',
             '--enable-performance-monitoring',
-            '--performance-interval', '15'
+            '--performance-interval',
+            '15',
         ]
 
         parser = QuantumPipelineArgParser()
-        config = parser.get_config()
+        parser.get_config()
 
         monitor = get_performance_monitor()
 
@@ -225,24 +251,29 @@ class TestMonitoringIntegrationWithVQERunner:
     """Test that monitoring configuration flows to VQE runner."""
 
     @patch('quantum_pipeline.runners.vqe_runner.load_molecule')
-    def test_vqe_runner_receives_monitor_instance(self, mock_load_molecule, mock_sys_argv, clean_global_monitor):
+    def test_vqe_runner_receives_monitor_instance(
+        self, mock_load_molecule, mock_sys_argv, clean_global_monitor
+    ):
         """Test that VQERunner receives the initialized monitor instance."""
         import sys
+
         sys.argv = [
             'test',
-            '--file', 'data/molecules.thesis.simple.json',
+            '--file',
+            'data/molecules.thesis.simple.json',
             '--enable-performance-monitoring',
-            '--kafka'
+            '--kafka',
         ]
 
         # Mock molecule loading to avoid file I/O
         mock_load_molecule.return_value = []
 
         parser = QuantumPipelineArgParser()
-        config = parser.get_config()
+        parser.get_config()
 
         # Simulate VQERunner initialization
         from quantum_pipeline.monitoring import get_performance_monitor
+
         monitor = get_performance_monitor()
 
         assert monitor.is_enabled() is True
@@ -259,7 +290,7 @@ class TestMonitoringIntegrationWithVQERunner:
             molecule_symbols='H2',
             basis_set='sto3g',
             optimizer='COBYLA',
-            backend_type='CPU'
+            backend_type='CPU',
         )
 
         assert monitor.experiment_context['molecule_id'] == 0

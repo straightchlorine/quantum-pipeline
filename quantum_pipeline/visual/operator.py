@@ -7,8 +7,9 @@ This module visualizes the coefficients of qubit operators.
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+
 from quantum_pipeline.configs import settings
-from quantum_pipeline.utils.dir import savePlot
+from quantum_pipeline.utils.dir import save_plot
 
 matplotlib.use('Agg')
 
@@ -110,7 +111,7 @@ class OperatorViewer:
 
         # set layout and save the plot
         plt.tight_layout()
-        plot_path = savePlot(
+        plot_path = save_plot(
             plt,
             settings.OPERATOR_COEFFS_PLOT_DIR,
             settings.OPERATOR_COEFFS_PLOT,
@@ -208,7 +209,7 @@ class OperatorViewer:
 
         # adjust layout and save
         plt.tight_layout()
-        plot_path = savePlot(
+        plot_path = save_plot(
             plt,
             settings.OPERATOR_CPLX_COEFFS_PLOT_DIR,
             settings.OPERATOR_CPLX_COEFFS_PLOT,

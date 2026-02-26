@@ -1,10 +1,10 @@
 """Tests for energy visualization plotter."""
 
-import pytest
 import numpy as np
-from unittest.mock import MagicMock, patch
-from quantum_pipeline.visual.energy import EnergyPlotter
+import pytest
+
 from quantum_pipeline.structures.vqe_observation import VQEProcess
+from quantum_pipeline.visual.energy import EnergyPlotter
 
 
 @pytest.fixture
@@ -160,7 +160,7 @@ class TestPointFiltering:
     def test_max_points_one(self, sample_vqe_processes, sample_symbols):
         """Test with max_points = 1."""
         plotter = EnergyPlotter(sample_vqe_processes, sample_symbols, max_points=1)
-        filtered_iter, filtered_energy, filtered_std = plotter._filter_points()
+        filtered_iter, _filtered_energy, _filtered_std = plotter._filter_points()
         # With max_points=1 and 10 points, step is 10, so we get points at indices 0, 10
         assert len(filtered_iter) <= 2
 
@@ -356,6 +356,6 @@ class TestEdgeCases:
 
     def test_unicode_symbols(self, sample_vqe_processes):
         """Test with unicode symbols."""
-        unicode_symbols = ['α', 'β', 'γ', 'δ']
+        unicode_symbols = ['α', 'β', 'γ', 'δ']  # noqa: RUF001
         plotter = EnergyPlotter(sample_vqe_processes, unicode_symbols)
         assert plotter.symbols == unicode_symbols

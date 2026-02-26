@@ -1,8 +1,8 @@
 """Tests for operator coefficient visualization (OperatorViewer)."""
 
-import numpy as np
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, call
 
 
 class TestPlotOperatorCoefficients:
@@ -22,8 +22,8 @@ class TestPlotOperatorCoefficients:
         """Qubit op containing terms below the default threshold (1e-2)."""
         return [
             ('IZ', 0.5 + 0.0j),
-            ('ZI', 0.001 + 0.001j),   # negligible
-            ('XX', 0.002 + 0.0j),     # negligible
+            ('ZI', 0.001 + 0.001j),  # negligible
+            ('XX', 0.002 + 0.0j),  # negligible
             ('YY', -0.4 + 0.0j),
         ]
 
@@ -36,7 +36,7 @@ class TestPlotOperatorCoefficients:
     # Happy-path tests
     # ------------------------------------------------------------------ #
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_returns_plot_path(self, mock_plt, mock_save, simple_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -46,15 +46,13 @@ class TestPlotOperatorCoefficients:
         mock_plt.subplots.return_value = (mock_fig, mock_ax)
         mock_save.return_value = '/tmp/plot.png'
 
-        result = OperatorViewer.plot_operator_coefficients(
-            simple_qubit_op, symbols='H2'
-        )
+        result = OperatorViewer.plot_operator_coefficients(simple_qubit_op, symbols='H2')
 
         assert result == '/tmp/plot.png'
         mock_save.assert_called_once()
         mock_plt.close.assert_called_once_with(mock_fig)
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_creates_horizontal_bar_chart(self, mock_plt, mock_save, simple_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -71,7 +69,7 @@ class TestPlotOperatorCoefficients:
         mock_ax.set_title.assert_called_once()
         mock_ax.legend.assert_called_once()
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_custom_title(self, mock_plt, mock_save, simple_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -81,9 +79,7 @@ class TestPlotOperatorCoefficients:
         mock_plt.subplots.return_value = (mock_fig, mock_ax)
         mock_save.return_value = '/tmp/plot.png'
 
-        OperatorViewer.plot_operator_coefficients(
-            simple_qubit_op, symbols='H2', title='My Title'
-        )
+        OperatorViewer.plot_operator_coefficients(simple_qubit_op, symbols='H2', title='My Title')
 
         mock_ax.set_title.assert_called_once_with('My Title', fontsize=14)
 
@@ -91,7 +87,7 @@ class TestPlotOperatorCoefficients:
     # Filtering / threshold tests
     # ------------------------------------------------------------------ #
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_negligible_terms_grouped_as_other(self, mock_plt, mock_save, op_with_negligible):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -110,7 +106,7 @@ class TestPlotOperatorCoefficients:
         # significant: IZ, YY → 2 significant + 1 Other = 3
         assert len(labels) == 3
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_high_threshold_groups_all(self, mock_plt, mock_save, simple_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -120,15 +116,13 @@ class TestPlotOperatorCoefficients:
         mock_plt.subplots.return_value = (mock_fig, mock_ax)
         mock_save.return_value = '/tmp/plot.png'
 
-        OperatorViewer.plot_operator_coefficients(
-            simple_qubit_op, symbols='H2', threshold=10.0
-        )
+        OperatorViewer.plot_operator_coefficients(simple_qubit_op, symbols='H2', threshold=10.0)
 
         labels = mock_ax.set_yticklabels.call_args[0][0]
         # All terms are below threshold=10 → only 'Other'
         assert labels == ['Other']
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_zero_threshold_shows_all(self, mock_plt, mock_save, simple_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -138,9 +132,7 @@ class TestPlotOperatorCoefficients:
         mock_plt.subplots.return_value = (mock_fig, mock_ax)
         mock_save.return_value = '/tmp/plot.png'
 
-        OperatorViewer.plot_operator_coefficients(
-            simple_qubit_op, symbols='H2', threshold=0.0
-        )
+        OperatorViewer.plot_operator_coefficients(simple_qubit_op, symbols='H2', threshold=0.0)
 
         labels = mock_ax.set_yticklabels.call_args[0][0]
         assert len(labels) == 3  # all terms, no 'Other'
@@ -150,7 +142,7 @@ class TestPlotOperatorCoefficients:
     # Subsampling (max_terms) tests
     # ------------------------------------------------------------------ #
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_max_terms_limits_output(self, mock_plt, mock_save, large_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -160,14 +152,12 @@ class TestPlotOperatorCoefficients:
         mock_plt.subplots.return_value = (mock_fig, mock_ax)
         mock_save.return_value = '/tmp/plot.png'
 
-        OperatorViewer.plot_operator_coefficients(
-            large_qubit_op, symbols='H2', max_terms=20
-        )
+        OperatorViewer.plot_operator_coefficients(large_qubit_op, symbols='H2', max_terms=20)
 
         labels = mock_ax.set_yticklabels.call_args[0][0]
         assert len(labels) <= 20
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_small_op_no_subsampling(self, mock_plt, mock_save, simple_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -177,9 +167,7 @@ class TestPlotOperatorCoefficients:
         mock_plt.subplots.return_value = (mock_fig, mock_ax)
         mock_save.return_value = '/tmp/plot.png'
 
-        OperatorViewer.plot_operator_coefficients(
-            simple_qubit_op, symbols='H2', max_terms=50
-        )
+        OperatorViewer.plot_operator_coefficients(simple_qubit_op, symbols='H2', max_terms=50)
 
         labels = mock_ax.set_yticklabels.call_args[0][0]
         assert len(labels) == 3  # no subsampling needed
@@ -188,7 +176,7 @@ class TestPlotOperatorCoefficients:
     # Edge cases
     # ------------------------------------------------------------------ #
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_single_term(self, mock_plt, mock_save):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -202,7 +190,7 @@ class TestPlotOperatorCoefficients:
         result = OperatorViewer.plot_operator_coefficients(op, symbols='H2')
         assert result == '/tmp/plot.png'
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_purely_imaginary_coefficients(self, mock_plt, mock_save):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -246,7 +234,7 @@ class TestPlotComplexCoefficientsPolar:
     # Happy-path tests
     # ------------------------------------------------------------------ #
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_returns_plot_path(self, mock_plt, mock_save, simple_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -257,15 +245,13 @@ class TestPlotComplexCoefficientsPolar:
         mock_plt.subplots.return_value = (mock_fig, (mock_ax1, mock_ax2))
         mock_save.return_value = '/tmp/polar.png'
 
-        result = OperatorViewer.plot_complex_coefficients_polar(
-            simple_qubit_op, symbols='H2'
-        )
+        result = OperatorViewer.plot_complex_coefficients_polar(simple_qubit_op, symbols='H2')
 
         assert result == '/tmp/polar.png'
         mock_save.assert_called_once()
         mock_plt.close.assert_called_once_with(mock_fig)
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_creates_magnitude_and_phase_subplots(self, mock_plt, mock_save, simple_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -284,7 +270,7 @@ class TestPlotComplexCoefficientsPolar:
         mock_ax1.set_title.assert_called_once()
         mock_ax2.set_title.assert_called_once()
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_custom_title_propagated(self, mock_plt, mock_save, simple_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -308,7 +294,7 @@ class TestPlotComplexCoefficientsPolar:
     # Filtering
     # ------------------------------------------------------------------ #
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_negligible_terms_grouped_polar(self, mock_plt, mock_save, op_with_negligible):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -324,7 +310,7 @@ class TestPlotComplexCoefficientsPolar:
         labels = mock_ax1.set_xticklabels.call_args[0][0]
         assert 'Other' in labels
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_max_terms_limits_polar(self, mock_plt, mock_save, large_qubit_op):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -335,9 +321,7 @@ class TestPlotComplexCoefficientsPolar:
         mock_plt.subplots.return_value = (mock_fig, (mock_ax1, mock_ax2))
         mock_save.return_value = '/tmp/polar.png'
 
-        OperatorViewer.plot_complex_coefficients_polar(
-            large_qubit_op, symbols='H2', max_terms=15
-        )
+        OperatorViewer.plot_complex_coefficients_polar(large_qubit_op, symbols='H2', max_terms=15)
 
         labels = mock_ax1.set_xticklabels.call_args[0][0]
         assert len(labels) <= 15
@@ -346,7 +330,7 @@ class TestPlotComplexCoefficientsPolar:
     # Edge cases
     # ------------------------------------------------------------------ #
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_all_real_coefficients(self, mock_plt, mock_save):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -361,7 +345,7 @@ class TestPlotComplexCoefficientsPolar:
         result = OperatorViewer.plot_complex_coefficients_polar(op, symbols='H2')
         assert result == '/tmp/polar.png'
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_single_term_polar(self, mock_plt, mock_save):
         from quantum_pipeline.visual.operator import OperatorViewer
@@ -376,7 +360,7 @@ class TestPlotComplexCoefficientsPolar:
         OperatorViewer.plot_complex_coefficients_polar(op, symbols='LiH')
         mock_plt.tight_layout.assert_called_once()
 
-    @patch('quantum_pipeline.visual.operator.savePlot')
+    @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_all_negligible_no_crash(self, mock_plt, mock_save):
         """When every term is below threshold, no 'Other' added if sums are zero."""

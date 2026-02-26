@@ -55,7 +55,7 @@ def test_vqe_solver_initialization(vqe_solver, sample_hamiltonian, mock_backend_
 
 
 def test_compute_energy(vqe_solver):
-    """Test computeEnergy method."""
+    """Test compute_energy method."""
     # mocking the estimator
     mock_estimator = MagicMock()
     mock_result = MagicMock()
@@ -72,7 +72,7 @@ def test_compute_energy(vqe_solver):
 
     # suppress logging output
     with patch.object(vqe_solver.logger, 'debug'):
-        energy = vqe_solver.computeEnergy(params, mock_ansatz, mock_hamiltonian, mock_estimator)
+        energy = vqe_solver.compute_energy(params, mock_ansatz, mock_hamiltonian, mock_estimator)
 
     assert energy == 1.5
     assert len(vqe_solver.vqe_process) == 1
@@ -102,7 +102,7 @@ def test_optimize_circuits(vqe_solver):
         mock_hamiltonian.apply_layout.return_value = mock_hamiltonian
 
         # call the method
-        optimized_ansatz, optimized_hamiltonian = vqe_solver._optimize_circuits(
+        optimized_ansatz, _optimized_hamiltonian = vqe_solver._optimize_circuits(
             mock_ansatz, mock_hamiltonian, mock_backend
         )
 
@@ -120,7 +120,7 @@ def test_solve_via_aer(vqe_solver):
     # patch the backend
     with (
         patch.object(vqe_solver, 'get_backend', return_value=mock_backend),
-        patch.object(vqe_solver, 'viaAer') as mock_via_aer,
+        patch.object(vqe_solver, 'via_aer') as mock_via_aer,
     ):
         # assign mock result
         mock_result = MagicMock()
@@ -141,7 +141,7 @@ def test_solve_via_ibmq(vqe_solver):
     # patch the get_backend to run via ibm quantum
     with (
         patch.object(vqe_solver, 'get_backend', return_value=mock_backend),
-        patch.object(vqe_solver, 'viaIBMQ') as mock_via_ibmq,
+        patch.object(vqe_solver, 'via_ibmq') as mock_via_ibmq,
     ):
         # mock result
         mock_result = MagicMock()
@@ -190,10 +190,10 @@ def test_solve_method_result_type(vqe_solver, backend_type):
     with patch.object(vqe_solver, 'get_backend', return_value=mock_backend):
         # patch method based on backend type
         if backend_type == AerBackend:
-            with patch.object(vqe_solver, 'viaAer', return_value=mock_result):
+            with patch.object(vqe_solver, 'via_aer', return_value=mock_result):
                 result = vqe_solver.solve()
         else:
-            with patch.object(vqe_solver, 'viaIBMQ', return_value=mock_result):
+            with patch.object(vqe_solver, 'via_ibmq', return_value=mock_result):
                 result = vqe_solver.solve()
 
         # verify if correct result was returned
@@ -214,7 +214,9 @@ class TestVQEConvergencePriority:
         # tol = convergence_threshold if convergence_threshold and not max_iterations else None
         tol = convergence_threshold if convergence_threshold and not max_iterations else None
 
-        assert tol is None, "tol should be None when max_iterations takes priority over convergence"
+        assert tol is None, (
+            'tol should be None when max_iterations takes priority over convergence'
+        )
 
     def test_convergence_only_uses_tolerance(self):
         """Test that convergence threshold is used when only convergence is specified."""
@@ -224,7 +226,7 @@ class TestVQEConvergencePriority:
         # Logic from VQE solver
         tol = convergence_threshold if convergence_threshold and not max_iterations else None
 
-        assert tol == 1e-6, "tol should be set when only convergence is specified"
+        assert tol == 1e-6, 'tol should be set when only convergence is specified'
 
     def test_max_iterations_only_no_tolerance(self):
         """Test that no tolerance is used when only max_iterations is specified."""
@@ -234,7 +236,7 @@ class TestVQEConvergencePriority:
         # Logic from VQE solver
         tol = convergence_threshold if convergence_threshold and not max_iterations else None
 
-        assert tol is None, "tol should be None when only max_iterations is specified"
+        assert tol is None, 'tol should be None when only max_iterations is specified'
 
     def test_neither_specified_no_tolerance(self):
         """Test that no tolerance is used when neither is specified."""
@@ -244,7 +246,7 @@ class TestVQEConvergencePriority:
         # Logic from VQE solver
         tol = convergence_threshold if convergence_threshold and not max_iterations else None
 
-        assert tol is None, "tol should be None when neither is specified"
+        assert tol is None, 'tol should be None when neither is specified'
 
     def test_vqe_solver_initialization_with_both(self, sample_hamiltonian, mock_backend_config):
         """Test that VQESolver can be initialized with both parameters."""
@@ -261,7 +263,9 @@ class TestVQEConvergencePriority:
         assert solver.convergence_threshold == 1e-6
         assert solver.optimizer == 'COBYLA'
 
-    def test_vqe_solver_initialization_convergence_only(self, sample_hamiltonian, mock_backend_config):
+    def test_vqe_solver_initialization_convergence_only(
+        self, sample_hamiltonian, mock_backend_config
+    ):
         """Test that VQESolver can be initialized with only convergence threshold."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
@@ -275,7 +279,9 @@ class TestVQEConvergencePriority:
         assert solver.max_iterations is None
         assert solver.convergence_threshold == 1e-6
 
-    def test_vqe_solver_initialization_max_iterations_only(self, sample_hamiltonian, mock_backend_config):
+    def test_vqe_solver_initialization_max_iterations_only(
+        self, sample_hamiltonian, mock_backend_config
+    ):
         """Test that VQESolver can be initialized with only max_iterations."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
@@ -293,22 +299,21 @@ class TestVQEConvergencePriority:
         """Test L-BFGS-B specific logic when max_iterations is specified."""
         optimizer = 'L-BFGS-B'
         max_iterations = 5
-        convergence_threshold = 1e-6
+        _convergence_threshold = 1e-6
 
         # Test the specific L-BFGS-B logic - should disable early convergence when max_iterations is set
-        should_disable_early_convergence = (
-            optimizer == 'L-BFGS-B' and
-            max_iterations
-        )
+        should_disable_early_convergence = optimizer == 'L-BFGS-B' and max_iterations
 
-        assert should_disable_early_convergence, "L-BFGS-B should disable default convergence when max_iterations is set"
+        assert should_disable_early_convergence, (
+            'L-BFGS-B should disable default convergence when max_iterations is set'
+        )
 
         # Verify the ftol and gtol values that would be set
         expected_ftol = 1e-15
         expected_gtol = 1e-15
 
-        assert expected_ftol < 1e-10, "ftol should be very small to prevent early convergence"
-        assert expected_gtol < 1e-10, "gtol should be very small to prevent early convergence"
+        assert expected_ftol < 1e-10, 'ftol should be very small to prevent early convergence'
+        assert expected_gtol < 1e-10, 'gtol should be very small to prevent early convergence'
 
     def test_lbfgs_b_without_max_iterations(self):
         """Test L-BFGS-B behavior when max_iterations is not specified."""
@@ -316,12 +321,11 @@ class TestVQEConvergencePriority:
         max_iterations = None
 
         # Should NOT disable early convergence when max_iterations is not set
-        should_disable_early_convergence = (
-            optimizer == 'L-BFGS-B' and
-            max_iterations
-        )
+        should_disable_early_convergence = optimizer == 'L-BFGS-B' and max_iterations
 
-        assert not should_disable_early_convergence, "L-BFGS-B should use default convergence when max_iterations is not set"
+        assert not should_disable_early_convergence, (
+            'L-BFGS-B should use default convergence when max_iterations is not set'
+        )
 
 
 class TestVQEEdgeCases:
@@ -426,7 +430,9 @@ class TestVQEEdgeCases:
         should_disable = solver.optimizer == 'L-BFGS-B' and solver.max_iterations
         assert not should_disable
 
-    def test_different_optimizers_with_max_iterations(self, sample_hamiltonian, mock_backend_config):
+    def test_different_optimizers_with_max_iterations(
+        self, sample_hamiltonian, mock_backend_config
+    ):
         """Test that only L-BFGS-B gets special convergence handling."""
         optimizers = ['COBYLA', 'L-BFGS-B', 'COBYQA']
 
@@ -442,9 +448,9 @@ class TestVQEEdgeCases:
             should_disable = solver.optimizer == 'L-BFGS-B' and solver.max_iterations
 
             if optimizer == 'L-BFGS-B':
-                assert should_disable, f"L-BFGS-B should disable convergence criteria"
+                assert should_disable, 'L-BFGS-B should disable convergence criteria'
             else:
-                assert not should_disable, f"{optimizer} should not disable convergence criteria"
+                assert not should_disable, f'{optimizer} should not disable convergence criteria'
 
     def test_string_to_bool_edge_cases(self):
         """Test edge cases for convergence threshold truthiness."""
@@ -453,10 +459,10 @@ class TestVQEEdgeCases:
         truthy_values = [1e-6, 1e-20, -1e-6, 1, True]
 
         for value in falsy_values:
-            assert not bool(value), f"Value {value} should be falsy"
+            assert not bool(value), f'Value {value} should be falsy'
 
         for value in truthy_values:
-            assert bool(value), f"Value {value} should be truthy"
+            assert bool(value), f'Value {value} should be truthy'
 
     def test_optimization_params_structure(self):
         """Test that optimization parameters have correct structure."""
@@ -470,10 +476,12 @@ class TestVQEEdgeCases:
 
         # L-BFGS-B specific additions
         if True:  # Simulating L-BFGS-B condition
-            optimization_params.update({
-                'ftol': 1e-15,
-                'gtol': 1e-15,
-            })
+            optimization_params.update(
+                {
+                    'ftol': 1e-15,
+                    'gtol': 1e-15,
+                }
+            )
 
         assert 'maxiter' in optimization_params
         assert 'disp' in optimization_params

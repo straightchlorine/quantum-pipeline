@@ -6,7 +6,7 @@ from typing import Any
 from quantum_pipeline.configs import settings
 from quantum_pipeline.configs.defaults import DEFAULTS
 from quantum_pipeline.configs.parsing.configuration_manager import ConfigurationManager
-from quantum_pipeline.utils.dir import ensureDirExists
+from quantum_pipeline.utils.dir import ensure_dir_exists
 from quantum_pipeline.utils.logger import get_logger
 
 
@@ -27,10 +27,10 @@ class QuantumPipelineArgParser:
 
     def initialize_simulation_environment(self):
         """Ensure required directories and configurations are in place."""
-        ensureDirExists(settings.GEN_DIR)
-        ensureDirExists(settings.GRAPH_DIR)
-        ensureDirExists(settings.REPORT_DIR)
-        ensureDirExists(settings.RUN_CONFIGS)
+        ensure_dir_exists(settings.GEN_DIR)
+        ensure_dir_exists(settings.GRAPH_DIR)
+        ensure_dir_exists(settings.REPORT_DIR)
+        ensure_dir_exists(settings.RUN_CONFIGS)
 
     def _create_optimizer_help_text(self) -> str:
         """Create detailed help text for optimizer options."""
@@ -209,14 +209,12 @@ class QuantumPipelineArgParser:
     def ensure_dir(self, path):
         if os.path.isdir(path):
             return True
-        else:
-            raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
+        raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
 
     def ensure_file(self, path):
         if os.path.isfile(path):
             return path
-        else:
-            raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
+        raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
 
     def _add_additional_features(self):
         """Add additional feature arguments."""
@@ -359,7 +357,7 @@ class QuantumPipelineArgParser:
         )
 
     def kafka_params_set(self, args: argparse.Namespace):
-        if (
+        return (
             args.servers != DEFAULTS['kafka']['servers']
             or args.topic != DEFAULTS['kafka']['topic']
             or args.retries != DEFAULTS['kafka']['retries']
@@ -367,11 +365,9 @@ class QuantumPipelineArgParser:
             or args.internal_retries != DEFAULTS['kafka']['internal_retries']
             or args.acks != DEFAULTS['kafka']['acks']
             or args.timeout != DEFAULTS['kafka']['timeout']
-        ):
-            return True
-        return False
+        )
 
-    def _validate_args(self, args: argparse.Namespace) -> None:  # noqa: C901
+    def _validate_args(self, args: argparse.Namespace) -> None:
         """Validate parsed arguments."""
         settings.LOG_LEVEL = getattr(logging, args.log_level)
 
@@ -409,11 +405,9 @@ class QuantumPipelineArgParser:
                 required_files = [args.ssl_cafile, args.ssl_certfile, args.ssl_keyfile]
                 if not all(required_files):
                     self.parser.error(
-                        (
-                            '--ssl-cafile, --ssl-certfile, and --ssl-keyfile '
-                            'are required when --ssl is set '
-                            'and --ssl-dir is not provided'
-                        )
+                        '--ssl-cafile, --ssl-certfile, and --ssl-keyfile '
+                        'are required when --ssl is set '
+                        'and --ssl-dir is not provided'
                     )
         elif not args.ssl and (args.ssl_cafile or args.ssl_certfile or args.ssl_keyfile):
             self.parser.error(
@@ -421,8 +415,7 @@ class QuantumPipelineArgParser:
             )
 
         sasl_options_provided = (
-            args.sasl_ssl is True
-            and args.sasl_plain_username is not None
+            (args.sasl_ssl is True and args.sasl_plain_username is not None)
             or args.sasl_plain_password is not None
             or args.sasl_kerberos_service_name != 'kafka'
             or args.sasl_kerberos_domain_name is not None

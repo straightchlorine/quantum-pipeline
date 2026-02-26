@@ -1,8 +1,10 @@
 """Tests for Schema Registry utilities."""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from quantum_pipeline.utils.schema_registry import SchemaRegistry
 
 
@@ -134,6 +136,7 @@ class TestRegistryAvailability:
         """Test handling of connection errors."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
             import requests
+
             mock_get.side_effect = requests.RequestException('Connection refused')
 
             assert schema_registry.is_schema_registry_available() is False
@@ -142,6 +145,7 @@ class TestRegistryAvailability:
         """Test handling of timeout."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
             import requests
+
             mock_get.side_effect = requests.Timeout('Request timeout')
 
             assert schema_registry.is_schema_registry_available() is False
@@ -269,6 +273,7 @@ class TestErrorHandling:
         """Test handling of request exceptions."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
             import requests
+
             mock_get.side_effect = requests.RequestException('Network error')
 
             # Should not raise, should return False

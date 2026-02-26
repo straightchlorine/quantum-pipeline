@@ -1,4 +1,5 @@
 import os
+
 import numpy as np
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
 from qiskit_nature.second_q.mappers import JordanWignerMapper
@@ -8,6 +9,8 @@ from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.drivers.basis_sets import validate_basis_set
 from quantum_pipeline.drivers.molecule_loader import load_molecule
+from quantum_pipeline.monitoring import get_performance_monitor
+from quantum_pipeline.monitoring.scientific_references import get_reference_database
 from quantum_pipeline.report.report_generator import ReportGenerator
 from quantum_pipeline.runners.runner import Runner
 from quantum_pipeline.solvers.vqe_solver import VQESolver
@@ -15,14 +18,12 @@ from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 from quantum_pipeline.utils.timer import Timer
 from quantum_pipeline.visual.ansatz import AnsatzViewer
-from quantum_pipeline.monitoring import get_performance_monitor
-from quantum_pipeline.monitoring.scientific_references import get_reference_database
 
 
 class VQERunner(Runner):
     """Class to handle the ground energy finding process."""
 
-    def __init__(  # noqa: C901
+    def __init__(
         self,
         filepath,
         basis_set='sto3g',
@@ -87,7 +88,7 @@ class VQERunner(Runner):
                     f'Unable to create ProducerConfig, ensure required parameters are passed to the VQERunner instance: {e}'
                 )
 
-        def isAnyBackendOptionSet():
+        def is_any_backend_option_set():
             return (
                 backend_type is not None
                 or backend_optimization_level is not None
@@ -100,10 +101,10 @@ class VQERunner(Runner):
 
         if backend_config is not None:
             self.backend_config = backend_config
-        elif backend_config is None and isAnyBackendOptionSet():
+        elif backend_config is None and is_any_backend_option_set():
             try:
                 self.backend_config = BackendConfig(
-                    local=True if backend_type == 'local' else False,
+                    local=backend_type == 'local',
                     optimization_level=backend_optimization_level,
                     min_num_qubits=backend_min_num_qubits,
                     filters=backend_filters,
@@ -148,7 +149,7 @@ class VQERunner(Runner):
         problem = driver.run()
         return problem.second_q_ops()[0]
 
-    def runVQE(self, molecule, backend_config: BackendConfig):
+    def run_vqe(self, molecule, backend_config: BackendConfig):
         """Prepare and run the VQE algorithm."""
 
         self.logger.info('Generating hamiltonian based on the molecule...')
@@ -199,13 +200,13 @@ class VQERunner(Runner):
                     basis_set=self.basis_set,
                     optimizer=self.optimizer,
                     max_iterations=self.max_iterations,
-                    backend_type='GPU' if getattr(self.backend_config, 'gpu', False) else 'CPU'
+                    backend_type='GPU' if getattr(self.backend_config, 'gpu', False) else 'CPU',
                 )
 
                 # Collect performance snapshot before VQE
                 performance_start = self.performance_monitor.collect_metrics_snapshot()
 
-                result = self.runVQE(molecule, self.backend_config)
+                result = self.run_vqe(molecule, self.backend_config)
 
                 # Collect performance snapshot after VQE
                 performance_end = self.performance_monitor.collect_metrics_snapshot()
@@ -221,7 +222,7 @@ class VQERunner(Runner):
                     mapping_time=float(self.mapping_time),
                     vqe_time=float(self.vqe_time),
                     iterations_count=len(result.iteration_list),
-                    optimal_parameters_count=len(result.optimal_parameters)
+                    optimal_parameters_count=len(result.optimal_parameters),
                 )
 
                 # Calculate accuracy metrics against scientific references
@@ -229,17 +230,25 @@ class VQERunner(Runner):
                 accuracy_metrics = self.reference_db.calculate_accuracy_metrics(
                     molecule_name=molecule_name,
                     vqe_energy=float(result.minimum),
-                    basis_set=self.basis_set
+                    basis_set=self.basis_set,
                 )
 
                 # Log accuracy results
                 if accuracy_metrics['reference_available']:
                     self.logger.info(f'Accuracy assessment for {molecule_name}:')
                     self.logger.info(f'  VQE Energy: {result.minimum:.6f} Ha')
-                    self.logger.info(f'  Reference: {accuracy_metrics["reference_energy_hartree"]:.6f} Ha ({accuracy_metrics["reference_method"]})')
-                    self.logger.info(f'  Error: {accuracy_metrics["energy_error_millihartree"]:.3f} mHa')
-                    self.logger.info(f'  Accuracy Score: {accuracy_metrics["accuracy_score"]:.1f}/100')
-                    self.logger.info(f'  Chemical Accuracy: {"✓" if accuracy_metrics["within_chemical_accuracy"] else "✗"}')
+                    self.logger.info(
+                        f'  Reference: {accuracy_metrics["reference_energy_hartree"]:.6f} Ha ({accuracy_metrics["reference_method"]})'
+                    )
+                    self.logger.info(
+                        f'  Error: {accuracy_metrics["energy_error_millihartree"]:.3f} mHa'
+                    )
+                    self.logger.info(
+                        f'  Accuracy Score: {accuracy_metrics["accuracy_score"]:.1f}/100'
+                    )
+                    self.logger.info(
+                        f'  Chemical Accuracy: {"✓" if accuracy_metrics["within_chemical_accuracy"] else "✗"}'
+                    )
 
                 # Export VQE metrics immediately to Prometheus with full context and accuracy
                 vqe_metrics_data = {
@@ -259,9 +268,13 @@ class VQERunner(Runner):
                     # Accuracy metrics
                     'reference_energy': accuracy_metrics.get('reference_energy_hartree', 0),
                     'energy_error_hartree': accuracy_metrics.get('energy_error_hartree', 0),
-                    'energy_error_millihartree': accuracy_metrics.get('energy_error_millihartree', 0),
+                    'energy_error_millihartree': accuracy_metrics.get(
+                        'energy_error_millihartree', 0
+                    ),
                     'accuracy_score': accuracy_metrics.get('accuracy_score', 0),
-                    'within_chemical_accuracy': 1 if accuracy_metrics.get('within_chemical_accuracy', False) else 0
+                    'within_chemical_accuracy': 1
+                    if accuracy_metrics.get('within_chemical_accuracy', False)
+                    else 0,
                 }
                 self.performance_monitor.export_vqe_metrics_immediate(vqe_metrics_data)
 
@@ -274,8 +287,12 @@ class VQERunner(Runner):
                     mapping_time=np.float64(self.mapping_time),
                     vqe_time=np.float64(self.vqe_time),
                     total_time=total_time,
-                    performance_start=performance_start if self.performance_monitor.is_enabled() else None,
-                    performance_end=performance_end if self.performance_monitor.is_enabled() else None,
+                    performance_start=performance_start
+                    if self.performance_monitor.is_enabled()
+                    else None,
+                    performance_end=performance_end
+                    if self.performance_monitor.is_enabled()
+                    else None,
                 )
                 self.run_results.append(decorated_result)
                 self.logger.debug('Appended run information to the result.')

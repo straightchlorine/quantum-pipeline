@@ -14,8 +14,8 @@ from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
 from quantum_pipeline.configs.module.backend import BackendConfig
-from quantum_pipeline.solvers.solver import Solver
 from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
+from quantum_pipeline.solvers.solver import Solver
 from quantum_pipeline.structures.vqe_observation import (
     VQEInitialData,
     VQEProcess,
@@ -60,7 +60,7 @@ class VQESolver(Solver):
         hamiltonian_isa = hamiltonian.apply_layout(layout=ansatz_isa.layout)
         return ansatz_isa, hamiltonian_isa
 
-    def computeEnergy(self, params, ansatz, hamiltonian, estimator):
+    def compute_energy(self, params, ansatz, hamiltonian, estimator):
         """Return estimate of energy from estimator"""
         pub = (ansatz, [hamiltonian], [params])
         result = estimator.run(pubs=[pub]).result()
@@ -80,7 +80,7 @@ class VQESolver(Solver):
         self.current_iter += 1
         return energy
 
-    def viaIBMQ(self, backend):
+    def via_ibmq(self, backend):
         """Run the VQE simulation on IBM Quantum backend."""
         hamiltonian = self.qubit_op
 
@@ -118,7 +118,7 @@ class VQESolver(Solver):
                 optimizer=self.optimizer,
                 max_iterations=self.max_iterations,
                 convergence_threshold=self.convergence_threshold,
-                num_parameters=len(x0)
+                num_parameters=len(x0),
             )
 
             self.logger.debug(f'Optimization params: {optimization_params}')
@@ -139,13 +139,11 @@ class VQESolver(Solver):
                     f'Starting VQE optimization with max iterations {self.max_iterations}'
                 )
             else:
-                self.logger.info(
-                    f'Starting VQE optimization with default settings'
-                )
+                self.logger.info('Starting VQE optimization with default settings')
 
         with Timer() as t:
             res = minimize(
-                self.computeEnergy,
+                self.compute_energy,
                 x0,
                 args=(ansatz_isa, hamiltonian_isa, estimator),
                 method=self.optimizer,
@@ -181,7 +179,7 @@ class VQESolver(Solver):
         )
         return result
 
-    def viaAer(self, backend):
+    def via_aer(self, backend):
         """Run the VQE simulation via Aer simulator."""
         hamiltonian = self.qubit_op
 
@@ -217,7 +215,7 @@ class VQESolver(Solver):
             optimizer=self.optimizer,
             max_iterations=self.max_iterations,
             convergence_threshold=self.convergence_threshold,
-            num_parameters=len(x0)
+            num_parameters=len(x0),
         )
 
         self.logger.debug(f'Optimization params: {optimization_params}')
@@ -238,12 +236,10 @@ class VQESolver(Solver):
                 f'Starting VQE optimization with max iterations {self.max_iterations}'
             )
         else:
-            self.logger.info(
-                f'Starting VQE optimization with default settings'
-            )
+            self.logger.info('Starting VQE optimization with default settings')
         with Timer() as t:
             res = minimize(
-                self.computeEnergy,
+                self.compute_energy,
                 x0,
                 args=(ansatz_isa, hamiltonian_isa, estimator),
                 method=self.optimizer,
@@ -285,10 +281,4 @@ class VQESolver(Solver):
 
         backend = self.get_backend()
 
-        result = None
-        if isinstance(backend, AerBackend):
-            result = self.viaAer(backend)
-        else:
-            result = self.viaIBMQ(backend)
-
-        return result
+        return self.via_aer(backend) if isinstance(backend, AerBackend) else self.via_ibmq(backend)

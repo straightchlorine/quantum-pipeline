@@ -5,6 +5,7 @@ This module handles incremental processing of vqe experiment data,
 transforming raw data into feature tables stored in Iceberg format.
 """
 
+import logging
 import os
 import uuid
 
@@ -20,6 +21,8 @@ from pyspark.sql.functions import (
     udf,
 )
 from pyspark.sql.types import StringType
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
     'S3_ENDPOINT': os.getenv('S3_ENDPOINT', 'http://minio:9000'),
@@ -135,7 +138,7 @@ def list_available_topics(spark, bucket_path):
             return [f.getPath().getName() for f in fs.listStatus(path) if f.isDirectory()]
         return []
     except Exception as e:
-        print(f'Error accessing S3: {e}')
+        logger.error(f'Error accessing S3: {e}')
         return []
 
 
@@ -209,7 +212,7 @@ def identify_new_records(spark, new_data_df, table_name, key_columns):
 
         # retrieve existing keys
         existing_keys = spark.sql(
-            f'SELECT DISTINCT {", ".join(key_columns)} FROM quantum_catalog.quantum_features.{table_name}'
+            f'SELECT DISTINCT {", ".join(key_columns)} FROM quantum_catalog.quantum_features.{table_name}'  # noqa: S608
         )
 
         # if table exists, but has no records - return all records
@@ -235,12 +238,10 @@ def identify_new_records(spark, new_data_df, table_name, key_columns):
             return new_data_df.limit(0)
 
         # join back to get an array with full records
-        truly_new_data = new_data_df.join(new_keys, on=key_columns, how='inner')
-
-        return truly_new_data
+        return new_data_df.join(new_keys, on=key_columns, how='inner')
 
     except Exception as e:
-        raise RuntimeError(f'Error identifying new records: {str(e)}') from e
+        raise RuntimeError(f'Error identifying new records: {e!s}') from e
 
 
 def process_incremental_data(
@@ -280,11 +281,11 @@ def process_incremental_data(
         # create the table for the feature
         writer.mode('overwrite').saveAsTable(f'quantum_catalog.quantum_features.{table_name}')
 
-        print(f'Created table: quantum_catalog.quantum_features.{table_name}')
+        logger.info(f'Created table: quantum_catalog.quantum_features.{table_name}')
 
         # create a tag for this version of the table
         snapshot_id = spark.sql(
-            f'SELECT snapshot_id FROM quantum_catalog.quantum_features.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'
+            f'SELECT snapshot_id FROM quantum_catalog.quantum_features.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'  # noqa: S608
         ).collect()[0][0]
 
         # Get processing_batch_id before we lose reference to the DataFrame
@@ -297,7 +298,7 @@ def process_incremental_data(
         CREATE TAG {version_tag} AS OF VERSION {snapshot_id}
         """)
 
-        print(f'Created version tag: {version_tag} for table {table_name}')
+        logger.info(f'Created version tag: {version_tag} for table {table_name}')
 
         return version_tag, new_data_df.count()
 
@@ -305,7 +306,7 @@ def process_incremental_data(
     # Store the processing_batch_id before filtering for new records
     first_row = new_data_df.limit(1).collect()
     if not first_row:
-        print(f'Input dataset is empty for {table_name}')
+        logger.info(f'Input dataset is empty for {table_name}')
         return None, 0
 
     processing_batch_id = first_row[0]['processing_batch_id'].replace('-', '')
@@ -315,7 +316,7 @@ def process_incremental_data(
     # if no new data, do not move with the process
     new_record_count = truly_new_data.count()
     if new_record_count == 0:
-        print(f'No new records found for table {table_name}')
+        logger.info(f'No new records found for table {table_name}')
         return None, 0
 
     # write only new data to the Iceberg
@@ -328,11 +329,11 @@ def process_incremental_data(
     # append to the existing table
     writer.mode('append').saveAsTable(f'quantum_catalog.quantum_features.{table_name}')
 
-    print(f'Appended {new_record_count} new records to table {table_name}')
+    logger.info(f'Appended {new_record_count} new records to table {table_name}')
 
     # create a tag for the incremental update
     snapshot_id = spark.sql(
-        f'SELECT snapshot_id FROM quantum_catalog.quantum_features.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'
+        f'SELECT snapshot_id FROM quantum_catalog.quantum_features.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'  # noqa: S608
     ).collect()[0][0]
 
     version_tag = f'v_incr_{processing_batch_id}'
@@ -342,7 +343,7 @@ def process_incremental_data(
         CREATE TAG {version_tag} AS OF VERSION {snapshot_id}
     """)
 
-    print(f'Created incremental version tag: {version_tag} for table {table_name}')
+    logger.info(f'Created incremental version tag: {version_tag} for table {table_name}')
 
     return version_tag, new_record_count
 
@@ -661,7 +662,9 @@ def update_metadata_table(spark, dfs, table_names, table_versions, record_counts
         'quantum_catalog.quantum_features.processing_metadata'
     )
 
-    print(f'Updated metadata table with processing batch {base_df.first().processing_batch_id}')
+    logger.info(
+        f'Updated metadata table with processing batch {base_df.first().processing_batch_id}'
+    )
 
 
 def get_table_configs():
@@ -742,7 +745,7 @@ def process_experiments_incrementally(spark, df, topic_name=None):
     table_names = []
 
     for table_name, config in table_configs.items():
-        print(f'Processing table: {table_name}')
+        logger.info(f'Processing table: {table_name}')
         version_tag, count = process_incremental_data(
             spark,
             dfs[table_name],
@@ -757,12 +760,12 @@ def process_experiments_incrementally(spark, df, topic_name=None):
         record_counts.append(count)
 
     # update metadata tracking
-    source_info = f'Incremental VQE simulation data processing' + (
+    source_info = 'Incremental VQE simulation data processing' + (
         f' from topic {topic_name}' if topic_name else ''
     )
     update_metadata_table(spark, dfs, table_names, table_versions, record_counts, source_info)
 
-    print('Incremental processing completed!')
+    logger.info('Incremental processing completed!')
 
     # release cached dataframes
     for df_name, dataframe in dfs.items():
@@ -770,7 +773,7 @@ def process_experiments_incrementally(spark, df, topic_name=None):
             dataframe.unpersist()
 
     # summary of processed records
-    return dict(zip(table_names, record_counts))
+    return dict(zip(table_names, record_counts, strict=False))
 
 
 def check_for_new_data(spark, topic, config=None):
@@ -789,14 +792,14 @@ def check_for_new_data(spark, topic, config=None):
 
     bucket_path = config.get('S3_BUCKET', DEFAULT_CONFIG['S3_BUCKET'])
 
-    print(f'Processing topic: {topic}')
+    logger.info(f'Processing topic: {topic}')
 
     # read data from the topic
     df = read_experiments_by_topic(spark, bucket_path, topic, num_partitions=4)
 
     # check if there's data to process
     if df.isEmpty():
-        print(f'No data available in topic {topic}')
+        logger.info(f'No data available in topic {topic}')
         return None, None
 
     return topic, df
@@ -820,21 +823,21 @@ def main(config=None):
         available_topics = list_available_topics(spark, bucket_path)
 
         for topic in available_topics:
-            print(f'Found topic: {topic}')
+            logger.info(f'Found topic: {topic}')
 
             # check for new data
             topic_name, df = check_for_new_data(spark, topic, config)
 
             if df is None:
-                print('No new data to process.')
+                logger.info('No new data to process.')
                 return
 
             # Process data incrementally
             results = process_experiments_incrementally(spark, df, topic_name)
 
-            print(f'\nProcessing Summary for topic {topic}:')
+            logger.info(f'Processing Summary for topic {topic}:')
             for table, count in results.items():
-                print(f'{table}: {count} new records processed')
+                logger.info(f'{table}: {count} new records processed')
     finally:
         spark.stop()
 

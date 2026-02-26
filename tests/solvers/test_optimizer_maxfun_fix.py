@@ -5,8 +5,8 @@ Tests to verify that L-BFGS-B properly respects maxfun limits for VQE optimizati
 This addresses the issue where maxiter was being ignored in favor of tight tolerances.
 """
 
-import pytest
 import numpy as np
+import pytest
 from scipy.optimize import minimize
 
 from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
@@ -48,7 +48,7 @@ class TestLBFGSBMaxfunFix:
             optimizer='L-BFGS-B',
             max_iterations=10,  # Very low limit to force early termination
             convergence_threshold=None,
-            num_parameters=5
+            num_parameters=5,
         )
 
         # Should have maxfun set
@@ -60,15 +60,13 @@ class TestLBFGSBMaxfunFix:
         self.test_func.reset()
 
         result = minimize(
-            self.test_func.quadratic,
-            x0,
-            method='L-BFGS-B',
-            options=options,
-            tol=minimize_tol
+            self.test_func.quadratic, x0, method='L-BFGS-B', options=options, tol=minimize_tol
         )
 
         # Should stop due to maxfun limit or be close to it
-        assert (not result.success and "EXCEEDS LIMIT" in result.message) or self.test_func.call_count <= 15
+        assert (
+            not result.success and 'EXCEEDS LIMIT' in result.message
+        ) or self.test_func.call_count <= 15
 
     def test_lbfgsb_respects_maxfun_noisy_function(self):
         """Test that L-BFGS-B respects maxfun with noisy function (VQE-like)"""
@@ -76,7 +74,7 @@ class TestLBFGSBMaxfunFix:
             optimizer='L-BFGS-B',
             max_iterations=50,
             convergence_threshold=None,
-            num_parameters=5  # Smaller problem
+            num_parameters=5,  # Smaller problem
         )
 
         assert options['maxfun'] == 50
@@ -89,23 +87,20 @@ class TestLBFGSBMaxfunFix:
             x0,
             method='L-BFGS-B',
             options=options,
-            tol=minimize_tol
+            tol=minimize_tol,
         )
 
         # The fix is working if:
         # 1. It stops due to function limit (not natural convergence)
         # 2. Function calls are significantly less than the old default (15000)
         assert not result.success  # Should fail due to maxfun limit
-        assert "EXCEEDS LIMIT" in result.message
+        assert 'EXCEEDS LIMIT' in result.message
         assert self.test_func.call_count < 500  # Much better than 15000 default
 
     def test_lbfgsb_with_convergence_threshold(self):
         """Test L-BFGS-B with convergence threshold instead of maxfun"""
-        options, minimize_tol = get_optimizer_configuration(
-            optimizer='L-BFGS-B',
-            max_iterations=None,
-            convergence_threshold=1e-4,
-            num_parameters=5
+        options, _minimize_tol = get_optimizer_configuration(
+            optimizer='L-BFGS-B', max_iterations=None, convergence_threshold=1e-4, num_parameters=5
         )
 
         # Should not have maxfun when only convergence threshold is specified
@@ -116,21 +111,18 @@ class TestLBFGSBMaxfunFix:
 
     def test_lbfgsb_mutual_exclusion(self):
         """Test that both parameters raises error"""
-        with pytest.raises(ValueError, match="mutually exclusive"):
+        with pytest.raises(ValueError, match='mutually exclusive'):
             get_optimizer_configuration(
                 optimizer='L-BFGS-B',
                 max_iterations=25,
                 convergence_threshold=1e-6,
-                num_parameters=5
+                num_parameters=5,
             )
 
     def test_cobyla_unchanged(self):
         """Test that COBYLA behavior is unchanged"""
         options, minimize_tol = get_optimizer_configuration(
-            optimizer='COBYLA',
-            max_iterations=30,
-            convergence_threshold=None,
-            num_parameters=5
+            optimizer='COBYLA', max_iterations=30, convergence_threshold=None, num_parameters=5
         )
 
         # COBYLA should still use maxiter, not maxfun
@@ -141,13 +133,7 @@ class TestLBFGSBMaxfunFix:
         x0 = np.random.random(5)
         self.test_func.reset()
 
-        result = minimize(
-            self.test_func.quadratic,
-            x0,
-            method='COBYLA',
-            options=options,
-            tol=minimize_tol
-        )
+        minimize(self.test_func.quadratic, x0, method='COBYLA', options=options, tol=minimize_tol)
 
         # COBYLA should respect maxiter exactly
         assert self.test_func.call_count <= 30
@@ -156,17 +142,15 @@ class TestLBFGSBMaxfunFix:
         """Test that existing code calling patterns still work"""
         # Test the old way of calling should still work
         config_result = get_optimizer_configuration(
-            optimizer='L-BFGS-B',
-            max_iterations=100,
-            num_parameters=20
+            optimizer='L-BFGS-B', max_iterations=100, num_parameters=20
         )
 
         assert len(config_result) == 2  # options, minimize_tol
-        options, minimize_tol = config_result
+        options, _minimize_tol = config_result
         assert isinstance(options, dict)
         assert 'maxfun' in options
         assert options['maxfun'] == 100
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main([__file__])

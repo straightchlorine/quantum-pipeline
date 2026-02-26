@@ -114,7 +114,7 @@ class VQEDecoratedResult:
             end_gpu = self.performance_end.get('gpu', [])
             if start_gpu and end_gpu:
                 gpu_deltas = []
-                for i, (start_g, end_g) in enumerate(zip(start_gpu, end_gpu)):
+                for i, (start_g, end_g) in enumerate(zip(start_gpu, end_gpu, strict=False)):
                     if isinstance(start_g, dict) and isinstance(end_g, dict):
                         gpu_delta = {}
                         for metric in ['utilization_gpu', 'utilization_memory', 'power_draw']:

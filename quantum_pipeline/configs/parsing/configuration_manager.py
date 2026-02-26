@@ -1,7 +1,7 @@
 import argparse
+import json
 from copy import deepcopy
 from datetime import datetime
-import json
 from pathlib import Path
 from typing import Any
 
@@ -9,8 +9,8 @@ from quantum_pipeline.configs import settings
 from quantum_pipeline.configs.defaults import DEFAULTS
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.configs.module.producer import ProducerConfig
-from quantum_pipeline.utils.logger import get_logger
 from quantum_pipeline.monitoring import init_performance_monitoring
+from quantum_pipeline.utils.logger import get_logger
 
 
 class ConfigurationManager:
@@ -165,8 +165,8 @@ class ConfigurationManager:
 
             init_performance_monitoring(
                 enabled=True,
-                collection_interval=getattr(args, 'performance_interval'),
-                pushgateway_url=getattr(args, 'performance_pushgateway'),
+                collection_interval=args.performance_interval,
+                pushgateway_url=args.performance_pushgateway,
                 export_format=export_formats,
             )
 

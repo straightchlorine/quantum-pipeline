@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+import avro.schema
 import requests
 
-import avro.schema
 from quantum_pipeline.configs.settings import SCHEMA_DIR, SCHEMA_REGISTRY_URL
 from quantum_pipeline.utils.logger import get_logger
 
@@ -27,7 +27,7 @@ class SchemaRegistry:
         if isinstance(schema, dict):
             schema_str = json.dumps(schema)
             return json.loads(schema_str)
-        elif isinstance(schema, str):
+        if isinstance(schema, str):
             return json.loads(schema)
         raise ValueError('Invalid schema format.')
 
@@ -69,7 +69,7 @@ class SchemaRegistry:
         # check if schema already exists in the registry
         try:
             url = f'{self.schema_registry_url}/subjects/{schema_name}-value/versions'
-            response = requests.get(url)
+            response = requests.get(url, timeout=5)
 
             exists = response.status_code == 200
 
@@ -88,7 +88,7 @@ class SchemaRegistry:
             self.registry_schema_existence[schema_name] = False
             return False
 
-    def get_schema(self, schema_name: str) -> dict[str, Any]:  # noqa: C901
+    def get_schema(self, schema_name: str) -> dict[str, Any]:
         """Get Avro schema by name, trying cache, registry, and local file in sequence.
 
         Args:
@@ -130,9 +130,8 @@ class SchemaRegistry:
                 if schema:
                     self.logger.debug(f'Retrieved schema {schema_name} from registry.')
                     return self._normalize_schema(schema)
-                else:
-                    # update tracking if failed to get it
-                    self.registry_schema_existence[schema_name] = False
+                # update tracking if failed to get it
+                self.registry_schema_existence[schema_name] = False
 
         # if unable to get from cache and unable to get form the registry, try
         # the local file
@@ -140,11 +139,11 @@ class SchemaRegistry:
             try:
                 schema = self._get_schema_from_file(schema_name)
                 self.logger.debug(f'Retrieved schema {schema_name} from local file.')
-            except FileNotFoundError:
+            except FileNotFoundError as e:
                 # reraise if we couldn't find the schema anywhere
                 raise FileNotFoundError(
                     f'Schema {schema_name} not found in cache, registry, or local filesystem.'
-                )
+                ) from e
 
         # here schema is available, check if we need to publish it to the registry
         if registry_available:
@@ -159,9 +158,9 @@ class SchemaRegistry:
             # if not available in the registry, try to publish it
             if not schema_in_registry:
                 self.logger.info(
-                    f"Schema {schema_name} found "
-                    f"{'in cache' if from_cache else 'locally'} "
-                    "but not in registry. Synchronizing..."
+                    f'Schema {schema_name} found '
+                    f'{"in cache" if from_cache else "locally"} '
+                    'but not in registry. Synchronizing...'
                 )
                 success = self._save_schema_to_registry(schema_name, schema)
                 if success:
@@ -201,8 +200,7 @@ class SchemaRegistry:
                     self.id_cache[schema_name] = schema_id
 
                 return self._normalize_schema(schema)
-            else:
-                self.logger.warning('Unable to find schema at the schema registry.')
+            self.logger.warning('Unable to find schema at the schema registry.')
         except requests.RequestException as e:
             self.logger.warning(f'Failed to fetch schema from registry: {e}')
 
@@ -239,10 +237,10 @@ class SchemaRegistry:
 
         except json.JSONDecodeError as e:
             self.logger.error(f'Validation of {schema_name} schema failed: Invalid JSON')
-            raise ValueError(f'Invalid JSON in schema file {schema_file}: {str(e)}')
+            raise ValueError(f'Invalid JSON in schema file {schema_file}: {e!s}') from e
         except Exception as e:
             self.logger.error(f'Error loading {schema_name} schema: {e}')
-            raise ValueError(f'Invalid Avro schema in {schema_file}: {str(e)}')
+            raise ValueError(f'Invalid Avro schema in {schema_file}: {e!s}') from e
 
     def save_schema(self, schema_name: str, schema_dict: dict[str, Any]) -> None:
         """Save the given schema to registry and file system if different from existing.
@@ -271,7 +269,7 @@ class SchemaRegistry:
             avro.schema.parse(json.dumps(schema_dict))
         except Exception as e:
             self.logger.error('Invalid Avro schema.')
-            raise ValueError(f'Invalid Avro schema: {e}')
+            raise ValueError(f'Invalid Avro schema: {e}') from e
 
     def _ensure_schema_directory_exists(self) -> None:
         """Create schema directory if it doesn't exist."""
@@ -279,7 +277,7 @@ class SchemaRegistry:
             self.schema_dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
             self.logger.error(f'Failed to create schema directory: {e}')
-            raise OSError(f'Cannot create schema directory {self.schema_dir}: {e}')
+            raise OSError(f'Cannot create schema directory {self.schema_dir}: {e}') from e
 
     def _save_schema_to_registry(self, schema_name: str, schema_dict: dict[str, Any]) -> bool:
         """Attempt to save schema to registry.
@@ -332,7 +330,7 @@ class SchemaRegistry:
                 self.logger.info('Schema successfully written and cached.')
             except OSError as e:
                 self.logger.error('Failed to write schema.')
-                raise OSError(f'Failed to write schema to {schema_file}: {e}')
+                raise OSError(f'Failed to write schema to {schema_file}: {e}') from e
         else:
             self.logger.info(f'Schema {schema_name} unchanged, no need to save.')
 

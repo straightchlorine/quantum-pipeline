@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 from reportlab.lib.pagesizes import A4, letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.pdfgen.canvas import Canvas
@@ -11,7 +9,7 @@ from quantum_pipeline.report.configuration import ReportConfiguration
 class PDFRenderer:
     """Handles PDF rendering for the report."""
 
-    def __init__(self, config: Optional[ReportConfiguration] = None):
+    def __init__(self, config: ReportConfiguration | None = None):
         """
         Initialize the PDF renderer.
 
@@ -21,7 +19,7 @@ class PDFRenderer:
         self.config = config or ReportConfiguration()
         self.styles = getSampleStyleSheet()
 
-    def render(self, content: List, output_path: str):
+    def render(self, content: list, output_path: str):
         """
         Render report content to a PDF.
 
