@@ -536,24 +536,40 @@ class TestVQESolverSeed:
         mock_minimize_result.success = True
 
         with (
-            patch.object(solver, '_optimize_circuits', return_value=(mock_ansatz_isa, mock_hamiltonian_isa)),
+            patch.object(
+                solver, '_optimize_circuits', return_value=(mock_ansatz_isa, mock_hamiltonian_isa)
+            ),
             patch('quantum_pipeline.solvers.vqe_solver.EstimatorV2'),
-            patch('quantum_pipeline.solvers.vqe_solver.minimize', return_value=mock_minimize_result),
+            patch(
+                'quantum_pipeline.solvers.vqe_solver.minimize', return_value=mock_minimize_result
+            ),
         ):
             solver.via_aer(mock_backend)
 
         return solver.init_data.initial_parameters
 
-    def test_same_seed_produces_identical_params_via_aer(self, mock_backend_config, sample_hamiltonian):
+    def test_same_seed_produces_identical_params_via_aer(
+        self, mock_backend_config, sample_hamiltonian
+    ):
         """Test that VQESolver.via_aer produces identical init params with the same seed."""
-        params_1 = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=42)
-        params_2 = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=42)
+        params_1 = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, seed=42
+        )
+        params_2 = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, seed=42
+        )
         np.testing.assert_array_equal(params_1, params_2)
 
-    def test_different_seeds_produce_different_params_via_aer(self, mock_backend_config, sample_hamiltonian):
+    def test_different_seeds_produce_different_params_via_aer(
+        self, mock_backend_config, sample_hamiltonian
+    ):
         """Test that VQESolver.via_aer produces different init params with different seeds."""
-        params_a = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=42)
-        params_b = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=99)
+        params_a = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, seed=42
+        )
+        params_b = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, seed=99
+        )
         assert not np.array_equal(params_a, params_b)
 
     def test_seed_stored_in_init_data(self, mock_backend_config, sample_hamiltonian):
@@ -586,9 +602,13 @@ class TestVQESolverSeed:
         mock_minimize_result.success = True
 
         with (
-            patch.object(solver, '_optimize_circuits', return_value=(mock_ansatz_isa, mock_hamiltonian_isa)),
+            patch.object(
+                solver, '_optimize_circuits', return_value=(mock_ansatz_isa, mock_hamiltonian_isa)
+            ),
             patch('quantum_pipeline.solvers.vqe_solver.EstimatorV2'),
-            patch('quantum_pipeline.solvers.vqe_solver.minimize', return_value=mock_minimize_result),
+            patch(
+                'quantum_pipeline.solvers.vqe_solver.minimize', return_value=mock_minimize_result
+            ),
         ):
             solver.via_aer(mock_backend)
 
@@ -596,7 +616,11 @@ class TestVQESolverSeed:
 
     def test_no_seed_produces_varying_params(self, mock_backend_config, sample_hamiltonian):
         """Test that VQESolver.via_aer without seed produces different params across runs."""
-        params_1 = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=None)
-        params_2 = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=None)
+        params_1 = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, seed=None
+        )
+        params_2 = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, seed=None
+        )
         # With no seed, params should almost certainly differ
         assert not np.array_equal(params_1, params_2)
