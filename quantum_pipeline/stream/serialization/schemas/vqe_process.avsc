@@ -5,6 +5,9 @@
         {"name": "iteration", "type": "int"},
         {"name": "parameters", "type": {"type": "array", "items": "double"}},
         {"name": "result", "type": "double"},
-        {"name": "std", "type": "double"}
+        {"name": "std", "type": "double"},
+        {"name": "energy_delta", "type": ["null", "double"], "default": null},
+        {"name": "parameter_delta_norm", "type": ["null", "double"], "default": null},
+        {"name": "cumulative_min_energy", "type": ["null", "double"], "default": null}
     ]
 }

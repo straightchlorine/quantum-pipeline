@@ -141,6 +141,9 @@ class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
                     {'name': 'parameters', 'type': {'type': 'array', 'items': 'double'}},
                     {'name': 'result', 'type': 'double'},
                     {'name': 'std', 'type': 'double'},
+                    {'name': 'energy_delta', 'type': ['null', 'double'], 'default': None},
+                    {'name': 'parameter_delta_norm', 'type': ['null', 'double'], 'default': None},
+                    {'name': 'cumulative_min_energy', 'type': ['null', 'double'], 'default': None},
                 ],
             }
             dict_schema = deepcopy(schema)
@@ -153,6 +156,9 @@ class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
             'parameters': self._convert_to_primitives(obj.parameters),
             'result': float(obj.result),
             'std': float(obj.std),
+            'energy_delta': float(obj.energy_delta) if obj.energy_delta is not None else None,
+            'parameter_delta_norm': float(obj.parameter_delta_norm) if obj.parameter_delta_norm is not None else None,
+            'cumulative_min_energy': float(obj.cumulative_min_energy) if obj.cumulative_min_energy is not None else None,
         }
 
     def deserialize(self, data: dict[str, Any]) -> VQEProcess:
@@ -161,6 +167,9 @@ class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
             parameters=self._convert_to_numpy(data['parameters']),
             result=float64(data['result']),
             std=float64(data['std']),
+            energy_delta=float64(data['energy_delta']) if data.get('energy_delta') is not None else None,
+            parameter_delta_norm=float64(data['parameter_delta_norm']) if data.get('parameter_delta_norm') is not None else None,
+            cumulative_min_energy=float64(data['cumulative_min_energy']) if data.get('cumulative_min_energy') is not None else None,
         )
 
 

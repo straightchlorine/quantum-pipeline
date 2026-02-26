@@ -68,11 +68,24 @@ class VQESolver(Solver):
         result = estimator.run(pubs=[pub]).result()
         energy, std = result[0].data.evs[0], result[0].data.stds[0]
 
+        if self.vqe_process:
+            prev = self.vqe_process[-1]
+            energy_delta = np.float64(energy - prev.result)
+            parameter_delta_norm = np.float64(np.linalg.norm(params - prev.parameters))
+            cumulative_min_energy = np.float64(min(energy, prev.cumulative_min_energy))
+        else:
+            energy_delta = None
+            parameter_delta_norm = None
+            cumulative_min_energy = np.float64(energy)
+
         iter = VQEProcess(
             iteration=self.current_iter,
             parameters=params,
             result=energy,
             std=std,
+            energy_delta=energy_delta,
+            parameter_delta_norm=parameter_delta_norm,
+            cumulative_min_energy=cumulative_min_energy,
         )
 
         self.vqe_process.append(iter)
