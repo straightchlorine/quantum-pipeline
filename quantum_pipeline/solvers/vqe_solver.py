@@ -35,12 +35,14 @@ class VQESolver(Solver):
         default_shots=1024,
         convergence_threshold=None,
         optimization_level=3,
+        seed=None,
     ):
         super().__init__()
         self.qubit_op = qubit_op
         self.ansatz_reps = ansatz_reps
         self.optimizer = optimizer
         self.max_iterations = max_iterations
+        self.seed = seed
         self.digits_iter = len(str(max_iterations))
         self.default_shots = default_shots
         self.backend_config = backend_config
@@ -89,6 +91,9 @@ class VQESolver(Solver):
         self.logger.info('Ansatz initialized.')
 
         param_num = ansatz.num_parameters
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            self.logger.info(f'Using seed {self.seed} for parameter initialization')
         x0 = 2 * np.pi * np.random.random(param_num)
         self.logger.debug(f'Initial ansatz parameters:\n\n{x0}\n')
 
@@ -107,6 +112,7 @@ class VQESolver(Solver):
             ansatz_reps=self.ansatz_reps,
             noise_backend=self.backend_config.noise if self.backend_config.noise else 'undef',
             default_shots=self.default_shots,
+            seed=self.seed,
         )
         self.logger.info('Opening a session...')
 
@@ -188,6 +194,9 @@ class VQESolver(Solver):
         self.logger.info('Ansatz initialized.')
 
         param_num = ansatz.num_parameters
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            self.logger.info(f'Using seed {self.seed} for parameter initialization')
         x0 = 2 * np.pi * np.random.random(param_num)
         self.logger.debug(f'Initial ansatz parameters:\n\n{x0}\n')
 
@@ -206,6 +215,7 @@ class VQESolver(Solver):
             ansatz_reps=self.ansatz_reps,
             noise_backend=self.backend_config.noise if self.backend_config.noise else 'undef',
             default_shots=self.default_shots,
+            seed=self.seed,
         )
 
         estimator = EstimatorV2(mode=backend)

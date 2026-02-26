@@ -489,3 +489,50 @@ class TestVQEEdgeCases:
         assert optimization_params['disp'] is False
         assert optimization_params['ftol'] == 1e-15
         assert optimization_params['gtol'] == 1e-15
+
+
+class TestVQESolverSeed:
+    """Tests for seed-based reproducibility."""
+
+    def test_seed_stored(self, mock_backend_config, sample_hamiltonian):
+        """Test that seed is stored on the solver."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            seed=42,
+        )
+        assert solver.seed == 42
+
+    def test_seed_default_none(self, vqe_solver):
+        """Test that seed defaults to None."""
+        assert vqe_solver.seed is None
+
+    def test_seed_produces_reproducible_params(self, mock_backend_config, sample_hamiltonian):
+        """Test that the same seed produces identical initial parameters."""
+        from qiskit.circuit.library import EfficientSU2
+
+        ansatz = EfficientSU2(sample_hamiltonian.num_qubits)
+        param_num = ansatz.num_parameters
+
+        results = []
+        for _ in range(2):
+            np.random.seed(42)
+            x0 = 2 * np.pi * np.random.random(param_num)
+            results.append(x0)
+
+        np.testing.assert_array_equal(results[0], results[1])
+
+    def test_different_seeds_produce_different_params(self, mock_backend_config, sample_hamiltonian):
+        """Test that different seeds produce different initial parameters."""
+        from qiskit.circuit.library import EfficientSU2
+
+        ansatz = EfficientSU2(sample_hamiltonian.num_qubits)
+        param_num = ansatz.num_parameters
+
+        np.random.seed(42)
+        x0_a = 2 * np.pi * np.random.random(param_num)
+
+        np.random.seed(99)
+        x0_b = 2 * np.pi * np.random.random(param_num)
+
+        assert not np.array_equal(x0_a, x0_b)

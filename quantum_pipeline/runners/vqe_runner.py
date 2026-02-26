@@ -32,6 +32,7 @@ class VQERunner(Runner):
         optimizer='COBYLA',
         ansatz_reps=3,
         default_shots=1024,
+        seed=None,
         report=False,
         kafka=False,
         kafka_bootstrap_servers='localhost:9092',
@@ -60,6 +61,7 @@ class VQERunner(Runner):
         self.optimizer = optimizer
         self.default_shots = default_shots
         self.convergence_threshold = convergence_threshold
+        self.seed = seed
         self.optimization_level = backend_optimization_level
 
         self.report = report
@@ -177,6 +179,7 @@ class VQERunner(Runner):
                 ansatz_reps=self.ansatz_reps,
                 default_shots=self.default_shots,
                 convergence_threshold=self.convergence_threshold,
+                seed=self.seed,
             )
             result = solver.solve()
 
