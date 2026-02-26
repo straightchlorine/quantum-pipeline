@@ -1,7 +1,7 @@
 site_name: Quantum Pipeline
 site_description: Extensible framework for exploring VQE algorithms with production-grade data engineering
 site_author: Piotr Krzysztof Lis
-site_url: https://straightchlorine.github.io/quantum-pipeline
+site_url: https://docs.qp.piotrkrzysztof.dev
 
 repo_name: straightchlorine/quantum-pipeline
 repo_url: https://github.com/straightchlorine/quantum-pipeline
