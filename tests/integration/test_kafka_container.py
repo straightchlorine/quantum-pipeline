@@ -15,15 +15,16 @@ tc_kafka = pytest.importorskip(
     'testcontainers.kafka', reason='testcontainers[kafka] not installed'
 )
 
-from kafka import KafkaConsumer, KafkaProducer
-from testcontainers.kafka import KafkaContainer
+from kafka import KafkaConsumer, KafkaProducer  # noqa: E402
+from testcontainers.kafka import KafkaContainer  # noqa: E402
 
-from quantum_pipeline.configs.module.producer import ProducerConfig
-from quantum_pipeline.configs.module.security import SecurityConfig
+from quantum_pipeline.configs.module.producer import ProducerConfig  # noqa: E402
+from quantum_pipeline.configs.module.security import SecurityConfig  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope='session')
 def kafka_container():
@@ -77,6 +78,7 @@ def _make_consumer(bootstrap_server, topic, **kwargs):
 # Helpers: realistic VQE data builders
 # ---------------------------------------------------------------------------
 
+
 def _build_vqe_decorated_result():
     """Build a realistic VQEDecoratedResult for integration tests."""
     from qiskit.circuit import QuantumCircuit
@@ -97,7 +99,9 @@ def _build_vqe_decorated_result():
     initial_data = VQEInitialData(
         backend='aer_simulator',
         num_qubits=2,
-        hamiltonian=np.array([('ZZ', complex(0.5, 0.0)), ('XI', complex(-0.3, 0.1))], dtype=object),
+        hamiltonian=np.array(
+            [('ZZ', complex(0.5, 0.0)), ('XI', complex(-0.3, 0.1))], dtype=object
+        ),
         num_parameters=4,
         initial_parameters=np.array([0.1, 0.2, 0.3, 0.4]),
         noise_backend='none',
@@ -108,7 +112,12 @@ def _build_vqe_decorated_result():
     )
 
     iteration_list = [
-        VQEProcess(iteration=1, parameters=np.array([0.1, 0.2, 0.3, 0.4]), result=np.float64(-0.5), std=np.float64(0.01)),
+        VQEProcess(
+            iteration=1,
+            parameters=np.array([0.1, 0.2, 0.3, 0.4]),
+            result=np.float64(-0.5),
+            std=np.float64(0.01),
+        ),
     ]
 
     vqe_result = VQEResult(
@@ -145,13 +154,17 @@ def _build_vqe_decorated_result():
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.integration
 class TestKafkaContainerIntegration:
     """Integration tests using a real Kafka broker via testcontainers."""
 
     def test_producer_connects_to_real_kafka(self, producer_config, mock_schema_registry):
         """VQEKafkaProducer should initialise without error against a live broker."""
-        with patch('quantum_pipeline.stream.kafka_interface.SchemaRegistry', return_value=mock_schema_registry):
+        with patch(
+            'quantum_pipeline.stream.kafka_interface.SchemaRegistry',
+            return_value=mock_schema_registry,
+        ):
             from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
 
             producer = VQEKafkaProducer(producer_config)
@@ -180,7 +193,10 @@ class TestKafkaContainerIntegration:
         """Serialize a VQEDecoratedResult to Avro, produce it, consume and verify."""
         result = _build_vqe_decorated_result()
 
-        with patch('quantum_pipeline.stream.kafka_interface.SchemaRegistry', return_value=mock_schema_registry):
+        with patch(
+            'quantum_pipeline.stream.kafka_interface.SchemaRegistry',
+            return_value=mock_schema_registry,
+        ):
             from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
 
             producer = VQEKafkaProducer(producer_config)
@@ -222,7 +238,10 @@ class TestKafkaContainerIntegration:
 
     def test_context_manager_with_real_kafka(self, producer_config, mock_schema_registry):
         """VQEKafkaProducer should work correctly as a context manager."""
-        with patch('quantum_pipeline.stream.kafka_interface.SchemaRegistry', return_value=mock_schema_registry):
+        with patch(
+            'quantum_pipeline.stream.kafka_interface.SchemaRegistry',
+            return_value=mock_schema_registry,
+        ):
             from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
 
             with VQEKafkaProducer(producer_config) as producer:
@@ -253,7 +272,10 @@ class TestKafkaContainerIntegration:
 
     def test_producer_close_cleanup(self, producer_config, mock_schema_registry):
         """Calling close() should cleanly shut down without errors."""
-        with patch('quantum_pipeline.stream.kafka_interface.SchemaRegistry', return_value=mock_schema_registry):
+        with patch(
+            'quantum_pipeline.stream.kafka_interface.SchemaRegistry',
+            return_value=mock_schema_registry,
+        ):
             from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
 
             producer = VQEKafkaProducer(producer_config)

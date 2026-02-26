@@ -73,6 +73,7 @@ def sample_hamiltonian():
 # Stage 1: Config parsing → dict
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.integration
 class TestConfigParsingIntegration:
     """Config parsing produces a dict consumed by downstream stages."""
@@ -82,7 +83,7 @@ class TestConfigParsingIntegration:
         config_manager = ConfigurationManager()
 
         test_args = ['--file', molecule_file, '--max-iterations', '10']
-        with patch('sys.argv', ['quantum_pipeline.py'] + test_args):
+        with patch('sys.argv', ['quantum_pipeline.py', *test_args]):
             args = parser.parser.parse_args(test_args)
             config = config_manager.get_config(args)
 
@@ -96,11 +97,14 @@ class TestConfigParsingIntegration:
         config_manager = ConfigurationManager()
 
         test_args = [
-            '--file', molecule_file,
-            '--max-iterations', '5',
-            '--optimizer', 'COBYLA',
+            '--file',
+            molecule_file,
+            '--max-iterations',
+            '5',
+            '--optimizer',
+            'COBYLA',
         ]
-        with patch('sys.argv', ['quantum_pipeline.py'] + test_args):
+        with patch('sys.argv', ['quantum_pipeline.py', *test_args]):
             args = parser.parser.parse_args(test_args)
             config = config_manager.get_config(args)
 
@@ -118,6 +122,7 @@ class TestConfigParsingIntegration:
 # ---------------------------------------------------------------------------
 # Stage 2: Molecule loading + basis set validation
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.integration
 class TestMoleculeLoadingIntegration:
@@ -154,6 +159,7 @@ class TestMoleculeLoadingIntegration:
 # Stage 3: Mapping (Jordan-Wigner)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.integration
 class TestMappingIntegration:
     """JordanWignerMapper wraps qiskit-nature mapper correctly."""
@@ -169,9 +175,9 @@ class TestMappingIntegration:
         mock_qubit_op = SparsePauliOp.from_list([('IZ', 0.5)])
 
         with patch(
-            'quantum_pipeline.mappers.jordan_winger_mapper.JWM'
-        ) as MockJWM:
-            MockJWM.return_value.map.return_value = mock_qubit_op
+            'quantum_pipeline.mappers.jordan_winger_mapper.JordanWignerMapperQiskit'
+        ) as mock_jwm:
+            mock_jwm.return_value.map.return_value = mock_qubit_op
             mapper = JordanWignerMapper()
             result = mapper.map(mock_fermionic)
 
@@ -181,6 +187,7 @@ class TestMappingIntegration:
 # ---------------------------------------------------------------------------
 # Stage 4: Solver creation and wiring
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.integration
 class TestSolverWiringIntegration:
@@ -202,9 +209,7 @@ class TestSolverWiringIntegration:
         )
         assert solver.optimizer == optimizer
 
-    def test_solver_convergence_threshold_passthrough(
-        self, sample_hamiltonian, backend_config
-    ):
+    def test_solver_convergence_threshold_passthrough(self, sample_hamiltonian, backend_config):
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=backend_config,
@@ -219,6 +224,7 @@ class TestSolverWiringIntegration:
 # ---------------------------------------------------------------------------
 # Stage 5: Result assembly (VQE result → DecoratedResult)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.integration
 class TestResultAssemblyIntegration:
@@ -275,6 +281,7 @@ class TestResultAssemblyIntegration:
 # Stage 6: Timer used across pipeline stages
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.integration
 class TestTimerPipelineIntegration:
     """Timer context manager wires correctly into multi-stage timing."""
@@ -288,9 +295,7 @@ class TestTimerPipelineIntegration:
         with Timer() as t_vqe:
             _ = 3 + 3
 
-        total = np.float64(
-            t_hamiltonian.elapsed + t_mapping.elapsed + t_vqe.elapsed
-        )
+        total = np.float64(t_hamiltonian.elapsed + t_mapping.elapsed + t_vqe.elapsed)
         assert total >= 0
         assert isinstance(total, np.float64)
 
@@ -306,6 +311,7 @@ class TestTimerPipelineIntegration:
 # End-to-end: config → load → validate → solver creation
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.integration
 class TestEndToEndWiring:
     """Config parsing through to solver construction (no quantum execution)."""
@@ -316,12 +322,16 @@ class TestEndToEndWiring:
         parser = QuantumPipelineArgParser()
         config_manager = ConfigurationManager()
         test_args = [
-            '--file', molecule_file,
-            '--max-iterations', '3',
-            '--optimizer', 'COBYLA',
-            '--basis', 'sto3g',
+            '--file',
+            molecule_file,
+            '--max-iterations',
+            '3',
+            '--optimizer',
+            'COBYLA',
+            '--basis',
+            'sto3g',
         ]
-        with patch('sys.argv', ['quantum_pipeline.py'] + test_args):
+        with patch('sys.argv', ['quantum_pipeline.py', *test_args]):
             args = parser.parser.parse_args(test_args)
             config = config_manager.get_config(args)
 
@@ -373,4 +383,5 @@ class TestEndToEndWiring:
 
         assert optimizer_action is not None
         from quantum_pipeline.configs.settings import SUPPORTED_OPTIMIZERS
+
         assert set(optimizer_action.choices) == set(SUPPORTED_OPTIMIZERS.keys())

@@ -9,20 +9,20 @@ from quantum_pipeline.drivers.basis_sets import validate_basis_set
 class TestValidateBasisSet:
     """Tests for the validate_basis_set function."""
 
-    @pytest.mark.parametrize("basis_set", SUPPORTED_BASIS_SETS)
+    @pytest.mark.parametrize('basis_set', SUPPORTED_BASIS_SETS)
     def test_valid_basis_sets_accepted(self, basis_set):
         """Each supported basis set should pass validation without error."""
         validate_basis_set(basis_set)  # should not raise
 
     @pytest.mark.parametrize(
-        "invalid_input",
+        'invalid_input',
         [
-            "sto-3g",        # close but wrong format
-            "STO3G",         # wrong case
-            "6-31g*",        # unsupported variant
-            "cc-pvtz",       # unsupported set
-            "",              # empty string
-            "nonexistent",   # arbitrary string
+            'sto-3g',  # close but wrong format
+            'STO3G',  # wrong case
+            '6-31g*',  # unsupported variant
+            'cc-pvtz',  # unsupported set
+            '',  # empty string
+            'nonexistent',  # arbitrary string
         ],
     )
     def test_invalid_basis_sets_rejected(self, invalid_input):
@@ -43,4 +43,4 @@ class TestValidateBasisSet:
     def test_list_input_raises(self):
         """A list input should raise."""
         with pytest.raises((ValueError, TypeError)):
-            validate_basis_set(["sto3g"])
+            validate_basis_set(['sto3g'])

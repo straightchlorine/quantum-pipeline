@@ -11,12 +11,12 @@ tc_kafka = pytest.importorskip(
     'testcontainers.kafka', reason='testcontainers[kafka] not installed'
 )
 
-from testcontainers.core.container import DockerContainer
-from testcontainers.core.waiting_utils import wait_for_logs
-from testcontainers.kafka import KafkaContainer
+from testcontainers.core.container import DockerContainer  # noqa: E402
+from testcontainers.core.waiting_utils import wait_for_logs  # noqa: E402
+from testcontainers.kafka import KafkaContainer  # noqa: E402
 
-from quantum_pipeline.configs.module.producer import ProducerConfig
-from quantum_pipeline.configs.module.security import SecurityConfig
+from quantum_pipeline.configs.module.producer import ProducerConfig  # noqa: E402
+from quantum_pipeline.configs.module.security import SecurityConfig  # noqa: E402
 
 
 @pytest.fixture(scope='session')
@@ -49,7 +49,9 @@ def schema_registry_container(kafka_container, docker_network):
     # Get Kafka's internal IP address on the shared network
     kafka_wrapper = kafka_container.get_wrapped_container()
     kafka_wrapper.reload()  # refresh attrs after network connect
-    kafka_internal_host = kafka_wrapper.attrs['NetworkSettings']['Networks']['test-network']['IPAddress']
+    kafka_internal_host = kafka_wrapper.attrs['NetworkSettings']['Networks']['test-network'][
+        'IPAddress'
+    ]
     # The BROKER listener on port 9092 uses PLAINTEXT security protocol
     # (KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=BROKER:PLAINTEXT).
     # Schema Registry requires the actual security protocol, not the listener name.

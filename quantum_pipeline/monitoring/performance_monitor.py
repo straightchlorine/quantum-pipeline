@@ -7,6 +7,7 @@ that can be completely switched on/off via settings, command line args, or env v
 
 import json
 import os
+import shutil
 import subprocess
 import threading
 import time
@@ -37,11 +38,11 @@ class PerformanceMonitor:
 
     def __init__(
         self,
-        enabled: bool = None,
-        collection_interval: int = None,
-        pushgateway_url: str = None,
-        export_format: list[str] = None,
-        metrics_dir: Path = None,
+        enabled: bool | None = None,
+        collection_interval: int | None = None,
+        pushgateway_url: str | None = None,
+        export_format: list[str] | None = None,
+        metrics_dir: Path | None = None,
     ):
         """
         Initialize performance monitor with configuration.
@@ -95,11 +96,11 @@ class PerformanceMonitor:
         env_value = os.getenv(env_key)
         if env_value is not None:
             try:
-                if expected_type == bool:
+                if expected_type is bool:
                     return env_value.lower() in ('true', '1', 'yes', 'on')
-                if expected_type == int:
+                if expected_type is int:
                     return int(env_value)
-                if expected_type == list:
+                if expected_type is list:
                     return env_value.split(',') if env_value else []
                 return env_value
             except (ValueError, AttributeError):
@@ -142,7 +143,7 @@ class PerformanceMonitor:
         )
         self.monitoring_thread.start()
 
-    def export_metrics_immediate(self, additional_context: dict[str, Any] = None):
+    def export_metrics_immediate(self, additional_context: dict[str, Any] | None = None):
         """Export current system metrics immediately (event-driven)."""
         if not self.enabled:
             return
@@ -192,14 +193,13 @@ class PerformanceMonitor:
             return {}
 
         try:
-            metrics = {
+            return {
                 'timestamp': datetime.now().isoformat(),
                 'container_type': self.container_type,
                 'experiment_context': self.experiment_context.copy(),
                 'system': self._collect_system_metrics(),
                 'container': self._collect_container_metrics(),
             }
-            return metrics
 
         except Exception as e:
             self.logger.error(f'Failed to collect metrics snapshot: {e}')
@@ -263,9 +263,10 @@ class PerformanceMonitor:
             container_name = os.getenv('HOSTNAME', 'unknown')
 
             # Try to get Docker stats
-            result = subprocess.run(
+            docker_executable = shutil.which('docker') or 'docker'
+            result = subprocess.run(  # noqa: S603
                 [
-                    'docker',
+                    docker_executable,
                     'stats',
                     '--no-stream',
                     '--format',

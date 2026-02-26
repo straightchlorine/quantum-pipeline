@@ -7,7 +7,7 @@ This module visualizes the ansatz circuit used in quantum algorithms.
 from qiskit.visualization import circuit_drawer
 
 from quantum_pipeline.configs import settings
-from quantum_pipeline.utils.dir import getGraphPath
+from quantum_pipeline.utils.dir import get_graph_path
 from quantum_pipeline.utils.logger import get_logger
 
 
@@ -36,7 +36,7 @@ class AnsatzViewer:
                 self.ansatz,
                 output='mpl',
                 filename=str(
-                    getGraphPath(settings.ANSATZ_PLOT_DIR, settings.ANSATZ, self.symbols)
+                    get_graph_path(settings.ANSATZ_PLOT_DIR, settings.ANSATZ, self.symbols)
                 ),
             )
         except Exception as e:
@@ -48,7 +48,7 @@ class AnsatzViewer:
                 self.ansatz.decompose(),
                 output='mpl',
                 filename=str(
-                    getGraphPath(
+                    get_graph_path(
                         settings.ANSATZ_DECOMPOSED_PLOT_DIR,
                         settings.ANSATZ_DECOMPOSED,
                         self.symbols,

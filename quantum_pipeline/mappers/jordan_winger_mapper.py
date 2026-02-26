@@ -6,7 +6,7 @@ using the Jordan-Wigner transformation. This transformation is used to represent
 fermionic systems on quantum computers.
 """
 
-from qiskit_nature.second_q.mappers import JordanWignerMapper as JWM
+from qiskit_nature.second_q.mappers import JordanWignerMapper as JordanWignerMapperQiskit
 
 from quantum_pipeline.mappers.mapper import Mapper
 
@@ -33,6 +33,4 @@ class JordanWignerMapper(Mapper):
             raise ValueError('The input operator must not be None.')
 
         # Perform the Jordan-Wigner mapping
-        mapper = JWM()
-        qubit_op = mapper.map(operator)
-        return qubit_op
+        return JordanWignerMapperQiskit().map(operator)

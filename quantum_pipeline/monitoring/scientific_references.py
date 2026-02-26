@@ -11,6 +11,7 @@ from dataclasses import dataclass
 @dataclass
 class ScientificReference:
     """Scientific reference data for a molecule."""
+
     molecule_name: str
     ground_state_energy_hartree: float
     method: str
@@ -18,7 +19,7 @@ class ScientificReference:
     source: str
     doi: str | None = None
     uncertainty_hartree: float | None = None
-    note: str = ""
+    note: str = ''
 
 
 class ScientificReferenceDatabase:
@@ -37,7 +38,7 @@ class ScientificReferenceDatabase:
                     source='Pachucki & Komasa, J. Chem. Phys. 2016',
                     doi='10.1063/1.4948309',
                     uncertainty_hartree=1e-12,
-                    note='Unprecedented accuracy 10⁻¹². D₀ = 36118.7977463(2) cm⁻¹. Table I, p. 2'
+                    note='Unprecedented accuracy 10⁻¹². D₀ = 36118.7977463(2) cm⁻¹. Table I, p. 2',
                 ),
                 ScientificReference(
                     molecule_name='H2',
@@ -45,10 +46,9 @@ class ScientificReferenceDatabase:
                     method='HF',
                     basis_set='sto-3g',
                     source='Szabo & Ostlund, Modern Quantum Chemistry, p. 108; Pachucki & Komasa, J. Chem. Phys. 2016, Table I, p. 2',
-                    note='Hartree-Fock with STO-3G basis set'
-                )
+                    note='Hartree-Fock with STO-3G basis set',
+                ),
             ],
-
             # Helium hydride cation
             'HeH+': [
                 ScientificReference(
@@ -57,10 +57,9 @@ class ScientificReferenceDatabase:
                     method='Full CI',
                     basis_set='sto-3g',
                     source='Szabo & Ostlund, Modern Quantum Chemistry, p. 231; Table 3.6, p. 178',
-                    note='Full Configuration Interaction with STO-3G basis set'
+                    note='Full Configuration Interaction with STO-3G basis set',
                 )
             ],
-
             # Lithium hydride
             'LiH': [
                 ScientificReference(
@@ -69,10 +68,9 @@ class ScientificReferenceDatabase:
                     method='CCSD',
                     basis_set='sto-3g',
                     source='Szabo & Ostlund, Modern Quantum Chemistry, p. 286; Avramidis et al., arXiv:2401.17054, Table I, p. 4',
-                    note='Coupled Cluster Singles and Doubles with STO-3G. VQE with UCCSD ansatz in Qiskit simulator'
+                    note='Coupled Cluster Singles and Doubles with STO-3G. VQE with UCCSD ansatz in Qiskit simulator',
                 )
             ],
-
             # Beryllium dihydride
             'BeH2': [
                 ScientificReference(
@@ -83,10 +81,9 @@ class ScientificReferenceDatabase:
                     source='Belaloui et al., arXiv:2412.02606, 2024',
                     doi='10.48550/arXiv.2412.02606',
                     uncertainty_hartree=1e-5,
-                    note='FCI with CAS(2,3) approximation, Be-H bond length 1.326 Å. VQE on IBM Fez QPU achieved -15.55901 Ha'
+                    note='FCI with CAS(2,3) approximation, Be-H bond length 1.326 Å. VQE on IBM Fez QPU achieved -15.55901 Ha',
                 )
             ],
-
             # Water molecule
             'H2O': [
                 ScientificReference(
@@ -95,10 +92,9 @@ class ScientificReferenceDatabase:
                     method='HF',
                     basis_set='sto-3g',
                     source='Szabo & Ostlund, Modern Quantum Chemistry, p. 108; Table 3.13, p. 192',
-                    note='Hartree-Fock with STO-3G for ten-electron series (CH4, NH3, H2O, FH)'
+                    note='Hartree-Fock with STO-3G for ten-electron series (CH4, NH3, H2O, FH)',
                 )
             ],
-
             # Ammonia molecule
             'NH3': [
                 ScientificReference(
@@ -107,13 +103,14 @@ class ScientificReferenceDatabase:
                     method='HF',
                     basis_set='sto-3g',
                     source='Szabo & Ostlund, Modern Quantum Chemistry, p. 108; Table 3.13, p. 192',
-                    note='Hartree-Fock with STO-3G for ten-electron series (CH4, NH3, H2O, FH)'
+                    note='Hartree-Fock with STO-3G for ten-electron series (CH4, NH3, H2O, FH)',
                 )
             ],
-
         }
 
-    def get_reference(self, molecule_name: str, method: str = 'CCSD(T)') -> ScientificReference | None:
+    def get_reference(
+        self, molecule_name: str, method: str = 'CCSD(T)'
+    ) -> ScientificReference | None:
         """
         Get reference value for a molecule.
 
@@ -137,8 +134,9 @@ class ScientificReferenceDatabase:
 
         return None
 
-    def calculate_accuracy_metrics(self, molecule_name: str, vqe_energy: float,
-                                 basis_set: str = 'sto3g') -> dict[str, float]:
+    def calculate_accuracy_metrics(
+        self, molecule_name: str, vqe_energy: float, basis_set: str = 'sto3g'
+    ) -> dict[str, float]:
         """
         Calculate accuracy metrics for VQE result vs reference.
 
@@ -158,7 +156,7 @@ class ScientificReferenceDatabase:
                 'energy_error_hartree': None,
                 'energy_error_millihartree': None,
                 'relative_error_percent': None,
-                'accuracy_score': None
+                'accuracy_score': None,
             }
 
         # Calculate errors
@@ -180,7 +178,7 @@ class ScientificReferenceDatabase:
             'relative_error_percent': relative_error,
             'accuracy_score': min(100, accuracy_score),
             'within_chemical_accuracy': abs(energy_error) <= chemical_accuracy_threshold,
-            'basis_set_correction_needed': basis_set.lower() in ['sto3g', 'sto-3g']
+            'basis_set_correction_needed': basis_set.lower() in ['sto3g', 'sto-3g'],
         }
 
     def get_all_molecules(self) -> list[str]:
@@ -191,14 +189,16 @@ class ScientificReferenceDatabase:
         """Get formatted summary of reference data for a molecule."""
         refs = self.references.get(molecule_name, [])
         if not refs:
-            return f"No reference data available for {molecule_name}"
+            return f'No reference data available for {molecule_name}'
 
-        summary = f"Reference data for {molecule_name}:\n"
+        summary = f'Reference data for {molecule_name}:\n'
         for i, ref in enumerate(refs, 1):
-            summary += f"  {i}. {ref.method}/{ref.basis_set}: {ref.ground_state_energy_hartree:.6f} Ha\n"
-            summary += f"     Source: {ref.source}\n"
+            summary += (
+                f'  {i}. {ref.method}/{ref.basis_set}: {ref.ground_state_energy_hartree:.6f} Ha\n'
+            )
+            summary += f'     Source: {ref.source}\n'
             if ref.note:
-                summary += f"     Note: {ref.note}\n"
+                summary += f'     Note: {ref.note}\n'
 
         return summary
 

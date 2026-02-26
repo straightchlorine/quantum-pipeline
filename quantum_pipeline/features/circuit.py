@@ -17,11 +17,10 @@ class CircuitFeatures:
             dict: A dictionary containing circuit features.
         """
         gate_counts = Counter([gate[0].name for gate in circuit.data])
-        features = {
+        return {
             'depth': circuit.depth(),
             'qubits': circuit.num_qubits,
             'ancillas': circuit.num_ancillas,
             'clbits': circuit.num_clbits,
             'gate_counts': gate_counts,
         }
-        return features

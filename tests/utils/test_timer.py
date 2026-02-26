@@ -62,12 +62,15 @@ class TestTimerElapsed:
         assert isinstance(t.elapsed, float)
         assert t.elapsed > 0
 
-    @pytest.mark.parametrize('setup', [
-        'no_context',
-        'inside_context',
-        'start_only',
-        'end_only',
-    ])
+    @pytest.mark.parametrize(
+        'setup',
+        [
+            'no_context',
+            'inside_context',
+            'start_only',
+            'end_only',
+        ],
+    )
     def test_elapsed_raises_when_incomplete(self, setup):
         timer = Timer()
         if setup == 'no_context':

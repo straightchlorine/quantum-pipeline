@@ -54,7 +54,7 @@ class KafkaSecurity:
         """
         opts = self.config.security.sasl_opts
         if not (opts.sasl_plain_username and opts.sasl_plain_password):
-            raise ValueError(f"Username and password required for {sasl_config['sasl_mechanism']}")
+            raise ValueError(f'Username and password required for {sasl_config["sasl_mechanism"]}')
 
         sasl_config.update(
             {
