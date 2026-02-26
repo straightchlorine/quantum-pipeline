@@ -1,0 +1,14 @@
+name: CodeQL Configuration
+
+queries:
+  - uses: security-and-quality
+
+paths:
+  - quantum_pipeline
+
+paths-ignore:
+  - "**/*_test.py"
+  - "**/test_*.py"
+  - tests
+  - docs
+  - docker
