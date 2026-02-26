@@ -492,7 +492,7 @@ class TestVQEEdgeCases:
 
 
 class TestVQESolverSeed:
-    """Tests for seed-based reproducibility."""
+    """Tests for seed-based reproducibility via VQESolver."""
 
     def test_seed_stored(self, mock_backend_config, sample_hamiltonian):
         """Test that seed is stored on the solver."""
@@ -507,32 +507,96 @@ class TestVQESolverSeed:
         """Test that seed defaults to None."""
         assert vqe_solver.seed is None
 
-    def test_seed_produces_reproducible_params(self, mock_backend_config, sample_hamiltonian):
-        """Test that the same seed produces identical initial parameters."""
-        from qiskit.circuit.library import EfficientSU2
+    @staticmethod
+    def _run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed):
+        """Helper: run via_aer with mocked optimizer/estimator, return initial_parameters."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=1,
+            optimizer='COBYLA',
+            seed=seed,
+        )
 
-        ansatz = EfficientSU2(sample_hamiltonian.num_qubits)
-        param_num = ansatz.num_parameters
+        mock_backend = MagicMock(spec=AerBackend)
+        mock_backend.name = 'aer_simulator'
+        mock_backend.target = MagicMock()
 
-        results = []
-        for _ in range(2):
-            np.random.seed(42)
-            x0 = 2 * np.pi * np.random.random(param_num)
-            results.append(x0)
+        mock_ansatz_isa = MagicMock()
+        mock_ansatz_isa.num_parameters = 16
+        mock_ansatz_isa.layout = None
 
-        np.testing.assert_array_equal(results[0], results[1])
+        mock_hamiltonian_isa = MagicMock()
+        mock_hamiltonian_isa.num_qubits = sample_hamiltonian.num_qubits
+        mock_hamiltonian_isa.to_list.return_value = []
 
-    def test_different_seeds_produce_different_params(self, mock_backend_config, sample_hamiltonian):
-        """Test that different seeds produce different initial parameters."""
-        from qiskit.circuit.library import EfficientSU2
+        mock_minimize_result = MagicMock()
+        mock_minimize_result.fun = -1.0
+        mock_minimize_result.x = np.zeros(16)
+        mock_minimize_result.success = True
 
-        ansatz = EfficientSU2(sample_hamiltonian.num_qubits)
-        param_num = ansatz.num_parameters
+        with (
+            patch.object(solver, '_optimize_circuits', return_value=(mock_ansatz_isa, mock_hamiltonian_isa)),
+            patch('quantum_pipeline.solvers.vqe_solver.EstimatorV2'),
+            patch('quantum_pipeline.solvers.vqe_solver.minimize', return_value=mock_minimize_result),
+        ):
+            solver.via_aer(mock_backend)
 
-        np.random.seed(42)
-        x0_a = 2 * np.pi * np.random.random(param_num)
+        return solver.init_data.initial_parameters
 
-        np.random.seed(99)
-        x0_b = 2 * np.pi * np.random.random(param_num)
+    def test_same_seed_produces_identical_params_via_aer(self, mock_backend_config, sample_hamiltonian):
+        """Test that VQESolver.via_aer produces identical init params with the same seed."""
+        params_1 = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=42)
+        params_2 = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=42)
+        np.testing.assert_array_equal(params_1, params_2)
 
-        assert not np.array_equal(x0_a, x0_b)
+    def test_different_seeds_produce_different_params_via_aer(self, mock_backend_config, sample_hamiltonian):
+        """Test that VQESolver.via_aer produces different init params with different seeds."""
+        params_a = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=42)
+        params_b = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=99)
+        assert not np.array_equal(params_a, params_b)
+
+    def test_seed_stored_in_init_data(self, mock_backend_config, sample_hamiltonian):
+        """Test that the seed value is recorded in VQEInitialData."""
+        self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=42)
+        # Re-run to check init_data.seed field
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=1,
+            optimizer='COBYLA',
+            seed=42,
+        )
+
+        mock_backend = MagicMock(spec=AerBackend)
+        mock_backend.name = 'aer_simulator'
+        mock_backend.target = MagicMock()
+
+        mock_ansatz_isa = MagicMock()
+        mock_ansatz_isa.num_parameters = 16
+        mock_ansatz_isa.layout = None
+
+        mock_hamiltonian_isa = MagicMock()
+        mock_hamiltonian_isa.num_qubits = sample_hamiltonian.num_qubits
+        mock_hamiltonian_isa.to_list.return_value = []
+
+        mock_minimize_result = MagicMock()
+        mock_minimize_result.fun = -1.0
+        mock_minimize_result.x = np.zeros(16)
+        mock_minimize_result.success = True
+
+        with (
+            patch.object(solver, '_optimize_circuits', return_value=(mock_ansatz_isa, mock_hamiltonian_isa)),
+            patch('quantum_pipeline.solvers.vqe_solver.EstimatorV2'),
+            patch('quantum_pipeline.solvers.vqe_solver.minimize', return_value=mock_minimize_result),
+        ):
+            solver.via_aer(mock_backend)
+
+        assert solver.init_data.seed == 42
+
+    def test_no_seed_produces_varying_params(self, mock_backend_config, sample_hamiltonian):
+        """Test that VQESolver.via_aer without seed produces different params across runs."""
+        params_1 = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=None)
+        params_2 = self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=None)
+        # With no seed, params should almost certainly differ
+        assert not np.array_equal(params_1, params_2)
