@@ -27,6 +27,7 @@ def execute_simulation(**kwargs):
         optimizer=kwargs['optimizer'],
         ansatz_reps=kwargs['ansatz_reps'],
         default_shots=kwargs['shots'],
+        seed=kwargs.get('seed'),
         report=kwargs['report'],
         kafka=kwargs['kafka'],
         kafka_config=kwargs['kafka_config'] if kwargs['kafka'] else None,
