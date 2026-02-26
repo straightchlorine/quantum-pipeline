@@ -66,7 +66,7 @@ Click on any question to expand the answer.
     libraries.
 
     During development `pyenv` was extensively used to ensure proper versioning.
-    Alternatives include `conda`, `uv` nad similar tools to ensure correct Python version.
+    Alternatives include `conda`, `uv` and similar tools to ensure correct Python version.
     See the [Installation](../getting-started/installation.md) guide for detailed setup instructions.
 
 ??? question "Can I use Quantum Pipeline on Windows?"
