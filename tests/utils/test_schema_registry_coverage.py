@@ -12,12 +12,11 @@ Targets the paths not reached by the existing test_schema_registry.py:
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from quantum_pipeline.utils.schema_registry import SchemaRegistry
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

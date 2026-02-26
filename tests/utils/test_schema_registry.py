@@ -1,8 +1,10 @@
 """Tests for Schema Registry utilities."""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from quantum_pipeline.utils.schema_registry import SchemaRegistry
 
 

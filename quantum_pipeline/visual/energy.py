@@ -4,12 +4,13 @@ energy_plotter.py
 This module visualizes the energy convergence during optimization.
 """
 
-import matplotlib.pyplot as plt
 import logging
 
+import matplotlib.pyplot as plt
+
 from quantum_pipeline.configs import settings
-from quantum_pipeline.utils.dir import savePlot
 from quantum_pipeline.structures.vqe_observation import VQEProcess
+from quantum_pipeline.utils.dir import savePlot
 
 logger = logging.getLogger(__name__)
 

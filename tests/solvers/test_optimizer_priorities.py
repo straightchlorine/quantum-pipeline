@@ -5,12 +5,14 @@ Comprehensive tests for COBYLA and L-BFGS-B optimizer priority handling
 when both --max-iterations and --convergence are specified.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from quantum_pipeline.solvers.optimizer_config import (
     COBYLAConfig,
     LBFGSBConfig,
-    get_optimizer_configuration
+    get_optimizer_configuration,
 )
 
 

@@ -1,5 +1,5 @@
-from argparse import Namespace
 import json
+from argparse import Namespace
 from unittest.mock import patch
 
 import pytest

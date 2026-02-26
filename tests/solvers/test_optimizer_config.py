@@ -5,17 +5,17 @@ Comprehensive tests for the optimizer configuration factory and individual
 optimizer configuration classes.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-import logging
-from unittest.mock import patch, MagicMock
 
 from quantum_pipeline.solvers.optimizer_config import (
-    OptimizerConfig,
-    LBFGSBConfig,
     COBYLAConfig,
-    SLSQPConfig,
+    LBFGSBConfig,
+    OptimizerConfig,
     OptimizerConfigFactory,
-    get_optimizer_configuration
+    SLSQPConfig,
+    get_optimizer_configuration,
 )
 
 

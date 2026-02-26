@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -6,7 +6,7 @@ from quantum_pipeline.configs.module.backend import BackendConfig
 
 
 @pytest.fixture
-def sample_backend_defaults() -> Dict[str, Any]:
+def sample_backend_defaults() -> dict[str, Any]:
     """Fixture to provide sample default backend configurations."""
     return {
         'backend': {

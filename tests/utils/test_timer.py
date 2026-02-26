@@ -44,15 +44,13 @@ class TestTimerContextManager:
 
     def test_exit_called_on_exception(self):
         timer = Timer()
-        with pytest.raises(ValueError, match='test error'):
-            with timer:
-                raise ValueError('test error')
+        with pytest.raises(ValueError, match='test error'), timer:
+            raise ValueError('test error')
         assert timer.end_time is not None
 
     def test_exit_does_not_suppress_exception(self):
-        with pytest.raises(RuntimeError):
-            with Timer():
-                raise RuntimeError('should propagate')
+        with pytest.raises(RuntimeError), Timer():
+            raise RuntimeError('should propagate')
 
 
 class TestTimerElapsed:

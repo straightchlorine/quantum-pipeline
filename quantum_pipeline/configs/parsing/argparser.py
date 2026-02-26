@@ -209,14 +209,12 @@ class QuantumPipelineArgParser:
     def ensure_dir(self, path):
         if os.path.isdir(path):
             return True
-        else:
-            raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
+        raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
 
     def ensure_file(self, path):
         if os.path.isfile(path):
             return path
-        else:
-            raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
+        raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
 
     def _add_additional_features(self):
         """Add additional feature arguments."""
@@ -371,7 +369,7 @@ class QuantumPipelineArgParser:
             return True
         return False
 
-    def _validate_args(self, args: argparse.Namespace) -> None:  # noqa: C901
+    def _validate_args(self, args: argparse.Namespace) -> None:
         """Validate parsed arguments."""
         settings.LOG_LEVEL = getattr(logging, args.log_level)
 
@@ -409,11 +407,11 @@ class QuantumPipelineArgParser:
                 required_files = [args.ssl_cafile, args.ssl_certfile, args.ssl_keyfile]
                 if not all(required_files):
                     self.parser.error(
-                        (
+
                             '--ssl-cafile, --ssl-certfile, and --ssl-keyfile '
                             'are required when --ssl is set '
                             'and --ssl-dir is not provided'
-                        )
+
                     )
         elif not args.ssl and (args.ssl_cafile or args.ssl_certfile or args.ssl_keyfile):
             self.parser.error(
@@ -421,8 +419,8 @@ class QuantumPipelineArgParser:
             )
 
         sasl_options_provided = (
-            args.sasl_ssl is True
-            and args.sasl_plain_username is not None
+            (args.sasl_ssl is True
+            and args.sasl_plain_username is not None)
             or args.sasl_plain_password is not None
             or args.sasl_kerberos_service_name != 'kafka'
             or args.sasl_kerberos_domain_name is not None

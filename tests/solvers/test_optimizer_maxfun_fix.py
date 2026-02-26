@@ -5,8 +5,8 @@ Tests to verify that L-BFGS-B properly respects maxfun limits for VQE optimizati
 This addresses the issue where maxiter was being ignored in favor of tight tolerances.
 """
 
-import pytest
 import numpy as np
+import pytest
 from scipy.optimize import minimize
 
 from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration

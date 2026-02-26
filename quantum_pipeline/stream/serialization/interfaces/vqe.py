@@ -1,17 +1,17 @@
-from abc import ABC, abstractmethod
-from copy import deepcopy
 import io
 import json
+from abc import ABC, abstractmethod
+from copy import deepcopy
 from typing import Any, Generic, TypeVar
 
-import numpy as np
-from numpy import float32, float64, int32, int64, ndarray
-
-from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
 import avro.schema
+import numpy as np
+from avro.io import BinaryDecoder, BinaryEncoder, DatumReader, DatumWriter
+from numpy import float32, float64, int32, int64, ndarray
 from qiskit.qasm3 import dumps, loads
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 from qiskit_nature.units import DistanceUnit
+
 from quantum_pipeline.structures.vqe_observation import (
     VQEDecoratedResult,
     VQEInitialData,
@@ -55,13 +55,13 @@ class AvroInterfaceBase(ABC, Generic[T]):
         """Convert numpy types to Python native types."""
         if isinstance(obj, np.ndarray):
             return obj.tolist()
-        elif self._is_numpy_int(obj):
+        if self._is_numpy_int(obj):
             return int(obj)
-        elif self._is_numpy_float(obj):
+        if self._is_numpy_float(obj):
             return float(obj)
-        elif isinstance(obj, dict):
+        if isinstance(obj, dict):
             return {k: self._convert_to_primitives(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
+        if isinstance(obj, list):
             return [self._convert_to_primitives(item) for item in obj]
         return obj
 
@@ -69,7 +69,7 @@ class AvroInterfaceBase(ABC, Generic[T]):
         """Convert Python native types to numpy types."""
         if isinstance(obj, list):
             return np.array([self._convert_to_primitives(item) for item in obj])
-        elif hasattr(obj, 'tolist'):
+        if hasattr(obj, 'tolist'):
             return obj.tolist()
         return obj
 

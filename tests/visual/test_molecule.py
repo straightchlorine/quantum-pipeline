@@ -1,9 +1,9 @@
 """Tests for 3D molecule visualization (MoleculePlotter)."""
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
-
 
 # ---------------------------------------------------------------------------
 # Helpers

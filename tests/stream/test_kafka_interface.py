@@ -66,9 +66,8 @@ class TestVQEKafkaProducer:
         with patch(
             'quantum_pipeline.stream.kafka_interface.VQEKafkaProducer',
             side_effect=KafkaProducerError('No brokers available'),
-        ) as mock_producer:
-            with pytest.raises(KafkaProducerError):
-                mock_producer(mock_config)
+        ) as mock_producer, pytest.raises(KafkaProducerError):
+            mock_producer(mock_config)
 
     def test_security_config_ssl(self, mock_config):
         """Test SSL security configuration."""

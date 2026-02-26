@@ -1,13 +1,14 @@
 """Tests for report generation."""
 
-import pytest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
-from quantum_pipeline.report.report_generator import ReportGenerator
+import pytest
+
 from quantum_pipeline.report.configuration import ReportConfiguration
 from quantum_pipeline.report.content_builder import ReportContentBuilder
 from quantum_pipeline.report.renderer import PDFRenderer
+from quantum_pipeline.report.report_generator import ReportGenerator
 from quantum_pipeline.structures.vqe_observation import VQEProcess
 
 

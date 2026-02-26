@@ -1,8 +1,8 @@
 """Tests for operator coefficient visualization (OperatorViewer)."""
 
-import numpy as np
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, call
 
 
 class TestPlotOperatorCoefficients:

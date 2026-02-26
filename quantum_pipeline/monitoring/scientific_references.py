@@ -5,7 +5,6 @@ This module contains experimentally determined and high-level theoretical
 ground state energies for molecules used in VQE benchmarking.
 """
 
-from typing import Dict, Optional
 from dataclasses import dataclass
 
 
@@ -17,8 +16,8 @@ class ScientificReference:
     method: str
     basis_set: str
     source: str
-    doi: Optional[str] = None
-    uncertainty_hartree: Optional[float] = None
+    doi: str | None = None
+    uncertainty_hartree: float | None = None
     note: str = ""
 
 
@@ -114,7 +113,7 @@ class ScientificReferenceDatabase:
 
         }
 
-    def get_reference(self, molecule_name: str, method: str = 'CCSD(T)') -> Optional[ScientificReference]:
+    def get_reference(self, molecule_name: str, method: str = 'CCSD(T)') -> ScientificReference | None:
         """
         Get reference value for a molecule.
 
@@ -139,7 +138,7 @@ class ScientificReferenceDatabase:
         return None
 
     def calculate_accuracy_metrics(self, molecule_name: str, vqe_energy: float,
-                                 basis_set: str = 'sto3g') -> Dict[str, float]:
+                                 basis_set: str = 'sto3g') -> dict[str, float]:
         """
         Calculate accuracy metrics for VQE result vs reference.
 
@@ -205,7 +204,7 @@ class ScientificReferenceDatabase:
 
 
 # Global instance for easy access
-_reference_db: Optional[ScientificReferenceDatabase] = None
+_reference_db: ScientificReferenceDatabase | None = None
 
 
 def get_reference_database() -> ScientificReferenceDatabase:

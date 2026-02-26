@@ -1,10 +1,11 @@
 """Tests for energy visualization plotter."""
 
-import pytest
+
 import numpy as np
-from unittest.mock import MagicMock, patch
-from quantum_pipeline.visual.energy import EnergyPlotter
+import pytest
+
 from quantum_pipeline.structures.vqe_observation import VQEProcess
+from quantum_pipeline.visual.energy import EnergyPlotter
 
 
 @pytest.fixture

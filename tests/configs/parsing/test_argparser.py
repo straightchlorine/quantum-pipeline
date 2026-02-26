@@ -1,5 +1,6 @@
-from unittest.mock import mock_open, patch
 import os
+from unittest.mock import mock_open, patch
+
 import pytest
 
 from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
@@ -399,7 +400,6 @@ class TestArgparserEdgeCases:
 
     def test_threshold_boundary_values(self, argparser):
         """Test convergence threshold with boundary values."""
-        import sys
 
         # Test with very small positive value
         args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '1e-308'])

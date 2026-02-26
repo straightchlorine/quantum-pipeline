@@ -6,8 +6,6 @@ are mocked, but the real module interactions are exercised.
 """
 
 import json
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -28,7 +26,6 @@ from quantum_pipeline.structures.vqe_observation import (
     VQEResult,
 )
 from quantum_pipeline.utils.timer import Timer
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -300,9 +297,8 @@ class TestTimerPipelineIntegration:
     def test_timer_survives_exception_in_stage(self):
         """Ensure timing data is available even if a stage fails."""
         timer = Timer()
-        with pytest.raises(ZeroDivisionError):
-            with timer:
-                _ = 1 / 0
+        with pytest.raises(ZeroDivisionError), timer:
+            _ = 1 / 0
         assert timer.elapsed >= 0
 
 

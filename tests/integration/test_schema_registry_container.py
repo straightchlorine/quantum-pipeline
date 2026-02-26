@@ -5,7 +5,6 @@ the SchemaRegistry class against a live registry instance.
 """
 
 import json
-import time
 
 import pytest
 import requests

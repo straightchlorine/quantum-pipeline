@@ -1,5 +1,6 @@
-from qiskit import QuantumCircuit
 from collections import Counter
+
+from qiskit import QuantumCircuit
 
 
 class CircuitFeatures:

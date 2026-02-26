@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
 
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 from reportlab.lib import colors
@@ -28,7 +27,7 @@ class ReportContentBuilder:
         """
         self.logger = get_logger(self.__class__.__name__)
         self.report_config = ReportConfiguration()
-        self.content: List[Union[Paragraph, Spacer, Table, Tuple]] = []
+        self.content: list[Paragraph | Spacer | Table | tuple] = []
         self.styles = styles or getSampleStyleSheet()
         self._add_custom_styles()
 
@@ -75,9 +74,9 @@ class ReportContentBuilder:
 
     def add_table(
         self,
-        data: List[List],
-        col_widths: Optional[List[float]] = None,
-        custom_styles: Optional[List[Tuple]] = None,
+        data: list[list],
+        col_widths: list[float] | None = None,
+        custom_styles: list[tuple] | None = None,
     ):
         """
         Add a table to the report.
@@ -96,7 +95,7 @@ class ReportContentBuilder:
 
         self.content.extend([table, Spacer(1, 20)])
 
-    def add_metrics(self, metrics: Dict[str, Union[str, float, int]]):
+    def add_metrics(self, metrics: dict[str, str | float | int]):
         """
         Add a metrics table to the report.
 
@@ -106,13 +105,13 @@ class ReportContentBuilder:
         data = [['Metric', 'Value']] + [[str(k), str(v)] for k, v in metrics.items()]
         self.add_table(data)
 
-    def append_plot_path(self, plot_path: str | Path, sizes: Tuple[int, int]):
+    def append_plot_path(self, plot_path: str | Path, sizes: tuple[int, int]):
         if os.path.exists(plot_path):
             self.content.append(('plot', plot_path, sizes))
         else:
             raise FileNotFoundError(f'Plot path {plot_path} does not exist.')
 
-    def add_molecule_plot(self, molecule: MoleculeInfo, plotter: Optional[MoleculePlotter] = None):
+    def add_molecule_plot(self, molecule: MoleculeInfo, plotter: MoleculePlotter | None = None):
         """
         Add a molecule visualization to the report.
 

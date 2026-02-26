@@ -442,7 +442,7 @@ class TestVQEEdgeCases:
             should_disable = solver.optimizer == 'L-BFGS-B' and solver.max_iterations
 
             if optimizer == 'L-BFGS-B':
-                assert should_disable, f"L-BFGS-B should disable convergence criteria"
+                assert should_disable, "L-BFGS-B should disable convergence criteria"
             else:
                 assert not should_disable, f"{optimizer} should not disable convergence criteria"
 
