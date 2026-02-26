@@ -6,7 +6,7 @@ variables into each service container.
 
 ## Overview
 
-An example configuration file is provided as [`.env.thesis.example`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/.env.thesis.example). Copy it and
+An example configuration file is provided as [`.env.thesis.example`](https://github.com/straightchlorine/quantum-pipeline/blob/master/.env.thesis.example). Copy it and
 customize for your environment:
 
 ```bash

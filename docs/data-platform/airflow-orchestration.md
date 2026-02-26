@@ -10,7 +10,7 @@
 
 ## DAG Structure
 
-The [`quantum_feature_processing`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py) DAG consists of a single task that submits a PySpark application to the Spark cluster.
+The [`quantum_feature_processing`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/quantum_processing_dag.py) DAG consists of a single task that submits a PySpark application to the Spark cluster.
 
 ### DAG Configuration
 
@@ -107,7 +107,7 @@ quantum_simulation_results_processing = SparkSubmitOperator(
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
-| `application` | `/opt/airflow/dags/scripts/quantum_incremental_processing.py` | Path to the PySpark script inside the Airflow container ([source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py)) |
+| `application` | `/opt/airflow/dags/scripts/quantum_incremental_processing.py` | Path to the PySpark script inside the Airflow container ([source](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/scripts/quantum_incremental_processing.py)) |
 | `conn_id` | `spark_default` | Airflow connection ID for the Spark cluster |
 | `name` | `quantum_feature_processing` | Application name visible in the Spark Web UI |
 | `verbose` | `True` | Enables detailed Spark logging in Airflow task logs |

@@ -152,7 +152,7 @@ The system uses two MinIO buckets:
 }
 ```
 
-Full configuration: [`docker/connectors/minio-sink-config.json`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/connectors/minio-sink-config.json)
+Full configuration: [`docker/connectors/minio-sink-config.json`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/connectors/minio-sink-config.json)
 
 ### Raw Data Directory Layout
 

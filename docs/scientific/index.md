@@ -6,7 +6,7 @@ title: Scientific Background
 
 Quantum chemistry simulation represents one of the most promising near-term
 applications of quantum computing. The fundamental challenge lies in solving the
-electronic structure problem --- determining the ground-state energy of molecular
+electronic structure problem - determining the ground-state energy of molecular
 systems by finding the lowest eigenvalue of the molecular Hamiltonian. Classical
 approaches to this problem, such as Full Configuration Interaction (FCI), scale
 exponentially with system size, rendering exact solutions intractable for all but
@@ -23,15 +23,17 @@ subject to significant noise and decoherence.
 
 ## Relevance to Quantum Pipeline
 
-The Quantum Pipeline framework provides a production-grade infrastructure for
+The Quantum Pipeline framework provides an infrastructure for
 executing, orchestrating, and analyzing VQE simulations at scale. By integrating
 GPU-accelerated statevector simulation with streaming data pipelines, the system
 enables systematic exploration of molecular systems across different
 configurations, basis sets, and optimization strategies.
 
 The scientific content presented in this section draws upon experimental results
-obtained through the Quantum Pipeline framework, offering both theoretical
-grounding and empirical validation of the system's capabilities.
+from thesis research conducted with the Quantum Pipeline framework. The
+experiments had specific limitations (single optimizer, random initialization
+only, consumer-grade GPUs) which are documented in
+[Benchmarking: Limitations](benchmarking.md#limitations-and-future-work).
 
 ## The Electronic Structure Problem
 
@@ -44,8 +46,8 @@ At the heart of quantum chemistry lies the time-independent Schrodinger equation
 For molecular systems, solving this equation exactly (Full Configuration
 Interaction) scales factorially with the number of electrons, placing all but
 the simplest molecules beyond the reach of classical exact methods. Approximate
-classical techniques --- Hartree-Fock, Density Functional Theory, Coupled
-Cluster --- introduce systematic truncations that trade accuracy for tractability.
+classical techniques - Hartree-Fock, Density Functional Theory, Coupled
+Cluster - introduce systematic truncations that trade accuracy for tractability.
 Quantum computers offer a fundamentally different approach: by representing the
 molecular wavefunction directly in a qubit register, the exponential state space
 is encoded naturally rather than simulated.
@@ -54,21 +56,20 @@ is encoded naturally rather than simulated.
 
 Current quantum devices operate in the NISQ regime, characterized by:
 
-- **Limited qubit counts** --- typically tens to hundreds of physical qubits,
+- **Limited qubit counts** - typically tens to hundreds of physical qubits,
   constraining the size of molecular systems that can be simulated directly.
-- **Gate errors and decoherence** --- noise accumulates with circuit depth,
+- **Gate errors and decoherence** - noise accumulates with circuit depth,
   limiting the complexity of ansatz circuits that can be reliably executed.
-- **No error correction** --- fault-tolerant quantum computing remains a
+- **No error correction** - fault-tolerant quantum computing remains a
   longer-term objective; near-term algorithms must tolerate or mitigate hardware
   noise.
-- **Short coherence times** --- quantum states degrade within microseconds to
+- **Short coherence times** - quantum states degrade within microseconds to
   milliseconds, imposing strict upper bounds on circuit depth.
 
 VQE addresses these constraints through shallow parameterized circuits and
 classical post-processing, making it one of the most viable quantum algorithms
-for contemporary hardware. Classical simulators accelerated by GPUs serve as an
-essential bridge, enabling algorithm development, benchmarking, and parameter
-exploration in advance of fault-tolerant quantum hardware.
+for contemporary hardware. Classical simulators accelerated by GPUs can assist with algorithm development
+and benchmarking while fault-tolerant quantum hardware remains unavailable.
 
 ## GPU Acceleration in Quantum Simulation
 
@@ -78,8 +79,8 @@ involves vectors with over one million complex-valued entries. GPU architectures
 with their massively parallel execution model, are naturally suited to the
 linear algebra operations that dominate quantum simulation workloads.
 
-The Quantum Pipeline leverages NVIDIA cuQuantum to accelerate statevector
-operations, achieving speedups of 1.74--4.08x depending on the problem size and
+The Quantum Pipeline leverages NVIDIA CUDA (cuQuantum) to accelerate statevector
+operations, achieving speedups of 1.74-4.08x depending on the problem size and
 basis set complexity. These performance gains are documented in detail on the
 [Benchmarking Results](benchmarking.md) page.
 
@@ -106,7 +107,7 @@ simulations within the Quantum Pipeline framework.
 
     ---
 
-    Comprehensive guide to the basis sets supported by Quantum Pipeline ---
+    Comprehensive guide to the basis sets supported by Quantum Pipeline -
     STO-3G, 6-31G, and cc-pVDZ. Covers the trade-offs between accuracy,
     computational cost, and qubit requirements, with practical recommendations
     for basis set selection.
@@ -117,21 +118,13 @@ simulations within the Quantum Pipeline framework.
 
     ---
 
-    Experimental results from systematic VQE benchmarking across six molecular
-    systems. Includes CPU vs. GPU performance analysis, convergence
-    characteristics, basis set impact studies, and detailed speedup measurements.
+    Experimental results from initial VQE benchmarking across six molecular
+    systems. Documents GPU acceleration performance and identifies optimization
+    challenges with random initialization that inform future development.
 
     [:octicons-arrow-right-24: Benchmarking Results](benchmarking.md)
 
 </div>
-
-## Prerequisites
-
-Readers are expected to have a basic familiarity with:
-
-- **Linear algebra** --- vector spaces, eigenvalues, matrix operations.
-- **Quantum mechanics** --- state vectors, operators, measurement.
-- **Quantum computing fundamentals** --- qubits, quantum gates, circuit model.
 
 For practical usage of the Quantum Pipeline framework, refer to the
 [Usage Overview](../usage/index.md) and
@@ -157,6 +150,6 @@ Throughout this section, the following notation is employed:
 - McClean, J. R. et al. (2016). "The theory of variational hybrid
   quantum-classical algorithms." *New Journal of Physics*, 18(2), 023023.
 - Tilly, J. et al. (2022). "The Variational Quantum Eigensolver: a review of
-  methods and best practices." *Physics Reports*, 986, 1--128.
+  methods and best practices." *Physics Reports*, 986, 1-128.
 - Preskill, J. (2018). "Quantum Computing in the NISQ era and beyond."
   *Quantum*, 2, 79.

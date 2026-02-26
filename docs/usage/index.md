@@ -62,7 +62,7 @@ graph LR
 
 1. **Command-Line Arguments** — Direct flags passed to `quantum_pipeline.py`
 2. **Configuration File** — Loaded via `--load config.json`
-3. **Defaults** — `quantum_pipeline/configs/defaults.py`
+3. **Defaults** — [`quantum_pipeline/configs/defaults.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/configs/defaults.py)
 
 !!! note "Environment Variables"
     Some environment variables are supported for performance monitoring (`QUANTUM_PERFORMANCE_*`) and Docker deployments (`CONTAINER_TYPE`), but they do not participate in the general configuration hierarchy.
@@ -287,7 +287,7 @@ quantum_pipeline/configs/defaults.py
 
 ### Defaults Reference
 
-All default values are defined in `quantum_pipeline/configs/defaults.py`. To change defaults permanently, edit that file directly. Supported optimizers, basis sets, and simulation methods are listed in `quantum_pipeline/configs/settings.py`.
+All default values are defined in [`quantum_pipeline/configs/defaults.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/configs/defaults.py). To change defaults permanently, edit that file directly. Supported optimizers, basis sets, and simulation methods are listed in [`quantum_pipeline/configs/settings.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/configs/settings.py).
 
 ---
 

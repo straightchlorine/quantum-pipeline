@@ -6,7 +6,7 @@ Grafana provides the visualization layer for monitoring Quantum Pipeline simulat
 
 ## Setup
 
-When running the Docker Compose deployment, Grafana is available at `http://localhost:3000` (default credentials: `admin`/`admin`). Before importing dashboards, add Prometheus as a data source pointing to `http://prometheus:9090` (internal) or `http://localhost:9090` (from host). See the [Grafana documentation](https://grafana.com/docs/grafana/latest/datasources/prometheus/) for data source setup details.
+When running the Docker Compose deployment, Grafana is available at `http://localhost:3000` (default credentials: `admin`/`admin`). The monitoring stack is defined in [`docker-compose.thesis.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml). Before importing dashboards, add Prometheus as a data source pointing to `http://prometheus:9090` (internal) or `http://localhost:9090` (from host). See the [Grafana documentation](https://grafana.com/docs/grafana/latest/datasources/prometheus/) for data source setup details.
 
 ---
 
@@ -19,6 +19,8 @@ The primary dashboard is located at:
 ```
 monitoring/grafana/dashboards/quantum-pipeline-thesis.json
 ```
+
+View the full dashboard definition on GitHub: [`quantum-pipeline-thesis.json`](https://github.com/straightchlorine/quantum-pipeline/blob/master/monitoring/grafana/dashboards/quantum-pipeline-thesis.json).
 
 To import it:
 
@@ -91,7 +93,7 @@ quantum_vqe_total_time{
 }
 ```
 
-#### VQE Performance -- Iterations per Second (Time Series)
+#### VQE Performance - Iterations per Second (Time Series)
 
 Measures computational throughput by dividing iteration count by total time. Higher values indicate more efficient computation.
 
@@ -99,7 +101,7 @@ Measures computational throughput by dividing iteration count by total time. Hig
 quantum_vqe_iterations_count / quantum_vqe_total_time
 ```
 
-#### VQE Efficiency -- VQE Time / Total Time (Time Series)
+#### VQE Efficiency - VQE Time / Total Time (Time Series)
 
 Shows the ratio of time spent in the VQE optimization loop to the total execution time. Values closer to 1.0 indicate that most time is spent on actual computation rather than setup overhead.
 
@@ -110,7 +112,7 @@ quantum_vqe_vqe_time / quantum_vqe_total_time
 - Y-axis range: 0 to 1 (percentage unit)
 - Higher values indicate less overhead from Hamiltonian construction and qubit mapping
 
-#### VQE Overhead Ratio -- Setup Time / VQE Time (Time Series)
+#### VQE Overhead Ratio - Setup Time / VQE Time (Time Series)
 
 Quantifies the overhead of Hamiltonian construction and qubit mapping relative to the VQE optimization time. Lower values are better.
 
@@ -161,11 +163,11 @@ quantum_experiment_iterations_count{container_type=~"$container_type"}
 
 #### Scientific Accuracy Score (Time Series)
 
-A normalized accuracy score from 0.0 to 1.0 indicating how close the simulation result is to chemical accuracy. Threshold levels:
+A normalized accuracy score from 0 to 100 indicating how close the simulation result is to chemical accuracy. Threshold levels:
 
-- **Red:** Below 0.7 (poor accuracy)
-- **Yellow:** 0.7 to 0.9 (moderate accuracy)
-- **Green:** Above 0.9 (good accuracy, within or near chemical accuracy)
+- **Red:** Below 70 (poor accuracy)
+- **Yellow:** 70 to 90 (moderate accuracy)
+- **Green:** Above 90 (good accuracy, within or near chemical accuracy)
 
 ```promql
 quantum_vqe_within_chemical_accuracy{...}

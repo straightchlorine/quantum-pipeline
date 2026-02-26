@@ -8,7 +8,7 @@ The Quantum Pipeline collects a comprehensive set of metrics during VQE simulati
 
 ### System Metrics
 
-System metrics track hardware resource utilization for each simulation container. These are collected by a background monitoring thread and pushed to the Prometheus PushGateway at regular intervals.
+System metrics track hardware resource utilization for each simulation container. These are collected by a background monitoring thread and pushed to the Prometheus PushGateway at regular intervals. System metrics are exported by the background monitoring thread in [`performance_monitor.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/monitoring/performance_monitor.py#L569).
 
 | Metric | Prometheus Name | Type | Unit | Description |
 |--------|----------------|------|------|-------------|
@@ -19,43 +19,39 @@ System metrics track hardware resource utilization for each simulation container
 | Container Uptime | `quantum_system_uptime_seconds` | Gauge | seconds | Time since container start |
 
 !!! note "GPU Metrics"
-    GPU acceleration is supported via the `--gpu` flag, but GPU-specific Prometheus metrics (e.g., GPU utilization, GPU memory) are not currently exported by the performance monitor. GPU benefits are observed indirectly through reduced VQE execution times.
+    GPU acceleration is supported via the `--gpu` flag, but GPU-specific Prometheus metrics (e.g., GPU utilization, GPU memory) are not currently exported by the performance monitor. This
+was a concious decision on the design part. In most of the cases - GPU usage very much varies from second to second. It made statistics very much unreliable. In the thesis monitoring
+it was replaced with [`nvidia_gpu_exporter`](https://github.com/utkuozdemir/nvidia_gpu_exporter),
+which was reliable, due to relying on `nvidia-smi`.
 
 ### VQE Execution Metrics
 
-VQE execution metrics capture the performance characteristics of the variational quantum eigensolver algorithm. These include timing breakdowns for each phase of the simulation and iteration-level progress data.
+VQE execution metrics are exported after each simulation completes. These include timing breakdowns, result values, and derived efficiency metrics. All VQE metrics are pushed to the PushGateway by [`performance_monitor.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/monitoring/performance_monitor.py#L488).
 
-| Metric | Prometheus Name | Type | Unit | Description |
-|--------|----------------|------|------|-------------|
-| Iteration Count | `vqe_iteration_count` | Gauge | count | Current optimizer iteration number |
-| Current Energy | `vqe_current_energy` | Gauge | Hartree | Latest energy value from the optimizer |
-| Execution Time | `vqe_execution_time_seconds` | Gauge | seconds | Cumulative execution time |
-| Convergence Rate | `vqe_convergence_rate` | Gauge | Ha/iteration | Rate of energy decrease per iteration |
-
-The Grafana dashboard tracks additional detailed timing metrics:
-
-| Dashboard Metric | Prometheus Name | Type | Description |
-|-----------------|----------------|------|-------------|
+| Metric | Prometheus Name | Type | Description |
+|--------|----------------|------|-------------|
 | Total Execution Time | `quantum_vqe_total_time` | Gauge | End-to-end simulation time |
-| VQE Optimization Time | `quantum_vqe_vqe_time` | Gauge | Time spent in VQE optimization loop |
 | Hamiltonian Build Time | `quantum_vqe_hamiltonian_time` | Gauge | Time to construct the molecular Hamiltonian |
 | Qubit Mapping Time | `quantum_vqe_mapping_time` | Gauge | Time for fermionic-to-qubit operator mapping |
-| Iterations Count | `quantum_vqe_iterations_count` | Gauge | Total iterations to convergence |
-| Minimum Energy | `quantum_vqe_minimum_energy` | Gauge | Best energy found during optimization |
+| VQE Optimization Time | `quantum_vqe_vqe_time` | Gauge | Time spent in VQE optimization loop |
+| Minimum Energy | `quantum_vqe_minimum_energy` | Gauge | Best energy found during optimization (Hartree) |
+| Iterations Count | `quantum_vqe_iterations_count` | Gauge | Total optimizer iterations to convergence |
+| Optimal Parameters | `quantum_vqe_optimal_parameters_count` | Gauge | Number of optimized variational parameters |
 
 ### Scientific Accuracy Metrics
 
-Scientific metrics evaluate the quality of VQE results against known reference values. These metrics are critical for assessing whether simulations achieve chemical accuracy.
+!!! warning "Experimental Feature"
+    Scientific accuracy tracking is still in testing. Most of the thesis research was conducted without it. The reference values used by the project are drawn from an already scarce bibliography that the author managed to gather - they should be treated as best-effort baselines rather than authoritative benchmarks.
+
+Scientific metrics evaluate the quality of VQE results against known reference values. These metrics are critical for assessing whether simulations achieve chemical accuracy. Accuracy calculations are implemented in [`scientific_references.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/monitoring/scientific_references.py#L141).
 
 | Dashboard Metric | Prometheus Name | Type | Description |
 |-----------------|----------------|------|-------------|
 | Ground State Energy | `quantum_experiment_minimum_energy` | Gauge | Minimum energy from optimization |
 | Energy Error | `quantum_vqe_energy_error_millihartree` | Gauge | Deviation from reference value in mHa |
 | Chemical Accuracy | `quantum_vqe_within_chemical_accuracy` | Gauge | Binary indicator (1 = within 1 mHa) |
-| Accuracy Score | `quantum_vqe_accuracy_score` | Gauge | Normalized accuracy score (0.0 to 1.0) |
+| Accuracy Score | `quantum_vqe_accuracy_score` | Gauge | Normalized accuracy score (0 to 100) |
 
-!!! info "Chemical Accuracy Threshold"
-    Chemical accuracy is defined as an energy error of 1 millihartree (mHa) or less relative to the reference value. This threshold is significant because errors below 1 mHa are generally considered negligible for most chemical predictions.
 
 ---
 
@@ -75,36 +71,41 @@ Every metric includes the following labels where applicable:
 | `molecule_symbols` | Chemical formula of the molecule being simulated | `H2`, `LiH`, `BeH2`, `H2O`, `NH3` |
 | `optimizer` | Optimization algorithm used | `L-BFGS-B`, `COBYLA`, `SLSQP` |
 | `basis_set` | Basis set for the simulation | `sto-3g`, `cc-pvdz` |
+| `molecule_id` | Unique identifier for the molecule instance | `0`, `1`, `2` |
+| `backend_type` | Quantum simulation backend | `aer_simulator`, `statevector` |
 
 #### Full Metric List
 
 ```promql
 # System Resource Metrics
-quantum_system_cpu_percent{container_type="cpu"}
-quantum_system_memory_percent{container_type="cpu"}
-quantum_system_uptime_seconds{container_type="cpu"}
+quantum_system_cpu_percent{container_type}
+quantum_system_memory_percent{container_type}
+quantum_system_uptime_seconds{container_type}
 
 # VQE Performance Metrics
-quantum_vqe_total_time{container_type, molecule_symbols, optimizer}
-quantum_vqe_vqe_time{container_type, molecule_symbols, optimizer}
-quantum_vqe_hamiltonian_time{container_type, molecule_symbols, optimizer}
-quantum_vqe_mapping_time{container_type, molecule_symbols, optimizer}
-quantum_vqe_iterations_count{container_type, molecule_symbols, optimizer}
-quantum_vqe_minimum_energy{container_type, molecule_symbols, optimizer}
+quantum_vqe_total_time{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_vqe_time{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_hamiltonian_time{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_mapping_time{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_iterations_count{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_minimum_energy{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_optimal_parameters_count{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
 
 # Scientific Accuracy Metrics
 quantum_experiment_minimum_energy{container_type}
 quantum_experiment_iterations_count{container_type}
-quantum_vqe_energy_error_millihartree{container_type, molecule_symbols, optimizer}
-quantum_vqe_within_chemical_accuracy{container_type, molecule_symbols, optimizer}
-quantum_vqe_accuracy_score{container_type, molecule_symbols, optimizer}
+quantum_vqe_reference_energy{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_energy_error_hartree{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_energy_error_millihartree{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_within_chemical_accuracy{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_accuracy_score{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
 
 # Derived Efficiency Metrics (via PushGateway)
-quantum_vqe_iterations_per_second{container_type, molecule_symbols, optimizer}
-quantum_vqe_time_per_iteration{container_type, molecule_symbols, optimizer}
-quantum_vqe_overhead_ratio{container_type, molecule_symbols, optimizer}
-quantum_vqe_efficiency{container_type, molecule_symbols, optimizer}
-quantum_vqe_setup_ratio{container_type, molecule_symbols, optimizer}
+quantum_vqe_iterations_per_second{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_time_per_iteration{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_overhead_ratio{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_efficiency{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
+quantum_vqe_setup_ratio{container_type, molecule_id, molecule_symbols, optimizer, backend_type}
 ```
 
 ---
@@ -113,11 +114,11 @@ quantum_vqe_setup_ratio{container_type, molecule_symbols, optimizer}
 
 ### Collection Interval
 
-The background monitoring thread collects system metrics at a configurable interval:
+The background monitoring thread collects system metrics at a configurable interval. Default values are defined in [`settings.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/configs/settings.py#L67).
 
 ```python
-# Default collection interval: 30 seconds
---performance-interval 30
+# Default collection interval: 10 seconds
+--performance-interval 10
 
 # Higher frequency for detailed analysis
 --performance-interval 1
@@ -132,21 +133,24 @@ Metrics can be exported in multiple formats:
 
 === "Prometheus (Default)"
 
-    Metrics are pushed to the PushGateway in Prometheus exposition format:
+    Metrics are pushed to the PushGateway in Prometheus exposition format. Scrape targets are configured in [`prometheus.yml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/monitoring/prometheus.yml).
 
     ```bash
-    quantum-pipeline run \
+    python quantum_pipeline.py -f molecules.json \
         --enable-performance-monitoring \
         --performance-export-format prometheus \
-        --performance-pushgateway http://pushgateway:9091
+        --performance-pushgateway http://monit:9091
     ```
+
+!!! note "PushGateway Hostname"
+    The PushGateway hostname depends on the deployment configuration. The thesis deployment (`docker-compose.thesis.yaml`) uses `monit` as the service name, while `prometheus.yml` references `prometheus-pushgateway`. Adjust the `--performance-pushgateway` URL to match your compose file's service name or local instance.
 
 === "JSON"
 
     Metrics are saved to a local JSON file after simulation completion:
 
     ```bash
-    quantum-pipeline run \
+    python quantum_pipeline.py -f molecules.json \
         --enable-performance-monitoring \
         --performance-export-format json
     ```
@@ -156,10 +160,10 @@ Metrics can be exported in multiple formats:
     Export to both Prometheus and JSON simultaneously:
 
     ```bash
-    quantum-pipeline run \
+    python quantum_pipeline.py -f molecules.json \
         --enable-performance-monitoring \
         --performance-export-format both \
-        --performance-pushgateway http://pushgateway:9091
+        --performance-pushgateway http://monit:9091
     ```
 
 ### Environment Variables
@@ -167,7 +171,7 @@ Metrics can be exported in multiple formats:
 The PushGateway URL can also be set via environment variable:
 
 ```bash
-export QUANTUM_PERFORMANCE_PUSHGATEWAY_URL=http://pushgateway:9091
+export QUANTUM_PERFORMANCE_PUSHGATEWAY_URL=http://monit:9091
 ```
 
 ---
@@ -264,7 +268,7 @@ Based on experimental results with the sto-3g basis set and L-BFGS-B optimizer, 
 | GPU (GTX 1060 6GB) | 2.357 s | 1.81x | 12,057 |
 | GPU (GTX 1050 Ti 4GB) | 2.454 s | 1.74x | 10,871 |
 
-GPU acceleration provides the greatest benefit for molecules of medium complexity (8--10 qubits), with speedups reaching up to 2.1x for BeH2. For smaller molecules (4 qubits), GPU overhead can negate the computational advantage. For the more complex cc-pVDZ basis set, speedups of 4.08x (GTX 1060) and 3.53x (GTX 1050 Ti) have been observed.
+GPU acceleration provides the greatest benefit for molecules of medium complexity (8-10 qubits), with speedups reaching up to 2.1x for BeH2. For smaller molecules (4 qubits), GPU overhead can negate the computational advantage. For the more complex cc-pVDZ basis set, speedups of 4.08x (GTX 1060) and 3.53x (GTX 1050 Ti) have been observed.
 
 ---
 

@@ -101,7 +101,7 @@ sequenceDiagram
 
 #### Phase 1: Molecule Loading
 
-**Source**: [`quantum_pipeline/drivers/molecule_loader.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/drivers/molecule_loader.py)
+**Source**: [`quantum_pipeline/drivers/molecule_loader.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/drivers/molecule_loader.py)
 
 - Loads JSON, validates required fields (`symbols`, `coords`)
 - Creates `MoleculeInfo` objects (from `qiskit_nature.second_q.formats.molecule_info`)
@@ -112,7 +112,7 @@ sequenceDiagram
 
 #### Phase 2: Hamiltonian Construction
 
-**Source**: [`quantum_pipeline/runners/vqe_runner.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py)
+**Source**: [`quantum_pipeline/runners/vqe_runner.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/runners/vqe_runner.py)
 
 - `PySCFDriver.from_molecule()` performs molecular orbital calculation
 - `second_q_ops()[0]` produces the second-quantized fermionic operator
@@ -120,7 +120,7 @@ sequenceDiagram
 
 #### Phase 3: Ansatz Creation
 
-**Source**: [`quantum_pipeline/solvers/vqe_solver.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py)
+**Source**: [`quantum_pipeline/solvers/vqe_solver.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/solvers/vqe_solver.py)
 
 - Uses `EfficientSU2` ansatz (not UCCSD) from `qiskit.circuit.library`
 - Configurable repetitions via `ansatz_reps` parameter
@@ -128,7 +128,7 @@ sequenceDiagram
 
 #### Phase 4: VQE Optimization
 
-**Source**: [`quantum_pipeline/solvers/vqe_solver.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py)
+**Source**: [`quantum_pipeline/solvers/vqe_solver.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/solvers/vqe_solver.py)
 
 - Uses `scipy.optimize.minimize` with configurable optimizer (default: COBYLA)
 - `EstimatorV2` from `qiskit_ibm_runtime` estimates expectation values
@@ -137,7 +137,7 @@ sequenceDiagram
 
 ### Output: VQEDecoratedResult
 
-**Source**: [`quantum_pipeline/structures/vqe_observation.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/structures/vqe_observation.py)
+**Source**: [`quantum_pipeline/structures/vqe_observation.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/structures/vqe_observation.py)
 
 Complete simulation results wrapped in a structured dataclass:
 
@@ -292,7 +292,7 @@ The `performance_start` and `performance_end` fields are nullable strings (`["nu
 
 Before Spark processes data, **Kafka Connect** (S3 Sink Connector) writes Avro messages from Kafka topics to MinIO.
 
-**Source**: [`docker/connectors/minio-sink-config.json`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/connectors/minio-sink-config.json)
+**Source**: [`docker/connectors/minio-sink-config.json`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/connectors/minio-sink-config.json)
 
 - **Topics regex**: `vqe_decorated_result_.*`
 - **Bucket**: `local-vqe-results`
@@ -317,7 +317,7 @@ graph LR
     style WRITE fill:#b39ddb,color:#311b92
 ```
 
-**Source**: [`docker/airflow/quantum_processing_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py)
+**Source**: [`docker/airflow/quantum_processing_dag.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/quantum_processing_dag.py)
 
 **DAG configuration**:
 
@@ -332,7 +332,7 @@ graph LR
 
 Spark reads Avro files directly from MinIO in batch mode (not from Kafka):
 
-**Source**: [`docker/airflow/scripts/quantum_incremental_processing.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py)
+**Source**: [`docker/airflow/scripts/quantum_incremental_processing.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/scripts/quantum_incremental_processing.py)
 
 ```python
 topic_path = f'{bucket_path}{topic_name}/partition=*/*.avro'
@@ -395,7 +395,7 @@ The primary results table contains the following columns:
 - **`hamiltonian_terms`** -- Individual Pauli operator terms with real and imaginary coefficients.
 - **`processing_metadata`** -- Tracks batch IDs, table names, version tags, and record counts per processing run.
 
-For full column details, see [`docker/airflow/scripts/quantum_incremental_processing.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py).
+For full column details, see [`docker/airflow/scripts/quantum_incremental_processing.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/scripts/quantum_incremental_processing.py).
 
 ### Incremental Processing
 

@@ -272,7 +272,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
 
 ## Schema Evolution
 
-The project uses **NONE** compatibility mode during development in the Kafka Connect [sink config](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/connectors/minio-sink-config.json#L23):
+The project uses **NONE** compatibility mode during development in the Kafka Connect [sink config](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/connectors/minio-sink-config.json#L23):
 
 ```json
 {

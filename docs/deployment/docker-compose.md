@@ -33,7 +33,7 @@ Port mappings and dependencies are listed in the service tables below.
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://codeberg.org/piotrkrzysztof/quantum-pipeline.git
+git clone https://github.com/straightchlorine/quantum-pipeline.git
 cd quantum-pipeline
 ```
 
@@ -50,13 +50,13 @@ Edit `.env` to set credentials, resource limits, and service ports. See the
 
 ### Step 3: Deploy
 
-For the full thesis experiment setup ([`docker-compose.thesis.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.thesis.yaml)):
+For the full thesis experiment setup ([`docker-compose.thesis.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml)):
 
 ```bash
 docker compose -f docker-compose.thesis.yaml up -d
 ```
 
-For a single-GPU deployment without monitoring agents ([`docker-compose.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.yaml)):
+For a single-GPU deployment without monitoring agents ([`docker-compose.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.yaml)):
 
 ```bash
 docker compose up -d
@@ -72,7 +72,7 @@ docker compose -f docker-compose.thesis.yaml ps
 
 ## Example: Thesis Experiment Setup
 
-The [`docker-compose.thesis.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.thesis.yaml) file
+The [`docker-compose.thesis.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml) file
 serves as an example of a multi-container deployment for hardware benchmarking. It
 defines a three-way comparison of CPU and GPU performance across different hardware
 configurations, running three Quantum Pipeline containers simultaneously alongside
@@ -82,7 +82,7 @@ building your own multi-instance deployments.
 
 ### Container Configuration
 
-**1. CPU Pipeline ([`quantum-pipeline-cpu`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.thesis.yaml#L21))**
+**1. CPU Pipeline ([`quantum-pipeline-cpu`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml#L21))**
 
 - Built from `docker/Dockerfile.cpu`
 - Resource limits: 2 CPUs, 10 GB RAM
@@ -91,7 +91,7 @@ building your own multi-instance deployments.
 - Convergence threshold: `1e-6`
 - Publishes results to Kafka topic `vqe_results_cpu`
 
-**2. GPU Pipeline - GTX 1060 ([`quantum-pipeline-gpu1`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.thesis.yaml#L82))**
+**2. GPU Pipeline - GTX 1060 ([`quantum-pipeline-gpu1`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml#L82))**
 
 - Built from `docker/Dockerfile.gpu`
 - Resource limits: 2 CPUs, 10 GB RAM + GTX 1060 6GB (device 0)
@@ -99,7 +99,7 @@ building your own multi-instance deployments.
 - Publishes results to Kafka topic `vqe_results_gpu1`
 - Environment: `CUDA_VISIBLE_DEVICES=0`
 
-**3. GPU Pipeline - GTX 1050 Ti ([`quantum-pipeline-gpu2`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.thesis.yaml#L149))**
+**3. GPU Pipeline - GTX 1050 Ti ([`quantum-pipeline-gpu2`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml#L149))**
 
 - Built from `docker/Dockerfile.gpu`
 - Resource limits: 2 CPUs, 10 GB RAM + GTX 1050 Ti 4GB (device 1)
@@ -135,7 +135,7 @@ resource contention during benchmarks.
 |---|---|---|---|
 | `kafka` | `bitnami/kafka` | 9092 (internal), 9094 (external) | Message broker with KRaft mode |
 | `schema-registry` | `confluentinc/cp-schema-registry` | 8081 | Avro schema management |
-| `kafka-connect` | `confluentinc/cp-kafka-connect` | 8083 | S3 Sink connector to MinIO ([`minio-sink-config.json`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/connectors/minio-sink-config.json)) |
+| `kafka-connect` | `confluentinc/cp-kafka-connect` | 8083 | S3 Sink connector to MinIO ([`minio-sink-config.json`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/connectors/minio-sink-config.json)) |
 | `kafka-connect-init` | `curlimages/curl` | - | Registers the MinIO Sink connector |
 
 Kafka runs in KRaft mode. Schema Registry manages Avro schemas. Kafka Connect runs the S3 Sink connector to stream data to MinIO.
@@ -145,7 +145,7 @@ Kafka runs in KRaft mode. Schema Registry manages Avro schemas. Kafka Connect ru
 | Service | Image | Port(s) | Description |
 |---|---|---|---|
 | `spark-master` | Custom (Dockerfile.spark) | 8080 (UI), 7077 (RPC) | Spark cluster master |
-| `spark-worker` | Custom (Dockerfile.spark) | - | Spark executor node — thesis config: [4 GB, 2 cores](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.thesis.yaml#L431); default: [1 GB, 1 core](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.yaml#L275) |
+| `spark-worker` | Custom (Dockerfile.spark) | - | Spark executor node — thesis config: [4 GB, 2 cores](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml#L431); default: [1 GB, 1 core](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.yaml#L275) |
 
 ### Orchestration Services
 

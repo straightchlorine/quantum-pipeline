@@ -4,7 +4,7 @@ The monitoring stack uses **Prometheus** and **Grafana** for real-time visibilit
 
 ## Monitoring Architecture
 
-Simulation containers push metrics to the **Prometheus PushGateway**, which Prometheus scrapes on its configured interval. **Grafana** renders dashboards from the Prometheus data source.
+Simulation containers push metrics to the **Prometheus PushGateway**, which Prometheus scrapes on its configured interval. **Grafana** renders dashboards from the Prometheus data source. Scrape configuration is defined in [`monitoring/prometheus.yml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/monitoring/prometheus.yml).
 
 ```mermaid
 graph LR
@@ -44,6 +44,8 @@ graph LR
 | **Prometheus PushGateway** | `:9091` | Receives metrics pushed from simulation containers |
 | **Prometheus** | `:9090` | Scrapes, stores, and queries time-series metric data |
 | **Grafana** | `:3000` | Visualizes metrics through configurable dashboards |
+| **Dozzle** | `:7007` | Real-time container log viewer (agent mode) |
+| **Portainer** | `:9002` | Container management agent for remote monitoring |
 
 ### Prometheus PushGateway
 
@@ -66,14 +68,23 @@ Pre-built dashboards for VQE execution, system resources, and scientific accurac
 - **URL:** `http://grafana:3000`
 - **Default credentials:** `admin` / `admin`
 
+### Container Management Tools
+
+The thesis deployment includes two supplementary monitoring agents for container visibility:
+
+- **Dozzle** (`:7007`) - A lightweight, real-time log viewer for Docker containers. Runs in agent mode, allowing connection from a remote Dozzle instance for centralized log aggregation.
+- **Portainer Agent** (`:9002`) - Enables remote container management through the Portainer interface. Provides visibility into container status, resource usage, and configuration without direct Docker CLI access.
+
+These services are defined in [`docker-compose.thesis.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml).
+
 ## Enabling Monitoring
 
 Activate monitoring with the `--enable-performance-monitoring` flag:
 
 ```bash
-quantum-pipeline run \
-    --molecule H2 \
-    --basis-set sto-3g \
+python quantum_pipeline.py \
+    -f molecules.json \
+    --basis sto3g \
     --optimizer L-BFGS-B \
     --enable-performance-monitoring
 ```
@@ -85,8 +96,10 @@ When enabled, the container will:
 3. Export VQE metrics (iterations, energy, timing) on completion
 4. Report GPU utilization if CUDA is detected
 
+See [`performance_monitor.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/monitoring/performance_monitor.py#L569) for the system metrics export implementation.
+
 !!! info "Monitoring Overhead"
-    The monitoring thread introduces minimal overhead (< 1% CPU) and runs independently of VQE computation.
+    The monitoring thread introduces minimal overhead and runs independently of VQE computation.
 
 ## Service URLs
 

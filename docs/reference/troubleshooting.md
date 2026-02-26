@@ -6,74 +6,6 @@ This page provides solutions to common issues encountered when installing, confi
 
 ## Installation Issues
 
-### Import Error: No module named 'qiskit'
-
-**Symptom:** Running `quantum-pipeline` raises `ModuleNotFoundError: No module named 'qiskit'` or similar import errors for core dependencies.
-
-**Cause:** The package was installed without its required dependencies, or the virtual environment is not activated.
-
-**Solution:**
-
-```bash
-# Verify you are in the correct virtual environment
-which python
-
-# Reinstall with all dependencies
-pip install quantum-pipeline[all]
-
-# Or install from source
-pip install -e ".[all]"
-```
-
-### Dependency Conflict with NumPy
-
-**Symptom:** Installation fails with a message about incompatible NumPy versions, such as `numpy>=2.0 is required but numpy==1.26.4 is installed`.
-
-**Cause:** Other packages in the environment pin an older version of NumPy that conflicts with Qiskit requirements.
-
-**Solution:**
-
-```bash
-# Create a fresh virtual environment
-python -m venv .venv
-source .venv/bin/activate
-
-# Install quantum-pipeline first to let it resolve dependencies
-pip install quantum-pipeline
-```
-
-### Unsupported Python Version
-
-**Symptom:** Installation fails with `ERROR: Package 'quantum-pipeline' requires a different Python: X.X.X not in '>=3.10,<3.13'`.
-
-**Cause:** The installed Python version is outside the supported range.
-
-**Solution:**
-
-```bash
-# Check current Python version
-python --version
-
-# Install a supported version (3.10, 3.11, or 3.12)
-# Using pyenv:
-pyenv install 3.12.0
-pyenv local 3.12.0
-```
-
-### Avro Schema Import Errors
-
-**Symptom:** `ModuleNotFoundError: No module named 'avro'` when attempting to run simulations with Kafka integration.
-
-**Cause:** The Avro serialization dependencies are not installed.
-
-**Solution:**
-
-```bash
-pip install python-avro confluent-kafka[avro]
-```
-
----
-
 ## Simulation Issues
 
 ### VQE Convergence Failure
@@ -86,13 +18,13 @@ pip install python-avro confluent-kafka[avro]
 
 ```bash
 # Increase the maximum number of iterations
-quantum-pipeline run --molecule H2O --max-iterations 500
+python quantum_pipeline.py -f molecules.json --max-iterations 500
 
 # Try a different optimizer
-quantum-pipeline run --molecule H2O --optimizer COBYLA
+python quantum_pipeline.py -f molecules.json --optimizer COBYLA
 
 # Reduce convergence tolerance for faster (less precise) convergence
-quantum-pipeline run --molecule H2O --convergence 1e-4
+python quantum_pipeline.py -f molecules.json --convergence --threshold 1e-4
 ```
 
 ### Out of Memory During Simulation
@@ -108,10 +40,10 @@ quantum-pipeline run --molecule H2O --convergence 1e-4
 docker run --memory=16g straightchlorine/quantum-pipeline:latest ...
 
 # Use a simpler basis set to reduce qubit count
-quantum-pipeline run --molecule H2O --basis-set sto-3g
+python quantum_pipeline.py -f molecules.json --basis sto3g
 
-# Reduce ansatz repetitions
-quantum-pipeline run --molecule H2O --ansatz-reps 1
+# Reduce ansatz repetitions (default is 2)
+python quantum_pipeline.py -f molecules.json --ansatz-reps 2
 ```
 
 ### Slow Simulation Performance
@@ -124,7 +56,7 @@ quantum-pipeline run --molecule H2O --ansatz-reps 1
 
 ```bash
 # Verify GPU is being used (check logs for "Using GPU backend")
-quantum-pipeline run --molecule LiH --verbose
+python quantum_pipeline.py -f molecules.json --log-level DEBUG
 
 # Ensure no other heavy processes are running
 top
@@ -147,18 +79,6 @@ Run multiple simulations to increase the chance of finding a good minimum. The G
 
 ## Docker Issues
 
-### Container Fails to Start
-
-**Symptom:** `docker compose up` exits immediately or containers enter a restart loop.
-
-**Solution:** Verify `.env` exists (`cp .env.example .env` if missing), check for port conflicts (`ss -tlnp | grep -E '9091|3000|9092|8084'`), and inspect logs with `docker compose logs <service>`.
-
-### Networking Issues Between Containers
-
-**Symptom:** `Connection refused` errors between services (e.g., Kafka Connect to Schema Registry).
-
-**Solution:** Verify containers share the same network (`docker network inspect quantum-net`), then restart with `docker compose down && docker compose up -d`.
-
 ### Volume Mount Permissions
 
 **Symptom:** Permission denied errors when containers try to write to mounted volumes.
@@ -177,14 +97,6 @@ Run multiple simulations to increase the chance of finding a good minimum. The G
 
 ## Kafka Issues
 
-### Connection Refused to Kafka Broker
-
-**Symptom:** `kafka.errors.NoBrokersAvailable` when publishing results.
-
-**Cause:** Kafka has not finished starting (wait 30-60s after `docker compose up`), or the bootstrap server address is wrong.
-
-**Solution:** Check logs with `docker compose logs kafka | tail -20`. The bootstrap server should be `kafka:9092` inside Docker.
-
 ### Schema Registry Errors
 
 **Symptom:** `SchemaRegistryError: Subject not found` or schema compatibility errors.
@@ -201,7 +113,7 @@ curl -X PUT http://localhost:8081/config \
 
 **Symptom:** Messages produced but never appear in MinIO.
 
-**Solution:** Check connector status with `curl http://localhost:8083/connectors/minio-sink/status | python -m json.tool`. Restart with `curl -X POST http://localhost:8083/connectors/minio-sink/restart`. Check logs with `docker compose logs kafka-connect | tail -50`.
+**Solution:** Check connector status with `curl http://localhost:8083/connectors/minio-sink/status | python -m json.tool` (see [`minio-sink-config.json`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/connectors/minio-sink-config.json)). Restart with `curl -X POST http://localhost:8083/connectors/minio-sink/restart`. Check logs with `docker compose logs kafka-connect | tail -50`.
 
 ### Topic Not Created
 
@@ -234,7 +146,8 @@ docker compose exec kafka kafka-topics --create \
 **Solution:**
 
 ```bash
-# Increase Spark executor memory in docker-compose.yml
+# Increase Spark executor memory (see docker-compose.thesis.yaml for thesis defaults)
+# https://github.com/straightchlorine/quantum-pipeline/src/branch/master/docker-compose.thesis.yaml
 environment:
   SPARK_WORKER_MEMORY: 8g
 
@@ -257,7 +170,7 @@ spark.driver.memory=2g
 
 **Solution:**
 
-Verify that the following Spark configuration values are correct:
+Verify that the following Spark configuration values are correct (these are set in [`docker-compose.thesis.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml)):
 
 ```python
 spark.hadoop.fs.s3a.endpoint = http://minio:9000
@@ -283,7 +196,7 @@ docker compose exec minio mc ls local/
 
 ### DAG Not Visible in Web UI
 
-**Symptom:** The `quantum_feature_processing` DAG does not appear in the Airflow web interface.
+**Symptom:** The [`quantum_feature_processing`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/quantum_processing_dag.py#L72) DAG does not appear in the Airflow web interface.
 
 **Solution:** Verify the DAG file exists (`docker compose exec airflow-webserver ls /opt/airflow/dags/`), check for import errors in **Admin > DAG Import Errors**, and force a rescan with `docker compose exec airflow-scheduler airflow dags reserialize`.
 
@@ -324,10 +237,10 @@ For CUDA setup issues (`RuntimeError: CUDA is not available`) or driver version 
 nvidia-smi
 
 # Use a simpler basis set to reduce memory requirements
-quantum-pipeline run --molecule H2O --basis-set sto-3g
+python quantum_pipeline.py -f molecules.json --basis sto3g
 
-# Fall back to CPU for very large molecules
-quantum-pipeline run --molecule H2O --no-gpu
+# Fall back to CPU for very large molecules (omit --gpu to use CPU)
+python quantum_pipeline.py -f molecules.json
 ```
 
 ---
@@ -351,7 +264,7 @@ curl http://localhost:9091/metrics | head -50
 # Verify pushgateway target shows "UP"
 
 # Verify the simulation was started with monitoring enabled
-quantum-pipeline run --molecule H2 --enable-performance-monitoring
+python quantum_pipeline.py -f molecules.json --enable-performance-monitoring
 ```
 
 ### Grafana Cannot Connect to Prometheus

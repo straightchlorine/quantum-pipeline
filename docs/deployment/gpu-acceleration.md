@@ -20,7 +20,7 @@ Docker Engine (24.0+). For detailed installation steps, see the
 ## GPU Configuration
 
 Quantum Pipeline's GPU behavior is controlled through the backend configuration in
-[`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py#L17):
+[`defaults.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/configs/defaults.py#L17):
 
 ```python
 'backend': {

@@ -10,14 +10,14 @@
 
 ## Cluster Architecture
 
-The cluster runs in standalone master-worker mode via a custom Spark Docker image ([`docker/Dockerfile.spark`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.spark)). See the [Spark documentation](https://spark.apache.org/docs/latest/) for general cluster configuration.
+The cluster runs in standalone master-worker mode via a custom Spark Docker image ([`docker/Dockerfile.spark`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/Dockerfile.spark)). See the [Spark documentation](https://spark.apache.org/docs/latest/) for general cluster configuration.
 
 | Node | Role | Resources |
 |------|------|-----------|
 | `spark-master` | Coordinator | Default (no explicit limits) |
-| `spark-worker` | Executor | 1 core, 1 GB RAM ([`docker-compose.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.yaml)) |
+| `spark-worker` | Executor | 1 core, 1 GB RAM ([`docker-compose.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.yaml)) |
 
-The thesis compose file ([`docker-compose.thesis.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker-compose.thesis.yaml)) increases the worker to 2 cores and 4 GB RAM with explicit resource limits.
+The thesis compose file ([`docker-compose.thesis.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml)) increases the worker to 2 cores and 4 GB RAM with explicit resource limits.
 
 - Workers register with the master at `spark://spark-master:7077`
 - Airflow submits jobs via the `SparkSubmitOperator`
@@ -137,7 +137,7 @@ def transform_quantum_data(df):
     }
 ```
 
-See [`docker/airflow/scripts/quantum_incremental_processing.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py) for the full implementation of each extraction.
+See [`docker/airflow/scripts/quantum_incremental_processing.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/scripts/quantum_incremental_processing.py) for the full implementation of each extraction.
 
 ### Step 5: Write Parquet to MinIO
 

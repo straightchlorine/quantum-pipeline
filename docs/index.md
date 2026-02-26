@@ -275,8 +275,8 @@ graph TB
 
 ## Links related to the project
 
-- **Codeberg**: [piotrkrzysztof/quantum-pipeline](https://codeberg.org/piotrkrzysztof/quantum-pipeline)
-- **GitHub (mirror)**: [straightchlorine/quantum-pipeline](https://github.com/straightchlorine/quantum-pipeline)
+- **GitHub**: [straightchlorine/quantum-pipeline](https://github.com/straightchlorine/quantum-pipeline)
+- **Codeberg (mirror)**: [piotrkrzysztof/quantum-pipeline](https://codeberg.org/piotrkrzysztof/quantum-pipeline)
 - **Docker Hub**: [straightchlorine/quantum-pipeline](https://hub.docker.com/r/straightchlorine/quantum-pipeline)
 - **PyPI**: [quantum-pipeline](https://pypi.org/project/quantum-pipeline/)
 - **Issues**: [Report bugs or request features](https://github.com/straightchlorine/quantum-pipeline/issues)

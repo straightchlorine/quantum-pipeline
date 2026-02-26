@@ -21,7 +21,7 @@ graph LR
 !!! tip "Configuration Sources"
     - **CLI Arguments**: Direct command-line flags (highest priority)
     - **Configuration File**: Loaded via `--load config.json`
-    - **Defaults**: `quantum_pipeline/configs/defaults.py`
+    - **Defaults**: [`quantum_pipeline/configs/defaults.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/configs/defaults.py)
 
 !!! note "Environment Variables"
     Some environment variables are supported for performance monitoring (`QUANTUM_PERFORMANCE_*`) and Docker deployments (`CONTAINER_TYPE`), but they do not override CLI arguments or config file values.
@@ -789,7 +789,7 @@ python quantum_pipeline.py -f molecules.json \
     - Requires Prometheus PushGateway running
     - Default PushGateway port: 9091
     - Metrics available for Grafana dashboards
-    - See `docker-compose.monitoring.yaml` for setup
+    - See [`docker-compose.thesis.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml) for monitoring stack setup
 
 ### `--performance-export-format`
 
