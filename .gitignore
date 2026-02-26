@@ -167,6 +167,11 @@ venv.bak/
 # mkdocs documentation
 /site
 
+# vale synced packages (regenerated via `vale sync`)
+styles/Google/
+styles/write-good/
+styles/proselint/
+
 # mypy
 .mypy_cache/
 .dmypy.json

@@ -3,7 +3,7 @@
 
 <div align="center">
 
-**Repository:** [Codeberg](https://codeberg.org/piotrkrzysztof/quantum-pipeline) (primary) · [GitHub](github.com/straightchlorine/quantum-pipeline) (mirror)
+**Repository:** [GitHub](https://github.com/straightchlorine/quantum-pipeline) (primary) · [Codeberg](https://codeberg.org/piotrkrzysztof/quantum-pipeline) (mirror)
 
 [![PyPI version](https://badge.fury.io/py/quantum-pipeline.svg)](https://pypi.org/project/quantum-pipeline/)
 [![Total Downloads](https://static.pepy.tech/badge/quantum-pipeline)](https://pepy.tech/project/quantum-pipeline)

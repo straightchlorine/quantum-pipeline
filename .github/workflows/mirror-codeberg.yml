@@ -1,0 +1,29 @@
+name: Mirror to Codeberg
+
+on:
+  push:
+    branches: [master, develop]
+    tags: ["*"]
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure deploy key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.CODEBERG_DEPLOY_KEY }}
+
+      - name: Mirror to Codeberg
+        run: |
+          ssh-keyscan -t ed25519 codeberg.org >> ~/.ssh/known_hosts
+          git remote add codeberg ssh://git@codeberg.org/piotrkrzysztof/quantum-pipeline.git
+          git push codeberg "$GITHUB_REF" --force
+
+      - name: Push all tags
+        if: github.ref_type == 'tag' || github.ref == 'refs/heads/master'
+        run: git push codeberg --tags --force
