@@ -19,6 +19,7 @@ class VQEInitialData:
     ansatz: QuantumCircuit
     ansatz_reps: int
     default_shots: int
+    seed: int | None = None
 
 
 @dataclass

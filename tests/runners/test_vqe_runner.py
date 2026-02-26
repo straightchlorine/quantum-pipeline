@@ -595,6 +595,7 @@ class TestVQERunner:
                 ansatz_reps=3,
                 default_shots=1024,
                 convergence_threshold=1e-6,
+                seed=None,
             )
 
     def test_static_methods(self):

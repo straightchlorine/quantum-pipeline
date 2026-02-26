@@ -170,6 +170,12 @@ class QuantumPipelineArgParser:
             help=self._create_optimizer_help_text(),
             metavar='OPTIMIZER',
         )
+        vqe_group.add_argument(
+            '--seed',
+            type=int,
+            default=DEFAULTS['seed'],
+            help='Random seed for reproducible parameter initialization (default: None for random)',
+        )
 
     def _add_output_logging(self):
         """Add output and logging related arguments."""

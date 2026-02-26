@@ -697,3 +697,32 @@ class TestPerformanceMonitoringArguments:
             ['--file', 'molecule.json', '--performance-export-format', export_format]
         )
         assert args.performance_export_format == export_format
+
+
+class TestSeedArgument:
+    """Tests for the --seed CLI argument."""
+
+    def test_seed_default_none(self, argparser):
+        """Test that seed defaults to None when not specified."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert args.seed is None
+
+    def test_seed_explicit(self, argparser):
+        """Test that seed uses explicit value when provided."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--seed', '42'])
+        assert args.seed == 42
+
+    def test_seed_zero(self, argparser):
+        """Test that seed=0 is valid."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--seed', '0'])
+        assert args.seed == 0
+
+    def test_seed_invalid_string(self, argparser):
+        """Test that non-integer seed is rejected."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--seed', 'abc'])
+
+    def test_seed_negative(self, argparser):
+        """Test that negative seed values are accepted."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--seed', '-1'])
+        assert args.seed == -1
