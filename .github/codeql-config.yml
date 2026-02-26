@@ -5,6 +5,7 @@ queries:
 
 paths:
   - quantum_pipeline
+  - quantum_pipeline.py
 
 paths-ignore:
   - "**/*_test.py"
