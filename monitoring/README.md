@@ -1,6 +1,6 @@
 # Performance Monitoring Guide
 
-The Quantum Pipeline includes comprehensive performance monitoring capabilities for tracking system resources, VQE optimization metrics, and scientific accuracy in real-time.
+The Quantum Pipeline includes performance monitoring for tracking system resources, VQE optimization metrics, and scientific accuracy in real-time.
 
 ## Table of Contents
 - [Overview](#overview)

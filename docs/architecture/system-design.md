@@ -27,7 +27,7 @@ The system follows several key architectural principles:
 3. **Scalability**: Horizontal scaling capabilities for compute-intensive tasks
 4. **Data Versioning**: Immutable data with schema evolution support
 5. **Incremental Processing**: Only process new data to optimize resources
-6. **Observability**: Comprehensive monitoring and metrics collection
+6. **Observability**: Monitoring and metrics collection
 
 ---
 

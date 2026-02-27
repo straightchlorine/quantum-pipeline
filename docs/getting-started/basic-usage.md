@@ -47,7 +47,7 @@ All other parameters have sensible defaults defined in [`quantum_pipeline/config
 
 === "GPU-Accelerated"
     ```bash
-    # Leverage GPU for faster computation
+    # Use GPU for faster computation
     python quantum_pipeline.py \
         --file data/molecules.json \
         --gpu \
@@ -272,7 +272,7 @@ results/
 
 ## Performance Monitoring
 
-Enable comprehensive performance tracking:
+Enable performance tracking:
 
 ```bash
 python quantum_pipeline.py \

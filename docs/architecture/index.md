@@ -1,7 +1,7 @@
 # Architecture Overview
 
 The Quantum Pipeline is built on a **microservices architecture** that combines quantum simulation,
-data streaming, distributed processing, and scalable storage.
+data streaming, distributed processing, and Iceberg-based storage.
 
 This section explains the system design, data flow patterns, and key architectural decisions.
 

@@ -1,5 +1,5 @@
 site_name: Quantum Pipeline
-site_description: Extensible framework for exploring VQE algorithms with production-grade data engineering
+site_description: Extensible framework for running quantum algorithms backed by a modern data stack
 site_author: Piotr Krzysztof Lis
 site_url: https://docs.qp.piotrkrzysztof.dev
 
@@ -50,6 +50,9 @@ theme:
     repo: fontawesome/brands/github
     edit: material/pencil
     view: material/eye
+
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
 
   font:
     text: Roboto
