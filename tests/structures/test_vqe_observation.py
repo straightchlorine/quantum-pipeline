@@ -95,6 +95,31 @@ class TestVQEProcess:
         assert sample_vqe_process.std == np.float64(0.01)
         np.testing.assert_array_equal(sample_vqe_process.parameters, [0.1, 0.2])
 
+    def test_optional_fields_default_to_none(self):
+        proc = VQEProcess(
+            iteration=1,
+            parameters=np.array([0.1]),
+            result=np.float64(-1.0),
+            std=np.float64(0.01),
+        )
+        assert proc.energy_delta is None
+        assert proc.parameter_delta_norm is None
+        assert proc.cumulative_min_energy is None
+
+    def test_optional_fields_can_be_set(self):
+        proc = VQEProcess(
+            iteration=2,
+            parameters=np.array([0.1, 0.2]),
+            result=np.float64(-1.6),
+            std=np.float64(0.005),
+            energy_delta=np.float64(-0.1),
+            parameter_delta_norm=np.float64(0.05),
+            cumulative_min_energy=np.float64(-1.6),
+        )
+        assert proc.energy_delta == np.float64(-0.1)
+        assert proc.parameter_delta_norm == np.float64(0.05)
+        assert proc.cumulative_min_energy == np.float64(-1.6)
+
     @pytest.mark.parametrize(
         'iteration,result,std',
         [

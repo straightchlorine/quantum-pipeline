@@ -30,6 +30,9 @@ class VQEProcess:
     parameters: np.ndarray
     result: np.float64
     std: np.float64
+    energy_delta: np.float64 | None = None
+    parameter_delta_norm: np.float64 | None = None
+    cumulative_min_energy: np.float64 | None = None
 
 
 @dataclass

@@ -182,7 +182,7 @@ class TestVQEProcessInterface(unittest.TestCase):
 
         self.assertIsInstance(schema, dict)
         self.assertEqual(schema['name'], 'VQEProcess')
-        self.assertEqual(len(schema['fields']), 4)
+        self.assertEqual(len(schema['fields']), 7)
 
     def test_serialize(self):
         """Test serialization of VQEProcess."""
@@ -192,10 +192,31 @@ class TestVQEProcessInterface(unittest.TestCase):
         self.assertEqual(serialized['parameters'], [0.1, 0.2, 0.3])
         self.assertEqual(serialized['result'], -74.5)
         self.assertEqual(serialized['std'], 0.01)
+        self.assertIsNone(serialized['energy_delta'])
+        self.assertIsNone(serialized['parameter_delta_norm'])
+        self.assertIsNone(serialized['cumulative_min_energy'])
 
         self.assertIsInstance(serialized['parameters'], list)
         self.assertIsInstance(serialized['result'], float)
         self.assertIsInstance(serialized['std'], float)
+
+    def test_serialize_with_derived_fields(self):
+        """Test serialization of VQEProcess with derived ML features."""
+        proc = VQEProcess(
+            iteration=2,
+            parameters=np.array([0.4, 0.5, 0.6]),
+            result=np.float64(-75.0),
+            std=np.float64(0.005),
+            energy_delta=np.float64(-0.5),
+            parameter_delta_norm=np.float64(0.52),
+            cumulative_min_energy=np.float64(-75.0),
+        )
+        serialized = self.interface.serialize(proc)
+
+        self.assertAlmostEqual(serialized['energy_delta'], -0.5)
+        self.assertAlmostEqual(serialized['parameter_delta_norm'], 0.52)
+        self.assertAlmostEqual(serialized['cumulative_min_energy'], -75.0)
+        self.assertIsInstance(serialized['energy_delta'], float)
 
     def test_deserialize(self):
         """Test deserialization of VQEProcess."""
@@ -207,6 +228,26 @@ class TestVQEProcessInterface(unittest.TestCase):
         self.assertTrue(np.array_equal(deserialized.parameters, np.array([0.1, 0.2, 0.3])))
         self.assertEqual(deserialized.result, np.float64(-74.5))
         self.assertEqual(deserialized.std, np.float64(0.01))
+        self.assertIsNone(deserialized.energy_delta)
+        self.assertIsNone(deserialized.parameter_delta_norm)
+        self.assertIsNone(deserialized.cumulative_min_energy)
+
+    def test_deserialize_with_derived_fields(self):
+        """Test deserialization of VQEProcess with derived ML features."""
+        data = {
+            'iteration': 3,
+            'parameters': [0.1, 0.2],
+            'result': -75.0,
+            'std': 0.01,
+            'energy_delta': -0.5,
+            'parameter_delta_norm': 0.3,
+            'cumulative_min_energy': -75.0,
+        }
+        deserialized = self.interface.deserialize(data)
+
+        self.assertEqual(deserialized.energy_delta, np.float64(-0.5))
+        self.assertEqual(deserialized.parameter_delta_norm, np.float64(0.3))
+        self.assertEqual(deserialized.cumulative_min_energy, np.float64(-75.0))
 
     def test_roundtrip(self):
         """Test round-trip serialization and deserialization."""
@@ -217,6 +258,25 @@ class TestVQEProcessInterface(unittest.TestCase):
         self.assertTrue(np.array_equal(deserialized.parameters, self.vqe_process.parameters))
         self.assertEqual(deserialized.result, self.vqe_process.result)
         self.assertEqual(deserialized.std, self.vqe_process.std)
+        self.assertIsNone(deserialized.energy_delta)
+
+    def test_roundtrip_with_derived_fields(self):
+        """Test round-trip with derived ML features populated."""
+        proc = VQEProcess(
+            iteration=2,
+            parameters=np.array([0.4, 0.5]),
+            result=np.float64(-75.0),
+            std=np.float64(0.005),
+            energy_delta=np.float64(-0.5),
+            parameter_delta_norm=np.float64(0.14),
+            cumulative_min_energy=np.float64(-75.0),
+        )
+        serialized = self.interface.serialize(proc)
+        deserialized = self.interface.deserialize(serialized)
+
+        self.assertEqual(deserialized.energy_delta, proc.energy_delta)
+        self.assertEqual(deserialized.parameter_delta_norm, proc.parameter_delta_norm)
+        self.assertEqual(deserialized.cumulative_min_energy, proc.cumulative_min_energy)
 
 
 class TestVQEInitialDataInterface(unittest.TestCase):
