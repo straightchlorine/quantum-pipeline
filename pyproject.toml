@@ -6,10 +6,10 @@ build-backend = "pdm.backend"
 name = 'quantum-pipeline'
 description = 'Framework for running, monitoring and analysing quantum algorithms.'
 authors = [
-    {name = 'Piotr Krzysztof', email = 'piotrkrzysztoflis@pm.me'}
+    {name = 'Piotr Krzysztof', email = 'piotr@codextechnologies.org'}
 ]
 maintainers = [
-    {name = 'Piotr Krzysztof', email = 'piotrkrzysztoflis@pm.me'}
+    {name = 'Piotr Krzysztof', email = 'piotr@codextechnologies.org'}
 ]
 
 version = "1.3.3"

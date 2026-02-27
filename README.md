@@ -568,6 +568,7 @@ This project is licensed under the MIT License. See the `LICENSE` file for more 
 
 ## Contact
 
-For questions or support, please reach out to:
-- **Email:** piotrkrzysztoflis@pm.me
+For questions, please reach out to:
+- **Email:** [piotr@codextechnologies.org](mailto:piotr@codextechnologies.org)
 - **GitHub:** [straightchlorine](https://github.com/straightchlorine)
+- **Codeberg:** [piotrkrzysztof](https://codeberg.org/piotrkrzysztof/quantum-pipeline)
