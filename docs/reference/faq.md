@@ -9,7 +9,7 @@ Click on any question to expand the answer.
 
 ??? question "What is Quantum Pipeline?"
     Quantum Pipeline is an extensible framework for exploring Variational Quantum
-    Eigensolver (VQE) algorithms with production-grade data engineering. It combines
+    Eigensolver (VQE) algorithms backed by a modern data stack. It combines
     quantum chemistry simulations using Qiskit with a streaming data platform built
     on Apache Kafka, Spark, Airflow, and Iceberg.
 
@@ -52,7 +52,7 @@ Click on any question to expand the answer.
 ??? question "Who developed Quantum Pipeline?"
     Quantum Pipeline was developed by Piotr Krzysztof Lis as part of a thesis project.
     The project demonstrates the integration of quantum computing simulations with
-    production-grade data engineering using modern streaming and batch processing
+    modern data engineering using streaming and batch processing
     technologies. The source code is available on
     [GitHub](https://github.com/straightchlorine/quantum-pipeline) and [Codeberg](https://codeberg.org/piotrkrzysztof/quantum-pipeline).
 

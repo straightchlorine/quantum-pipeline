@@ -1,6 +1,6 @@
 # Performance Metrics
 
-The Quantum Pipeline collects a comprehensive set of metrics during VQE simulation execution. These metrics are organized into three categories: system metrics, VQE execution metrics, and scientific accuracy metrics.
+The Quantum Pipeline collects metrics during VQE simulation execution, organized into three categories: system metrics, VQE execution metrics, and scientific accuracy metrics.
 
 ---
 

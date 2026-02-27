@@ -33,12 +33,12 @@
 The Quantum Pipeline project is an **extensible framework** designed for exploring
 quantum algorithms. Currently, only **Variational Quantum Eigensolver (VQE)** is
 implemented. It combines quantum and classical computing to estimate the
-ground-state energy of molecular systems with a comprehensive data engineering pipeline.
+ground-state energy of molecular systems.
 
 The framework provides modules to handle algorithm orchestration, parametrization,
 monitoring, and data visualization. Data can be streamed via **Apache Kafka** for
 real-time processing, transformed into ML features using **Apache Spark**,
-and stored in **Apache Iceberg** tables for scalable analytics.
+and stored in **Apache Iceberg** tables for analytics.
 
 ---
 
@@ -50,7 +50,7 @@ and stored in **Apache Iceberg** tables for scalable analytics.
 - **Hamiltonian Preparation** - Generate second-quantized Hamiltonians for molecular systems
 - **Quantum Circuit Construction** - Create parameterized ansatz circuits with customizable repetitions
 - **VQE Execution** - Solve Hamiltonians using the VQE algorithm with support for various optimizers
-- **Advanced Backend Options** - Customize simulation parameters such as qubit count, shot count, and optimization levels
+- **Backend Options** - Customize simulation parameters such as qubit count, shot count, and optimization levels
 
 ### Data Engineering Pipeline
 
@@ -72,8 +72,8 @@ and stored in **Apache Iceberg** tables for scalable analytics.
 
 - **Containerized Execution** - Deploy as multi-service Docker containers with GPU support
 - **CI/CD Pipeline** - Automated testing, building, and publishing of Docker images
-- **Scalable Architecture** - Distributed processing with Spark clusters and horizontal scaling
-- **Security** - Comprehensive secrets management and secure communication between services
+- **Distributed Processing** - Spark clusters for parallel data processing
+- **Security** - Docker secrets management and inter-service TLS
 
 ---
 
@@ -285,5 +285,5 @@ graph TB
 
 !!! info "Engineering Thesis Project"
     This project was developed as part of an engineering thesis at the **DSW University of Lower Silesia**
-    focusing on GPU-accelerated quantum simulations and production-grade data engineering for quantum
+    focusing on GPU-accelerated quantum simulations and modern data engineering for quantum
     computing workflows.

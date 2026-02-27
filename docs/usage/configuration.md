@@ -523,7 +523,7 @@ Qiskit circuit optimization level for transpilation.
 **Type**: `flag` (action: `store_true`)
 **Default**: `false`
 
-Generate a comprehensive PDF report after simulation completion.
+Generate a PDF report after simulation completion.
 
 ```bash
 python quantum_pipeline.py -f molecules.json --report
@@ -733,7 +733,7 @@ python quantum_pipeline.py -f molecules.json --noise fake_backend
 **Type**: `flag` (action: `store_true`)
 **Default**: `false`
 
-Enable comprehensive performance and resource monitoring for VQE simulations.
+Enable performance and resource monitoring for VQE simulations.
 
 ```bash
 python quantum_pipeline.py -f molecules.json \
