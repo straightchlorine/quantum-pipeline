@@ -34,6 +34,9 @@ class TestVQERunner:
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
             # mock solver results
@@ -207,13 +210,19 @@ class TestVQERunner:
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
             runner = VQERunner(filepath='dummy.xyz', basis_set='sto3g')
-            result = runner.provide_hamiltonian(mock_molecule)
+            result, hf_data = runner.provide_hamiltonian(mock_molecule)
 
             mock_driver.assert_called_once_with(mock_molecule, basis='sto3g')
             assert result == mock_second_q_op
+            assert hf_data.num_particles == (1, 1)
+            assert hf_data.num_spatial_orbitals == 2
+            assert hf_data.reference_energy == -1.117
 
     def test_run_method(self, single_molecule_file):
         """Test the full VQE run method with a real file."""
@@ -234,6 +243,9 @@ class TestVQERunner:
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
             # mock mapper
@@ -293,6 +305,9 @@ class TestVQERunner:
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
             # mock mapper
@@ -350,6 +365,9 @@ class TestVQERunner:
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
             # set up mock mapper
@@ -406,6 +424,9 @@ class TestVQERunner:
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
             # mock mapper
@@ -458,6 +479,9 @@ class TestVQERunner:
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
             # mock mapper
@@ -500,6 +524,9 @@ class TestVQERunner:
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
             # mock mapper
@@ -555,6 +582,9 @@ class TestVQERunner:
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
             # mock mapper
@@ -596,6 +626,8 @@ class TestVQERunner:
                 default_shots=1024,
                 convergence_threshold=1e-6,
                 seed=None,
+                init_strategy='random',
+                hf_data=None,
             )
 
     def test_static_methods(self):

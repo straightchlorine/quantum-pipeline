@@ -14,6 +14,7 @@ from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
 from quantum_pipeline.configs.module.backend import BackendConfig
+from quantum_pipeline.solvers.hf_init import HFData, compute_hf_initial_parameters
 from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
 from quantum_pipeline.solvers.solver import Solver
 from quantum_pipeline.structures.vqe_observation import (
@@ -36,6 +37,8 @@ class VQESolver(Solver):
         convergence_threshold=None,
         optimization_level=3,
         seed=None,
+        init_strategy='random',
+        hf_data: HFData | None = None,
     ):
         super().__init__()
         self.qubit_op = qubit_op
@@ -50,6 +53,8 @@ class VQESolver(Solver):
         self.current_iter = 1
         self.convergence_threshold = convergence_threshold
         self.optimization_level = optimization_level
+        self.init_strategy = init_strategy
+        self.hf_data = hf_data
 
     def _optimize_circuits(self, ansatz, hamiltonian, backend):
         """Prepare ISA-compatible circuits and observables"""
@@ -61,6 +66,22 @@ class VQESolver(Solver):
 
         hamiltonian_isa = hamiltonian.apply_layout(layout=ansatz_isa.layout)
         return ansatz_isa, hamiltonian_isa
+
+    def _compute_initial_parameters(self, param_num, n_qubits):
+        """Compute initial ansatz parameters based on the configured strategy."""
+        if self.init_strategy == 'hf' and self.hf_data is not None:
+            self.logger.info('Using Hartree-Fock based parameter initialization')
+            return compute_hf_initial_parameters(n_qubits, self.hf_data, self.ansatz_reps)
+
+        if self.init_strategy == 'hf' and self.hf_data is None:
+            self.logger.warning(
+                'HF init strategy requested but no HF data available, falling back to random'
+            )
+
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            self.logger.info(f'Using seed {self.seed} for parameter initialization')
+        return 2 * np.pi * np.random.random(param_num)
 
     def compute_energy(self, params, ansatz, hamiltonian, estimator):
         """Return estimate of energy from estimator"""
@@ -104,10 +125,7 @@ class VQESolver(Solver):
         self.logger.info('Ansatz initialized.')
 
         param_num = ansatz.num_parameters
-        if self.seed is not None:
-            np.random.seed(self.seed)
-            self.logger.info(f'Using seed {self.seed} for parameter initialization')
-        x0 = 2 * np.pi * np.random.random(param_num)
+        x0 = self._compute_initial_parameters(param_num, hamiltonian.num_qubits)
         self.logger.debug(f'Initial ansatz parameters:\n\n{x0}\n')
 
         self.logger.info('Optimizing ansatz and hamiltonian...')
@@ -126,6 +144,7 @@ class VQESolver(Solver):
             noise_backend=self.backend_config.noise if self.backend_config.noise else 'undef',
             default_shots=self.default_shots,
             seed=self.seed,
+            init_strategy=self.init_strategy,
         )
         self.logger.info('Opening a session...')
 
@@ -202,15 +221,12 @@ class VQESolver(Solver):
         """Run the VQE simulation via Aer simulator."""
         hamiltonian = self.qubit_op
 
-        self.logger.info('Initializing the ansatz...')
-        ansatz = EfficientSU2(hamiltonian.num_qubits)
+        self.logger.info(f'Initializing the ansatz with {self.ansatz_reps} reps...')
+        ansatz = EfficientSU2(hamiltonian.num_qubits, reps=self.ansatz_reps)
         self.logger.info('Ansatz initialized.')
 
         param_num = ansatz.num_parameters
-        if self.seed is not None:
-            np.random.seed(self.seed)
-            self.logger.info(f'Using seed {self.seed} for parameter initialization')
-        x0 = 2 * np.pi * np.random.random(param_num)
+        x0 = self._compute_initial_parameters(param_num, hamiltonian.num_qubits)
         self.logger.debug(f'Initial ansatz parameters:\n\n{x0}\n')
 
         self.logger.info('Optimizing ansatz and hamiltonian...')
@@ -229,6 +245,7 @@ class VQESolver(Solver):
             noise_backend=self.backend_config.noise if self.backend_config.noise else 'undef',
             default_shots=self.default_shots,
             seed=self.seed,
+            init_strategy=self.init_strategy,
         )
 
         estimator = EstimatorV2(mode=backend)

@@ -13,6 +13,7 @@ from quantum_pipeline.monitoring import get_performance_monitor
 from quantum_pipeline.monitoring.scientific_references import get_reference_database
 from quantum_pipeline.report.report_generator import ReportGenerator
 from quantum_pipeline.runners.runner import Runner
+from quantum_pipeline.solvers.hf_init import HFData
 from quantum_pipeline.solvers.vqe_solver import VQESolver
 from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
@@ -33,6 +34,7 @@ class VQERunner(Runner):
         ansatz_reps=3,
         default_shots=1024,
         seed=None,
+        init_strategy='random',
         report=False,
         kafka=False,
         kafka_bootstrap_servers='localhost:9092',
@@ -62,6 +64,7 @@ class VQERunner(Runner):
         self.default_shots = default_shots
         self.convergence_threshold = convergence_threshold
         self.seed = seed
+        self.init_strategy = init_strategy
         self.optimization_level = backend_optimization_level
 
         self.report = report
@@ -146,20 +149,30 @@ class VQERunner(Runner):
         return molecules
 
     def provide_hamiltonian(self, molecule):
-        """Generate the second quantized operator."""
+        """Generate the second quantized operator and extract HF data."""
         driver = PySCFDriver.from_molecule(molecule, basis=self.basis_set)
         problem = driver.run()
-        return problem.second_q_ops()[0]
+        second_q_op = problem.second_q_ops()[0]
+
+        hf_data = HFData(
+            num_particles=problem.num_particles,
+            num_spatial_orbitals=problem.num_spatial_orbitals,
+            reference_energy=problem.reference_energy,
+        )
+
+        return second_q_op, hf_data
 
     def run_vqe(self, molecule, backend_config: BackendConfig):
         """Prepare and run the VQE algorithm."""
 
         self.logger.info('Generating hamiltonian based on the molecule...')
         with Timer() as t:
-            second_q_op = self.provide_hamiltonian(molecule)
+            second_q_op, hf_data = self.provide_hamiltonian(molecule)
 
         self.hamiltonian_time = t.elapsed
         self.logger.info(f'Hamiltonian generated in {t.elapsed:.6f} seconds.')
+        if hf_data.reference_energy is not None:
+            self.logger.info(f'HF reference energy: {hf_data.reference_energy:.6f} Ha')
 
         self.logger.info('Mapping fermionic operator to qubits')
         with Timer() as t:
@@ -180,6 +193,8 @@ class VQERunner(Runner):
                 default_shots=self.default_shots,
                 convergence_threshold=self.convergence_threshold,
                 seed=self.seed,
+                init_strategy=self.init_strategy,
+                hf_data=hf_data if self.init_strategy == 'hf' else None,
             )
             result = solver.solve()
 
