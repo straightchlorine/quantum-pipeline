@@ -216,6 +216,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
                     {'name': 'noise_backend', 'type': 'string'},
                     {'name': 'default_shots', 'type': 'int'},
                     {'name': 'ansatz_reps', 'type': 'int'},
+                    {'name': 'init_strategy', 'type': ['null', 'string'], 'default': None},
                 ],
             }
             dict_schema = deepcopy(schema)
@@ -264,6 +265,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
             'ansatz_reps': obj.ansatz_reps,
             'noise_backend': obj.noise_backend,
             'default_shots': obj.default_shots,
+            'init_strategy': obj.init_strategy if hasattr(obj, 'init_strategy') else None,
         }
 
     def deserialize(self, data: dict[str, Any]) -> VQEInitialData:
@@ -278,6 +280,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
             ansatz_reps=data['ansatz_reps'],
             noise_backend=data['noise_backend'],
             default_shots=data['default_shots'],
+            init_strategy=data.get('init_strategy', 'random'),
         )
 
 

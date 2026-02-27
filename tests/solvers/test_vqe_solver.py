@@ -6,6 +6,7 @@ from qiskit.quantum_info import SparsePauliOp
 from qiskit_aer.backends.aer_simulator import AerBackend
 
 from quantum_pipeline.configs.module.backend import BackendConfig
+from quantum_pipeline.solvers.hf_init import HFData
 from quantum_pipeline.solvers.vqe_solver import VQESolver
 from quantum_pipeline.structures.vqe_observation import VQEResult
 
@@ -667,3 +668,102 @@ class TestVQESolverSeed:
         )
         # With no seed, params should almost certainly differ
         assert not np.array_equal(params_1, params_2)
+
+
+class TestVQESolverHFInit:
+    """Tests for Hartree-Fock initialization strategy via VQESolver."""
+
+    @staticmethod
+    def _run_via_aer_and_get_init_params(
+        sample_hamiltonian, mock_backend_config, init_strategy='random', hf_data=None, seed=None
+    ):
+        """Helper: run via_aer with mocked optimizer/estimator, return initial_parameters."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=1,
+            optimizer='COBYLA',
+            seed=seed,
+            init_strategy=init_strategy,
+            hf_data=hf_data,
+        )
+
+        mock_backend = MagicMock(spec=AerBackend)
+        mock_backend.name = 'aer_simulator'
+        mock_backend.target = MagicMock()
+
+        mock_ansatz_isa = MagicMock()
+        mock_ansatz_isa.num_parameters = 16
+        mock_ansatz_isa.layout = None
+
+        mock_hamiltonian_isa = MagicMock()
+        mock_hamiltonian_isa.num_qubits = sample_hamiltonian.num_qubits
+        mock_hamiltonian_isa.to_list.return_value = []
+
+        mock_minimize_result = MagicMock()
+        mock_minimize_result.fun = -1.0
+        mock_minimize_result.x = np.zeros(16)
+        mock_minimize_result.success = True
+
+        with (
+            patch.object(
+                solver, '_optimize_circuits', return_value=(mock_ansatz_isa, mock_hamiltonian_isa)
+            ),
+            patch('quantum_pipeline.solvers.vqe_solver.EstimatorV2'),
+            patch(
+                'quantum_pipeline.solvers.vqe_solver.minimize', return_value=mock_minimize_result
+            ),
+        ):
+            solver.via_aer(mock_backend)
+
+        return solver.init_data
+
+    def test_init_strategy_stored_in_init_data(self, mock_backend_config, sample_hamiltonian):
+        """Test that init_strategy is recorded in VQEInitialData."""
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        init_data = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data
+        )
+        assert init_data.init_strategy == 'hf'
+
+    def test_random_strategy_stored(self, mock_backend_config, sample_hamiltonian):
+        """Test that random strategy is recorded in VQEInitialData."""
+        init_data = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, init_strategy='random'
+        )
+        assert init_data.init_strategy == 'random'
+
+    def test_hf_params_deterministic_without_seed(self, mock_backend_config, sample_hamiltonian):
+        """Test that HF init produces identical params without any seed."""
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        init_data_1 = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data
+        )
+        init_data_2 = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data
+        )
+        np.testing.assert_array_equal(
+            init_data_1.initial_parameters, init_data_2.initial_parameters
+        )
+
+    def test_hf_params_differ_from_random(self, mock_backend_config, sample_hamiltonian):
+        """Test that HF params are different from random params."""
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        init_data_hf = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data, seed=42
+        )
+        init_data_random = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, init_strategy='random', seed=42
+        )
+        assert not np.array_equal(
+            init_data_hf.initial_parameters, init_data_random.initial_parameters
+        )
+
+    def test_hf_fallback_when_no_hf_data(self, mock_backend_config, sample_hamiltonian):
+        """Test that HF strategy falls back to random when hf_data is None."""
+        init_data = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=None, seed=42
+        )
+        # Should still produce params (random fallback), not crash
+        assert init_data.initial_parameters is not None
+        assert len(init_data.initial_parameters) > 0

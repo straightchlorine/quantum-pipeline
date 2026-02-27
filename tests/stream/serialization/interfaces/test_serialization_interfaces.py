@@ -309,7 +309,7 @@ class TestVQEInitialDataInterface(unittest.TestCase):
 
         self.assertIsInstance(schema, dict)
         self.assertEqual(schema['name'], 'VQEInitialData')
-        self.assertEqual(len(schema['fields']), 10)
+        self.assertEqual(len(schema['fields']), 11)
 
     def test_serialize_hamiltonian(self):
         """Test serialization of Hamiltonian terms."""

@@ -28,6 +28,7 @@ def execute_simulation(**kwargs):
         ansatz_reps=kwargs['ansatz_reps'],
         default_shots=kwargs['shots'],
         seed=kwargs.get('seed'),
+        init_strategy=kwargs.get('init_strategy', 'random'),
         report=kwargs['report'],
         kafka=kwargs['kafka'],
         kafka_config=kwargs['kafka_config'] if kwargs['kafka'] else None,

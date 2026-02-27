@@ -176,6 +176,12 @@ class QuantumPipelineArgParser:
             default=DEFAULTS['seed'],
             help='Random seed for reproducible parameter initialization (default: None for random)',
         )
+        vqe_group.add_argument(
+            '--init-strategy',
+            choices=['random', 'hf'],
+            default=DEFAULTS['init_strategy'],
+            help='Parameter initialization strategy: random (default) or hf (Hartree-Fock based)',
+        )
 
     def _add_output_logging(self):
         """Add output and logging related arguments."""
