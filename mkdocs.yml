@@ -51,7 +51,7 @@ theme:
     edit: material/pencil
     view: material/eye
 
-  logo: assets/logo.svg
+  logo: assets/favicon.svg
   favicon: assets/favicon.svg
 
   font:
@@ -127,7 +127,7 @@ extra_css:
 
 extra_javascript:
   - javascripts/mathjax.js
-  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 nav:
   - Home: index.md
