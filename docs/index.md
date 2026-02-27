@@ -1,6 +1,10 @@
 # Quantum Pipeline
 
 <p align="center">
+  <img src="assets/banner.svg" alt="Quantum Pipeline" width="420">
+</p>
+
+<p align="center">
   <a href="https://pypi.org/project/quantum-pipeline/">
     <img src="https://badge.fury.io/py/quantum-pipeline.svg" alt="PyPI version">
   </a>
