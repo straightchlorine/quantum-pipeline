@@ -17,10 +17,7 @@
 
 ---
 
-An extensible framework for running quantum algorithms backed by a modern data stack.
-Combines quantum simulation with Kafka streaming, Spark-based feature engineering, Iceberg storage, and Airflow orchestration.
-
-Currently implements the Variational Quantum Eigensolver (VQE) for ground-state energy estimation of molecular systems.
+A framework for running quantum algorithms, with optional Kafka streaming, Spark processing, Iceberg storage, and Airflow orchestration. Currently implements the Variational Quantum Eigensolver (VQE) for ground-state energy estimation.
 
 ## Quick Start
 
@@ -40,20 +37,19 @@ See the [installation guide](https://docs.qp.piotrkrzysztof.dev/getting-started/
 
 ## Features
 
-**Quantum Computing** — VQE execution with 16+ optimizers, configurable ansatz circuits, multiple basis sets (sto-3g, 6-31g, cc-pVDZ), and GPU acceleration via CUDA. [Learn more](https://docs.qp.piotrkrzysztof.dev/scientific/vqe-algorithm/)
+**Quantum Computing** — VQE execution with multiple optimizers (L-BFGS-B tested extensively, 15+ others available), configurable ansatz circuits, multiple basis sets (sto-3g, 6-31g, cc-pVDZ), and GPU acceleration via CUDA. [Learn more](https://docs.qp.piotrkrzysztof.dev/scientific/vqe-algorithm/)
 
 **Data Platform** — Real-time Kafka streaming with Avro serialization, Spark-based ML feature engineering, Iceberg data lake with time-travel, Airflow workflow orchestration. [Architecture overview](https://docs.qp.piotrkrzysztof.dev/architecture/)
 
-**Production Deployment** — Multi-service Docker Compose stack, CI/CD with GitHub Actions, Trivy security scanning, signed container images. [Deployment guide](https://docs.qp.piotrkrzysztof.dev/deployment/)
+**Deployment** — Multi-service Docker Compose stack with GPU support. [Deployment guide](https://docs.qp.piotrkrzysztof.dev/deployment/)
 
-**Monitoring** — Prometheus metrics, Grafana dashboards, energy convergence tracking, scientific reference validation against peer-reviewed data for 8+ molecules. [Monitoring setup](https://docs.qp.piotrkrzysztof.dev/monitoring/)
+**Monitoring** — Prometheus metrics, Grafana dashboards, energy convergence tracking, reference validation against literature values for 9 molecules. [Monitoring setup](https://docs.qp.piotrkrzysztof.dev/monitoring/)
 
 ## Python API
 
 ```python
 from quantum_pipeline.runners.vqe_runner import VQERunner
 
-backend = VQERunner.default_backend()
 runner = VQERunner(
     filepath='data/molecules.json',
     basis_set='sto3g',
@@ -62,7 +58,7 @@ runner = VQERunner(
     optimizer='L-BFGS-B',
     ansatz_reps=3,
 )
-runner.run(backend)
+runner.run()
 ```
 
 ## Architecture

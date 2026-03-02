@@ -276,7 +276,7 @@ This configuration:
 Now that you've run your first simulation:
 
 1. **[Explore Configuration Options](../usage/configuration.md)** - Learn about all parameters
-2. **[Choose the Right Optimizer](../usage/optimizers.md)** - 16 optimizers available
+2. **[Choose the Right Optimizer](../usage/optimizers.md)** - Multiple optimizers available
 3. **[Understand System Architecture](../architecture/index.md)** - How it all works
 4. **[Deploy Full Platform](../deployment/docker-compose.md)** - Run with data engineering
 5. **[Monitor Performance](../monitoring/index.md)** - Track system metrics

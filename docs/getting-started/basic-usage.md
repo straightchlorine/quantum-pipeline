@@ -340,8 +340,8 @@ python quantum_pipeline.py \
 ```
 
 - Slower execution
-- Highest accuracy
-- For quality results
+- Higher accuracy
+- For more precise results
 
 ---
 

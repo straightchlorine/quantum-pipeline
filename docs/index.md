@@ -34,7 +34,7 @@
 
 ## Overview
 
-The Quantum Pipeline project is an **extensible framework** designed for exploring
+The Quantum Pipeline project is a **framework** for running
 quantum algorithms. Currently, only **Variational Quantum Eigensolver (VQE)** is
 implemented. It combines quantum and classical computing to estimate the
 ground-state energy of molecular systems.
@@ -69,15 +69,14 @@ and stored in **Apache Iceberg** tables for analytics.
 - **Visualization Tools** - Plot molecular structures, energy convergence, and operator coefficients
 - **Report Generation** - Automatically generate detailed reports for each processed molecule
 - **Scientific Reference Validation** - Compare VQE results against experimentally verified ground state energies
-- **Feature Tables** - Access structured data through 9 specialized ML feature tables
+- **Feature Tables** - Access structured data through 9 ML feature tables
 - **Processing Metadata** - Track data lineage and processing history
 
-### Production Deployment
+### Deployment
 
 - **Containerized Execution** - Deploy as multi-service Docker containers with GPU support
-- **CI/CD Pipeline** - Automated testing, building, and publishing of Docker images
-- **Distributed Processing** - Spark clusters for parallel data processing
-- **Security** - Docker secrets management and inter-service TLS
+- **Distributed Processing** - Spark-based parallel data processing
+- **Security** - Docker secrets and TLS configuration
 
 ---
 
@@ -260,11 +259,11 @@ graph TB
     - Analyze quantum experiment metadata at scale
     - Create time-series predictions for molecular properties
 
-!!! example "Production Deployments"
+!!! example "Deployment"
 
     - Run automated quantum simulations
     - Monitor system performance and scientific accuracy
-    - Scaling processing with distributed Spark clusters
+    - Process data with Spark
 
 ---
 
