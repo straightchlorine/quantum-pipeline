@@ -128,7 +128,7 @@ python quantum_pipeline.py \
 
 ## Example 3: GPU-Accelerated Research
 
-**Goal**: Run a high-accuracy simulation using GPU acceleration with the `cc-pvdz` basis set for publication-quality results.
+**Goal**: Run a higher-accuracy simulation using GPU acceleration with the `cc-pvdz` basis set.
 
 ### Command
 
@@ -158,7 +158,7 @@ python quantum_pipeline.py \
 
 ### Notes
 
-- GPU acceleration provides 10-100x speedup for large circuits compared to CPU-only execution.
+- GPU acceleration provided 1.7-4x speedup in thesis benchmarks (GTX 1060/1050 Ti, H2 molecule). Speedup varies by circuit size and hardware.
 - L-BFGS-B is the recommended optimizer for GPU workloads due to its efficient convergence.
 - The `cc-pvdz` basis set generates many more qubits than `sto3g`. Ensure you have sufficient GPU memory (6+ GB recommended).
 - Monitor GPU utilization with `nvidia-smi` in a separate terminal during the run.
@@ -380,7 +380,7 @@ runner.run()
 
 # Process results
 for result in runner.run_results:
-    print(f"Molecule: {result.molecule.molecule_data.symbols}")
+    print(f"Molecule: {result.molecule.symbols}")
     print(f"Ground state energy: {result.vqe_result.minimum:.6f} Ha")
     print(f"Iterations: {len(result.vqe_result.iteration_list)}")
     print(f"VQE time: {result.vqe_time:.2f} seconds")
