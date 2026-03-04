@@ -216,7 +216,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
                     {'name': 'noise_backend', 'type': 'string'},
                     {'name': 'default_shots', 'type': 'int'},
                     {'name': 'ansatz_reps', 'type': 'int'},
-                    {'name': 'init_strategy', 'type': ['null', 'string'], 'default': None},
+                    {'name': 'init_strategy', 'type': ['string', 'null'], 'default': 'random'},
                 ],
             }
             dict_schema = deepcopy(schema)
@@ -280,7 +280,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
             ansatz_reps=data['ansatz_reps'],
             noise_backend=data['noise_backend'],
             default_shots=data['default_shots'],
-            init_strategy=data.get('init_strategy', 'random'),
+            init_strategy=data.get('init_strategy') or 'random',
         )
 
 
