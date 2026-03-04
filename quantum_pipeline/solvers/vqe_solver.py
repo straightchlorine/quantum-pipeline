@@ -8,6 +8,7 @@ classical optimization to find the minimum eigenvalue of a Hamiltonian.
 
 import numpy as np
 from qiskit.circuit.library import EfficientSU2
+from qiskit.quantum_info import Statevector, state_fidelity
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer.backends.aer_simulator import AerBackend
 from qiskit_ibm_runtime import EstimatorV2, Session
@@ -83,22 +84,64 @@ class VQESolver(Solver):
         return ansatz_isa, hamiltonian_isa
 
     def _build_ansatz(self, n_qubits):
-        """Build the EfficientSU2 ansatz, optionally prepending an HF initial state."""
-        if self.init_strategy == 'hf' and self.hf_data is not None and self.mapper is not None:
-            self.logger.info('Building HF initial state circuit...')
-            hf_circuit = build_hf_initial_state(self.hf_data, self.mapper)
-            return EfficientSU2(n_qubits, reps=self.ansatz_reps, initial_state=hf_circuit)
+        """Build the EfficientSU2 ansatz.
+
+        Always builds a plain EfficientSU2 (no HF circuit prepended).
+        When using HF init, we compute initial parameters that prepare the HF
+        state through the ansatz instead — avoiding the problem where fixed CX
+        entangling gates destroy the HF state at zero parameters.
+        """
         return EfficientSU2(n_qubits, reps=self.ansatz_reps)
 
-    def _compute_initial_parameters(self, param_num):
-        """Compute initial ansatz parameters based on the configured strategy."""
-        if self.init_strategy == 'hf' and self.hf_data is not None:
-            self.logger.info('Using HF initial state circuit; parameters initialized to zero')
-            return np.zeros(param_num)
+    def _compute_hf_initial_parameters(self, ansatz):
+        """Find EfficientSU2 parameters that prepare the HF state.
 
-        if self.init_strategy == 'hf' and self.hf_data is None:
+        Performs a short classical pre-optimization to find parameters where
+        the ansatz output matches the HF state (maximizes state fidelity).
+        This avoids the problem of prepending HF circuit + zero params, where
+        the fixed CX gates in EfficientSU2 destroy the HF state.
+        """
+        hf_circuit = build_hf_initial_state(self.hf_data, self.mapper)
+        target_sv = Statevector(hf_circuit)
+
+        def neg_fidelity(params):
+            bound = ansatz.assign_parameters(params)
+            sv = Statevector(bound)
+            return -state_fidelity(sv, target_sv)
+
+        best_fid = 0.0
+        best_params = np.zeros(ansatz.num_parameters)
+        n_attempts = 10
+        seed = self.seed if self.seed is not None else 0
+
+        for i in range(n_attempts):
+            np.random.seed(seed + i)
+            x0 = 2 * np.pi * np.random.random(ansatz.num_parameters)
+            res = minimize(neg_fidelity, x0, method='COBYLA', options={'maxiter': 1000})
+            fid = -res.fun
+            if fid > best_fid:
+                best_fid = fid
+                best_params = res.x
+            if best_fid > 0.9999:
+                break
+
+        self.logger.info(
+            f'HF parameter pre-optimization: fidelity={best_fid:.6f} '
+            f'after {i + 1} attempts'
+        )
+        return best_params
+
+    def _compute_initial_parameters(self, ansatz):
+        """Compute initial ansatz parameters based on the configured strategy."""
+        param_num = ansatz.num_parameters
+
+        if self.init_strategy == 'hf' and self.hf_data is not None and self.mapper is not None:
+            self.logger.info('Computing HF-equivalent initial parameters...')
+            return self._compute_hf_initial_parameters(ansatz)
+
+        if self.init_strategy == 'hf' and (self.hf_data is None or self.mapper is None):
             self.logger.warning(
-                'HF init strategy requested but no HF data available, falling back to random'
+                'HF init strategy requested but no HF data/mapper available, falling back to random'
             )
 
         if self.seed is not None:
@@ -182,8 +225,7 @@ class VQESolver(Solver):
         ansatz = self._build_ansatz(hamiltonian.num_qubits)
         self.logger.info('Ansatz initialized.')
 
-        param_num = ansatz.num_parameters
-        x0 = self._compute_initial_parameters(param_num)
+        x0 = self._compute_initial_parameters(ansatz)
         self.logger.debug(f'Initial ansatz parameters:\n\n{x0}\n')
 
         self.logger.info('Optimizing ansatz and hamiltonian...')
@@ -307,8 +349,7 @@ class VQESolver(Solver):
         ansatz = self._build_ansatz(hamiltonian.num_qubits)
         self.logger.info('Ansatz initialized.')
 
-        param_num = ansatz.num_parameters
-        x0 = self._compute_initial_parameters(param_num)
+        x0 = self._compute_initial_parameters(ansatz)
         self.logger.debug(f'Initial ansatz parameters:\n\n{x0}\n')
 
         self.logger.info('Optimizing ansatz and hamiltonian...')
