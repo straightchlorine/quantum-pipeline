@@ -11,11 +11,14 @@ ground state under the given qubit mapping with blocked spin-orbital ordering.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from qiskit.circuit import QuantumCircuit
 from qiskit_nature.second_q.circuit.library import HartreeFock
 
-from quantum_pipeline.mappers.mapper import Mapper
+if TYPE_CHECKING:
+    from qiskit.circuit import QuantumCircuit
+
+    from quantum_pipeline.mappers.mapper import Mapper
 
 
 @dataclass
