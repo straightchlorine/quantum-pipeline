@@ -28,6 +28,7 @@ class HFData:
     num_particles: tuple[int, int]
     num_spatial_orbitals: int
     reference_energy: float | None = None
+    nuclear_repulsion_energy: float | None = None
 
 
 def build_hf_initial_state(hf_data: HFData, mapper: Mapper) -> QuantumCircuit:
