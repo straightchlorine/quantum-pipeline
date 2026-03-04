@@ -393,6 +393,13 @@ class QuantumPipelineArgParser:
         if args.convergence and args.threshold is None:
             self.parser.error('--threshold must be set if --convergence is enabled.')
 
+        gpu_only_methods = {'tensor_network'}
+        if not args.gpu and args.simulation_method in gpu_only_methods:
+            self.parser.error(
+                f'--simulation-method {args.simulation_method} requires --gpu. '
+                f'Use a CPU-compatible method (e.g. statevector, automatic) or enable --gpu.'
+            )
+
         if self.kafka_params_set(args) and not args.kafka:
             self.parser.error('--kafka must be set for the options to take effect.')
 
