@@ -243,17 +243,27 @@ class VQESolver(Solver):
             return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
 
         actual_iterations = len(self.vqe_process)
+        best_energy = (
+            min(p.cumulative_min_energy for p in self.vqe_process)
+            if self.vqe_process
+            else res.fun
+        )
         if self.convergence_threshold:
             if res.success:
                 self.logger.info(
-                    f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})'
+                    f'VQE converged after {actual_iterations} iterations '
+                    f'(threshold: {self.convergence_threshold}). '
+                    f'Best energy: {best_energy:.8f} Ha'
                 )
             else:
                 self.logger.info(
-                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved'
+                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved. '
+                    f'Best energy: {best_energy:.8f} Ha'
                 )
         else:
-            self.logger.info(f'VQE completed {actual_iterations} iterations')
+            self.logger.info(
+                f'VQE completed {actual_iterations} iterations. Best energy: {best_energy:.8f} Ha'
+            )
 
         result = VQEResult(
             initial_data=self.init_data,
@@ -352,17 +362,27 @@ class VQESolver(Solver):
             return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
 
         actual_iterations = len(self.vqe_process)
+        best_energy = (
+            min(p.cumulative_min_energy for p in self.vqe_process)
+            if self.vqe_process
+            else res.fun
+        )
         if self.convergence_threshold:
             if res.success:
                 self.logger.info(
-                    f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})'
+                    f'VQE converged after {actual_iterations} iterations '
+                    f'(threshold: {self.convergence_threshold}). '
+                    f'Best energy: {best_energy:.8f} Ha'
                 )
             else:
                 self.logger.info(
-                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved'
+                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved. '
+                    f'Best energy: {best_energy:.8f} Ha'
                 )
         else:
-            self.logger.info(f'VQE completed {actual_iterations} iterations')
+            self.logger.info(
+                f'VQE completed {actual_iterations} iterations. Best energy: {best_energy:.8f} Ha'
+            )
 
         result = VQEResult(
             initial_data=self.init_data,
