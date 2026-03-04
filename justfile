@@ -300,9 +300,17 @@ docker-build-cpu:
 docker-build-gpu:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "Building GPU Docker image..."
-    docker build -f docker/Dockerfile.gpu -t quantum-pipeline:gpu .
-    echo "✓ GPU image built: quantum-pipeline:gpu"
+    VERSION=$(python -c "import quantum_pipeline; print(quantum_pipeline.__version__)")
+    echo "Building GPU Docker image (v${VERSION})..."
+    docker build -f docker/Dockerfile.gpu \
+        -t quantum-pipeline:gpu \
+        -t straightchlorine/quantum-pipeline:gpu \
+        -t straightchlorine/quantum-pipeline:gpu-${VERSION} \
+        .
+    echo "✓ GPU image built and tagged:"
+    echo "  quantum-pipeline:gpu"
+    echo "  straightchlorine/quantum-pipeline:gpu"
+    echo "  straightchlorine/quantum-pipeline:gpu-${VERSION}"
 
 # Build Spark integration Docker image
 docker-build-spark:

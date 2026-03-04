@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="Quantum Pipeline" width="350">
+  <img src="https://qp-docs.codextechnologies.org/mkdocs/banner.svg" alt="Quantum Pipeline" width="350">
 </p>
 
 <div align="center">

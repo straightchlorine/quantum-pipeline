@@ -71,10 +71,9 @@ RUN python ./setup.py bdist_wheel -- -DAER_THRUST_BACKEND=CUDA -DAER_CUDA_ARCH="
 WORKDIR /usr/src/quantum_pipeline
 RUN rm -rf static && mkdir -p static && mv ./qiskit-aer/dist/* ./static && rm -rf ./qiskit-aer
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
+RUN pip install --no-cache-dir .
+
 # expects qiskit-aer version supporting your GPU architecture in the ./static folder
 # you can easily generate one by using build_aer_gpu.sh script in the repo or by following
 # instructions in the offical repository:
