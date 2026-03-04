@@ -628,6 +628,7 @@ class TestVQERunner:
                 seed=None,
                 init_strategy='random',
                 hf_data=None,
+                mapper=mock_mapper.return_value,
             )
 
     def test_static_methods(self):
