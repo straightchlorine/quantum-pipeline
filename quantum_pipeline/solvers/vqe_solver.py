@@ -221,6 +221,7 @@ class VQESolver(Solver):
             else:
                 self.logger.info('Starting VQE optimization with default settings')
 
+        truncated = None
         with Timer() as t:
             try:
                 res = minimize(
@@ -232,11 +233,14 @@ class VQESolver(Solver):
                     tol=minimize_tol,
                 )
             except MaxFunctionEvalsReached as e:
-                self.logger.info(
-                    f'Hard evaluation limit reached after {e.iteration} function evaluations '
-                    f'(limit: {self.max_iterations}). Best energy: {e.best_energy:.8f} Ha'
-                )
-                return self._make_truncated_result(e.best_energy, e.best_params, t.elapsed)
+                truncated = e
+
+        if truncated is not None:
+            self.logger.info(
+                f'Hard evaluation limit reached after {truncated.iteration} function evaluations '
+                f'(limit: {self.max_iterations}). Best energy: {truncated.best_energy:.8f} Ha'
+            )
+            return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
 
         actual_iterations = len(self.vqe_process)
         if self.convergence_threshold:
@@ -326,6 +330,7 @@ class VQESolver(Solver):
             )
         else:
             self.logger.info('Starting VQE optimization with default settings')
+        truncated = None
         with Timer() as t:
             try:
                 res = minimize(
@@ -337,11 +342,14 @@ class VQESolver(Solver):
                     tol=minimize_tol,
                 )
             except MaxFunctionEvalsReached as e:
-                self.logger.info(
-                    f'Hard evaluation limit reached after {e.iteration} function evaluations '
-                    f'(limit: {self.max_iterations}). Best energy: {e.best_energy:.8f} Ha'
-                )
-                return self._make_truncated_result(e.best_energy, e.best_params, t.elapsed)
+                truncated = e
+
+        if truncated is not None:
+            self.logger.info(
+                f'Hard evaluation limit reached after {truncated.iteration} function evaluations '
+                f'(limit: {self.max_iterations}). Best energy: {truncated.best_energy:.8f} Ha'
+            )
+            return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
 
         actual_iterations = len(self.vqe_process)
         if self.convergence_threshold:
