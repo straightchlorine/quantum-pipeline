@@ -489,14 +489,6 @@ version:
     #!/usr/bin/env bash
     python -c "import quantum_pipeline; print(f'quantum-pipeline v{quantum_pipeline.__version__}')"
 
-# Create git tag for release
-tag VERSION:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    git tag -a "v{{VERSION}}" -m "Release v{{VERSION}}"
-    echo "✓ Tag created: v{{VERSION}}"
-    echo "Push with: git push origin v{{VERSION}}"
-
 # ============================================================================
 # HELP AND INFORMATION
 # ============================================================================
