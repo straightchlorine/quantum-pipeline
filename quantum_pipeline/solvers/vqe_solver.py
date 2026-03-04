@@ -280,6 +280,7 @@ class VQESolver(Solver):
                 self.logger.info('Starting VQE optimization with default settings')
 
         truncated = None
+        res = None
         with Timer() as t:
             try:
                 res = minimize(
@@ -401,6 +402,7 @@ class VQESolver(Solver):
         else:
             self.logger.info('Starting VQE optimization with default settings')
         truncated = None
+        res = None
         with Timer() as t:
             try:
                 res = minimize(
