@@ -34,3 +34,6 @@ class JordanWignerMapper(Mapper):
 
         # Perform the Jordan-Wigner mapping
         return JordanWignerMapperQiskit().map(operator)
+
+    def get_qiskit_mapper(self):
+        return JordanWignerMapperQiskit()

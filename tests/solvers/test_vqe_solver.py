@@ -6,8 +6,8 @@ from qiskit.quantum_info import SparsePauliOp
 from qiskit_aer.backends.aer_simulator import AerBackend
 
 from quantum_pipeline.configs.module.backend import BackendConfig
-from quantum_pipeline.solvers.hf_init import HFData
-from quantum_pipeline.solvers.vqe_solver import VQESolver
+from quantum_pipeline.circuits import HFData
+from quantum_pipeline.solvers.vqe_solver import MaxFunctionEvalsReached, VQESolver
 from quantum_pipeline.structures.vqe_observation import VQEResult
 
 
@@ -535,6 +535,96 @@ class TestVQEEdgeCases:
         assert optimization_params['gtol'] == 1e-15
 
 
+class TestMaxFunctionEvalsReached:
+    """Tests for the hard function evaluation limit."""
+
+    def test_exception_stores_fields(self):
+        """Test that the exception stores iteration, best_params, and best_energy."""
+        params = np.array([1.0, 2.0, 3.0])
+        exc = MaxFunctionEvalsReached(iteration=50, best_params=params, best_energy=-1.117)
+        assert exc.iteration == 50
+        np.testing.assert_array_equal(exc.best_params, params)
+        assert exc.best_energy == -1.117
+        assert '50' in str(exc)
+
+    def test_compute_energy_raises_at_limit(self, vqe_solver):
+        """Test that compute_energy raises MaxFunctionEvalsReached when limit is exceeded."""
+        # Simulate having already done max_iterations evaluations
+        vqe_solver.max_iterations = 3
+        vqe_solver.current_iter = 4  # one past the limit
+
+        # Populate vqe_process with mock data so min() works
+        mock_process = MagicMock()
+        mock_process.cumulative_min_energy = -1.5
+        mock_process.parameters = np.array([0.1, 0.2])
+        vqe_solver.vqe_process = [mock_process]
+
+        with pytest.raises(MaxFunctionEvalsReached) as exc_info:
+            vqe_solver.compute_energy(
+                np.array([0.1, 0.2]), MagicMock(), MagicMock(), MagicMock()
+            )
+
+        assert exc_info.value.iteration == 3
+        assert exc_info.value.best_energy == -1.5
+
+    def test_compute_energy_runs_within_limit(self, vqe_solver):
+        """Test that compute_energy runs normally when within the limit."""
+        vqe_solver.max_iterations = 5
+        vqe_solver.current_iter = 1
+
+        mock_estimator = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data.evs = [-0.5]
+        mock_result.data.stds = [0.01]
+        mock_estimator.run.return_value.result.return_value = [mock_result]
+
+        with patch.object(vqe_solver.logger, 'debug'):
+            energy = vqe_solver.compute_energy(
+                np.array([0.1, 0.2, 0.3]), MagicMock(), MagicMock(), mock_estimator
+            )
+
+        assert energy == -0.5
+        assert vqe_solver.current_iter == 2
+
+    def test_truncated_result_uses_best_energy(self, vqe_solver):
+        """Test that _make_truncated_result uses the best observed energy."""
+        vqe_solver.init_data = MagicMock()
+        vqe_solver.vqe_process = [MagicMock(), MagicMock()]
+
+        result = vqe_solver._make_truncated_result(
+            best_energy=-1.5, best_params=np.array([1.0, 2.0]), elapsed=10.0
+        )
+
+        assert isinstance(result, VQEResult)
+        assert result.minimum == np.float64(-1.5)
+        assert result.minimization_time == np.float64(10.0)
+        assert result.maxcv is None
+
+    def test_no_limit_when_max_iterations_none(self, mock_backend_config, sample_hamiltonian):
+        """Test that no hard limit is enforced when max_iterations is None."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=None,
+            optimizer='COBYLA',
+            ansatz_reps=2,
+        )
+        solver.current_iter = 9999
+
+        mock_estimator = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data.evs = [-1.0]
+        mock_result.data.stds = [0.01]
+        mock_estimator.run.return_value.result.return_value = [mock_result]
+
+        with patch.object(solver.logger, 'debug'):
+            energy = solver.compute_energy(
+                np.array([0.1, 0.2, 0.3]), MagicMock(), MagicMock(), mock_estimator
+            )
+
+        assert energy == -1.0
+
+
 class TestVQESolverSeed:
     """Tests for seed-based reproducibility via VQESolver."""
 
@@ -733,6 +823,16 @@ class TestVQESolverHFInit:
         )
         assert init_data.init_strategy == 'random'
 
+    def test_hf_params_are_all_zeros(self, mock_backend_config, sample_hamiltonian):
+        """Test that HF init produces all-zero ansatz parameters (circuit handles HF state)."""
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        init_data = self._run_via_aer_and_get_init_params(
+            sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data
+        )
+        np.testing.assert_array_equal(
+            init_data.initial_parameters, np.zeros_like(init_data.initial_parameters)
+        )
+
     def test_hf_params_deterministic_without_seed(self, mock_backend_config, sample_hamiltonian):
         """Test that HF init produces identical params without any seed."""
         hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
@@ -747,7 +847,7 @@ class TestVQESolverHFInit:
         )
 
     def test_hf_params_differ_from_random(self, mock_backend_config, sample_hamiltonian):
-        """Test that HF params are different from random params."""
+        """Test that HF params (zeros) differ from random params."""
         hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
         init_data_hf = self._run_via_aer_and_get_init_params(
             sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data, seed=42
@@ -767,3 +867,36 @@ class TestVQESolverHFInit:
         # Should still produce params (random fallback), not crash
         assert init_data.initial_parameters is not None
         assert len(init_data.initial_parameters) > 0
+
+    def test_build_ansatz_with_hf(self, mock_backend_config, sample_hamiltonian):
+        """Test that _build_ansatz passes initial_state when HF strategy is used."""
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        mock_mapper = MagicMock()
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            init_strategy='hf',
+            hf_data=hf_data,
+            mapper=mock_mapper,
+        )
+        with patch('quantum_pipeline.solvers.vqe_solver.build_hf_initial_state') as mock_build:
+            mock_build.return_value = MagicMock()
+            with patch('quantum_pipeline.solvers.vqe_solver.EfficientSU2') as mock_esu2:
+                solver._build_ansatz(4)
+                mock_build.assert_called_once_with(hf_data, mock_mapper)
+                mock_esu2.assert_called_once()
+                _, kwargs = mock_esu2.call_args
+                assert 'initial_state' in kwargs
+
+    def test_build_ansatz_without_hf(self, mock_backend_config, sample_hamiltonian):
+        """Test that _build_ansatz does not pass initial_state for random strategy."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            init_strategy='random',
+        )
+        with patch('quantum_pipeline.solvers.vqe_solver.EfficientSU2') as mock_esu2:
+            solver._build_ansatz(4)
+            mock_esu2.assert_called_once()
+            _, kwargs = mock_esu2.call_args
+            assert 'initial_state' not in kwargs

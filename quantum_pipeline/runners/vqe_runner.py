@@ -2,8 +2,6 @@ import os
 
 import numpy as np
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
-from qiskit_nature.second_q.mappers import JordanWignerMapper
-
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.configs.module.security import SecurityConfig
@@ -13,7 +11,8 @@ from quantum_pipeline.monitoring import get_performance_monitor
 from quantum_pipeline.monitoring.scientific_references import get_reference_database
 from quantum_pipeline.report.report_generator import ReportGenerator
 from quantum_pipeline.runners.runner import Runner
-from quantum_pipeline.solvers.hf_init import HFData
+from quantum_pipeline.circuits import HFData
+from quantum_pipeline.mappers import JordanWignerMapper
 from quantum_pipeline.solvers.vqe_solver import VQESolver
 from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
@@ -174,9 +173,11 @@ class VQERunner(Runner):
         if hf_data.reference_energy is not None:
             self.logger.info(f'HF reference energy: {hf_data.reference_energy:.6f} Ha')
 
+        mapper = JordanWignerMapper()
+
         self.logger.info('Mapping fermionic operator to qubits')
         with Timer() as t:
-            qubit_op = JordanWignerMapper().map(second_q_op)
+            qubit_op = mapper.map(second_q_op)
 
         self.mapping_time = t.elapsed
         self.logger.info(f'Problem mapped to qubits in {t.elapsed:.6f} seconds.')
@@ -195,6 +196,7 @@ class VQERunner(Runner):
                 seed=self.seed,
                 init_strategy=self.init_strategy,
                 hf_data=hf_data if self.init_strategy == 'hf' else None,
+                mapper=mapper,
             )
             result = solver.solve()
 

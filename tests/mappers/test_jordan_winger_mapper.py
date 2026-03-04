@@ -1,6 +1,7 @@
 """Tests for Jordan-Wigner mapper implementation."""
 
 import pytest
+from qiskit_nature.second_q.mappers import JordanWignerMapper as JordanWignerMapperQiskit
 from qiskit_nature.second_q.operators import FermionicOp
 
 from quantum_pipeline.mappers import JordanWignerMapper
@@ -147,3 +148,8 @@ class TestJordanWignerMapper:
         fermionic_op = FermionicOp({'+_10 -_11': 1.0})
         qubit_op = mapper.map(fermionic_op)
         assert qubit_op is not None
+
+    def test_get_qiskit_mapper(self, mapper):
+        """Test that get_qiskit_mapper returns a qiskit-nature JordanWignerMapper."""
+        qiskit_mapper = mapper.get_qiskit_mapper()
+        assert isinstance(qiskit_mapper, JordanWignerMapperQiskit)
