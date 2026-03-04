@@ -5,9 +5,9 @@ import pytest
 from qiskit.quantum_info import SparsePauliOp
 from qiskit_aer.backends.aer_simulator import AerBackend
 
-from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.circuits import HFData
-from quantum_pipeline.solvers.vqe_solver import MaxFunctionEvalsReached, VQESolver
+from quantum_pipeline.configs.module.backend import BackendConfig
+from quantum_pipeline.solvers.vqe_solver import MaxFunctionEvalsReachedError, VQESolver
 from quantum_pipeline.structures.vqe_observation import VQEResult
 
 
@@ -535,20 +535,20 @@ class TestVQEEdgeCases:
         assert optimization_params['gtol'] == 1e-15
 
 
-class TestMaxFunctionEvalsReached:
+class TestMaxFunctionEvalsReachedError:
     """Tests for the hard function evaluation limit."""
 
     def test_exception_stores_fields(self):
         """Test that the exception stores iteration, best_params, and best_energy."""
         params = np.array([1.0, 2.0, 3.0])
-        exc = MaxFunctionEvalsReached(iteration=50, best_params=params, best_energy=-1.117)
+        exc = MaxFunctionEvalsReachedError(iteration=50, best_params=params, best_energy=-1.117)
         assert exc.iteration == 50
         np.testing.assert_array_equal(exc.best_params, params)
         assert exc.best_energy == -1.117
         assert '50' in str(exc)
 
     def test_compute_energy_raises_at_limit(self, vqe_solver):
-        """Test that compute_energy raises MaxFunctionEvalsReached when limit is exceeded."""
+        """Test that compute_energy raises MaxFunctionEvalsReachedError when limit is exceeded."""
         # Simulate having already done max_iterations evaluations
         vqe_solver.max_iterations = 3
         vqe_solver.current_iter = 4  # one past the limit
@@ -559,7 +559,7 @@ class TestMaxFunctionEvalsReached:
         mock_process.parameters = np.array([0.1, 0.2])
         vqe_solver.vqe_process = [mock_process]
 
-        with pytest.raises(MaxFunctionEvalsReached) as exc_info:
+        with pytest.raises(MaxFunctionEvalsReachedError) as exc_info:
             vqe_solver.compute_energy(
                 np.array([0.1, 0.2]), MagicMock(), MagicMock(), MagicMock()
             )

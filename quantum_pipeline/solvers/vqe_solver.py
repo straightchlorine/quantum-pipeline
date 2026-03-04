@@ -26,7 +26,7 @@ from quantum_pipeline.structures.vqe_observation import (
 from quantum_pipeline.utils.timer import Timer
 
 
-class MaxFunctionEvalsReached(Exception):
+class MaxFunctionEvalsReachedError(Exception):
     """Raised when the hard function evaluation limit is exceeded."""
 
     def __init__(self, iteration: int, best_params: np.ndarray, best_energy: float):
@@ -121,7 +121,7 @@ class VQESolver(Solver):
         """Return estimate of energy from estimator"""
         if self.max_iterations is not None and self.current_iter > self.max_iterations:
             best = min(self.vqe_process, key=lambda p: p.cumulative_min_energy)
-            raise MaxFunctionEvalsReached(
+            raise MaxFunctionEvalsReachedError(
                 iteration=self.current_iter - 1,
                 best_params=best.parameters,
                 best_energy=float(best.cumulative_min_energy),
@@ -232,7 +232,7 @@ class VQESolver(Solver):
                     options=optimization_params,
                     tol=minimize_tol,
                 )
-            except MaxFunctionEvalsReached as e:
+            except MaxFunctionEvalsReachedError as e:
                 truncated = e
 
         if truncated is not None:
@@ -341,7 +341,7 @@ class VQESolver(Solver):
                     options=optimization_params,
                     tol=minimize_tol,
                 )
-            except MaxFunctionEvalsReached as e:
+            except MaxFunctionEvalsReachedError as e:
                 truncated = e
 
         if truncated is not None:
