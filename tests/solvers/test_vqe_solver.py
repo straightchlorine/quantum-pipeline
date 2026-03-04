@@ -768,6 +768,7 @@ class TestVQESolverHFInit:
         sample_hamiltonian, mock_backend_config, init_strategy='random', hf_data=None, seed=None
     ):
         """Helper: run via_aer with mocked optimizer/estimator, return initial_parameters."""
+        mock_mapper = MagicMock()
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -776,6 +777,7 @@ class TestVQESolverHFInit:
             seed=seed,
             init_strategy=init_strategy,
             hf_data=hf_data,
+            mapper=mock_mapper,
         )
 
         mock_backend = MagicMock(spec=AerBackend)
@@ -795,6 +797,9 @@ class TestVQESolverHFInit:
         mock_minimize_result.x = np.zeros(16)
         mock_minimize_result.success = True
 
+        # For HF init, mock the pre-optimization to avoid needing real quantum circuits
+        hf_init_params = np.ones(16) * 0.5 if init_strategy == 'hf' and hf_data is not None else None
+
         with (
             patch.object(
                 solver, '_optimize_circuits', return_value=(mock_ansatz_isa, mock_hamiltonian_isa)
@@ -804,7 +809,15 @@ class TestVQESolverHFInit:
                 'quantum_pipeline.solvers.vqe_solver.minimize', return_value=mock_minimize_result
             ),
         ):
-            solver.via_aer(mock_backend)
+            if hf_init_params is not None:
+                with patch.object(
+                    solver,
+                    '_compute_hf_initial_parameters',
+                    return_value=hf_init_params,
+                ):
+                    solver.via_aer(mock_backend)
+            else:
+                solver.via_aer(mock_backend)
 
         return solver.init_data
 
@@ -823,31 +836,8 @@ class TestVQESolverHFInit:
         )
         assert init_data.init_strategy == 'random'
 
-    def test_hf_params_are_all_zeros(self, mock_backend_config, sample_hamiltonian):
-        """Test that HF init produces all-zero ansatz parameters (circuit handles HF state)."""
-        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
-        init_data = self._run_via_aer_and_get_init_params(
-            sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data
-        )
-        np.testing.assert_array_equal(
-            init_data.initial_parameters, np.zeros_like(init_data.initial_parameters)
-        )
-
-    def test_hf_params_deterministic_without_seed(self, mock_backend_config, sample_hamiltonian):
-        """Test that HF init produces identical params without any seed."""
-        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
-        init_data_1 = self._run_via_aer_and_get_init_params(
-            sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data
-        )
-        init_data_2 = self._run_via_aer_and_get_init_params(
-            sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data
-        )
-        np.testing.assert_array_equal(
-            init_data_1.initial_parameters, init_data_2.initial_parameters
-        )
-
     def test_hf_params_differ_from_random(self, mock_backend_config, sample_hamiltonian):
-        """Test that HF params (zeros) differ from random params."""
+        """Test that HF params differ from random params."""
         hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
         init_data_hf = self._run_via_aer_and_get_init_params(
             sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data, seed=42
@@ -868,8 +858,8 @@ class TestVQESolverHFInit:
         assert init_data.initial_parameters is not None
         assert len(init_data.initial_parameters) > 0
 
-    def test_build_ansatz_with_hf(self, mock_backend_config, sample_hamiltonian):
-        """Test that _build_ansatz passes initial_state when HF strategy is used."""
+    def test_build_ansatz_is_plain_esu2(self, mock_backend_config, sample_hamiltonian):
+        """Test that _build_ansatz always builds a plain EfficientSU2 (no HF circuit prepend)."""
         hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
         mock_mapper = MagicMock()
         solver = VQESolver(
@@ -879,14 +869,11 @@ class TestVQESolverHFInit:
             hf_data=hf_data,
             mapper=mock_mapper,
         )
-        with patch('quantum_pipeline.solvers.vqe_solver.build_hf_initial_state') as mock_build:
-            mock_build.return_value = MagicMock()
-            with patch('quantum_pipeline.solvers.vqe_solver.EfficientSU2') as mock_esu2:
-                solver._build_ansatz(4)
-                mock_build.assert_called_once_with(hf_data, mock_mapper)
-                mock_esu2.assert_called_once()
-                _, kwargs = mock_esu2.call_args
-                assert 'initial_state' in kwargs
+        with patch('quantum_pipeline.solvers.vqe_solver.EfficientSU2') as mock_esu2:
+            solver._build_ansatz(4)
+            mock_esu2.assert_called_once()
+            _, kwargs = mock_esu2.call_args
+            assert 'initial_state' not in kwargs
 
     def test_build_ansatz_without_hf(self, mock_backend_config, sample_hamiltonian):
         """Test that _build_ansatz does not pass initial_state for random strategy."""
