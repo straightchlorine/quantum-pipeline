@@ -161,6 +161,17 @@ class VQERunner(Runner):
             nuclear_repulsion_energy=problem.nuclear_repulsion_energy,
         )
 
+        self.logger.debug(
+            f'Nuclear repulsion energy: {problem.nuclear_repulsion_energy:.8f} Ha'
+        )
+        # Diagnostic: check if NR is baked into the operator or stored separately
+        try:
+            self.logger.debug(f'ElectronicEnergy constants: {problem.hamiltonian.constants}')
+            identity_coeff = sum(c for term, c in second_q_op.items() if term == '')
+            self.logger.debug(f'FermionicOp identity (constant) term: {identity_coeff}')
+        except Exception:
+            pass
+
         return second_q_op, hf_data
 
     def run_vqe(self, molecule, backend_config: BackendConfig):

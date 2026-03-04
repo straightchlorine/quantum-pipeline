@@ -42,6 +42,7 @@ class TestVQERunner:
             # mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
             mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
@@ -255,6 +256,7 @@ class TestVQERunner:
             # mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
             mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
@@ -317,6 +319,7 @@ class TestVQERunner:
             # mock solver
             mock_result = Mock()
             mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
             mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
@@ -377,6 +380,7 @@ class TestVQERunner:
             # set up mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
             mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
@@ -436,6 +440,7 @@ class TestVQERunner:
             # mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
             mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
@@ -536,6 +541,7 @@ class TestVQERunner:
             # mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
             mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
@@ -594,6 +600,7 @@ class TestVQERunner:
             # mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
             mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
             mock_result.optimal_parameters = [0.1, 0.2, 0.3]
             mock_result.initial_data = Mock()
