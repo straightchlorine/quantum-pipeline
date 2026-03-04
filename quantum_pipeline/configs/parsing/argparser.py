@@ -76,6 +76,7 @@ class QuantumPipelineArgParser:
         sim_group.add_argument(
             '-ar',
             '--ansatz-reps',
+            type=int,
             default=DEFAULTS['ansatz_reps'],
             help='Amount of reps for the ansatz',
         )
