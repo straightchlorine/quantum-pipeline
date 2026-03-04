@@ -64,6 +64,8 @@ class TestConfigurationManagerMonitoringInit:
             'http://monit:9091',
             '--performance-export-format',
             'both',
+            '--simulation-method',
+            'statevector',
         ]
 
         # Set temp metrics dir via env var
@@ -83,7 +85,10 @@ class TestConfigurationManagerMonitoringInit:
         """Test that monitoring is not initialized when flag is not set."""
         import sys
 
-        sys.argv = ['test', '--file', 'data/molecules.thesis.simple.json']
+        sys.argv = [
+                'test', '--file', 'data/molecules.thesis.simple.json',
+                '--simulation-method', 'statevector',
+            ]
 
         parser = QuantumPipelineArgParser()
         args = parser.parse_args()
@@ -101,6 +106,8 @@ class TestConfigurationManagerMonitoringInit:
             '--enable-performance-monitoring',
             '--performance-export-format',
             'both',
+            '--simulation-method',
+            'statevector',
         ]
 
         parser = QuantumPipelineArgParser()
@@ -126,6 +133,8 @@ class TestConfigurationManagerMonitoringInit:
             '--enable-performance-monitoring',
             '--performance-export-format',
             'json',
+            '--simulation-method',
+            'statevector',
         ]
 
         parser = QuantumPipelineArgParser()
@@ -149,6 +158,8 @@ class TestConfigurationManagerMonitoringInit:
             '--file',
             'data/molecules.thesis.simple.json',
             '--enable-performance-monitoring',
+            '--simulation-method',
+            'statevector',
         ]
 
         parser = QuantumPipelineArgParser()
@@ -167,7 +178,10 @@ class TestConfigurationManagerMonitoringInit:
         """Test that monitoring is disabled by default in configuration."""
         import sys
 
-        sys.argv = ['test', '--file', 'data/molecules.thesis.simple.json']
+        sys.argv = [
+            'test', '--file', 'data/molecules.thesis.simple.json',
+            '--simulation-method', 'statevector',
+        ]
 
         parser = QuantumPipelineArgParser()
         args = parser.parse_args()
@@ -191,6 +205,8 @@ class TestConfigurationManagerMonitoringInit:
             'http://test:9091',
             '--performance-export-format',
             'prometheus',
+            '--simulation-method',
+            'statevector',
         ]
 
         parser = QuantumPipelineArgParser()
@@ -235,6 +251,8 @@ class TestMonitoringConfigurationPriority:
             '--enable-performance-monitoring',
             '--performance-interval',
             '15',
+            '--simulation-method',
+            'statevector',
         ]
 
         parser = QuantumPipelineArgParser()
@@ -263,6 +281,8 @@ class TestMonitoringIntegrationWithVQERunner:
             'data/molecules.thesis.simple.json',
             '--enable-performance-monitoring',
             '--kafka',
+            '--simulation-method',
+            'statevector',
         ]
 
         # Mock molecule loading to avoid file I/O

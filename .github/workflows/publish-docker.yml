@@ -9,7 +9,28 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  verify-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag commit is on master
+        env:
+          TAG_REF: ${{ github.ref }}
+        run: |
+          git fetch origin master
+          TAG_COMMIT=$(git rev-list -n 1 "$TAG_REF")
+          if git branch -r --contains "$TAG_COMMIT" | grep -q "origin/master"; then
+            echo "Tag is on master"
+          else
+            echo "Tag is NOT on master"
+            exit 1
+          fi
+
   security-scan:
+    needs: [verify-tag]
     uses: ./.github/workflows/security-scan.yml
     permissions:
       contents: read

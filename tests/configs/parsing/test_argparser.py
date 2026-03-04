@@ -28,7 +28,9 @@ def test_ssl_basic_configuration_with_mock_dir(argparser, monkeypatch):
     # ensures isdir always returns True
     monkeypatch.setattr(os.path, 'isdir', lambda path: True)
 
-    args = argparser.parser.parse_args(['--file', 'molecule.json', '--kafka', '--ssl'])
+    args = argparser.parser.parse_args(
+        ['--file', 'molecule.json', '--kafka', '--ssl', '--simulation-method', 'statevector']
+    )
     argparser._validate_args(args)
 
     assert args.ssl is True
@@ -82,6 +84,8 @@ def test_sasl_plain_valid(argparser):
             'user',
             '--sasl-plain-password',
             'pass',
+            '--simulation-method',
+            'statevector',
         ]
     )
     argparser._validate_args(args)
@@ -167,7 +171,7 @@ def test_noise_disable_argument(argparser):
 def test_ansatz_reps_argument(argparser):
     """Test the ansatz reps argument."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--ansatz-reps', '3'])
-    assert args.ansatz_reps == '3'
+    assert args.ansatz_reps == 3
 
 
 def test_local_backend_flag(argparser):

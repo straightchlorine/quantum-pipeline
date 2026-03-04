@@ -8,12 +8,15 @@ classical optimization to find the minimum eigenvalue of a Hamiltonian.
 
 import numpy as np
 from qiskit.circuit.library import EfficientSU2
+from qiskit.quantum_info import Statevector, state_fidelity
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer.backends.aer_simulator import AerBackend
 from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
+from quantum_pipeline.circuits import HFData, build_hf_initial_state
 from quantum_pipeline.configs.module.backend import BackendConfig
+from quantum_pipeline.mappers.mapper import Mapper
 from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
 from quantum_pipeline.solvers.solver import Solver
 from quantum_pipeline.structures.vqe_observation import (
@@ -22,6 +25,18 @@ from quantum_pipeline.structures.vqe_observation import (
     VQEResult,
 )
 from quantum_pipeline.utils.timer import Timer
+
+
+class MaxFunctionEvalsReachedError(Exception):
+    """Raised when the hard function evaluation limit is exceeded."""
+
+    def __init__(self, iteration: int, best_params: np.ndarray, best_energy: float):
+        super().__init__(
+            f'Hard function evaluation limit reached after {iteration} evaluations.'
+        )
+        self.iteration = iteration
+        self.best_params = best_params
+        self.best_energy = best_energy
 
 
 class VQESolver(Solver):
@@ -36,6 +51,9 @@ class VQESolver(Solver):
         convergence_threshold=None,
         optimization_level=3,
         seed=None,
+        init_strategy='random',
+        hf_data: HFData | None = None,
+        mapper: Mapper | None = None,
     ):
         super().__init__()
         self.qubit_op = qubit_op
@@ -50,6 +68,9 @@ class VQESolver(Solver):
         self.current_iter = 1
         self.convergence_threshold = convergence_threshold
         self.optimization_level = optimization_level
+        self.init_strategy = init_strategy
+        self.hf_data = hf_data
+        self.mapper = mapper
 
     def _optimize_circuits(self, ansatz, hamiltonian, backend):
         """Prepare ISA-compatible circuits and observables"""
@@ -62,8 +83,109 @@ class VQESolver(Solver):
         hamiltonian_isa = hamiltonian.apply_layout(layout=ansatz_isa.layout)
         return ansatz_isa, hamiltonian_isa
 
+    def _build_ansatz(self, n_qubits):
+        """Build the EfficientSU2 ansatz.
+
+        Always builds a plain EfficientSU2 (no HF circuit prepended).
+        When using HF init, we compute initial parameters that prepare the HF
+        state through the ansatz instead — avoiding the problem where fixed CX
+        entangling gates destroy the HF state at zero parameters.
+        """
+        return EfficientSU2(n_qubits, reps=self.ansatz_reps)
+
+    def _compute_hf_initial_parameters(self, ansatz):
+        """Find EfficientSU2 parameters that prepare the HF state.
+
+        Performs a short classical pre-optimization to find parameters where
+        the ansatz output matches the HF state (maximizes state fidelity).
+        This avoids the problem of prepending HF circuit + zero params, where
+        the fixed CX gates in EfficientSU2 destroy the HF state.
+        """
+        hf_circuit = build_hf_initial_state(self.hf_data, self.mapper)
+        target_sv = Statevector(hf_circuit)
+
+        def neg_fidelity(params):
+            bound = ansatz.assign_parameters(params)
+            sv = Statevector(bound)
+            return -state_fidelity(sv, target_sv)
+
+        best_fid = 0.0
+        best_params = np.zeros(ansatz.num_parameters)
+        n_attempts = 10
+        seed = self.seed if self.seed is not None else 0
+
+        for i in range(n_attempts):
+            np.random.seed(seed + i)
+            x0 = 2 * np.pi * np.random.random(ansatz.num_parameters)
+            res = minimize(neg_fidelity, x0, method='COBYLA', options={'maxiter': 1000})
+            fid = -res.fun
+            if fid > best_fid:
+                best_fid = fid
+                best_params = res.x
+            if best_fid > 0.9999:
+                break
+
+        self.logger.info(
+            f'HF parameter pre-optimization: fidelity={best_fid:.6f} '
+            f'after {i + 1} attempts'
+        )
+        return best_params
+
+    def _compute_initial_parameters(self, ansatz):
+        """Compute initial ansatz parameters based on the configured strategy."""
+        param_num = ansatz.num_parameters
+
+        if self.init_strategy == 'hf' and self.hf_data is not None and self.mapper is not None:
+            self.logger.info('Computing HF-equivalent initial parameters...')
+            return self._compute_hf_initial_parameters(ansatz)
+
+        if self.init_strategy == 'hf' and (self.hf_data is None or self.mapper is None):
+            self.logger.warning(
+                'HF init strategy requested but no HF data/mapper available, falling back to random'
+            )
+
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            self.logger.info(f'Using seed {self.seed} for parameter initialization')
+        return 2 * np.pi * np.random.random(param_num)
+
+    @property
+    def _nuclear_repulsion(self) -> np.float64 | None:
+        if self.hf_data is not None and self.hf_data.nuclear_repulsion_energy is not None:
+            return np.float64(self.hf_data.nuclear_repulsion_energy)
+        return None
+
+    def _log_total_energy(self, electronic_energy: float) -> None:
+        """Log total energy (electronic + nuclear repulsion) if nuclear repulsion is available."""
+        if self._nuclear_repulsion is not None:
+            total = electronic_energy + self._nuclear_repulsion
+            self.logger.info(
+                f'Total energy (electronic + nuclear repulsion): {total:.8f} Ha '
+                f'(nuclear repulsion: {self._nuclear_repulsion:.8f} Ha)'
+            )
+
+    def _make_truncated_result(self, best_energy, best_params, elapsed):
+        """Build a VQEResult from the best observed state after early termination."""
+        return VQEResult(
+            initial_data=self.init_data,
+            iteration_list=self.vqe_process,
+            minimum=np.float64(best_energy),
+            optimal_parameters=best_params,
+            maxcv=None,
+            minimization_time=np.float64(elapsed),
+            nuclear_repulsion_energy=self._nuclear_repulsion,
+        )
+
     def compute_energy(self, params, ansatz, hamiltonian, estimator):
         """Return estimate of energy from estimator"""
+        if self.max_iterations is not None and self.current_iter > self.max_iterations:
+            best = min(self.vqe_process, key=lambda p: p.cumulative_min_energy)
+            raise MaxFunctionEvalsReachedError(
+                iteration=self.current_iter - 1,
+                best_params=best.parameters,
+                best_energy=float(best.cumulative_min_energy),
+            )
+
         pub = (ansatz, [hamiltonian], [params])
         result = estimator.run(pubs=[pub]).result()
         energy, std = result[0].data.evs[0], result[0].data.stds[0]
@@ -100,14 +222,10 @@ class VQESolver(Solver):
         hamiltonian = self.qubit_op
 
         self.logger.info(f'Initializing the ansatz with {self.ansatz_reps} reps...')
-        ansatz = EfficientSU2(hamiltonian.num_qubits, reps=self.ansatz_reps)
+        ansatz = self._build_ansatz(hamiltonian.num_qubits)
         self.logger.info('Ansatz initialized.')
 
-        param_num = ansatz.num_parameters
-        if self.seed is not None:
-            np.random.seed(self.seed)
-            self.logger.info(f'Using seed {self.seed} for parameter initialization')
-        x0 = 2 * np.pi * np.random.random(param_num)
+        x0 = self._compute_initial_parameters(ansatz)
         self.logger.debug(f'Initial ansatz parameters:\n\n{x0}\n')
 
         self.logger.info('Optimizing ansatz and hamiltonian...')
@@ -126,6 +244,7 @@ class VQESolver(Solver):
             noise_backend=self.backend_config.noise if self.backend_config.noise else 'undef',
             default_shots=self.default_shots,
             seed=self.seed,
+            init_strategy=self.init_strategy,
         )
         self.logger.info('Opening a session...')
 
@@ -160,28 +279,52 @@ class VQESolver(Solver):
             else:
                 self.logger.info('Starting VQE optimization with default settings')
 
+        truncated = None
+        res = None
         with Timer() as t:
-            res = minimize(
-                self.compute_energy,
-                x0,
-                args=(ansatz_isa, hamiltonian_isa, estimator),
-                method=self.optimizer,
-                options=optimization_params,
-                tol=minimize_tol,
+            try:
+                res = minimize(
+                    self.compute_energy,
+                    x0,
+                    args=(ansatz_isa, hamiltonian_isa, estimator),
+                    method=self.optimizer,
+                    options=optimization_params,
+                    tol=minimize_tol,
+                )
+            except MaxFunctionEvalsReachedError as e:
+                truncated = e
+
+        if truncated is not None:
+            self.logger.info(
+                f'Hard evaluation limit reached after {truncated.iteration} function evaluations '
+                f'(limit: {self.max_iterations}). Best energy: {truncated.best_energy:.8f} Ha'
             )
+            self._log_total_energy(truncated.best_energy)
+            return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
 
         actual_iterations = len(self.vqe_process)
+        best_energy = (
+            min(p.cumulative_min_energy for p in self.vqe_process)
+            if self.vqe_process
+            else res.fun
+        )
         if self.convergence_threshold:
             if res.success:
                 self.logger.info(
-                    f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})'
+                    f'VQE converged after {actual_iterations} iterations '
+                    f'(threshold: {self.convergence_threshold}). '
+                    f'Best energy: {best_energy:.8f} Ha'
                 )
             else:
                 self.logger.info(
-                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved'
+                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved. '
+                    f'Best energy: {best_energy:.8f} Ha'
                 )
         else:
-            self.logger.info(f'VQE completed {actual_iterations} iterations')
+            self.logger.info(
+                f'VQE completed {actual_iterations} iterations. Best energy: {best_energy:.8f} Ha'
+            )
+        self._log_total_energy(best_energy)
 
         result = VQEResult(
             initial_data=self.init_data,
@@ -190,6 +333,7 @@ class VQESolver(Solver):
             optimal_parameters=res.x,
             maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
+            nuclear_repulsion_energy=self._nuclear_repulsion,
         )
 
         self.logger.info('Session closed.')
@@ -202,15 +346,11 @@ class VQESolver(Solver):
         """Run the VQE simulation via Aer simulator."""
         hamiltonian = self.qubit_op
 
-        self.logger.info('Initializing the ansatz...')
-        ansatz = EfficientSU2(hamiltonian.num_qubits)
+        self.logger.info(f'Initializing the ansatz with {self.ansatz_reps} reps...')
+        ansatz = self._build_ansatz(hamiltonian.num_qubits)
         self.logger.info('Ansatz initialized.')
 
-        param_num = ansatz.num_parameters
-        if self.seed is not None:
-            np.random.seed(self.seed)
-            self.logger.info(f'Using seed {self.seed} for parameter initialization')
-        x0 = 2 * np.pi * np.random.random(param_num)
+        x0 = self._compute_initial_parameters(ansatz)
         self.logger.debug(f'Initial ansatz parameters:\n\n{x0}\n')
 
         self.logger.info('Optimizing ansatz and hamiltonian...')
@@ -229,6 +369,7 @@ class VQESolver(Solver):
             noise_backend=self.backend_config.noise if self.backend_config.noise else 'undef',
             default_shots=self.default_shots,
             seed=self.seed,
+            init_strategy=self.init_strategy,
         )
 
         estimator = EstimatorV2(mode=backend)
@@ -260,28 +401,52 @@ class VQESolver(Solver):
             )
         else:
             self.logger.info('Starting VQE optimization with default settings')
+        truncated = None
+        res = None
         with Timer() as t:
-            res = minimize(
-                self.compute_energy,
-                x0,
-                args=(ansatz_isa, hamiltonian_isa, estimator),
-                method=self.optimizer,
-                options=optimization_params,
-                tol=minimize_tol,
+            try:
+                res = minimize(
+                    self.compute_energy,
+                    x0,
+                    args=(ansatz_isa, hamiltonian_isa, estimator),
+                    method=self.optimizer,
+                    options=optimization_params,
+                    tol=minimize_tol,
+                )
+            except MaxFunctionEvalsReachedError as e:
+                truncated = e
+
+        if truncated is not None:
+            self.logger.info(
+                f'Hard evaluation limit reached after {truncated.iteration} function evaluations '
+                f'(limit: {self.max_iterations}). Best energy: {truncated.best_energy:.8f} Ha'
             )
+            self._log_total_energy(truncated.best_energy)
+            return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
 
         actual_iterations = len(self.vqe_process)
+        best_energy = (
+            min(p.cumulative_min_energy for p in self.vqe_process)
+            if self.vqe_process
+            else res.fun
+        )
         if self.convergence_threshold:
             if res.success:
                 self.logger.info(
-                    f'VQE converged after {actual_iterations} iterations (threshold: {self.convergence_threshold})'
+                    f'VQE converged after {actual_iterations} iterations '
+                    f'(threshold: {self.convergence_threshold}). '
+                    f'Best energy: {best_energy:.8f} Ha'
                 )
             else:
                 self.logger.info(
-                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved'
+                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved. '
+                    f'Best energy: {best_energy:.8f} Ha'
                 )
         else:
-            self.logger.info(f'VQE completed {actual_iterations} iterations')
+            self.logger.info(
+                f'VQE completed {actual_iterations} iterations. Best energy: {best_energy:.8f} Ha'
+            )
+        self._log_total_energy(best_energy)
 
         result = VQEResult(
             initial_data=self.init_data,
@@ -290,6 +455,7 @@ class VQESolver(Solver):
             optimal_parameters=res.x,
             maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
+            nuclear_repulsion_energy=self._nuclear_repulsion,
         )
 
         self.logger.info(

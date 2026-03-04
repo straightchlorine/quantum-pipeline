@@ -76,6 +76,7 @@ class QuantumPipelineArgParser:
         sim_group.add_argument(
             '-ar',
             '--ansatz-reps',
+            type=int,
             default=DEFAULTS['ansatz_reps'],
             help='Amount of reps for the ansatz',
         )
@@ -175,6 +176,12 @@ class QuantumPipelineArgParser:
             type=int,
             default=DEFAULTS['seed'],
             help='Random seed for reproducible parameter initialization (default: None for random)',
+        )
+        vqe_group.add_argument(
+            '--init-strategy',
+            choices=['random', 'hf'],
+            default=DEFAULTS['init_strategy'],
+            help='Parameter initialization strategy: random (default) or hf (Hartree-Fock based)',
         )
 
     def _add_output_logging(self):
@@ -385,6 +392,13 @@ class QuantumPipelineArgParser:
 
         if args.convergence and args.threshold is None:
             self.parser.error('--threshold must be set if --convergence is enabled.')
+
+        gpu_only_methods = {'tensor_network'}
+        if not args.gpu and args.simulation_method in gpu_only_methods:
+            self.parser.error(
+                f'--simulation-method {args.simulation_method} requires --gpu. '
+                f'Use a CPU-compatible method (e.g. statevector, automatic) or enable --gpu.'
+            )
 
         if self.kafka_params_set(args) and not args.kafka:
             self.parser.error('--kafka must be set for the options to take effect.')

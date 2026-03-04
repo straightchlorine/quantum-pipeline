@@ -20,6 +20,7 @@ class VQEInitialData:
     ansatz_reps: int
     default_shots: int
     seed: int | None = None
+    init_strategy: str = 'random'
 
 
 @dataclass
@@ -45,6 +46,14 @@ class VQEResult:
     optimal_parameters: np.ndarray
     maxcv: np.float64 | None
     minimization_time: np.float64
+    nuclear_repulsion_energy: np.float64 | None = None
+
+    @property
+    def total_energy(self) -> np.float64:
+        """Total energy = electronic (VQE minimum) + nuclear repulsion."""
+        if self.nuclear_repulsion_energy is not None:
+            return self.minimum + self.nuclear_repulsion_energy
+        return self.minimum
 
 
 @dataclass

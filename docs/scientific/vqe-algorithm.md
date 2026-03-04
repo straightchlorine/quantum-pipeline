@@ -140,14 +140,18 @@ Full CI value (see
 Hardware-efficient ansatze are also susceptible to **barren plateaus** - regions
 where gradients vanish exponentially with system size (McClean et al. 2018).
 
-The following are planned next steps to address the problems documented above:
+Steps taken or planned to address the problems documented above:
 
-- **Hartree-Fock-informed initialization** - using the classical HF solution as
-  a starting point instead of random parameters.
-- **Adaptive ansatze (ADAPT-VQE)** - dynamically growing the circuit to lower
-  energy at each step (Grimsley et al. 2019).
-- **Multiple random restarts** - running VQE from several initial points and
-  selecting the best result.
+- **Hartree-Fock-informed initialization** — partially addressed in v1.4.0
+  via `--init-strategy hf`. A classical pre-optimization finds EfficientSU2
+  parameters that prepare the HF state, providing a better starting point
+  than random initialization. Early results show meaningful improvement for
+  small molecules, though the approach does not yet scale reliably to larger
+  systems. See the [Changelog](../changelog.md#140) for details.
+- **Adaptive ansatze (ADAPT-VQE)** — dynamically growing the circuit to lower
+  energy at each step (Grimsley et al. 2019). Not yet implemented.
+- **Multiple random restarts** — running VQE from several initial points and
+  selecting the best result. Not yet implemented.
 
 <figure>
   <img src="https://qp-docs.codextechnologies.org/mkdocs/convergence_HH.png"

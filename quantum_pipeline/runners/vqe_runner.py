@@ -2,13 +2,14 @@ import os
 
 import numpy as np
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
-from qiskit_nature.second_q.mappers import JordanWignerMapper
 
+from quantum_pipeline.circuits import HFData
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.drivers.basis_sets import validate_basis_set
 from quantum_pipeline.drivers.molecule_loader import load_molecule
+from quantum_pipeline.mappers import JordanWignerMapper
 from quantum_pipeline.monitoring import get_performance_monitor
 from quantum_pipeline.monitoring.scientific_references import get_reference_database
 from quantum_pipeline.report.report_generator import ReportGenerator
@@ -33,6 +34,7 @@ class VQERunner(Runner):
         ansatz_reps=3,
         default_shots=1024,
         seed=None,
+        init_strategy='random',
         report=False,
         kafka=False,
         kafka_bootstrap_servers='localhost:9092',
@@ -62,6 +64,7 @@ class VQERunner(Runner):
         self.default_shots = default_shots
         self.convergence_threshold = convergence_threshold
         self.seed = seed
+        self.init_strategy = init_strategy
         self.optimization_level = backend_optimization_level
 
         self.report = report
@@ -146,24 +149,46 @@ class VQERunner(Runner):
         return molecules
 
     def provide_hamiltonian(self, molecule):
-        """Generate the second quantized operator."""
+        """Generate the second quantized operator and extract HF data."""
         driver = PySCFDriver.from_molecule(molecule, basis=self.basis_set)
         problem = driver.run()
-        return problem.second_q_ops()[0]
+        second_q_op = problem.second_q_ops()[0]
+
+        hf_data = HFData(
+            num_particles=problem.num_particles,
+            num_spatial_orbitals=problem.num_spatial_orbitals,
+            reference_energy=problem.reference_energy,
+            nuclear_repulsion_energy=problem.nuclear_repulsion_energy,
+        )
+
+        # Log nuclear repulsion (stored in hamiltonian.constants, NOT in the FermionicOp)
+        try:
+            self.logger.debug(
+                f'Nuclear repulsion energy: {problem.nuclear_repulsion_energy:.8f} Ha'
+            )
+            self.logger.debug(f'ElectronicEnergy constants: {problem.hamiltonian.constants}')
+        except Exception as e:
+            self.logger.debug(f'Could not log hamiltonian details: {e}')
+
+        return second_q_op, hf_data
 
     def run_vqe(self, molecule, backend_config: BackendConfig):
         """Prepare and run the VQE algorithm."""
 
         self.logger.info('Generating hamiltonian based on the molecule...')
         with Timer() as t:
-            second_q_op = self.provide_hamiltonian(molecule)
+            second_q_op, hf_data = self.provide_hamiltonian(molecule)
 
         self.hamiltonian_time = t.elapsed
         self.logger.info(f'Hamiltonian generated in {t.elapsed:.6f} seconds.')
+        if hf_data.reference_energy is not None:
+            self.logger.info(f'HF reference energy: {hf_data.reference_energy:.6f} Ha')
+
+        mapper = JordanWignerMapper()
 
         self.logger.info('Mapping fermionic operator to qubits')
         with Timer() as t:
-            qubit_op = JordanWignerMapper().map(second_q_op)
+            qubit_op = mapper.map(second_q_op)
 
         self.mapping_time = t.elapsed
         self.logger.info(f'Problem mapped to qubits in {t.elapsed:.6f} seconds.')
@@ -180,6 +205,9 @@ class VQERunner(Runner):
                 default_shots=self.default_shots,
                 convergence_threshold=self.convergence_threshold,
                 seed=self.seed,
+                init_strategy=self.init_strategy,
+                hf_data=hf_data if self.init_strategy == 'hf' else None,
+                mapper=mapper,
             )
             result = solver.solve()
 
@@ -220,7 +248,7 @@ class VQERunner(Runner):
                 # Update experiment context with VQE results for Prometheus export
                 self.performance_monitor.set_experiment_context(
                     total_time=float(total_time),
-                    minimum_energy=float(result.minimum),
+                    minimum_energy=float(result.total_energy),
                     hamiltonian_time=float(self.hamiltonian_time),
                     mapping_time=float(self.mapping_time),
                     vqe_time=float(self.vqe_time),
@@ -232,14 +260,14 @@ class VQERunner(Runner):
                 molecule_name = ''.join(molecule.symbols)
                 accuracy_metrics = self.reference_db.calculate_accuracy_metrics(
                     molecule_name=molecule_name,
-                    vqe_energy=float(result.minimum),
+                    vqe_energy=float(result.total_energy),
                     basis_set=self.basis_set,
                 )
 
                 # Log accuracy results
                 if accuracy_metrics['reference_available']:
                     self.logger.info(f'Accuracy assessment for {molecule_name}:')
-                    self.logger.info(f'  VQE Energy: {result.minimum:.6f} Ha')
+                    self.logger.info(f'  VQE Total Energy: {result.total_energy:.6f} Ha')
                     self.logger.info(
                         f'  Reference: {accuracy_metrics["reference_energy_hartree"]:.6f} Ha ({accuracy_metrics["reference_method"]})'
                     )
@@ -265,7 +293,7 @@ class VQERunner(Runner):
                     'hamiltonian_time': float(self.hamiltonian_time),
                     'mapping_time': float(self.mapping_time),
                     'vqe_time': float(self.vqe_time),
-                    'minimum_energy': float(result.minimum),
+                    'minimum_energy': float(result.total_energy),
                     'iterations_count': len(result.iteration_list),
                     'optimal_parameters_count': len(result.optimal_parameters),
                     # Accuracy metrics
