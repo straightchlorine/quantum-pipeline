@@ -158,6 +158,7 @@ class VQERunner(Runner):
             num_particles=problem.num_particles,
             num_spatial_orbitals=problem.num_spatial_orbitals,
             reference_energy=problem.reference_energy,
+            nuclear_repulsion_energy=problem.nuclear_repulsion_energy,
         )
 
         return second_q_op, hf_data
@@ -238,7 +239,7 @@ class VQERunner(Runner):
                 # Update experiment context with VQE results for Prometheus export
                 self.performance_monitor.set_experiment_context(
                     total_time=float(total_time),
-                    minimum_energy=float(result.minimum),
+                    minimum_energy=float(result.total_energy),
                     hamiltonian_time=float(self.hamiltonian_time),
                     mapping_time=float(self.mapping_time),
                     vqe_time=float(self.vqe_time),
@@ -250,14 +251,14 @@ class VQERunner(Runner):
                 molecule_name = ''.join(molecule.symbols)
                 accuracy_metrics = self.reference_db.calculate_accuracy_metrics(
                     molecule_name=molecule_name,
-                    vqe_energy=float(result.minimum),
+                    vqe_energy=float(result.total_energy),
                     basis_set=self.basis_set,
                 )
 
                 # Log accuracy results
                 if accuracy_metrics['reference_available']:
                     self.logger.info(f'Accuracy assessment for {molecule_name}:')
-                    self.logger.info(f'  VQE Energy: {result.minimum:.6f} Ha')
+                    self.logger.info(f'  VQE Total Energy: {result.total_energy:.6f} Ha')
                     self.logger.info(
                         f'  Reference: {accuracy_metrics["reference_energy_hartree"]:.6f} Ha ({accuracy_metrics["reference_method"]})'
                     )
@@ -283,7 +284,7 @@ class VQERunner(Runner):
                     'hamiltonian_time': float(self.hamiltonian_time),
                     'mapping_time': float(self.mapping_time),
                     'vqe_time': float(self.vqe_time),
-                    'minimum_energy': float(result.minimum),
+                    'minimum_energy': float(result.total_energy),
                     'iterations_count': len(result.iteration_list),
                     'optimal_parameters_count': len(result.optimal_parameters),
                     # Accuracy metrics

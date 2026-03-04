@@ -106,6 +106,21 @@ class VQESolver(Solver):
             self.logger.info(f'Using seed {self.seed} for parameter initialization')
         return 2 * np.pi * np.random.random(param_num)
 
+    @property
+    def _nuclear_repulsion(self) -> np.float64 | None:
+        if self.hf_data is not None and self.hf_data.nuclear_repulsion_energy is not None:
+            return np.float64(self.hf_data.nuclear_repulsion_energy)
+        return None
+
+    def _log_total_energy(self, electronic_energy: float) -> None:
+        """Log total energy (electronic + nuclear repulsion) if nuclear repulsion is available."""
+        if self._nuclear_repulsion is not None:
+            total = electronic_energy + self._nuclear_repulsion
+            self.logger.info(
+                f'Total energy (electronic + nuclear repulsion): {total:.8f} Ha '
+                f'(nuclear repulsion: {self._nuclear_repulsion:.8f} Ha)'
+            )
+
     def _make_truncated_result(self, best_energy, best_params, elapsed):
         """Build a VQEResult from the best observed state after early termination."""
         return VQEResult(
@@ -115,6 +130,7 @@ class VQESolver(Solver):
             optimal_parameters=best_params,
             maxcv=None,
             minimization_time=np.float64(elapsed),
+            nuclear_repulsion_energy=self._nuclear_repulsion,
         )
 
     def compute_energy(self, params, ansatz, hamiltonian, estimator):
@@ -240,6 +256,7 @@ class VQESolver(Solver):
                 f'Hard evaluation limit reached after {truncated.iteration} function evaluations '
                 f'(limit: {self.max_iterations}). Best energy: {truncated.best_energy:.8f} Ha'
             )
+            self._log_total_energy(truncated.best_energy)
             return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
 
         actual_iterations = len(self.vqe_process)
@@ -264,6 +281,7 @@ class VQESolver(Solver):
             self.logger.info(
                 f'VQE completed {actual_iterations} iterations. Best energy: {best_energy:.8f} Ha'
             )
+        self._log_total_energy(best_energy)
 
         result = VQEResult(
             initial_data=self.init_data,
@@ -272,6 +290,7 @@ class VQESolver(Solver):
             optimal_parameters=res.x,
             maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
+            nuclear_repulsion_energy=self._nuclear_repulsion,
         )
 
         self.logger.info('Session closed.')
@@ -359,6 +378,7 @@ class VQESolver(Solver):
                 f'Hard evaluation limit reached after {truncated.iteration} function evaluations '
                 f'(limit: {self.max_iterations}). Best energy: {truncated.best_energy:.8f} Ha'
             )
+            self._log_total_energy(truncated.best_energy)
             return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
 
         actual_iterations = len(self.vqe_process)
@@ -383,6 +403,7 @@ class VQESolver(Solver):
             self.logger.info(
                 f'VQE completed {actual_iterations} iterations. Best energy: {best_energy:.8f} Ha'
             )
+        self._log_total_energy(best_energy)
 
         result = VQEResult(
             initial_data=self.init_data,
@@ -391,6 +412,7 @@ class VQESolver(Solver):
             optimal_parameters=res.x,
             maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
+            nuclear_repulsion_energy=self._nuclear_repulsion,
         )
 
         self.logger.info(
