@@ -17,32 +17,53 @@ networks:
 
 services:
 
-  quantum-pipeline:
-    container_name: quantum-pipeline
+  # CPU-only Quantum Pipeline for Thesis Comparison
+  quantum-pipeline-cpu:
+    container_name: quantum-pipeline-cpu
     command:
       - "--file"
-      - "./data/molecules.json"
+      - "./data/molecules.thesis.json"
       - "--kafka"
-      - "--gpu"
-      - "--max-iterations"
-      - "${MAX_ITERATIONS}"
+      - "--topic"
+      - "vqe_results_cpu"
+      - "--basis"
+      - "sto3g" # Small basis set: 4-18 qubits (H2 to CO2)
       - "--log-level"
       - "${LOG_LEVEL:-INFO}"
       - "--simulation-method"
-      - "${SIMULATION_METHOD:-statevector}"
+      - "statevector" # Optimal for small systems with sto-3g
+      - "--optimizer"
+      - "L-BFGS-B" # Best gradient-based optimizer for VQE: fast + accurate convergence
+      - "--max-iterations"
+      - "300" # Balanced: enough for larger molecules (CO2), not excessive for H2
       - "--convergence"
+      - "--threshold"
+      - "1e-6" # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
+      - "--enable-performance-monitoring"
+      - "--performance-interval"
+      - "10" # Balanced sampling interval for molecules of varying complexity
+      - "--performance-export-format"
+      - "both"
+      - "--performance-pushgateway"
+      - "http://monit:9091"
+      - "--report"
     build:
-      context: .
-      dockerfile: ./docker/Dockerfile.gpu
+      context: ..
+      dockerfile: ./docker/Dockerfile.cpu
     restart: always
     volumes:
-      - ./gen/:/usr/src/quantum-pipeline/gen/
-      - ./data/molecules.json:/usr/src/quantum_pipeline/data/molecules.json
+      - ../gen/cpu:/usr/src/quantum-pipeline/gen/
+      - ../data/molecules.thesis.json:/usr/src/quantum_pipeline/data/molecules.thesis.json
     environment:
       IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
       IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
       IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      CONTAINER_TYPE: "CPU_BASELINE"
+      QUANTUM_PERFORMANCE_ENABLED: "true"
+      QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "10"
+      QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "http://monit:9091"
+      QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
     networks:
       - quantum-net
     depends_on:
@@ -50,10 +71,145 @@ services:
         condition: service_completed_successfully
     deploy:
       resources:
+        limits:
+          cpus: '2.0' # Adequate for up to 18 qubits with sto-3g
+          memory: 10G # 18 qubits = 2^18 = 262K amplitudes × 16 bytes ≈ 4MB statevector, but needs overhead
         reservations:
+          cpus: '1.5'
+          memory: 6G
+
+  # GPU-accelerated Quantum Pipeline - GTX 1060 6GB (High-end)
+  quantum-pipeline-gpu1:
+    container_name: quantum-pipeline-gpu1
+    command:
+      - "--file"
+      - "./data/molecules.thesis.json"
+      - "--kafka"
+      - "--gpu"
+      - "--topic"
+      - "vqe_results_gpu1"
+      - "--basis"
+      - "sto3g" # Small basis set: 4-18 qubits (H2 to CO2)
+      - "--log-level"
+      - "${LOG_LEVEL:-INFO}"
+      - "--simulation-method"
+      - "statevector" # GPU-accelerated statevector simulation
+      - "--optimizer"
+      - "L-BFGS-B" # Best gradient-based optimizer for VQE: fast + accurate convergence
+      - "--max-iterations"
+      - "300" # Balanced: enough for larger molecules (CO2), not excessive for H2
+      - "--convergence"
+      - "--threshold"
+      - "1e-6" # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
+      - "--enable-performance-monitoring"
+      - "--performance-interval"
+      - "10"
+      - "--performance-export-format"
+      - "both"
+      - "--performance-pushgateway"
+      - "http://monit:9091"
+      - "--report"
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile.gpu
+    restart: always
+    volumes:
+      - ../gen/gpu1:/usr/src/quantum-pipeline/gen/
+      - ../data/molecules.thesis.json:/usr/src/quantum_pipeline/data/molecules.thesis.json
+    environment:
+      IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
+      IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
+      IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      CONTAINER_TYPE: "GPU_GTX1060_6GB"
+      QUANTUM_PERFORMANCE_ENABLED: "true"
+      QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "10"
+      QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "http://monit:9091"
+      QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
+      CUDA_VISIBLE_DEVICES: "0" # GTX 1060 6GB
+    networks:
+      - quantum-net
+    depends_on:
+      kafka-connect-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0' # Reduced for three-way comparison
+          memory: 10G
+        reservations:
+          cpus: '1.5'
+          memory: 6G
           devices:
             - driver: nvidia
-              count: all
+              device_ids: ['0'] # GTX 1060 6GB specifically
+              capabilities: [gpu]
+
+  # GPU-accelerated Quantum Pipeline - GTX 1050 Ti 4GB (Mid-range)
+  quantum-pipeline-gpu2:
+    container_name: quantum-pipeline-gpu2
+    command:
+      - "--file"
+      - "./data/molecules.thesis.json"
+      - "--kafka"
+      - "--gpu"
+      - "--topic"
+      - "vqe_results_gpu2"
+      - "--basis"
+      - "sto3g" # Small basis set: 4-18 qubits (H2 to CO2)
+      - "--log-level"
+      - "${LOG_LEVEL:-INFO}"
+      - "--simulation-method"
+      - "statevector" # GPU-accelerated statevector simulation
+      - "--optimizer"
+      - "L-BFGS-B" # Best gradient-based optimizer for VQE: fast + accurate convergence
+      - "--max-iterations"
+      - "300" # Balanced: enough for larger molecules (CO2), not excessive for H2
+      - "--convergence"
+      - "--threshold"
+      - "1e-6" # Tight convergence (chemical accuracy = 1e-3 Ha = 1 mHa)
+      - "--enable-performance-monitoring"
+      - "--performance-interval"
+      - "10"
+      - "--performance-export-format"
+      - "both"
+      - "--performance-pushgateway"
+      - "http://monit:9091"
+      - "--report"
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile.gpu
+    restart: always
+    volumes:
+      - ../gen/gpu2:/usr/src/quantum-pipeline/gen/
+      - ../data/molecules.thesis.json:/usr/src/quantum_pipeline/data/molecules.thesis.json
+    environment:
+      IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
+      IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
+      IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      CONTAINER_TYPE: "GPU_GTX1050Ti_4GB"
+      QUANTUM_PERFORMANCE_ENABLED: "true"
+      QUANTUM_PERFORMANCE_COLLECTION_INTERVAL: "10"
+      QUANTUM_PERFORMANCE_PUSHGATEWAY_URL: "http://monit:9091"
+      QUANTUM_PERFORMANCE_EXPORT_FORMAT: "json,prometheus"
+      CUDA_VISIBLE_DEVICES: "0" # GTX 1050 Ti 4GB (mapped as device 0 inside container)
+    networks:
+      - quantum-net
+    depends_on:
+      kafka-connect-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0' # Same as GPU1 for fair comparison
+          memory: 10G
+        reservations:
+          cpus: '1.5'
+          memory: 6G
+          devices:
+            - driver: nvidia
+              device_ids: ['1'] # GTX 1050 Ti 4GB specifically
               capabilities: [gpu]
 
   schema-registry:
@@ -203,7 +359,7 @@ services:
         done;
       "
     volumes:
-      - ./docker/connectors/minio-sink-config.json:/connectors/minio-sink-config.json
+      - ../docker/connectors/minio-sink-config.json:/connectors/minio-sink-config.json
     networks:
       - quantum-net
 
@@ -251,7 +407,7 @@ services:
 
   spark-master:
     build:
-      context: .
+      context: ..
       dockerfile: ./docker/Dockerfile.spark
     container_name: spark-master
     environment:
@@ -275,13 +431,13 @@ services:
   spark-worker:
     container_name: spark-worker
     build:
-      context: .
+      context: ..
       dockerfile: ./docker/Dockerfile.spark
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=1G
-      - SPARK_WORKER_CORES=1
+      - SPARK_WORKER_MEMORY=4G # Increased for better data processing
+      - SPARK_WORKER_CORES=2 # Use remaining CPU cores
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
@@ -294,6 +450,15 @@ services:
       - spark-master
     networks:
       - quantum-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0' # Reserve 1 core for Spark to avoid interference
+          memory: 4G # Reduced memory allocation
+        reservations:
+          cpus: '0.5'
+          memory: 2G
+
 
   postgres:
     image: postgres:13
@@ -313,7 +478,7 @@ services:
 
   airflow-init:
     build:
-      context: .
+      context: ..
       dockerfile: ./docker/Dockerfile.airflow
     image: apache/airflow:2.7.1
     container_name: airflow-init
@@ -327,7 +492,7 @@ services:
       - AIRFLOW__CORE__LOAD_EXAMPLES=${AIRFLOW_LOAD_EXAMPLES:-False}
       - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
     volumes:
-      - ./docker/airflow/:/opt/airflow/dags
+      - ../docker/airflow/:/opt/airflow/dags
     command: version
     entrypoint: >
       /bin/bash -c "
@@ -342,7 +507,7 @@ services:
 
   airflow-webserver:
     build:
-      context: .
+      context: ..
       dockerfile: ./docker/Dockerfile.airflow
     container_name: airflow-webserver
     depends_on:
@@ -357,7 +522,7 @@ services:
       - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
       - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
     volumes:
-      - ./docker/airflow/:/opt/airflow/dags
+      - ../docker/airflow/:/opt/airflow/dags
       - airflow-logs:/opt/airflow/logs
     ports:
       - "${AIRFLOW_WEBSERVER_PORT:-8084}:8080"
@@ -370,10 +535,18 @@ services:
     networks:
       - quantum-net
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 2G
+        reservations:
+          cpus: '0.2'
+          memory: 1G
 
   airflow-scheduler:
     build:
-      context: .
+      context: ..
       dockerfile: ./docker/Dockerfile.airflow
     container_name: airflow-scheduler
     depends_on:
@@ -390,7 +563,7 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     volumes:
-      - ./docker/airflow/:/opt/airflow/dags
+      - ../docker/airflow/:/opt/airflow/dags
       - airflow-logs:/opt/airflow/logs
     command: scheduler
     networks:
@@ -399,7 +572,7 @@ services:
 
   airflow-triggerer:
     build:
-      context: .
+      context: ..
       dockerfile: ./docker/Dockerfile.airflow
     container_name: airflow-triggerer
     depends_on:
@@ -414,9 +587,34 @@ services:
       - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
       - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
     volumes:
-      - ./docker/airflow/:/opt/airflow/dags
+      - ../docker/airflow/:/opt/airflow/dags
       - airflow-logs:/opt/airflow/logs
     command: triggerer
     networks:
       - quantum-net
     restart: always
+
+  # Monitoring Agents for External Connection
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle-agent
+    command: agent
+    ports:
+      - "7007:7007"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - quantum-net
+
+  portainer:
+    image: portainer/agent:latest
+    container_name: portainer-agent
+    restart: unless-stopped
+    ports:
+      - "9002:9001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker/volumes:/var/lib/docker/volumes:ro
+    networks:
+      - quantum-net

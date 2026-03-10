@@ -340,27 +340,27 @@ docker-up:
     echo "Starting Docker Compose services..."
     echo "Services: Quantum Pipeline, Kafka, MinIO, Spark, Prometheus, Grafana"
     echo ""
-    docker compose up -d
+    docker compose -f compose/docker-compose.yaml up -d
     echo ""
     echo "✓ Services started"
     echo ""
-    docker compose ps
+    docker compose -f compose/docker-compose.yaml ps
 
 # Run Docker Compose with build
 docker-up-build:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Building and starting Docker Compose services..."
-    docker compose up -d --build
+    docker compose -f compose/docker-compose.yaml up -d --build
     echo "✓ Services built and started"
-    docker compose ps
+    docker compose -f compose/docker-compose.yaml ps
 
 # Stop Docker Compose services
 docker-down:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Stopping Docker Compose services..."
-    docker compose down
+    docker compose -f compose/docker-compose.yaml down
     echo "✓ Services stopped"
 
 # Stop and remove volumes (WARNING: deletes data)
@@ -368,22 +368,45 @@ docker-clean:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "⚠ Removing Docker Compose services and volumes..."
-    docker compose down -v
+    docker compose -f compose/docker-compose.yaml down -v
     echo "✓ Cleanup complete"
 
 # View Docker Compose logs
 docker-logs SERVICE="":
     #!/usr/bin/env bash
     if [ -z "{{SERVICE}}" ]; then
-        docker compose logs -f
+        docker compose -f compose/docker-compose.yaml logs -f
     else
-        docker compose logs -f {{SERVICE}}
+        docker compose -f compose/docker-compose.yaml logs -f {{SERVICE}}
     fi
 
 # Show Docker Compose service status
 docker-status:
     #!/usr/bin/env bash
-    docker compose ps
+    docker compose -f compose/docker-compose.yaml ps
+
+# ============================================================================
+# ML PIPELINE
+# ============================================================================
+
+# Spin up the full ML data generation stack
+ml-up:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Starting ML pipeline stack..."
+    docker compose -f compose/docker-compose.ml.yaml up -d
+    echo ""
+    echo "✓ ML stack started"
+    echo ""
+    docker compose -f compose/docker-compose.ml.yaml ps
+
+# Stop the ML stack
+ml-down:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Stopping ML pipeline stack..."
+    docker compose -f compose/docker-compose.ml.yaml down
+    echo "✓ ML stack stopped"
 
 # ============================================================================
 # BUILD AND DISTRIBUTION
