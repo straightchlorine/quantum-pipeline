@@ -126,5 +126,3 @@ worked on:
 - **EfficientSU2 ansatz** - the hardware-efficient ansatz still does not
   preserve particle number or spin symmetry. The anomalies documented in
   the thesis (e.g. HeH\(^+\) sub-FCI energy) remain possible.
-- **Kubernetes deployment** - Terraform configurations in `terraform/`
-  are in early stages and not yet functional.
