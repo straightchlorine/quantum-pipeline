@@ -17,6 +17,8 @@ networks:
 
 services:
 
+  # --- quantum pipeline ---
+
   quantum-pipeline:
     container_name: quantum-pipeline
     command:
@@ -55,6 +57,8 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+  # --- kafka + schema registry + connect ---
 
   schema-registry:
     image: confluentinc/cp-schema-registry:${SCHEMA_REGISTRY_VERSION:-latest}
@@ -207,6 +211,8 @@ services:
     networks:
       - quantum-net
 
+  # --- minio ---
+
   minio:
     image: minio/minio:${MINIO_VERSION:-latest}
     container_name: minio
@@ -248,6 +254,8 @@ services:
       exit 0; "
     networks:
       - quantum-net
+
+  # --- spark ---
 
   spark-master:
     build:
@@ -294,6 +302,8 @@ services:
       - spark-master
     networks:
       - quantum-net
+
+  # --- airflow ---
 
   postgres:
     image: postgres:13

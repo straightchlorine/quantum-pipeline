@@ -27,7 +27,7 @@ shell:
 
 # --- testing ---
 
-# Run tests — pass a path for targeting: just test tests/solvers
+# Run tests - pass a path for targeting: just test tests/solvers
 test *ARGS:
     #!/usr/bin/env bash
     set -- {{ARGS}}
@@ -153,14 +153,14 @@ docker-logs SERVICE="":
 
 # --- ml pipeline ---
 
-# First-time setup (secrets, Garage config) — run once
+# First-time setup (secrets, Garage config) - run once
 ml-setup:
     bash scripts/ml-setup.sh
 
 # Start the ML pipeline stack
 ml-up:
     #!/usr/bin/env bash
-    [ ! -f .env ] && echo "[ FAIL ] .env not found — run 'just ml-setup' first" && exit 1
+    [ ! -f .env ] && echo "[ FAIL ] .env not found - run 'just ml-setup' first" && exit 1
     docker compose -f compose/docker-compose.ml.yaml up -d
     echo "[  OK  ] ML stack started"
     docker compose -f compose/docker-compose.ml.yaml ps

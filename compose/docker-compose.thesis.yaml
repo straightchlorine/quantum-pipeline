@@ -17,7 +17,8 @@ networks:
 
 services:
 
-  # CPU-only Quantum Pipeline for Thesis Comparison
+  # --- vqe simulation: cpu baseline, gtx 1060 6gb, gtx 1050 ti 4gb ---
+
   quantum-pipeline-cpu:
     container_name: quantum-pipeline-cpu
     command:
@@ -78,7 +79,6 @@ services:
           cpus: '1.5'
           memory: 6G
 
-  # GPU-accelerated Quantum Pipeline - GTX 1060 6GB (High-end)
   quantum-pipeline-gpu1:
     container_name: quantum-pipeline-gpu1
     command:
@@ -145,7 +145,6 @@ services:
               device_ids: ['0'] # GTX 1060 6GB specifically
               capabilities: [gpu]
 
-  # GPU-accelerated Quantum Pipeline - GTX 1050 Ti 4GB (Mid-range)
   quantum-pipeline-gpu2:
     container_name: quantum-pipeline-gpu2
     command:
@@ -211,6 +210,8 @@ services:
             - driver: nvidia
               device_ids: ['1'] # GTX 1050 Ti 4GB specifically
               capabilities: [gpu]
+
+  # --- kafka + schema registry + connect ---
 
   schema-registry:
     image: confluentinc/cp-schema-registry:${SCHEMA_REGISTRY_VERSION:-latest}
@@ -363,6 +364,8 @@ services:
     networks:
       - quantum-net
 
+  # --- minio ---
+
   minio:
     image: minio/minio:${MINIO_VERSION:-latest}
     container_name: minio
@@ -404,6 +407,8 @@ services:
       exit 0; "
     networks:
       - quantum-net
+
+  # --- spark ---
 
   spark-master:
     build:
@@ -459,6 +464,8 @@ services:
           cpus: '0.5'
           memory: 2G
 
+
+  # --- airflow ---
 
   postgres:
     image: postgres:13
@@ -594,7 +601,8 @@ services:
       - quantum-net
     restart: always
 
-  # Monitoring Agents for External Connection
+  # --- monitoring ---
+
   dozzle:
     image: amir20/dozzle:latest
     container_name: dozzle-agent
