@@ -62,12 +62,13 @@ if grep -q "AIRFLOW_WEBSERVER_SECRET_KEY=your-webserver-secret-here" .env; then
     echo "[  OK  ] Generated AIRFLOW_WEBSERVER_SECRET_KEY"
 fi
 
-# --- step 2: start the stack ---
+# --- step 2: start garage for configuration ---
 
 echo ""
-echo "[ INFO ] Starting ML stack..."
-docker compose -f compose/docker-compose.ml.yaml up -d
-echo "[  OK  ] ML stack started"
+echo "[ INFO ] Starting Garage to configure layout, access keys, and S3 buckets..."
+set -a; source .env; set +a
+docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d garage
+echo "[  OK  ] Garage started"
 
 # --- step 3: configure garage ---
 
@@ -134,12 +135,11 @@ sed -i "s#S3_ACCESS_KEY=.*#S3_ACCESS_KEY=${KEY_ID}#" .env
 sed -i "s#S3_SECRET_KEY=.*#S3_SECRET_KEY=${KEY_SECRET}#" .env
 echo "[  OK  ] .env updated with credentials"
 
-# --- step 4: restart to pick up new creds ---
+# --- step 4: stop garage ---
 
 echo ""
-echo "[ INFO ] Restarting stack with new credentials..."
-docker compose -f compose/docker-compose.ml.yaml down
-docker compose -f compose/docker-compose.ml.yaml up -d
+docker compose --env-file .env -f compose/docker-compose.ml.yaml down
 echo ""
-echo "[  OK  ] ML pipeline setup complete"
-docker compose -f compose/docker-compose.ml.yaml ps
+echo "[  OK  ] ML pipeline setup complete. .env is ready."
+echo "[ INFO ] Start the stack with:"
+echo "         docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d"
