@@ -304,15 +304,13 @@ services:
     container_name: ml-airflow-init
     depends_on:
       <<: *airflow-common-depends-on
-    command:
-      - bash
-      - -c
-      - |
-        airflow db migrate &&
-        airflow connections add 'spark_default' \
-          --conn-type 'spark' \
-          --conn-host 'spark://$${SPARK_MASTER_HOST:-spark-master}:$${SPARK_MASTER_PORT:-7077}' \
-          --conn-extra '{"queue": "$${SPARK_DEFAULT_QUEUE:-default}"}' || true
+    # the base entrypoint handles db migrate + user creation via _AIRFLOW_* env vars,
+    # then runs this command which adds the spark connection
+    command: >
+      bash -c "airflow connections add 'spark_default'
+      --conn-type 'spark'
+      --conn-host 'spark://spark-master:7077'
+      --conn-extra '{\"queue\": \"default\"}' || true"
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: "true"
