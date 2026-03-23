@@ -99,16 +99,30 @@ echo "[ INFO ] Configuring Garage S3 storage..."
 NODE_ID=$($GARAGE status 2>/dev/null | grep -oP '^\S+' | tail -1)
 [ -z "${NODE_ID}" ] && echo "[ FAIL ] Could not get node ID" && exit 1
 
-echo "[ INFO ] Assigning cluster layout (node=${NODE_ID:0:12}, zone=dc1, capacity=10G)..."
-$GARAGE layout assign -z dc1 -c 10G "${NODE_ID}" > /dev/null 2>&1
-$GARAGE layout apply --version 1 > /dev/null 2>&1
-echo "[  OK  ] Layout applied"
+# layout assign (skip if node already has a role)
+LAYOUT=$($GARAGE layout show 2>/dev/null)
+if echo "${LAYOUT}" | grep -q "${NODE_ID:0:12}"; then
+    echo "[ SKIP ] Layout already assigned for ${NODE_ID:0:12}"
+else
+    echo "[ INFO ] Assigning cluster layout (node=${NODE_ID:0:12}, zone=dc1, capacity=10G)..."
+    $GARAGE layout assign -z dc1 -c 10G "${NODE_ID}" > /dev/null 2>&1
+    $GARAGE layout apply --version 1 > /dev/null 2>&1
+    echo "[  OK  ] Layout applied"
+fi
 
-echo "[ INFO ] Creating access key (ml-pipeline)..."
-KEY_OUTPUT=$($GARAGE key create ml-pipeline 2>/dev/null)
-KEY_ID=$(echo "${KEY_OUTPUT}" | grep "Key ID:" | awk '{print $3}')
-KEY_SECRET=$(echo "${KEY_OUTPUT}" | grep "Secret key:" | awk '{print $3}')
-[ -z "${KEY_ID}" ] && echo "[ FAIL ] Could not create access key" && exit 1
+# key create (reuse existing if present)
+KEY_INFO=$($GARAGE key info ml-pipeline 2>/dev/null)
+if [ -n "${KEY_INFO}" ]; then
+    echo "[ SKIP ] Key ml-pipeline already exists"
+    KEY_ID=$(echo "${KEY_INFO}" | grep "Key ID:" | awk '{print $3}')
+    KEY_SECRET=$(echo "${KEY_INFO}" | grep "Secret key:" | awk '{print $3}')
+else
+    echo "[ INFO ] Creating access key (ml-pipeline)..."
+    KEY_OUTPUT=$($GARAGE key create ml-pipeline 2>/dev/null)
+    KEY_ID=$(echo "${KEY_OUTPUT}" | grep "Key ID:" | awk '{print $3}')
+    KEY_SECRET=$(echo "${KEY_OUTPUT}" | grep "Secret key:" | awk '{print $3}')
+fi
+[ -z "${KEY_ID}" ] && echo "[ FAIL ] Could not get access key" && exit 1
 echo "[  OK  ] Key: ${KEY_ID}"
 
 BUCKETS=("${S3_RAW_BUCKET:-raw-results}" "${S3_FEATURES_BUCKET:-features}" "${S3_ICEBERG_BUCKET:-warehouse}" "mlflow-artifacts")
