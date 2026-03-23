@@ -5,10 +5,10 @@ Incrementally syncs processed ML feature tables from Garage (local S3) to
 Cloudflare R2 using rclone:
 
   garage:features/warehouse/quantum_features/ml_iteration_features/
-    → r2:quantum-vqe-data/features/ml_iteration_features/
+    → r2:qp-data/features/ml_iteration_features/
 
   garage:features/warehouse/quantum_features/ml_run_summary/
-    → r2:quantum-vqe-data/features/ml_run_summary/
+    → r2:qp-data/features/ml_run_summary/
 
 Prerequisites:
   - rclone must be installed in the Airflow container image (Dockerfile.airflow).
@@ -106,7 +106,7 @@ _garage_warehouse = Variable.get(
 )
 _r2_bucket = Variable.get(
     'R2_SYNC_R2_BUCKET',
-    default_var='r2:quantum-vqe-data/features',
+    default_var='r2:qp-data/features',
 )
 _transfers = Variable.get('R2_SYNC_TRANSFERS', default_var='8')
 _checkers = Variable.get('R2_SYNC_CHECKERS', default_var='4')
@@ -134,7 +134,7 @@ def _health_check_fn(**context):
         logger.info(f'rclone connectivity OK for {remote_name}')
 
     _check('Garage (features)', f'{_garage_warehouse}/')
-    _check('R2 (quantum-vqe-data)', f'{_r2_bucket}/')
+    _check('R2 (qp-data)', f'{_r2_bucket}/')
 
 
 with DAG(
