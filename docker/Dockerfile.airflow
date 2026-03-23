@@ -12,4 +12,8 @@ COPY --chown=airflow:root pyproject.toml pdm.lock README.md ./
 COPY --chown=airflow:root quantum_pipeline/ ./quantum_pipeline/
 
 USER airflow
-RUN pip install --no-cache-dir ".[airflow]"
+
+# install quantum_pipeline without deps (airflow + qiskit etc. not needed here)
+# then add only the spark provider for SparkSubmitOperator
+RUN pip install --no-cache-dir --no-deps . && \
+    pip install --no-cache-dir apache-airflow-providers-apache-spark
