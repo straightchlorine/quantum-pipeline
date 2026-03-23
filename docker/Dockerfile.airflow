@@ -1,12 +1,15 @@
 FROM apache/airflow:3.1.8
 
-# install java
+# install java for spark-submit
 USER root
 RUN apt-get update && \
     apt-get install -y openjdk-17-jdk && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-USER airflow
 
-COPY . .
+# copy project files and fix ownership for pdm build
+COPY --chown=airflow:root pyproject.toml pdm.lock README.md ./
+COPY --chown=airflow:root quantum_pipeline/ ./quantum_pipeline/
+
+USER airflow
 RUN pip install --no-cache-dir ".[airflow]"
