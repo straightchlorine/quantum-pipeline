@@ -13,8 +13,6 @@ volumes:
     name: quantum-ml-airflow-logs
   redis-data:
     name: quantum-ml-redis-data
-  mlflow-data:
-    name: quantum-ml-mlflow-data
   kafka-data:
     name: quantum-ml-kafka-data
 
@@ -268,13 +266,14 @@ services:
 
   postgres:
     image: postgres:${POSTGRES_VERSION:-16-alpine}
-    container_name: ml-airflow-postgres
+    container_name: ml-postgres
     environment:
       POSTGRES_USER: ${AIRFLOW_POSTGRES_USER:-airflow}
       POSTGRES_PASSWORD: ${AIRFLOW_POSTGRES_PASSWORD:-airflow}
       POSTGRES_DB: ${AIRFLOW_POSTGRES_DB:-airflow}
     volumes:
       - airflow-postgres-data:/var/lib/postgresql/data
+      - ../docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
     networks:
       - quantum-net
     healthcheck:
@@ -412,12 +411,14 @@ services:
     container_name: ml-mlflow
     restart: unless-stopped
     depends_on:
+      postgres:
+        condition: service_healthy
       garage:
         condition: service_healthy
     ports:
       - "${MLFLOW_PORT:-5000}:5000"
     environment:
-      MLFLOW_BACKEND_STORE_URI: "sqlite:////mlflow/mlflow.db"
+      MLFLOW_BACKEND_STORE_URI: "postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/mlflow"
       MLFLOW_ARTIFACTS_DESTINATION: "s3://mlflow-artifacts/"
       MLFLOW_S3_ENDPOINT_URL: "http://garage:3901"
       AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
@@ -426,13 +427,11 @@ services:
       MLFLOW_SERVER_ALLOWED_HOSTS: "*"
     command: >
       mlflow server
-        --backend-store-uri sqlite:////mlflow/mlflow.db
+        --backend-store-uri postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/mlflow
         --artifacts-destination s3://mlflow-artifacts/
         --serve-artifacts
         --host 0.0.0.0
         --port 5000
-    volumes:
-      - mlflow-data:/mlflow
     networks:
       - quantum-net
     healthcheck:
