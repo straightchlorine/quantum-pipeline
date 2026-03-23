@@ -409,18 +409,26 @@ services:
   # --- mlflow experiment tracking ---
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:${MLFLOW_VERSION:-v2.16.0}
+    image: ghcr.io/mlflow/mlflow:${MLFLOW_VERSION:-v3.10.1}-full
     container_name: ml-mlflow
     restart: unless-stopped
+    depends_on:
+      garage:
+        condition: service_healthy
     ports:
       - "${MLFLOW_PORT:-5000}:5000"
     environment:
       MLFLOW_BACKEND_STORE_URI: "sqlite:////mlflow/mlflow.db"
-      MLFLOW_DEFAULT_ARTIFACT_ROOT: "/mlflow/artifacts"
+      MLFLOW_ARTIFACTS_DESTINATION: "s3://mlflow-artifacts/"
+      MLFLOW_S3_ENDPOINT_URL: "http://garage:3901"
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      MLFLOW_S3_IGNORE_TLS: "true"
     command: >
       mlflow server
         --backend-store-uri sqlite:////mlflow/mlflow.db
-        --default-artifact-root /mlflow/artifacts
+        --artifacts-destination s3://mlflow-artifacts/
+        --serve-artifacts
         --host 0.0.0.0
         --port 5000
     volumes:
@@ -428,10 +436,10 @@ services:
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
       start_period: 15s
 
   # --- vqe batch generation containers (no command: injected via docker compose run) ---

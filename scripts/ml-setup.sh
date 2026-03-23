@@ -111,7 +111,7 @@ KEY_SECRET=$(echo "${KEY_OUTPUT}" | grep "Secret key:" | awk '{print $3}')
 [ -z "${KEY_ID}" ] && echo "[ FAIL ] Could not create access key" && exit 1
 echo "[  OK  ] Key: ${KEY_ID}"
 
-BUCKETS=("${S3_RAW_BUCKET:-raw-results}" "${S3_FEATURES_BUCKET:-features}" "${S3_ICEBERG_BUCKET:-warehouse}")
+BUCKETS=("${S3_RAW_BUCKET:-raw-results}" "${S3_FEATURES_BUCKET:-features}" "${S3_ICEBERG_BUCKET:-warehouse}" "mlflow-artifacts")
 echo "[ INFO ] Creating buckets: ${BUCKETS[*]}..."
 for BUCKET in "${BUCKETS[@]}"; do
     $GARAGE bucket create "${BUCKET}" > /dev/null 2>&1 || true
