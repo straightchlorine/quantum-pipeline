@@ -100,21 +100,21 @@ NODE_ID=$($GARAGE status 2>/dev/null | grep -oP '^\S+' | tail -1)
 echo "[  OK  ] Node: ${NODE_ID}"
 
 echo "[ INFO ] Assigning layout..."
-$GARAGE layout assign -z dc1 -c 10G "${NODE_ID}"
-$GARAGE layout apply --version 1
+$GARAGE layout assign -z dc1 -c 10G "${NODE_ID}" 2>/dev/null
+$GARAGE layout apply --version 1 2>/dev/null
 echo "[  OK  ] Layout applied (zone=dc1, 10G)"
 
 echo "[ INFO ] Creating access key..."
-KEY_OUTPUT=$($GARAGE key create ml-pipeline)
+KEY_OUTPUT=$($GARAGE key create ml-pipeline 2>/dev/null)
 KEY_ID=$(echo "${KEY_OUTPUT}" | grep "Key ID:" | awk '{print $3}')
 KEY_SECRET=$(echo "${KEY_OUTPUT}" | grep "Secret key:" | awk '{print $3}')
 [ -z "${KEY_ID}" ] && echo "[ FAIL ] Could not create access key" && exit 1
 echo "[  OK  ] Key: ${KEY_ID}"
 
 echo "[ INFO ] Creating buckets and granting access..."
-for BUCKET in "${S3_RAW_BUCKET:-local-vqe-results}" "${S3_FEATURES_BUCKET:-local-features}" "${S3_ICEBERG_BUCKET:-iceberg}"; do
+for BUCKET in "${S3_RAW_BUCKET:-vqe-results}" "${S3_FEATURES_BUCKET:-features}" "${S3_ICEBERG_BUCKET:-iceberg}"; do
     $GARAGE bucket create "${BUCKET}" 2>/dev/null || true
-    $GARAGE bucket allow --read --write "${BUCKET}" --key ml-pipeline
+    $GARAGE bucket allow --read --write "${BUCKET}" --key ml-pipeline 2>/dev/null
     echo "[  OK  ] Bucket: ${BUCKET}"
 done
 
