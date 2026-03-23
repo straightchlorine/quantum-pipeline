@@ -38,7 +38,7 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: ${AIRFLOW_LOAD_EXAMPLES:-False}
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
-    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
+    AIRFLOW__API__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
     AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
     AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
@@ -77,6 +77,9 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       CLUSTER_ID: quantum-ml-kafka-cluster-id-01
     networks:
       - quantum-net
@@ -275,7 +278,7 @@ services:
       test: ["CMD", "pg_isready", "-U", "${AIRFLOW_POSTGRES_USER:-airflow}"]
       interval: 5s
       retries: 5
-    restart: always
+    restart: on-failure
 
   redis:
     image: redis:7.2-bookworm
@@ -292,7 +295,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    restart: always
+    restart: on-failure
 
   airflow-init:
     <<: *airflow-common
@@ -340,7 +343,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: always
+    restart: on-failure
 
   airflow-scheduler:
     <<: *airflow-common
@@ -356,7 +359,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: always
+    restart: on-failure
 
   airflow-dag-processor:
     <<: *airflow-common
@@ -372,7 +375,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: always
+    restart: on-failure
 
   airflow-worker:
     <<: *airflow-common
@@ -391,7 +394,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: always
+    restart: on-failure
 
   airflow-triggerer:
     <<: *airflow-common
@@ -407,7 +410,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-    restart: always
+    restart: on-failure
 
   # --- mlflow experiment tracking ---
 
