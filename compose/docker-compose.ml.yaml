@@ -26,8 +26,8 @@ networks:
 x-airflow-common:
   &airflow-common
   build:
-    context: ..
-    dockerfile: ./docker/Dockerfile.airflow
+    context: ../docker/airflow
+    dockerfile: Dockerfile
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}

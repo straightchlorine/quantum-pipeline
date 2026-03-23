@@ -7,4 +7,5 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 USER airflow
-RUN pip install --no-cache-dir apache-airflow-providers-apache-spark
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
