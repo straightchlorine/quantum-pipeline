@@ -12,7 +12,7 @@ install:
 
 # Install core dependencies only (no dev tools)
 install-core:
-    pdm install --no-dev
+    pdm install -G core
     echo "[  OK  ] Core dependencies installed"
 
 # --- development ---
