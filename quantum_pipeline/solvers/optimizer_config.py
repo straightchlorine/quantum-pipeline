@@ -171,6 +171,9 @@ class GenericConfig(OptimizerConfig):
         'TNC': 500,  # truncated Newton; each step is expensive (inner CG)
     }
 
+    # Optimizers that use 'maxfun' instead of 'maxiter'
+    _USES_MAXFUN: ClassVar[set[str]] = {'TNC'}
+
     def __init__(
         self,
         optimizer_name: str,
@@ -189,9 +192,10 @@ class GenericConfig(OptimizerConfig):
         return self._DEFAULT_MAXITER.get(self.optimizer_name, 1000)
 
     def get_options(self, num_parameters: int) -> dict[str, Any]:
+        key = 'maxfun' if self.optimizer_name in self._USES_MAXFUN else 'maxiter'
         return {
             'disp': False,
-            'maxiter': self._effective_maxiter(),
+            key: self._effective_maxiter(),
         }
 
     def get_minimize_tol(self) -> float | None:

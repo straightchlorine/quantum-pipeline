@@ -542,8 +542,9 @@ class TestGenericConfig:
         options = config.get_options(num_parameters=24)
 
         assert options['disp'] is False
-        assert 'maxiter' in options
-        assert options['maxiter'] > 0
+        iter_key = 'maxfun' if optimizer == 'TNC' else 'maxiter'
+        assert iter_key in options
+        assert options[iter_key] > 0
 
     def test_nelder_mead_default_maxiter(self):
         config = GenericConfig('Nelder-Mead')
@@ -561,9 +562,11 @@ class TestGenericConfig:
         config = GenericConfig('CG')
         assert config.get_options(10)['maxiter'] == 2000
 
-    def test_tnc_default_maxiter(self):
+    def test_tnc_default_maxfun(self):
         config = GenericConfig('TNC')
-        assert config.get_options(10)['maxiter'] == 500
+        opts = config.get_options(10)
+        assert 'maxiter' not in opts
+        assert opts['maxfun'] == 500
 
     def test_custom_max_iterations(self):
         config = GenericConfig('BFGS', max_iterations=200)
@@ -591,8 +594,9 @@ class TestGenericConfig:
     def test_get_optimizer_configuration_works(self, optimizer):
         """Test end-to-end convenience function for each new optimizer."""
         options, tol = get_optimizer_configuration(optimizer, num_parameters=24)
-        assert 'maxiter' in options
-        assert options['maxiter'] > 0
+        iter_key = 'maxfun' if optimizer == 'TNC' else 'maxiter'
+        assert iter_key in options
+        assert options[iter_key] > 0
         assert tol is None
 
     @pytest.mark.parametrize('optimizer', ['Nelder-Mead', 'Powell', 'BFGS', 'CG', 'TNC'])
@@ -609,7 +613,8 @@ class TestGenericConfig:
         options, tol = get_optimizer_configuration(
             optimizer, max_iterations=300, num_parameters=24
         )
-        assert options['maxiter'] == 300
+        iter_key = 'maxfun' if optimizer == 'TNC' else 'maxiter'
+        assert options[iter_key] == 300
 
     def test_all_new_optimizers_in_supported_list(self):
         supported = OptimizerConfigFactory.get_supported_optimizers()
