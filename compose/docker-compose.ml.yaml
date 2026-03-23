@@ -215,7 +215,7 @@ services:
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3903/health || exit 1"]
+      test: ["CMD", "/garage", "status"]
       interval: 10s
       timeout: 5s
       retries: 10
