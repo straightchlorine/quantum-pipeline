@@ -309,24 +309,16 @@ services:
       - -c
       - |
         airflow db migrate &&
-        airflow users create \
-          --username $${AIRFLOW_ADMIN_USERNAME:-admin} \
-          --password $${AIRFLOW_ADMIN_PASSWORD:-admin} \
-          --firstname $${AIRFLOW_ADMIN_FIRSTNAME:-Admin} \
-          --lastname $${AIRFLOW_ADMIN_LASTNAME:-User} \
-          --role Admin \
-          --email $${AIRFLOW_ADMIN_EMAIL:-admin@example.com} || true &&
         airflow connections add 'spark_default' \
           --conn-type 'spark' \
           --conn-host 'spark://$${SPARK_MASTER_HOST:-spark-master}:$${SPARK_MASTER_PORT:-7077}' \
           --conn-extra '{"queue": "$${SPARK_DEFAULT_QUEUE:-default}"}' || true
     environment:
       <<: *airflow-common-env
-      AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
-      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
-      AIRFLOW_ADMIN_FIRSTNAME: ${AIRFLOW_ADMIN_FIRSTNAME:-Admin}
-      AIRFLOW_ADMIN_LASTNAME: ${AIRFLOW_ADMIN_LASTNAME:-User}
-      AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL:-admin@example.com}
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
     user: "0:0"
 
   airflow-apiserver:
