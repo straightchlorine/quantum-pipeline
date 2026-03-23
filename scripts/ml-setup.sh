@@ -94,39 +94,48 @@ done
 # --- step 3: configure garage via CLI ---
 
 echo ""
-echo "[ INFO ] Getting node ID..."
+echo "[ INFO ] Configuring Garage S3 storage..."
+
 NODE_ID=$($GARAGE status 2>/dev/null | grep -oP '^\S+' | tail -1)
 [ -z "${NODE_ID}" ] && echo "[ FAIL ] Could not get node ID" && exit 1
-echo "[  OK  ] Node: ${NODE_ID}"
 
-echo "[ INFO ] Assigning layout..."
-$GARAGE layout assign -z dc1 -c 10G "${NODE_ID}" 2>/dev/null
-$GARAGE layout apply --version 1 2>/dev/null
-echo "[  OK  ] Layout applied (zone=dc1, 10G)"
+echo "[ INFO ] Assigning cluster layout (node=${NODE_ID:0:12}, zone=dc1, capacity=10G)..."
+$GARAGE layout assign -z dc1 -c 10G "${NODE_ID}" > /dev/null 2>&1
+$GARAGE layout apply --version 1 > /dev/null 2>&1
+echo "[  OK  ] Layout applied"
 
-echo "[ INFO ] Creating access key..."
+echo "[ INFO ] Creating access key (ml-pipeline)..."
 KEY_OUTPUT=$($GARAGE key create ml-pipeline 2>/dev/null)
 KEY_ID=$(echo "${KEY_OUTPUT}" | grep "Key ID:" | awk '{print $3}')
 KEY_SECRET=$(echo "${KEY_OUTPUT}" | grep "Secret key:" | awk '{print $3}')
 [ -z "${KEY_ID}" ] && echo "[ FAIL ] Could not create access key" && exit 1
 echo "[  OK  ] Key: ${KEY_ID}"
 
-echo "[ INFO ] Creating buckets and granting access..."
-for BUCKET in "${S3_RAW_BUCKET:-vqe-results}" "${S3_FEATURES_BUCKET:-features}" "${S3_ICEBERG_BUCKET:-iceberg}"; do
-    $GARAGE bucket create "${BUCKET}" 2>/dev/null || true
-    $GARAGE bucket allow --read --write "${BUCKET}" --key ml-pipeline 2>/dev/null
-    echo "[  OK  ] Bucket: ${BUCKET}"
+BUCKETS=("${S3_RAW_BUCKET:-raw-results}" "${S3_FEATURES_BUCKET:-features}" "${S3_ICEBERG_BUCKET:-warehouse}")
+echo "[ INFO ] Creating buckets: ${BUCKETS[*]}..."
+for BUCKET in "${BUCKETS[@]}"; do
+    $GARAGE bucket create "${BUCKET}" > /dev/null 2>&1 || true
+    $GARAGE bucket allow --read --write "${BUCKET}" --key ml-pipeline > /dev/null 2>&1
+    echo "[  OK  ] ${BUCKET}"
 done
 
 sed -i "s#S3_ACCESS_KEY=.*#S3_ACCESS_KEY=${KEY_ID}#" .env
 sed -i "s#S3_SECRET_KEY=.*#S3_SECRET_KEY=${KEY_SECRET}#" .env
 echo "[  OK  ] .env updated with S3 credentials"
 
-# --- step 4: stop garage ---
+# --- step 4: stop garage and print summary ---
 
 echo ""
-$COMPOSE down
+$COMPOSE down > /dev/null 2>&1
 echo ""
-echo "[  OK  ] ML pipeline setup complete. .env is ready."
-echo "[ INFO ] Start the full stack with:"
-echo "         docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d"
+echo "[  OK  ] ML pipeline setup complete."
+echo ""
+echo "         Configuration summary:"
+echo "           Garage:  node=${NODE_ID:0:12} zone=dc1 capacity=10G"
+echo "           Key:     ${KEY_ID} (ml-pipeline)"
+echo "           Buckets: ${BUCKETS[*]}"
+echo "           Spark:   ${SPARK_VERSION:-4.0.2} (Iceberg + S3 via spark-defaults.conf)"
+echo "           Airflow: ${AIRFLOW_VERSION:-3.1.8} (CeleryExecutor + Redis)"
+echo ""
+echo "         Start the stack:"
+echo "           docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d"

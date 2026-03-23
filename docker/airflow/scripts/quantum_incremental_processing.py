@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONFIG = {
     'S3_ENDPOINT': os.getenv('S3_ENDPOINT', 'http://minio:9000'),
     'SPARK_MASTER': os.getenv('SPARK_ENDPOINT', 'spark://spark-master:7077'),
-    'S3_BUCKET': os.getenv('S3_BUCKET_URL', 's3a://local-vqe-results/experiments/'),
-    'S3_WAREHOUSE': os.getenv('S3_WAREHOUSE_URL', 's3a://local-features/warehouse/'),
+    'S3_BUCKET': os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/'),
+    'S3_WAREHOUSE': os.getenv('S3_WAREHOUSE_URL', 's3a://features/warehouse/'),
     'APP_NAME': 'Quantum Pipeline Feature Processing',
 }
 

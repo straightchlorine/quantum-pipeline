@@ -10,7 +10,7 @@
     "topics.dir": "experiments",
     "directory.delim": "/",
 
-    "s3.bucket.name": "local-vqe-results",
+    "s3.bucket.name": "raw-results",
     "store.url": "http://garage:3901",
     "s3.region": "garage",
     "s3.path.style.access": "true",
