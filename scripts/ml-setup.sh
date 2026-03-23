@@ -32,6 +32,18 @@ else
     echo "[ SKIP ] GARAGE_ADMIN_TOKEN already set"
 fi
 
+if grep -q "AIRFLOW_POSTGRES_PASSWORD=airflow-password" .env; then
+    PG_PASS=$(openssl rand -hex 16)
+    sed -i "s#AIRFLOW_POSTGRES_PASSWORD=airflow-password#AIRFLOW_POSTGRES_PASSWORD=${PG_PASS}#" .env
+    echo "[  OK  ] Generated AIRFLOW_POSTGRES_PASSWORD"
+fi
+
+if grep -q "AIRFLOW_ADMIN_PASSWORD=admin" .env; then
+    ADMIN_PASS=$(openssl rand -hex 16)
+    sed -i "s#AIRFLOW_ADMIN_PASSWORD=admin#AIRFLOW_ADMIN_PASSWORD=${ADMIN_PASS}#" .env
+    echo "[  OK  ] Generated AIRFLOW_ADMIN_PASSWORD"
+fi
+
 if grep -q "AIRFLOW_FERNET_KEY=your-fernet-key-here" .env; then
     FERNET_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>/dev/null || openssl rand -base64 32)
     sed -i "s|AIRFLOW_FERNET_KEY=your-fernet-key-here|AIRFLOW_FERNET_KEY=${FERNET_KEY}|" .env
@@ -112,8 +124,8 @@ for BUCKET in "${S3_RAW_BUCKET:-local-vqe-results}" "${S3_FEATURES_BUCKET:-local
     fi
 done
 
-sed -i "s|S3_ACCESS_KEY=.*|S3_ACCESS_KEY=${KEY_ID}|" .env
-sed -i "s|S3_SECRET_KEY=.*|S3_SECRET_KEY=${KEY_SECRET}|" .env
+sed -i "s#S3_ACCESS_KEY=.*#S3_ACCESS_KEY=${KEY_ID}#" .env
+sed -i "s#S3_SECRET_KEY=.*#S3_SECRET_KEY=${KEY_SECRET}#" .env
 echo "[  OK  ] .env updated with credentials"
 
 # --- step 4: restart to pick up new creds ---

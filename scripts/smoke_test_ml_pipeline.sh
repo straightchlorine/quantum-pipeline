@@ -16,10 +16,11 @@ skip() { echo "  [ SKIP ] $*"; }
 
 wait_for() {
     local label=$1 url=$2 token=${3:-} max=${4:-30}
-    local auth_header=""
-    [ -n "$token" ] && auth_header="-H \"Authorization: Bearer ${token}\""
+    local -a curl_args=(curl -sf)
+    [ -n "$token" ] && curl_args+=(-H "Authorization: Bearer ${token}")
+    curl_args+=("$url")
     for i in $(seq 1 "$max"); do
-        if eval curl -sf $auth_header "$url" > /dev/null 2>&1; then
+        if "${curl_args[@]}" > /dev/null 2>&1; then
             return 0
         fi
         sleep 2
@@ -128,7 +129,7 @@ else
 [{"symbols":["H","H"],"coords":[[0.0,0.0,0.0],[0.0,0.0,0.74]],"multiplicity":1,"charge":0,"units":"angstrom","masses":[1.008,1.008]}]
 JSON
     log "Running H2 VQE (max_iterations=50, sto3g, Kafka enabled)..."
-    if KAFKA_SERVERS="${KAFKA_SERVERS}" python3 quantum_pipeline.py \
+    if KAFKA_SERVERS="${KAFKA_SERVERS}" python3 -m quantum_pipeline \
         --file "$SMOKE_MOL" \
         --basis sto3g \
         --max-iterations 50 \
