@@ -32,6 +32,7 @@ class VQERunner(Runner):
         convergence_threshold=None,
         optimizer='COBYLA',
         ansatz_reps=3,
+        ansatz_type='EfficientSU2',
         default_shots=1024,
         seed=None,
         init_strategy='random',
@@ -60,6 +61,7 @@ class VQERunner(Runner):
         self.basis_set = basis_set
         self.max_iterations = max_iterations
         self.ansatz_reps = ansatz_reps
+        self.ansatz_type = ansatz_type
         self.optimizer = optimizer
         self.default_shots = default_shots
         self.convergence_threshold = convergence_threshold
@@ -202,6 +204,7 @@ class VQERunner(Runner):
                 optimization_level=self.optimization_level,
                 optimizer=self.optimizer,
                 ansatz_reps=self.ansatz_reps,
+                ansatz_type=self.ansatz_type,
                 default_shots=self.default_shots,
                 convergence_threshold=self.convergence_threshold,
                 seed=self.seed,

@@ -67,7 +67,7 @@ dev = [
     "pytest-cov>=7.0.0",
     "debugpy>=1.8.12",
     "ruff>=0.15.2",
-    "mypy>=1.10.0",
+    "mypy>=1.19.1",
     "testcontainers>=4.13.3",
     "pytest-mock>=3.15.1",
 ]
@@ -83,8 +83,18 @@ docs = [
 
 # Apache Airflow orchestration integration
 airflow = [
-    "apache-airflow>=2.10.5",
-    "apache-airflow-providers-apache-spark>=5.1.1",
+    "apache-airflow>=3.1.8",
+    "apache-airflow-providers-apache-spark>=5.6.0",
+]
+
+# ML model development and experimentation
+ml = [
+    "scikit-learn>=1.8.0",
+    "xgboost>=3.2.0",
+    "pandas>=3.0.1",
+    "seaborn>=0.13.2",
+    "jupyterlab>=4.5.6",
+    "mlflow>=3.10.1",
 ]
 
 [project.urls]

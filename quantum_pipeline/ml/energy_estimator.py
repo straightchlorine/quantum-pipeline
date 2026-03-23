@@ -39,18 +39,15 @@ from __future__ import annotations
 import logging
 import warnings
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.compose import ColumnTransformer
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -115,15 +112,18 @@ class EnergyEstimatorResults:
     fitted_models: dict[str, Any] = field(default_factory=dict)  # {model_name: fitted model}
 
     def summary(self) -> str:
-        lines = ['Energy Estimator — LOMO Cross-Validation Summary', '=' * 60]
+        lines = ['Energy Estimator - LOMO Cross-Validation Summary', '=' * 60]
         for r in sorted(self.results, key=lambda x: (x.completion_frac, x.model_name)):
             lines.append(str(r))
         return '\n'.join(lines)
 
+    _HIGHER_IS_BETTER = frozenset({'r2'})
+
     def best(self, metric: str = 'mae') -> EvaluationResult | None:
         if not self.results:
             return None
-        return min(self.results, key=lambda r: getattr(r, metric))
+        cmp = max if metric in self._HIGHER_IS_BETTER else min
+        return cmp(self.results, key=lambda r: getattr(r, metric))
 
 
 # ---------------------------------------------------------------------------
@@ -219,24 +219,26 @@ def generate_synthetic_trajectories(
                 energies.append(e)
                 cummin = min(cummin, e)
 
-                delta = abs(e - prev_energy) if step > 0 else 0.0
+                delta = (e - prev_energy) if step > 0 else 0.0
                 param_delta = rng.exponential(0.1) * np.exp(-k_rate * t)
 
-                rows.append({
-                    'experiment_id': experiment_id,
-                    'molecule_name': mol['name'],
-                    'num_qubits': mol['num_qubits'],
-                    'optimizer': optimizer,
-                    'basis_set': basis_set,
-                    'ansatz_reps': int(ansatz_reps),
-                    'iteration_step': step,
-                    'energy': e,
-                    'cumulative_min_energy': cummin,
-                    'energy_delta': delta,
-                    'parameter_delta_norm': param_delta,
-                    'final_energy': e_final,
-                    'converged': converged,
-                })
+                rows.append(
+                    {
+                        'experiment_id': experiment_id,
+                        'molecule_name': mol['name'],
+                        'num_qubits': mol['num_qubits'],
+                        'optimizer': optimizer,
+                        'basis_set': basis_set,
+                        'ansatz_reps': int(ansatz_reps),
+                        'iteration_step': step,
+                        'energy': e,
+                        'cumulative_min_energy': cummin,
+                        'energy_delta': delta,
+                        'parameter_delta_norm': param_delta,
+                        'final_energy': e_final,
+                        'converged': converged,
+                    }
+                )
                 prev_energy = e
 
     return pd.DataFrame(rows)
@@ -286,7 +288,7 @@ def extract_features_at_fraction(
         energies = obs['energy'].values.astype(float)
         n_obs = len(energies)
 
-        # ── Cumulative minimum ────────────────────────────────────────────
+        # --Cumulative minimum --------------------------------------------
         if 'cumulative_min_energy' in obs.columns:
             cummin = obs['cumulative_min_energy'].iloc[-1]
         else:
@@ -294,18 +296,18 @@ def extract_features_at_fraction(
 
         current_energy = float(energies[-1])
 
-        # ── Energy slope (linear regression) ────────────────────────────
+        # --Energy slope (linear regression) ----------------------------
         if n_obs >= 2:
             x = np.arange(n_obs, dtype=float)
             slope, _ = np.polyfit(x, energies, deg=1)
         else:
             slope = 0.0
 
-        # ── Improvement rate ─────────────────────────────────────────────
+        # --Improvement rate ---------------------------------------------
         total_improvement = float(energies[0] - cummin)  # positive = improved
         energy_improvement_rate = total_improvement / n_obs if n_obs > 0 else 0.0
 
-        # ── Energy delta statistics ──────────────────────────────────────
+        # --Energy delta statistics --------------------------------------
         if 'energy_delta' in obs.columns:
             deltas = obs['energy_delta'].dropna().values.astype(float)
         elif n_obs >= 2:
@@ -316,11 +318,11 @@ def extract_features_at_fraction(
         energy_delta_mean = float(np.mean(deltas)) if len(deltas) > 0 else 0.0
         energy_delta_std = float(np.std(deltas)) if len(deltas) > 1 else 0.0
 
-        # ── Moving std over last 5 steps (plateau detection) ────────────
+        # --Moving std over last 5 steps (plateau detection) ------------
         window = min(5, n_obs)
         energy_moving_std = float(np.std(energies[-window:])) if window > 1 else 0.0
 
-        # ── Steps since improvement ──────────────────────────────────────
+        # --Steps since improvement --------------------------------------
         running_min = energies[0]
         steps_since_imp = 0
         for val in energies:
@@ -330,42 +332,46 @@ def extract_features_at_fraction(
             else:
                 steps_since_imp += 1
 
-        # ── Metadata ────────────────────────────────────────────────────
+        # --Metadata ----------------------------------------------------
         num_qubits = int(grp['num_qubits'].iloc[0]) if 'num_qubits' in grp.columns else 0
         ansatz_reps = int(grp['ansatz_reps'].iloc[0]) if 'ansatz_reps' in grp.columns else 1
         optimizer = str(grp['optimizer'].iloc[0]) if 'optimizer' in grp.columns else 'UNKNOWN'
         basis_set = str(grp['basis_set'].iloc[0]) if 'basis_set' in grp.columns else 'sto-3g'
-        molecule_name = str(grp['molecule_name'].iloc[0]) if 'molecule_name' in grp.columns else 'UNKNOWN'
+        molecule_name = (
+            str(grp['molecule_name'].iloc[0]) if 'molecule_name' in grp.columns else 'UNKNOWN'
+        )
 
-        # ── Target ──────────────────────────────────────────────────────
+        # --Target ------------------------------------------------------
         final_energy: float | None = None
         if 'final_energy' in grp.columns:
             final_energy = float(grp['final_energy'].iloc[0])
-        elif 'minimum_energy' in grp.columns:
-            final_energy = float(grp['minimum_energy'].iloc[-1])
+        elif 'minimum_energy' in obs.columns:
+            final_energy = float(obs['minimum_energy'].iloc[-1])
 
-        feature_rows.append({
-            'experiment_id': exp_id,
-            'molecule_name': molecule_name,
-            # Numeric features
-            'cumulative_min_energy': cummin,
-            'current_energy': current_energy,
-            'energy_slope': float(slope),
-            'energy_improvement_rate': energy_improvement_rate,
-            'energy_delta_mean': energy_delta_mean,
-            'energy_delta_std': energy_delta_std,
-            'energy_moving_std': energy_moving_std,
-            'steps_since_improvement': float(steps_since_imp),
-            'num_steps_observed': float(n_obs),
-            'num_qubits': float(num_qubits),
-            'ansatz_reps': float(ansatz_reps),
-            'trajectory_fraction': float(completion_frac),
-            # Categorical features
-            'optimizer': optimizer,
-            'basis_set': basis_set,
-            # Target
-            'final_energy': final_energy,
-        })
+        feature_rows.append(
+            {
+                'experiment_id': exp_id,
+                'molecule_name': molecule_name,
+                # Numeric features
+                'cumulative_min_energy': cummin,
+                'current_energy': current_energy,
+                'energy_slope': float(slope),
+                'energy_improvement_rate': energy_improvement_rate,
+                'energy_delta_mean': energy_delta_mean,
+                'energy_delta_std': energy_delta_std,
+                'energy_moving_std': energy_moving_std,
+                'steps_since_improvement': float(steps_since_imp),
+                'num_steps_observed': float(n_obs),
+                'num_qubits': float(num_qubits),
+                'ansatz_reps': float(ansatz_reps),
+                'trajectory_fraction': float(completion_frac),
+                # Categorical features
+                'optimizer': optimizer,
+                'basis_set': basis_set,
+                # Target
+                'final_energy': final_energy,
+            }
+        )
 
     return pd.DataFrame(feature_rows)
 
@@ -377,29 +383,23 @@ def extract_features_at_fraction(
 
 def _build_preprocessor() -> ColumnTransformer:
     """Build column transformer: scale numerics, one-hot categoricals."""
-    return ColumnTransformer(
-        transformers=[
-            ('num', StandardScaler(), NUMERIC_FEATURES),
-            (
-                'cat',
-                OneHotEncoder(handle_unknown='ignore', sparse_output=False),
-                CATEGORICAL_FEATURES,
-            ),
-        ],
-        remainder='drop',
-    )
+    from quantum_pipeline.ml.preprocessing import build_preprocessor
+
+    return build_preprocessor(list(NUMERIC_FEATURES), list(CATEGORICAL_FEATURES))
 
 
 def _build_ridge(alpha: float = 1.0) -> Pipeline:
-    return Pipeline([
-        ('prep', _build_preprocessor()),
-        ('model', Ridge(alpha=alpha)),
-    ])
+    return Pipeline(
+        [
+            ('prep', _build_preprocessor()),
+            ('model', Ridge(alpha=alpha)),
+        ]
+    )
 
 
 def _build_xgboost(**kwargs: Any) -> Any:
     """Build XGBoost regressor pipeline (no scaling needed for tree models)."""
-    from xgboost import XGBRegressor  # noqa: PLC0415
+    from xgboost import XGBRegressor
 
     defaults: dict[str, Any] = {
         'n_estimators': 300,
@@ -414,10 +414,12 @@ def _build_xgboost(**kwargs: Any) -> Any:
         'verbosity': 0,
     }
     defaults.update(kwargs)
-    return Pipeline([
-        ('prep', _build_preprocessor()),
-        ('model', XGBRegressor(**defaults)),
-    ])
+    return Pipeline(
+        [
+            ('prep', _build_preprocessor()),
+            ('model', XGBRegressor(**defaults)),
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -470,12 +472,65 @@ class EnergyEstimator:
     # Core API
     # ------------------------------------------------------------------
 
+    def _run_lomo_cv(
+        self,
+        df_feat: pd.DataFrame,
+        molecules: np.ndarray,
+    ) -> tuple[
+        np.ndarray, np.ndarray, np.ndarray, dict[str, list], dict[str, list], dict[str, list]
+    ]:
+        """Run Leave-One-Molecule-Out CV, returning predictions and actuals."""
+        ridge_preds, xgb_preds, actuals = [], [], []
+        per_mol_ridge: dict[str, list] = {m: [] for m in molecules}
+        per_mol_xgb: dict[str, list] = {m: [] for m in molecules}
+        per_mol_actual: dict[str, list] = {m: [] for m in molecules}
+
+        for held_out_mol in molecules:
+            train_mask = df_feat['molecule_name'] != held_out_mol
+            df_train = df_feat[train_mask]
+            df_test = df_feat[~train_mask]
+
+            if len(df_train) < 5 or len(df_test) < 1:
+                continue
+
+            X_train = df_train[ALL_FEATURES]
+            y_train = df_train['final_energy'].values
+            X_test = df_test[ALL_FEATURES]
+            y_test = df_test['final_energy'].values
+
+            ridge = _build_ridge(alpha=self.ridge_alpha)
+            xgb = _build_xgboost(**self.xgb_params)
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', category=ConvergenceWarning)
+                ridge.fit(X_train, y_train)
+                xgb.fit(X_train, y_train)
+
+            y_pred_ridge = ridge.predict(X_test)
+            y_pred_xgb = xgb.predict(X_test)
+
+            ridge_preds.extend(y_pred_ridge.tolist())
+            xgb_preds.extend(y_pred_xgb.tolist())
+            actuals.extend(y_test.tolist())
+
+            per_mol_ridge[held_out_mol] = y_pred_ridge.tolist()
+            per_mol_xgb[held_out_mol] = y_pred_xgb.tolist()
+            per_mol_actual[held_out_mol] = y_test.tolist()
+
+        return (
+            np.array(actuals),
+            np.array(ridge_preds),
+            np.array(xgb_preds),
+            per_mol_actual,
+            per_mol_ridge,
+            per_mol_xgb,
+        )
+
     def fit_evaluate(self, df_traj: pd.DataFrame) -> EnergyEstimatorResults:
         """Run full LOMO cross-validation across all configured completion fractions.
 
         For each completion fraction:
         1. Extract features for all experiments.
-        2. Run leave-one-molecule-out CV — per fold, train on all other molecules.
+        2. Run leave-one-molecule-out CV - per fold, train on all other molecules.
         3. Report per-molecule and aggregate MAE / RMSE / R².
 
         Args:
@@ -488,83 +543,35 @@ class EnergyEstimator:
         results = EnergyEstimatorResults()
 
         for frac in self.completion_fracs:
-            logger.info('Evaluating at %.0f%% trajectory completion …', frac * 100)
+            logger.info('Evaluating at %.0f%% trajectory completion ...', frac * 100)
             df_feat = extract_features_at_fraction(df_traj, frac)
 
             if 'final_energy' not in df_feat.columns or df_feat['final_energy'].isnull().all():
-                logger.warning(
-                    'No target column (final_energy) at frac=%.2f — skipping', frac
-                )
+                logger.warning('No target column (final_energy) at frac=%.2f - skipping', frac)
                 continue
 
             df_feat = df_feat.dropna(subset=['final_energy'])
             if len(df_feat) < 10:
-                logger.warning('Too few samples (%d) at frac=%.2f — skipping', len(df_feat), frac)
+                logger.warning('Too few samples (%d) at frac=%.2f - skipping', len(df_feat), frac)
                 continue
 
             molecules = df_feat['molecule_name'].unique()
             if len(molecules) < 2:
                 logger.warning(
-                    'Need ≥2 molecules for LOMO-CV (got %d) — skipping', len(molecules)
+                    'Need >=2 molecules for LOMO-CV (got %d) - skipping', len(molecules)
                 )
                 continue
 
-            ridge_preds, xgb_preds, actuals, mol_labels = [], [], [], []
-            per_mol_ridge: dict[str, list] = {m: [] for m in molecules}
-            per_mol_xgb: dict[str, list] = {m: [] for m in molecules}
-            per_mol_actual: dict[str, list] = {m: [] for m in molecules}
+            y_true, ridge_arr, xgb_arr, per_mol_actual, per_mol_ridge, per_mol_xgb = (
+                self._run_lomo_cv(df_feat, molecules)
+            )
 
-            for held_out_mol in molecules:
-                train_mask = df_feat['molecule_name'] != held_out_mol
-                test_mask = ~train_mask
-
-                df_train = df_feat[train_mask]
-                df_test = df_feat[test_mask]
-
-                if len(df_train) < 5 or len(df_test) < 1:
-                    continue
-
-                X_train = df_train[ALL_FEATURES]
-                y_train = df_train['final_energy'].values
-                X_test = df_test[ALL_FEATURES]
-                y_test = df_test['final_energy'].values
-
-                # ── Ridge ───────────────────────────────────────────────
-                ridge = _build_ridge(alpha=self.ridge_alpha)
-                with warnings.catch_warnings():
-                    warnings.simplefilter('ignore')
-                    ridge.fit(X_train, y_train)
-                y_pred_ridge = ridge.predict(X_test)
-
-                # ── XGBoost ─────────────────────────────────────────────
-                xgb = _build_xgboost(**self.xgb_params)
-                with warnings.catch_warnings():
-                    warnings.simplefilter('ignore')
-                    xgb.fit(X_train, y_train)
-                y_pred_xgb = xgb.predict(X_test)
-
-                # Accumulate
-                ridge_preds.extend(y_pred_ridge.tolist())
-                xgb_preds.extend(y_pred_xgb.tolist())
-                actuals.extend(y_test.tolist())
-                mol_labels.extend([held_out_mol] * len(y_test))
-
-                per_mol_ridge[held_out_mol] = y_pred_ridge.tolist()
-                per_mol_xgb[held_out_mol] = y_pred_xgb.tolist()
-                per_mol_actual[held_out_mol] = y_test.tolist()
-
-            if not actuals:
+            if len(y_true) == 0:
                 continue
 
-            y_true_arr = np.array(actuals)
-            ridge_arr = np.array(ridge_preds)
-            xgb_arr = np.array(xgb_preds)
+            ridge_metrics = _compute_metrics(y_true, ridge_arr)
+            xgb_metrics = _compute_metrics(y_true, xgb_arr)
 
-            # Aggregate metrics
-            ridge_metrics = _compute_metrics(y_true_arr, ridge_arr)
-            xgb_metrics = _compute_metrics(y_true_arr, xgb_arr)
-
-            # Per-molecule metrics
             per_mol_ridge_metrics = {
                 mol: _compute_metrics(np.array(per_mol_actual[mol]), np.array(per_mol_ridge[mol]))
                 for mol in molecules
@@ -576,33 +583,25 @@ class EnergyEstimator:
                 if per_mol_actual[mol]
             }
 
-            n_total = len(y_true_arr)
+            n_total = len(y_true)
             n_train_avg = int(n_total * (len(molecules) - 1) / len(molecules))
 
-            results.results.append(
-                EvaluationResult(
-                    model_name='Ridge',
-                    completion_frac=frac,
-                    mae=ridge_metrics['mae'],
-                    rmse=ridge_metrics['rmse'],
-                    r2=ridge_metrics['r2'],
-                    per_molecule=per_mol_ridge_metrics,
-                    n_train=n_train_avg,
-                    n_test=n_total - n_train_avg,
+            for model_name, metrics, per_mol in [
+                ('Ridge', ridge_metrics, per_mol_ridge_metrics),
+                ('XGBoost', xgb_metrics, per_mol_xgb_metrics),
+            ]:
+                results.results.append(
+                    EvaluationResult(
+                        model_name=model_name,
+                        completion_frac=frac,
+                        mae=metrics['mae'],
+                        rmse=metrics['rmse'],
+                        r2=metrics['r2'],
+                        per_molecule=per_mol,
+                        n_train=n_train_avg,
+                        n_test=n_total - n_train_avg,
+                    )
                 )
-            )
-            results.results.append(
-                EvaluationResult(
-                    model_name='XGBoost',
-                    completion_frac=frac,
-                    mae=xgb_metrics['mae'],
-                    rmse=xgb_metrics['rmse'],
-                    r2=xgb_metrics['r2'],
-                    per_molecule=per_mol_xgb_metrics,
-                    n_train=n_train_avg,
-                    n_test=n_total - n_train_avg,
-                )
-            )
 
             if self.use_mlflow:
                 self._log_to_mlflow(frac, ridge_metrics, xgb_metrics)
@@ -613,7 +612,7 @@ class EnergyEstimator:
             X_all = df_feat[ALL_FEATURES]
             y_all = df_feat['final_energy'].values
             with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
+                warnings.filterwarnings('ignore', category=ConvergenceWarning)
                 ridge_full.fit(X_all, y_all)
                 xgb_full.fit(X_all, y_all)
             results.fitted_models[f'ridge_{frac}'] = ridge_full
@@ -662,7 +661,7 @@ class EnergyEstimator:
         xgb_metrics: dict[str, float],
     ) -> None:
         try:
-            from quantum_pipeline.ml.tracking import tracker  # noqa: PLC0415
+            from quantum_pipeline.ml.tracking import tracker
 
             run_name = f'frac_{int(completion_frac * 100)}pct'
             with tracker.run(
@@ -684,5 +683,5 @@ class EnergyEstimator:
                         'xgb_r2': xgb_metrics['r2'],
                     }
                 )
-        except Exception:  # noqa: BLE001
-            logger.debug('MLflow logging failed — continuing without tracking', exc_info=True)
+        except Exception:
+            logger.warning('MLflow logging failed - continuing without tracking', exc_info=True)

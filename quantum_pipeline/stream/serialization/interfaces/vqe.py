@@ -217,6 +217,8 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
                     {'name': 'default_shots', 'type': 'int'},
                     {'name': 'ansatz_reps', 'type': 'int'},
                     {'name': 'init_strategy', 'type': ['string', 'null'], 'default': 'random'},
+                    {'name': 'seed', 'type': ['null', 'int'], 'default': None},
+                    {'name': 'ansatz_name', 'type': ['null', 'string'], 'default': None},
                 ],
             }
             dict_schema = deepcopy(schema)
@@ -265,7 +267,9 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
             'ansatz_reps': obj.ansatz_reps,
             'noise_backend': obj.noise_backend,
             'default_shots': obj.default_shots,
-            'init_strategy': obj.init_strategy if hasattr(obj, 'init_strategy') else None,
+            'init_strategy': obj.init_strategy,
+            'seed': int(obj.seed) if obj.seed is not None else None,
+            'ansatz_name': obj.ansatz_name,
         }
 
     def deserialize(self, data: dict[str, Any]) -> VQEInitialData:
@@ -281,6 +285,8 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
             noise_backend=data['noise_backend'],
             default_shots=data['default_shots'],
             init_strategy=data.get('init_strategy') or 'random',
+            seed=data.get('seed'),
+            ansatz_name=data.get('ansatz_name') or 'EfficientSU2',
         )
 
 
@@ -309,6 +315,10 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
                     {'name': 'optimal_parameters', 'type': {'type': 'array', 'items': 'double'}},
                     {'name': 'maxcv', 'type': ['null', 'double'], 'default': None},
                     {'name': 'minimization_time', 'type': 'double'},
+                    {'name': 'nuclear_repulsion_energy', 'type': ['null', 'double'], 'default': None},
+                    {'name': 'success', 'type': ['null', 'boolean'], 'default': None},
+                    {'name': 'nfev', 'type': ['null', 'int'], 'default': None},
+                    {'name': 'nit', 'type': ['null', 'int'], 'default': None},
                 ],
             }
             dict_schema = deepcopy(schema)
@@ -323,6 +333,10 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
             'optimal_parameters': self._convert_to_primitives(obj.optimal_parameters),
             'maxcv': float(obj.maxcv) if obj.maxcv is not None else None,
             'minimization_time': float(obj.minimization_time),
+            'nuclear_repulsion_energy': float(obj.nuclear_repulsion_energy) if obj.nuclear_repulsion_energy is not None else None,
+            'success': bool(obj.success) if obj.success is not None else None,
+            'nfev': int(obj.nfev) if obj.nfev is not None else None,
+            'nit': int(obj.nit) if obj.nit is not None else None,
         }
 
     def deserialize(self, data: dict[str, Any]) -> VQEResult:
@@ -331,8 +345,12 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
             iteration_list=[self.process_interface.deserialize(p) for p in data['iteration_list']],
             minimum=float64(data['minimum']),
             optimal_parameters=self._convert_to_numpy(data['optimal_parameters']),
-            maxcv=float64(data['maxcv']) if data['maxcv'] is not None else None,
+            maxcv=float64(data['maxcv']) if data.get('maxcv') is not None else None,
             minimization_time=float64(data['minimization_time']),
+            nuclear_repulsion_energy=float64(data['nuclear_repulsion_energy']) if data.get('nuclear_repulsion_energy') is not None else None,
+            success=bool(data['success']) if data.get('success') is not None else None,
+            nfev=int(data['nfev']) if data.get('nfev') is not None else None,
+            nit=int(data['nit']) if data.get('nit') is not None else None,
         )
 
 

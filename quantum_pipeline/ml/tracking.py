@@ -10,7 +10,7 @@ Usage (in notebooks or training scripts):
         tracker.log_model(model, "xgboost_model")
 
 Environment variables:
-    MLFLOW_TRACKING_URI  — override default tracking URI (default: http://localhost:5000)
+    MLFLOW_TRACKING_URI - override default tracking URI (default: http://localhost:5000)
                            Use "mlruns" for local file-based tracking (no server required).
 """
 
@@ -183,7 +183,7 @@ class ExperimentTracker:
 
 
 # ---------------------------------------------------------------------------
-# Module-level singleton — import and use directly in notebooks/scripts
+# Module-level singleton - import and use directly in notebooks/scripts
 # ---------------------------------------------------------------------------
 
 tracker = ExperimentTracker()

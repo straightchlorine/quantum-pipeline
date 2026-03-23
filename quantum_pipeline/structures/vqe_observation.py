@@ -21,6 +21,7 @@ class VQEInitialData:
     default_shots: int
     seed: int | None = None
     init_strategy: str = 'random'
+    ansatz_name: str = 'EfficientSU2'
 
 
 @dataclass
@@ -47,6 +48,9 @@ class VQEResult:
     maxcv: np.float64 | None
     minimization_time: np.float64
     nuclear_repulsion_energy: np.float64 | None = None
+    success: bool | None = None
+    nfev: int | None = None
+    nit: int | None = None
 
     @property
     def total_energy(self) -> np.float64:

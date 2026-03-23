@@ -22,6 +22,8 @@ SUPPORTED_OPTIMIZERS = {
 
 SUPPORTED_BASIS_SETS = ['sto3g', '6-31g', 'cc-pvdz']
 
+SUPPORTED_ANSATZE = ['EfficientSU2', 'RealAmplitudes', 'ExcitationPreserving']
+
 SIMULATION_METHODS = {
     'automatic': 'Default simulation method. Selects the best method based on the circuit and noise model.',
     'statevector': 'Dense statevector simulation. Supports ideal circuits and noisy circuit sampling.',

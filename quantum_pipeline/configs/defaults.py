@@ -7,6 +7,7 @@ DEFAULTS = {
     'convergence_threshold_enable': False,
     'convergence_threshold': 1e-6,
     'optimizer': 'L-BFGS-B',  # Optimal for GPU acceleration and accuracy
+    'ansatz_type': 'EfficientSU2',
     'seed': None,
     'init_strategy': 'random',
     'shots': 1024,

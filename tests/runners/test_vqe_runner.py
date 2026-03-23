@@ -630,6 +630,7 @@ class TestVQERunner:
                 optimization_level=3,
                 optimizer='COBYLA',
                 ansatz_reps=3,
+                ansatz_type='EfficientSU2',
                 default_shots=1024,
                 convergence_threshold=1e-6,
                 seed=None,

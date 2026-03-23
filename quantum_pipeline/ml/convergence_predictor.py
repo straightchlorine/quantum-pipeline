@@ -15,7 +15,7 @@ Cross-validation
 Leave-One-Molecule-Out (LOMO): train on all molecules except the held-out one.
 Tests generalization across molecular complexity, not just across runs of the same molecule.
 Evaluation follows Roberts et al. (2017) grouped cross-validation principles and
-QUA-26 training protocol (docs/research/convergence_predictor_training_protocol.md).
+QUA-26 training protocol.
 
 Usage
 -----
@@ -43,12 +43,13 @@ from __future__ import annotations
 import logging
 import warnings
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     average_precision_score,
@@ -59,9 +60,6 @@ from sklearn.metrics import (
 from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures, StandardScaler
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +75,7 @@ CATEGORICAL_FEATURES = ['optimizer', 'basis_set']
 RUN_NUMERIC_FEATURES = [
     'num_qubits',
     'init_strategy_random',  # 1 if random init, 0 if HF
-    'qubit_x_random',        # interaction: barren plateau severity × random init
+    'qubit_x_random',  # interaction: barren plateau severity x random init
     'mean_param_delta_norm',
 ]
 
@@ -126,22 +124,24 @@ class ConvergencePredictorResults:
 
     def summary(self) -> str:
         if not self.fold_results:
-            return 'Convergence Predictor — No results (insufficient data or folds)'
+            return 'Convergence Predictor - No results (insufficient data or folds)'
 
-        lines = ['Convergence Predictor — LOMO Cross-Validation Summary', '=' * 60]
+        lines = ['Convergence Predictor - LOMO Cross-Validation Summary', '=' * 60]
 
-        df = pd.DataFrame([
-            {
-                'model': r.model_name,
-                'horizon_k': r.horizon_k,
-                'roc_auc': r.roc_auc,
-                'pr_auc': r.pr_auc,
-                'brier_score': r.brier_score,
-                'mcc': r.mcc,
-            }
-            for r in self.fold_results
-            if np.isfinite(r.roc_auc)
-        ])
+        df = pd.DataFrame(
+            [
+                {
+                    'model': r.model_name,
+                    'horizon_k': r.horizon_k,
+                    'roc_auc': r.roc_auc,
+                    'pr_auc': r.pr_auc,
+                    'brier_score': r.brier_score,
+                    'mcc': r.mcc,
+                }
+                for r in self.fold_results
+                if np.isfinite(r.roc_auc)
+            ]
+        )
 
         if df.empty:
             lines.append('No finite metrics to display.')
@@ -153,12 +153,15 @@ class ConvergencePredictorResults:
 
         return '\n'.join(lines)
 
+    _LOWER_IS_BETTER = frozenset({'brier_score'})
+
     def best(self, metric: str = 'roc_auc') -> FoldResult | None:
-        """Return the fold result with the highest value of metric."""
+        """Return the fold result with the best value of metric."""
         finite = [r for r in self.fold_results if np.isfinite(getattr(r, metric, float('nan')))]
         if not finite:
             return None
-        return max(finite, key=lambda r: getattr(r, metric))
+        cmp = min if metric in self._LOWER_IS_BETTER else max
+        return cmp(finite, key=lambda r: getattr(r, metric))
 
 
 # ---------------------------------------------------------------------------
@@ -199,10 +202,10 @@ def generate_synthetic_trajectories(
 
     if molecules is None:
         molecules = [
-            {'name': 'H2',   'num_qubits': 4,  'e_fci': -1.1175,  'e_local': -0.78},
-            {'name': 'LiH',  'num_qubits': 6,  'e_fci': -7.882,   'e_local': -7.50},
-            {'name': 'H2O',  'num_qubits': 8,  'e_fci': -75.012,  'e_local': -74.60},
-            {'name': 'BeH2', 'num_qubits': 10, 'e_fci': -15.834,  'e_local': -15.60},
+            {'name': 'H2', 'num_qubits': 4, 'e_fci': -1.1175, 'e_local': -0.78},
+            {'name': 'LiH', 'num_qubits': 6, 'e_fci': -7.882, 'e_local': -7.50},
+            {'name': 'H2O', 'num_qubits': 8, 'e_fci': -75.012, 'e_local': -74.60},
+            {'name': 'BeH2', 'num_qubits': 10, 'e_fci': -15.834, 'e_local': -15.60},
         ]
 
     optimizers = ['COBYLA', 'L-BFGS-B', 'Nelder-Mead', 'SLSQP']
@@ -260,7 +263,7 @@ def generate_synthetic_trajectories(
                 if optimizer in ('COBYLA', 'Nelder-Mead') and rng.random() < 0.04:
                     e += abs(noise) * 1.5
 
-                delta = abs(e - prev_energy)
+                delta = e - prev_energy
                 param_delta = float(rng.exponential(0.1) * np.exp(-k_rate * t))
                 param_deltas.append(param_delta)
 
@@ -279,25 +282,27 @@ def generate_synthetic_trajectories(
                 moving_avg = float(np.mean(energy_window))
                 moving_std = float(np.std(energy_window)) if len(energy_window) > 1 else 0.0
 
-                run_rows.append({
-                    'run_id': run_id,
-                    'molecule_name': mol['name'],
-                    'num_qubits': mol['num_qubits'],
-                    'optimizer': optimizer,
-                    'basis_set': basis_set,
-                    'init_strategy': init_strategy,
-                    'iteration_step': step,
-                    'energy': e,
-                    'energy_delta': delta,
-                    'energy_moving_avg_5': moving_avg,
-                    'energy_moving_std_5': moving_std,
-                    'cumulative_min_energy': cummin,
-                    'steps_since_improvement': steps_since_imp,
-                    'is_new_minimum': is_new_min,
-                    'parameter_delta_norm': param_delta,
-                    'converged': int(converged),
-                    'mean_param_delta_norm': 0.0,  # placeholder; filled after loop
-                })
+                run_rows.append(
+                    {
+                        'run_id': run_id,
+                        'molecule_name': mol['name'],
+                        'num_qubits': mol['num_qubits'],
+                        'optimizer': optimizer,
+                        'basis_set': basis_set,
+                        'init_strategy': init_strategy,
+                        'iteration_step': step,
+                        'energy': e,
+                        'energy_delta': delta,
+                        'energy_moving_avg_5': moving_avg,
+                        'energy_moving_std_5': moving_std,
+                        'cumulative_min_energy': cummin,
+                        'steps_since_improvement': steps_since_imp,
+                        'is_new_minimum': is_new_min,
+                        'parameter_delta_norm': param_delta,
+                        'converged': int(converged),
+                        'mean_param_delta_norm': 0.0,  # placeholder; filled after loop
+                    }
+                )
 
                 prev_energy = e
 
@@ -352,7 +357,7 @@ def compute_horizon_features(df_iter: pd.DataFrame, k: int) -> pd.DataFrame:
 
         feat: dict[str, Any] = {'run_id': run_id}
 
-        # ── Per-iteration energy delta features (first 5 iterations) ────────
+        # --Per-iteration energy delta features (first 5 iterations) --------
         for i in range(1, min(6, k + 1)):
             row_i = grp[grp['iteration_step'] == i]
             if len(row_i) > 0 and 'energy_delta' in grp.columns:
@@ -360,26 +365,28 @@ def compute_horizon_features(df_iter: pd.DataFrame, k: int) -> pd.DataFrame:
             else:
                 feat[f'energy_delta_k{i}'] = float('nan')
 
-        # ── Energy slope over first K iterations (OLS) ───────────────────────
+        # --Energy slope over first K iterations (OLS) -----------------------
         if n_obs >= 2:
             x = np.arange(n_obs, dtype=float)
             feat[f'energy_slope_first{k}'] = float(np.polyfit(x, energies, 1)[0])
         else:
             feat[f'energy_slope_first{k}'] = 0.0
 
-        # ── Rolling energy std at iteration K (barren plateau proxy) ─────────
+        # --Rolling energy std at iteration K (barren plateau proxy) ---------
         if 'energy_moving_std_5' in grp.columns:
             row_k = grp[grp['iteration_step'] == k]
             if len(row_k) > 0:
                 feat['energy_moving_std_5_at_k'] = float(row_k['energy_moving_std_5'].iloc[-1])
             else:
-                window = energies[-min(5, n_obs):]
-                feat['energy_moving_std_5_at_k'] = float(np.std(window)) if len(window) > 1 else 0.0
+                window = energies[-min(5, n_obs) :]
+                feat['energy_moving_std_5_at_k'] = (
+                    float(np.std(window)) if len(window) > 1 else 0.0
+                )
         else:
-            window = energies[-min(5, n_obs):]
+            window = energies[-min(5, n_obs) :]
             feat['energy_moving_std_5_at_k'] = float(np.std(window)) if len(window) > 1 else 0.0
 
-        # ── Steps since improvement at iteration K ────────────────────────────
+        # --Steps since improvement at iteration K ----------------------------
         if 'steps_since_improvement' in grp.columns:
             row_k = grp[grp['iteration_step'] == k]
             if len(row_k) > 0:
@@ -391,7 +398,7 @@ def compute_horizon_features(df_iter: pd.DataFrame, k: int) -> pd.DataFrame:
         else:
             feat[f'steps_since_improvement_at_k{k}'] = float(k)
 
-        # ── Longest plateau in first K iterations ────────────────────────────
+        # --Longest plateau in first K iterations ----------------------------
         if 'is_new_minimum' in grp.columns:
             is_new_min = grp['is_new_minimum'].values
             max_plateau = 0
@@ -406,7 +413,7 @@ def compute_horizon_features(df_iter: pd.DataFrame, k: int) -> pd.DataFrame:
         else:
             feat[f'longest_plateau_first{k}'] = float(k)
 
-        # ── Parameter movement signals ────────────────────────────────────────
+        # --Parameter movement signals ----------------------------------------
         if 'parameter_delta_norm' in grp.columns:
             param_deltas = grp['parameter_delta_norm'].values.astype(float)
             feat[f'param_delta_norm_mean_k{k}'] = float(np.mean(param_deltas))
@@ -417,26 +424,22 @@ def compute_horizon_features(df_iter: pd.DataFrame, k: int) -> pd.DataFrame:
             feat[f'param_delta_norm_mean_k{k}'] = 0.0
             feat[f'param_delta_norm_std_k{k}'] = 0.0
 
-        # ── Improvement saturation (K >= 20) ─────────────────────────────────
+        # --Improvement saturation (K >= 20) ---------------------------------
         if k >= 20:
             if 'energy_delta' in grp.columns:
                 mid = k // 2
                 first_half = float(grp[grp['iteration_step'] <= mid]['energy_delta'].sum())
                 second_half = float(grp[grp['iteration_step'] > mid]['energy_delta'].sum())
-                feat[f'improvement_ratio_k{k}'] = first_half / (
-                    first_half + second_half + 1e-12
-                )
+                feat[f'improvement_ratio_k{k}'] = first_half / (first_half + second_half + 1e-12)
             else:
                 feat[f'improvement_ratio_k{k}'] = 0.5  # neutral default
 
-        # ── Run-level metadata ────────────────────────────────────────────────
+        # --Run-level metadata ------------------------------------------------
         for col in ('molecule_name', 'num_qubits', 'optimizer', 'basis_set', 'init_strategy'):
             if col in grp.columns:
                 feat[col] = grp[col].iloc[0]
 
-        if 'mean_param_delta_norm' in grp.columns:
-            feat['mean_param_delta_norm'] = float(grp['mean_param_delta_norm'].iloc[0])
-        elif 'parameter_delta_norm' in grp.columns:
+        if 'parameter_delta_norm' in grp.columns:
             feat['mean_param_delta_norm'] = float(grp['parameter_delta_norm'].mean())
         else:
             feat['mean_param_delta_norm'] = 0.0
@@ -446,7 +449,7 @@ def compute_horizon_features(df_iter: pd.DataFrame, k: int) -> pd.DataFrame:
         feat['init_strategy_random'] = float(init_random)
         feat['qubit_x_random'] = float(feat.get('num_qubits', 0)) * float(init_random)
 
-        # ── Target ────────────────────────────────────────────────────────────
+        # --Target ------------------------------------------------------------
         if 'converged' in grp.columns:
             feat['converged'] = int(grp['converged'].iloc[0])
 
@@ -490,16 +493,9 @@ def _build_preprocessor(
     numeric_features: list[str],
     categorical_features: list[str],
 ) -> ColumnTransformer:
-    transformers: list[tuple] = [
-        ('num', StandardScaler(), numeric_features),
-    ]
-    if categorical_features:
-        transformers.append((
-            'cat',
-            OneHotEncoder(handle_unknown='ignore', sparse_output=False),
-            categorical_features,
-        ))
-    return ColumnTransformer(transformers=transformers, remainder='drop')
+    from quantum_pipeline.ml.preprocessing import build_preprocessor
+
+    return build_preprocessor(numeric_features, categorical_features)
 
 
 def _build_xgboost_clf(
@@ -508,7 +504,7 @@ def _build_xgboost_clf(
     pos_weight: float = 1.0,
     **kwargs: Any,
 ) -> Pipeline:
-    from xgboost import XGBClassifier  # noqa: PLC0415
+    from xgboost import XGBClassifier
 
     defaults: dict[str, Any] = {
         'objective': 'binary:logistic',
@@ -527,10 +523,12 @@ def _build_xgboost_clf(
         'verbosity': 0,
     }
     defaults.update(kwargs)
-    return Pipeline([
-        ('prep', _build_preprocessor(numeric_features, categorical_features)),
-        ('model', XGBClassifier(**defaults)),
-    ])
+    return Pipeline(
+        [
+            ('prep', _build_preprocessor(numeric_features, categorical_features)),
+            ('model', XGBClassifier(**defaults)),
+        ]
+    )
 
 
 def _build_rf_clf(
@@ -547,10 +545,12 @@ def _build_rf_clf(
         'n_jobs': -1,
     }
     defaults.update(kwargs)
-    return Pipeline([
-        ('prep', _build_preprocessor(numeric_features, categorical_features)),
-        ('model', RandomForestClassifier(**defaults)),
-    ])
+    return Pipeline(
+        [
+            ('prep', _build_preprocessor(numeric_features, categorical_features)),
+            ('model', RandomForestClassifier(**defaults)),
+        ]
+    )
 
 
 def _build_logreg_clf(
@@ -561,29 +561,38 @@ def _build_logreg_clf(
 ) -> Pipeline:
     """LogReg with polynomial interactions on 4 key features (per QUA-26 protocol §4.3)."""
     slope_feat = f'energy_slope_first{k}'
-    poly_features = [
-        f for f in [slope_feat, *_POLY_BASE_FEATURES] if f in numeric_features
-    ]
+    poly_features = [f for f in [slope_feat, *_POLY_BASE_FEATURES] if f in numeric_features]
     other_numeric = [f for f in numeric_features if f not in poly_features]
 
     transformers: list[tuple] = []
     if poly_features:
-        transformers.append((
-            'poly_scaled',
-            Pipeline([
-                ('scaler', StandardScaler()),
-                ('poly', PolynomialFeatures(degree=2, include_bias=False, interaction_only=True)),
-            ]),
-            poly_features,
-        ))
+        transformers.append(
+            (
+                'poly_scaled',
+                Pipeline(
+                    [
+                        ('scaler', StandardScaler()),
+                        (
+                            'poly',
+                            PolynomialFeatures(
+                                degree=2, include_bias=False, interaction_only=True
+                            ),
+                        ),
+                    ]
+                ),
+                poly_features,
+            )
+        )
     if other_numeric:
         transformers.append(('num', StandardScaler(), other_numeric))
     if categorical_features:
-        transformers.append((
-            'cat',
-            OneHotEncoder(handle_unknown='ignore', sparse_output=False),
-            categorical_features,
-        ))
+        transformers.append(
+            (
+                'cat',
+                OneHotEncoder(handle_unknown='ignore', sparse_output=False),
+                categorical_features,
+            )
+        )
 
     preprocessor = ColumnTransformer(transformers=transformers, remainder='drop')
 
@@ -596,10 +605,12 @@ def _build_logreg_clf(
     }
     logreg_defaults.update(kwargs)
 
-    return Pipeline([
-        ('prep', preprocessor),
-        ('model', LogisticRegression(**logreg_defaults)),
-    ])
+    return Pipeline(
+        [
+            ('prep', preprocessor),
+            ('model', LogisticRegression(**logreg_defaults)),
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -672,6 +683,51 @@ class ConvergencePredictor:
     # Core API
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _impute_nans(X: pd.DataFrame, numeric_features: list[str]) -> pd.DataFrame:
+        """Impute NaN values with column median (0.0 if all NaN)."""
+        X = X.copy()
+        for col in numeric_features:
+            if col in X.columns and X[col].isnull().any():
+                X[col] = X[col].fillna(X[col].median() if X[col].notna().any() else 0.0)
+        return X
+
+    def _run_lomo_fold(
+        self,
+        X_train: pd.DataFrame,
+        y_train: np.ndarray,
+        X_test: pd.DataFrame,
+        y_test: np.ndarray,
+        numeric_features: list[str],
+        categorical_features: list[str],
+        k: int,
+    ) -> dict[str, np.ndarray]:
+        """Train XGBoost, RF, and LogReg on one LOMO fold, return predicted probabilities."""
+        n_neg = int((y_train == 0).sum())
+        n_pos = int((y_train == 1).sum())
+        fold_pos_weight = float(n_neg / n_pos) if n_pos > 0 else 1.0
+
+        models = {
+            'XGBoost': _build_xgboost_clf(
+                numeric_features, categorical_features, fold_pos_weight, **self.xgb_params
+            ),
+            'RandomForest': _build_rf_clf(
+                numeric_features, categorical_features, **self.rf_params
+            ),
+            'LogisticRegression': _build_logreg_clf(
+                numeric_features, categorical_features, k, **self.logreg_params
+            ),
+        }
+
+        probas = {}
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=ConvergenceWarning)
+            for name, model in models.items():
+                model.fit(X_train, y_train)
+                probas[name] = model.predict_proba(X_test)[:, 1]
+
+        return probas
+
     def fit_evaluate(self, df_traj: pd.DataFrame) -> ConvergencePredictorResults:
         """Run LOMO cross-validation across all configured horizons.
 
@@ -692,27 +748,28 @@ class ConvergencePredictor:
         results = ConvergencePredictorResults()
 
         for k in self.horizons:
-            logger.info('Evaluating convergence predictor at horizon K=%d …', k)
+            logger.info('Evaluating convergence predictor at horizon K=%d ...', k)
             df_feat = compute_horizon_features(df_traj, k)
 
             if 'converged' not in df_feat.columns or df_feat['converged'].isnull().all():
-                logger.warning('No target column (converged) at K=%d — skipping', k)
+                logger.warning('No target column (converged) at K=%d - skipping', k)
                 continue
 
             df_feat = df_feat.dropna(subset=['converged'])
             if len(df_feat) < 10:
-                logger.warning('Too few samples (%d) at K=%d — skipping', len(df_feat), k)
+                logger.warning('Too few samples (%d) at K=%d - skipping', len(df_feat), k)
                 continue
 
             if 'molecule_name' not in df_feat.columns:
-                logger.warning('molecule_name column missing at K=%d — skipping', k)
+                logger.warning('molecule_name column missing at K=%d - skipping', k)
                 continue
 
             molecules = df_feat['molecule_name'].unique()
             if len(molecules) < 2:
                 logger.warning(
-                    'Need ≥2 molecules for LOMO-CV (got %d) — skipping K=%d',
-                    len(molecules), k,
+                    'Need >=2 molecules for LOMO-CV (got %d) - skipping K=%d',
+                    len(molecules),
+                    k,
                 )
                 continue
 
@@ -722,19 +779,8 @@ class ConvergencePredictor:
             all_features = numeric_features + categorical_features
 
             y = df_feat['converged'].values.astype(int)
-
-            # Impute NaN in numeric features (e.g., steps_since_improvement at K=1)
-            X = df_feat[all_features].copy()
-            for col in numeric_features:
-                if col in X.columns and X[col].isnull().any():
-                    X[col] = X[col].fillna(float(k))
-
+            X = self._impute_nans(df_feat[all_features], numeric_features)
             groups = df_feat['molecule_name'].values
-
-            # Class imbalance weight for XGBoost
-            n_neg = int((y == 0).sum())
-            n_pos = int((y == 1).sum())
-            pos_weight = float(n_neg / n_pos) if n_pos > 0 else 1.0
 
             n_splits = min(len(molecules), 9)
             lomo = GroupKFold(n_splits=n_splits)
@@ -742,85 +788,70 @@ class ConvergencePredictor:
             for fold_idx, (train_idx, test_idx) in enumerate(lomo.split(X, y, groups=groups)):
                 held_out_mol = str(df_feat.iloc[test_idx]['molecule_name'].iloc[0])
 
-                X_train = X.iloc[train_idx]
-                y_train = y[train_idx]
-                X_test = X.iloc[test_idx]
-                y_test = y[test_idx]
+                X_train, y_train = X.iloc[train_idx], y[train_idx]
+                X_test, y_test = X.iloc[test_idx], y[test_idx]
 
                 if len(X_train) < 5 or len(X_test) < 1:
                     continue
 
                 if len(np.unique(y_train)) < 2:
                     logger.warning(
-                        'K=%d fold %d: training set has only one class — skipping', k, fold_idx
+                        'K=%d fold %d: training set has only one class - skipping', k, fold_idx
                     )
                     continue
 
-                n_train = len(X_train)
-                n_test = len(X_test)
-
-                # ── XGBoost ────────────────────────────────────────────────────
-                xgb_model = _build_xgboost_clf(
-                    numeric_features, categorical_features, pos_weight, **self.xgb_params
+                probas = self._run_lomo_fold(
+                    X_train,
+                    y_train,
+                    X_test,
+                    y_test,
+                    numeric_features,
+                    categorical_features,
+                    k,
                 )
-                with warnings.catch_warnings():
-                    warnings.simplefilter('ignore')
-                    xgb_model.fit(X_train, y_train)
-                xgb_proba = xgb_model.predict_proba(X_test)[:, 1]
 
-                # ── Random Forest ──────────────────────────────────────────────
-                rf_model = _build_rf_clf(
-                    numeric_features, categorical_features, **self.rf_params
-                )
-                with warnings.catch_warnings():
-                    warnings.simplefilter('ignore')
-                    rf_model.fit(X_train, y_train)
-                rf_proba = rf_model.predict_proba(X_test)[:, 1]
-
-                # ── Logistic Regression ────────────────────────────────────────
-                logreg_model = _build_logreg_clf(
-                    numeric_features, categorical_features, k, **self.logreg_params
-                )
-                with warnings.catch_warnings():
-                    warnings.simplefilter('ignore')
-                    logreg_model.fit(X_train, y_train)
-                logreg_proba = logreg_model.predict_proba(X_test)[:, 1]
-
-                for model_name, proba in [
-                    ('XGBoost', xgb_proba),
-                    ('RandomForest', rf_proba),
-                    ('LogisticRegression', logreg_proba),
-                ]:
+                for model_name, proba in probas.items():
                     metrics = _evaluate_classifier(y_test, proba)
-                    results.fold_results.append(FoldResult(
-                        model_name=model_name,
-                        horizon_k=k,
-                        held_out_molecule=held_out_mol,
-                        roc_auc=metrics['roc_auc'],
-                        pr_auc=metrics['pr_auc'],
-                        brier_score=metrics['brier_score'],
-                        mcc=metrics['mcc'],
-                        n_train=n_train,
-                        n_test=n_test,
-                    ))
+                    results.fold_results.append(
+                        FoldResult(
+                            model_name=model_name,
+                            horizon_k=k,
+                            held_out_molecule=held_out_mol,
+                            roc_auc=metrics['roc_auc'],
+                            pr_auc=metrics['pr_auc'],
+                            brier_score=metrics['brier_score'],
+                            mcc=metrics['mcc'],
+                            n_train=len(X_train),
+                            n_test=len(X_test),
+                        )
+                    )
 
                 if self.use_mlflow:
+                    # Compute pos_weight for logging from this fold's training set
+                    n_neg = int((y_train == 0).sum())
+                    n_pos = int((y_train == 1).sum())
+                    log_pos_weight = float(n_neg / n_pos) if n_pos > 0 else 1.0
                     self._log_fold_to_mlflow(
-                        k, fold_idx, held_out_mol,
-                        {'xgboost': xgb_proba, 'random_forest': rf_proba,
-                         'logistic_regression': logreg_proba},
-                        y_test, n_train, pos_weight,
+                        k,
+                        fold_idx,
+                        held_out_mol,
+                        {n.lower().replace(' ', '_'): p for n, p in probas.items()},
+                        y_test,
+                        len(X_train),
+                        log_pos_weight,
                     )
 
             # Store models trained on all data for inference
+            n_neg_all = int((y == 0).sum())
+            n_pos_all = int((y == 1).sum())
+            full_pos_weight = float(n_neg_all / n_pos_all) if n_pos_all > 0 else 1.0
+
             with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
+                warnings.filterwarnings('ignore', category=ConvergenceWarning)
                 xgb_full = _build_xgboost_clf(
-                    numeric_features, categorical_features, pos_weight, **self.xgb_params
+                    numeric_features, categorical_features, full_pos_weight, **self.xgb_params
                 )
-                rf_full = _build_rf_clf(
-                    numeric_features, categorical_features, **self.rf_params
-                )
+                rf_full = _build_rf_clf(numeric_features, categorical_features, **self.rf_params)
                 logreg_full = _build_logreg_clf(
                     numeric_features, categorical_features, k, **self.logreg_params
                 )
@@ -864,12 +895,11 @@ class ConvergencePredictor:
         numeric_features, categorical_features = get_horizon_feature_names(
             horizon_k, list(df_feat.columns)
         )
-        all_features = [f for f in (numeric_features + categorical_features) if f in df_feat.columns]
+        all_features = [
+            f for f in (numeric_features + categorical_features) if f in df_feat.columns
+        ]
 
-        X = df_feat[all_features].copy()
-        for col in numeric_features:
-            if col in X.columns and X[col].isnull().any():
-                X[col] = X[col].fillna(float(horizon_k))
+        X = self._impute_nans(df_feat[all_features], numeric_features)
 
         proba = self._fitted_models[key].predict_proba(X)[:, 1]
         return pd.Series(
@@ -893,7 +923,7 @@ class ConvergencePredictor:
         pos_weight: float,
     ) -> None:
         try:
-            from quantum_pipeline.ml.tracking import tracker  # noqa: PLC0415
+            from quantum_pipeline.ml.tracking import tracker
 
             for model_name, proba in probas.items():
                 metrics = _evaluate_classifier(y_test, proba)
@@ -911,5 +941,5 @@ class ConvergencePredictor:
                     },
                 ):
                     tracker.log_metrics(finite_metrics)
-        except Exception:  # noqa: BLE001
-            logger.debug('MLflow logging failed — continuing without tracking', exc_info=True)
+        except Exception:
+            logger.warning('MLflow logging failed - continuing without tracking', exc_info=True)
