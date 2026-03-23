@@ -240,7 +240,7 @@ services:
       - spark-ivy-cache:/home/spark/.ivy2
       - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
       - "7077:7077"
     networks:
       - quantum-net
@@ -430,6 +430,7 @@ services:
         --serve-artifacts
         --host 0.0.0.0
         --port 5000
+        --gunicorn-opts "--forwarded-allow-ips=*"
     volumes:
       - mlflow-data:/mlflow
     networks:
