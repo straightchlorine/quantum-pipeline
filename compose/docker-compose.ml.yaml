@@ -41,6 +41,7 @@ x-airflow-common:
     AIRFLOW__API__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
     AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
     AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
+    AIRFLOW__LOGGING__LOGGING_LEVEL: WARNING
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
     # S3 credentials for Spark/Airflow DAGs
     S3_ACCESS_KEY: ${S3_ACCESS_KEY}
@@ -80,6 +81,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
       CLUSTER_ID: quantum-ml-kafka-cluster-id-01
     networks:
       - quantum-net
@@ -302,8 +304,8 @@ services:
     container_name: ml-airflow-init
     depends_on:
       <<: *airflow-common-depends-on
-    entrypoint: /bin/bash
     command:
+      - bash
       - -c
       - |
         airflow db migrate &&
