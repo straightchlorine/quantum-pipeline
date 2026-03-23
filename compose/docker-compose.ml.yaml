@@ -206,21 +206,11 @@ services:
     volumes:
       - garage-data:/var/lib/garage/data
       - garage-meta:/var/lib/garage/meta
-    environment:
-      GARAGE_RPC_BIND_ADDR: "[::]:3900"
-      GARAGE_RPC_SECRET: "${GARAGE_RPC_SECRET}"
-      GARAGE_S3_API_BIND_ADDR: "[::]:3901"
-      GARAGE_S3_REGION: "${S3_REGION:-garage}"
-      GARAGE_ADMIN_API_BIND_ADDR: "[::]:3903"
-      GARAGE_ADMIN_TOKEN: "${GARAGE_ADMIN_TOKEN}"
-      GARAGE_REPLICATION_FACTOR: 1
-      GARAGE_DB_ENGINE: lmdb
-      GARAGE_METADATA_DIR: /var/lib/garage/meta
-      GARAGE_DATA_DIR: /var/lib/garage/data
+      - ./garage.toml:/etc/garage.toml:ro
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf -H \"Authorization: Bearer ${GARAGE_ADMIN_TOKEN}\" http://localhost:3903/v1/health"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:3903/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10

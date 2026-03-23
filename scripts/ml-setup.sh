@@ -2,10 +2,13 @@
 set -euo pipefail
 
 # ML Pipeline first-time setup
-# Generates .env secrets, starts the stack, and configures Garage (layout, keys, buckets).
+# Generates .env, configures Garage (layout, keys, buckets) via the garage CLI.
 # Usage: bash scripts/ml-setup.sh
 
-# --- step 1: generate .env ---
+COMPOSE="docker compose --env-file .env -f compose/docker-compose.ml.yaml"
+GARAGE="docker exec ml-garage /garage"
+
+# --- step 1: generate .env and garage.toml ---
 
 echo "[ INFO ] Setting up .env..."
 
@@ -62,28 +65,25 @@ if grep -q "AIRFLOW_WEBSERVER_SECRET_KEY=your-webserver-secret-here" .env; then
     echo "[  OK  ] Generated AIRFLOW_WEBSERVER_SECRET_KEY"
 fi
 
+# source generated values for envsubst
+set -a; source .env; set +a
+
+echo ""
+echo "[ INFO ] Generating garage.toml from template..."
+envsubst < compose/garage.toml.template > compose/garage.toml
+echo "[  OK  ] compose/garage.toml generated"
+
 # --- step 2: start garage for configuration ---
 
 echo ""
 echo "[ INFO ] Starting Garage to configure layout, access keys, and S3 buckets..."
-set -a; source .env; set +a
-docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d garage
-echo "[  OK  ] Garage started"
+$COMPOSE up -d garage
+echo "[  OK  ] Garage container started"
 
-# --- step 3: configure garage ---
-
-echo ""
-echo "[ INFO ] Configuring Garage..."
-
-export $(grep -E '^(GARAGE_ADMIN_TOKEN|GARAGE_S3_API_PORT|GARAGE_ADMIN_PORT|S3_RAW_BUCKET|S3_FEATURES_BUCKET|S3_ICEBERG_BUCKET)=' .env | xargs)
-GARAGE_ADMIN_PORT="${GARAGE_ADMIN_PORT:-3903}"
-GARAGE_API="http://localhost:${GARAGE_ADMIN_PORT}/v1"
-AUTH="Authorization: Bearer ${GARAGE_ADMIN_TOKEN}"
-
-echo "[ INFO ] Waiting for Garage admin API..."
+echo "[ INFO ] Waiting for Garage to be ready..."
 for i in $(seq 1 20); do
-    if curl -sf -H "${AUTH}" "${GARAGE_API}/health" > /dev/null 2>&1; then
-        echo "[  OK  ] Garage is healthy"
+    if $GARAGE status > /dev/null 2>&1; then
+        echo "[  OK  ] Garage is ready"
         break
     fi
     [ "$i" -eq 20 ] && echo "[ FAIL ] Garage not responding after 60s" && exit 1
@@ -91,55 +91,42 @@ for i in $(seq 1 20); do
     sleep 3
 done
 
+# --- step 3: configure garage via CLI ---
+
+echo ""
 echo "[ INFO ] Getting node ID..."
-NODE_RESP=$(curl -sf -H "${AUTH}" "${GARAGE_API}/node")
-NODE_ID=$(echo "${NODE_RESP}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id','')[:16])")
+NODE_ID=$($GARAGE status 2>/dev/null | grep -oP '^\S+' | tail -1)
 [ -z "${NODE_ID}" ] && echo "[ FAIL ] Could not get node ID" && exit 1
 echo "[  OK  ] Node: ${NODE_ID}"
 
 echo "[ INFO ] Assigning layout..."
-curl -sf -X POST -H "${AUTH}" -H "Content-Type: application/json" \
-    -d "[{\"id\": \"${NODE_ID}\", \"zone\": \"local\", \"capacity\": 10737418240, \"tags\": []}]" \
-    "${GARAGE_API}/layout" > /dev/null
-curl -sf -X POST -H "${AUTH}" -H "Content-Type: application/json" \
-    -d "{\"version\": 1}" \
-    "${GARAGE_API}/layout/apply" > /dev/null
-echo "[  OK  ] Layout applied (zone=local, 10G)"
+$GARAGE layout assign -z dc1 -c 10G "${NODE_ID}"
+$GARAGE layout apply --version 1
+echo "[  OK  ] Layout applied (zone=dc1, 10G)"
 
 echo "[ INFO ] Creating access key..."
-KEY_RESP=$(curl -sf -X POST -H "${AUTH}" -H "Content-Type: application/json" \
-    -d "{\"name\": \"ml-pipeline\"}" \
-    "${GARAGE_API}/key")
-KEY_ID=$(echo "${KEY_RESP}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('accessKeyId',''))")
-KEY_SECRET=$(echo "${KEY_RESP}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('secretAccessKey',''))")
+KEY_OUTPUT=$($GARAGE key create ml-pipeline)
+KEY_ID=$(echo "${KEY_OUTPUT}" | grep "Key ID:" | awk '{print $3}')
+KEY_SECRET=$(echo "${KEY_OUTPUT}" | grep "Secret key:" | awk '{print $3}')
 [ -z "${KEY_ID}" ] && echo "[ FAIL ] Could not create access key" && exit 1
 echo "[  OK  ] Key: ${KEY_ID}"
 
 echo "[ INFO ] Creating buckets and granting access..."
 for BUCKET in "${S3_RAW_BUCKET:-local-vqe-results}" "${S3_FEATURES_BUCKET:-local-features}" "${S3_ICEBERG_BUCKET:-iceberg}"; do
-    curl -sf -X POST -H "${AUTH}" -H "Content-Type: application/json" \
-        -d "{\"globalAlias\": \"${BUCKET}\"}" \
-        "${GARAGE_API}/bucket" > /dev/null 2>&1 || true
-    BUCKET_ID=$(curl -sf -H "${AUTH}" "${GARAGE_API}/bucket?globalAlias=${BUCKET}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
-    if [ -n "${BUCKET_ID}" ]; then
-        curl -sf -X POST -H "${AUTH}" -H "Content-Type: application/json" \
-            -d "{\"bucketId\": \"${BUCKET_ID}\", \"accessKeyId\": \"${KEY_ID}\", \"permissions\": {\"read\": true, \"write\": true, \"owner\": false}}" \
-            "${GARAGE_API}/bucket/allowed-keys" > /dev/null
-        echo "[  OK  ] Bucket: ${BUCKET}"
-    else
-        echo "[ WARN ] Could not configure bucket: ${BUCKET}"
-    fi
+    $GARAGE bucket create "${BUCKET}" 2>/dev/null || true
+    $GARAGE bucket allow --read --write "${BUCKET}" --key ml-pipeline
+    echo "[  OK  ] Bucket: ${BUCKET}"
 done
 
 sed -i "s#S3_ACCESS_KEY=.*#S3_ACCESS_KEY=${KEY_ID}#" .env
 sed -i "s#S3_SECRET_KEY=.*#S3_SECRET_KEY=${KEY_SECRET}#" .env
-echo "[  OK  ] .env updated with credentials"
+echo "[  OK  ] .env updated with S3 credentials"
 
 # --- step 4: stop garage ---
 
 echo ""
-docker compose --env-file .env -f compose/docker-compose.ml.yaml down
+$COMPOSE down
 echo ""
 echo "[  OK  ] ML pipeline setup complete. .env is ready."
-echo "[ INFO ] Start the stack with:"
+echo "[ INFO ] Start the full stack with:"
 echo "         docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d"

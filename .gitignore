@@ -6,8 +6,9 @@ static
 # ignore jython_cache
 .jython_cache
 
-# ignore main env file
+# ignore main env file and generated configs with secrets
 .env
+compose/garage.toml
 
 # ignore generated wheel files
 *.whl
