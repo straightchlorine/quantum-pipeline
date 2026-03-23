@@ -50,6 +50,12 @@ if grep -q "AIRFLOW_FERNET_KEY=your-fernet-key-here" .env; then
     echo "[  OK  ] Generated AIRFLOW_FERNET_KEY"
 fi
 
+if grep -q "AIRFLOW_JWT_SECRET=your-jwt-secret-here" .env; then
+    JWT_KEY=$(openssl rand -hex 32)
+    sed -i "s|AIRFLOW_JWT_SECRET=your-jwt-secret-here|AIRFLOW_JWT_SECRET=${JWT_KEY}|" .env
+    echo "[  OK  ] Generated AIRFLOW_JWT_SECRET"
+fi
+
 if grep -q "AIRFLOW_WEBSERVER_SECRET_KEY=your-webserver-secret-here" .env; then
     WS_KEY=$(openssl rand -hex 32)
     sed -i "s|AIRFLOW_WEBSERVER_SECRET_KEY=your-webserver-secret-here|AIRFLOW_WEBSERVER_SECRET_KEY=${WS_KEY}|" .env

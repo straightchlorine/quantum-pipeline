@@ -5,10 +5,14 @@ volumes:
     name: quantum-garage-meta
   spark-warehouse:
     name: quantum-ml-spark-warehouse
+  spark-ivy-cache:
+    name: quantum-ml-spark-ivy-cache
   airflow-postgres-data:
     name: quantum-ml-airflow-postgres
   airflow-logs:
     name: quantum-ml-airflow-logs
+  redis-data:
+    name: quantum-ml-redis-data
   mlflow-data:
     name: quantum-ml-mlflow-data
   kafka-data:
@@ -18,6 +22,40 @@ networks:
   quantum-net:
     name: quantum-ml-network
     driver: bridge
+
+x-airflow-common:
+  &airflow-common
+  build:
+    context: ..
+    dockerfile: ./docker/Dockerfile.airflow
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: ${AIRFLOW_DAGS_PAUSED_AT_CREATION:-True}
+    AIRFLOW__CORE__LOAD_EXAMPLES: ${AIRFLOW_LOAD_EXAMPLES:-False}
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
+    AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
+    AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    # S3 credentials for Spark/Airflow DAGs
+    S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+    S3_SECRET_KEY: ${S3_SECRET_KEY}
+    S3_ENDPOINT: ${S3_ENDPOINT:-http://garage:3901}
+  volumes: &airflow-common-volumes
+    - ../docker/airflow/:/opt/airflow/dags
+    - airflow-logs:/opt/airflow/logs
+  networks:
+    - quantum-net
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
 
 services:
 
@@ -191,20 +229,19 @@ services:
   # --- spark ---
 
   spark-master:
-    build:
-      context: ..
-      dockerfile: ./docker/Dockerfile.spark.ml
+    image: apache/spark:${SPARK_VERSION:-4.0.2}-python3
     container_name: ml-spark-master
     command: /opt/spark/sbin/start-master.sh
     environment: &spark-common-env
       SPARK_MASTER_HOST: spark-master
       SPARK_MASTER_PORT: 7077
       SPARK_NO_DAEMONIZE: "true"
-      # S3 credentials via env vars (not JVM args) — read by EnvironmentVariableCredentialsProvider
+      # S3 credentials via env vars - read by EnvironmentVariableCredentialsProvider
       AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
     volumes:
       - spark-warehouse:/opt/spark/warehouse
+      - spark-ivy-cache:/home/spark/.ivy2
       - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
     ports:
       - "127.0.0.1:8080:8080"
@@ -215,9 +252,7 @@ services:
       - garage
 
   spark-worker:
-    build:
-      context: ..
-      dockerfile: ./docker/Dockerfile.spark.ml
+    image: apache/spark:${SPARK_VERSION:-4.0.2}-python3
     container_name: ml-spark-worker
     command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077
     environment:
@@ -226,13 +261,14 @@ services:
       SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-2}
     volumes:
       - spark-warehouse:/opt/spark/warehouse
+      - spark-ivy-cache:/home/spark/.ivy2
       - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
     depends_on:
       - spark-master
     networks:
       - quantum-net
 
-  # --- airflow ---
+  # --- airflow (3.x with CeleryExecutor) ---
 
   postgres:
     image: postgres:${POSTGRES_VERSION:-16-alpine}
@@ -249,108 +285,138 @@ services:
       test: ["CMD", "pg_isready", "-U", "${AIRFLOW_POSTGRES_USER:-airflow}"]
       interval: 5s
       retries: 5
+    restart: always
+
+  redis:
+    image: redis:7.2-bookworm
+    container_name: ml-redis
+    expose:
+      - 6379
+    volumes:
+      - redis-data:/data
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: always
 
   airflow-init:
-    build:
-      context: ..
-      dockerfile: ./docker/Dockerfile.airflow
+    <<: *airflow-common
     container_name: ml-airflow-init
     depends_on:
-      postgres:
-        condition: service_healthy
-    environment: &airflow-common-env
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}
-      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: ${AIRFLOW_DAGS_PAUSED_AT_CREATION:-True}
-      AIRFLOW__CORE__LOAD_EXAMPLES: ${AIRFLOW_LOAD_EXAMPLES:-False}
-      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
-      AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
-      AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
-      # S3 credentials for Spark/Airflow DAGs
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_SECRET_KEY: ${S3_SECRET_KEY}
-      S3_ENDPOINT: ${S3_ENDPOINT:-http://garage:3901}
-    volumes:
-      - ../docker/airflow/:/opt/airflow/dags
-    command: version
-    entrypoint: |
-      /bin/bash -c "
-        airflow db upgrade &&
+      <<: *airflow-common-depends-on
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
         airflow db migrate &&
         airflow users create \
-          --username ${AIRFLOW_ADMIN_USERNAME:-admin} \
-          --password ${AIRFLOW_ADMIN_PASSWORD:-admin} \
-          --firstname ${AIRFLOW_ADMIN_FIRSTNAME:-Admin} \
-          --lastname ${AIRFLOW_ADMIN_LASTNAME:-User} \
+          --username $${AIRFLOW_ADMIN_USERNAME:-admin} \
+          --password $${AIRFLOW_ADMIN_PASSWORD:-admin} \
+          --firstname $${AIRFLOW_ADMIN_FIRSTNAME:-Admin} \
+          --lastname $${AIRFLOW_ADMIN_LASTNAME:-User} \
           --role Admin \
-          --email ${AIRFLOW_ADMIN_EMAIL:-admin@example.com} &&
+          --email $${AIRFLOW_ADMIN_EMAIL:-admin@example.com} || true &&
         airflow connections add 'spark_default' \
           --conn-type 'spark' \
-          --conn-host 'spark://${SPARK_MASTER_HOST:-spark-master}:${SPARK_MASTER_PORT:-7077}' \
-          --conn-extra '{\"queue\": \"${SPARK_DEFAULT_QUEUE:-default}\"}'"
-    networks:
-      - quantum-net
-
-  airflow-webserver:
-    build:
-      context: ..
-      dockerfile: ./docker/Dockerfile.airflow
-    container_name: ml-airflow-webserver
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
+          --conn-host 'spark://$${SPARK_MASTER_HOST:-spark-master}:$${SPARK_MASTER_PORT:-7077}' \
+          --conn-extra '{"queue": "$${SPARK_DEFAULT_QUEUE:-default}"}' || true
     environment:
       <<: *airflow-common-env
-    volumes:
-      - ../docker/airflow/:/opt/airflow/dags
-      - airflow-logs:/opt/airflow/logs
+      AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+      AIRFLOW_ADMIN_FIRSTNAME: ${AIRFLOW_ADMIN_FIRSTNAME:-Admin}
+      AIRFLOW_ADMIN_LASTNAME: ${AIRFLOW_ADMIN_LASTNAME:-User}
+      AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL:-admin@example.com}
+    user: "0:0"
+
+  airflow-apiserver:
+    <<: *airflow-common
+    container_name: ml-airflow-apiserver
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
     ports:
       - "${AIRFLOW_WEBSERVER_PORT:-8084}:8080"
-    command: webserver
+    command: api-server
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
-      interval: 10s
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
       timeout: 10s
       retries: 5
-    networks:
-      - quantum-net
+      start_period: 30s
     restart: always
 
   airflow-scheduler:
-    build:
-      context: ..
-      dockerfile: ./docker/Dockerfile.airflow
+    <<: *airflow-common
     container_name: ml-airflow-scheduler
     depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    container_name: ml-airflow-dag-processor
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+  airflow-worker:
+    <<: *airflow-common
+    container_name: ml-airflow-worker
+    depends_on:
+      <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
     environment:
       <<: *airflow-common-env
-    volumes:
-      - ../docker/airflow/:/opt/airflow/dags
-      - airflow-logs:/opt/airflow/logs
-    command: scheduler
-    networks:
-      - quantum-net
+      DUMB_INIT_SETSID: "0"
+    command: celery worker
+    healthcheck:
+      test: ["CMD-SHELL", 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     restart: always
 
   airflow-triggerer:
-    build:
-      context: ..
-      dockerfile: ./docker/Dockerfile.airflow
+    <<: *airflow-common
     container_name: ml-airflow-triggerer
     depends_on:
+      <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
-    environment:
-      <<: *airflow-common-env
-    volumes:
-      - ../docker/airflow/:/opt/airflow/dags
-      - airflow-logs:/opt/airflow/logs
     command: triggerer
-    networks:
-      - quantum-net
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     restart: always
 
   # --- mlflow experiment tracking ---

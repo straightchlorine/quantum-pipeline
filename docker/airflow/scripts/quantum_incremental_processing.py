@@ -11,12 +11,15 @@ import uuid
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
+    array_join,
+    coalesce,
     col,
     current_date,
     current_timestamp,
     explode,
     expr,
     lit,
+    posexplode,
     size,
     udf,
 )
@@ -371,6 +374,10 @@ def transform_quantum_data(df):
         col('vqe_result.optimal_parameters').alias('optimal_parameters'),
         col('vqe_result.maxcv').alias('maxcv'),
         col('vqe_result.minimization_time').alias('minimization_time'),
+        col('vqe_result.nuclear_repulsion_energy').alias('nuclear_repulsion_energy'),
+        col('vqe_result.success').alias('success'),
+        col('vqe_result.nfev').alias('nfev'),
+        col('vqe_result.nit').alias('nit'),
         col('hamiltonian_time'),
         col('mapping_time'),
         col('vqe_time'),
@@ -387,6 +394,7 @@ def transform_quantum_data(df):
         col('experiment_id'),
         col('molecule_id'),
         col('molecule_data.symbols').alias('atom_symbols'),
+        array_join(col('molecule_data.symbols'), '').alias('molecule_name'),
         col('molecule_data.coords').alias('coordinates'),
         col('molecule_data.multiplicity').alias('multiplicity'),
         col('molecule_data.charge').alias('charge'),
@@ -405,6 +413,8 @@ def transform_quantum_data(df):
         col('basis_set'),
         col('initial_data.ansatz').alias('ansatz'),
         col('initial_data.ansatz_reps').alias('ansatz_reps'),
+        coalesce(col('initial_data.ansatz_name'), lit('EfficientSU2')).alias('ansatz_name'),
+        coalesce(col('initial_data.init_strategy'), lit('random')).alias('init_strategy'),
         col('processing_timestamp'),
         col('processing_date'),
         col('processing_batch_id'),
@@ -441,8 +451,15 @@ def transform_quantum_data(df):
         col('initial_data.noise_backend').alias('noise_backend'),
         col('initial_data.default_shots').alias('default_shots'),
         col('initial_data.ansatz_reps').alias('ansatz_reps'),
+        coalesce(col('initial_data.ansatz_name'), lit('EfficientSU2')).alias('ansatz_name'),
+        coalesce(col('initial_data.init_strategy'), lit('random')).alias('init_strategy'),
+        col('initial_data.seed').alias('seed'),
         col('minimum_energy'),
         col('maxcv'),
+        col('nuclear_repulsion_energy'),
+        col('success'),
+        col('nfev'),
+        col('nit'),
         size(col('iteration_list')).alias('total_iterations'),
         col('processing_timestamp'),
         col('processing_date'),
@@ -534,6 +551,7 @@ def transform_quantum_data(df):
                 "concat(experiment_id, '_iter_', cast(hash(concat(experiment_id, cast(iteration_step as string))) % 1000000 as string))"
             ),
         )
+        .dropDuplicates(['experiment_id', 'iteration_step'])
     )
 
     # iteration parameters
@@ -557,17 +575,11 @@ def transform_quantum_data(df):
             col('backend'),
             col('num_qubits'),
             col('iteration.iteration').alias('iteration_step'),
-            explode(col('iteration.parameters')).alias('parameter_value'),
+            posexplode(col('iteration.parameters')).alias('parameter_index', 'parameter_value'),
             col('processing_timestamp'),
             col('processing_date'),
             col('processing_batch_id'),
             col('processing_name'),
-        )
-        .withColumn(
-            'parameter_index',
-            expr(
-                'hash(concat(experiment_id, cast(iteration_step as string), parameter_value)) % 1000000'
-            ),
         )
         .withColumn(
             'iteration_id',
