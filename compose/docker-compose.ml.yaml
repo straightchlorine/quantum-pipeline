@@ -9,6 +9,8 @@ volumes:
     name: quantum-ml-airflow-postgres
   airflow-logs:
     name: quantum-ml-airflow-logs
+  mlflow-data:
+    name: quantum-ml-mlflow-data
   kafka-data:
     name: quantum-ml-kafka-data
 
@@ -106,7 +108,7 @@ services:
       - -c
       - |
         echo "Installing S3 connector plugin..."
-        confluent-hub install --no-prompt confluentinc/kafka-connect-s3:latest
+        confluent-hub install --no-prompt confluentinc/kafka-connect-s3:10.5.17
         echo "Launching Kafka Connect worker..."
         /etc/confluent/docker/run
     networks:
@@ -198,32 +200,15 @@ services:
       SPARK_MASTER_HOST: spark-master
       SPARK_MASTER_PORT: 7077
       SPARK_NO_DAEMONIZE: "true"
-      # Iceberg + S3 (Garage) configuration via spark-defaults
-      SPARK_MASTER_OPTS: >-
-        -Dspark.serializer=org.apache.spark.serializer.KryoSerializer
-        -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-        -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog
-        -Dspark.sql.catalog.spark_catalog.type=hive
-        -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog
-        -Dspark.sql.catalog.iceberg.type=hadoop
-        -Dspark.sql.catalog.iceberg.warehouse=s3a://${S3_ICEBERG_BUCKET:-iceberg}/warehouse
-        -Dspark.sql.catalog.iceberg.io-impl=org.apache.iceberg.aws.s3.S3FileIO
-        -Dspark.sql.catalog.iceberg.s3.endpoint=${S3_ENDPOINT:-http://garage:3901}
-        -Dspark.sql.catalog.iceberg.s3.path-style-access=true
-        -Dspark.sql.catalog.iceberg.s3.region=${S3_REGION:-garage}
-        -Dspark.hadoop.fs.s3a.access.key=${S3_ACCESS_KEY}
-        -Dspark.hadoop.fs.s3a.secret.key=${S3_SECRET_KEY}
-        -Dspark.hadoop.fs.s3a.endpoint=${S3_ENDPOINT:-http://garage:3901}
-        -Dspark.hadoop.fs.s3a.endpoint.region=${S3_REGION:-garage}
-        -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
-        -Dspark.hadoop.fs.s3a.path.style.access=true
-        -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false
-        -Dspark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
-    ports:
-      - "8080:8080"
-      - "7077:7077"
+      # S3 credentials via env vars (not JVM args) — read by EnvironmentVariableCredentialsProvider
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
     volumes:
       - spark-warehouse:/opt/spark/warehouse
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "7077:7077"
     networks:
       - quantum-net
     depends_on:
@@ -239,29 +224,9 @@ services:
       <<: *spark-common-env
       SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-2G}
       SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-2}
-      # Worker uses SPARK_WORKER_OPTS instead of SPARK_MASTER_OPTS
-      SPARK_WORKER_OPTS: >-
-        -Dspark.serializer=org.apache.spark.serializer.KryoSerializer
-        -Dspark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-        -Dspark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog
-        -Dspark.sql.catalog.spark_catalog.type=hive
-        -Dspark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog
-        -Dspark.sql.catalog.iceberg.type=hadoop
-        -Dspark.sql.catalog.iceberg.warehouse=s3a://${S3_ICEBERG_BUCKET:-iceberg}/warehouse
-        -Dspark.sql.catalog.iceberg.io-impl=org.apache.iceberg.aws.s3.S3FileIO
-        -Dspark.sql.catalog.iceberg.s3.endpoint=${S3_ENDPOINT:-http://garage:3901}
-        -Dspark.sql.catalog.iceberg.s3.path-style-access=true
-        -Dspark.sql.catalog.iceberg.s3.region=${S3_REGION:-garage}
-        -Dspark.hadoop.fs.s3a.access.key=${S3_ACCESS_KEY}
-        -Dspark.hadoop.fs.s3a.secret.key=${S3_SECRET_KEY}
-        -Dspark.hadoop.fs.s3a.endpoint=${S3_ENDPOINT:-http://garage:3901}
-        -Dspark.hadoop.fs.s3a.endpoint.region=${S3_REGION:-garage}
-        -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
-        -Dspark.hadoop.fs.s3a.path.style.access=true
-        -Dspark.hadoop.fs.s3a.connection.ssl.enabled=false
-        -Dspark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
     volumes:
       - spark-warehouse:/opt/spark/warehouse
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
     depends_on:
       - spark-master
     networks:
@@ -387,3 +352,86 @@ services:
     networks:
       - quantum-net
     restart: always
+
+  # --- mlflow experiment tracking ---
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:${MLFLOW_VERSION:-v2.16.0}
+    container_name: ml-mlflow
+    restart: unless-stopped
+    ports:
+      - "${MLFLOW_PORT:-5000}:5000"
+    environment:
+      MLFLOW_BACKEND_STORE_URI: "sqlite:////mlflow/mlflow.db"
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: "/mlflow/artifacts"
+    command: >
+      mlflow server
+        --backend-store-uri sqlite:////mlflow/mlflow.db
+        --default-artifact-root /mlflow/artifacts
+        --host 0.0.0.0
+        --port 5000
+    volumes:
+      - mlflow-data:/mlflow
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # --- vqe batch generation containers (no command: injected via docker compose run) ---
+
+  quantum-pipeline-gpu1:
+    image: quantum-pipeline:gpu
+    networks:
+      - quantum-net
+    environment:
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+    volumes:
+      - ../data:/usr/src/quantum_pipeline/data:ro
+      - ../gen:/usr/src/quantum_pipeline/gen
+    profiles:
+      - batch
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu]
+
+  quantum-pipeline-gpu2:
+    image: quantum-pipeline:gpu
+    networks:
+      - quantum-net
+    environment:
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+    volumes:
+      - ../data:/usr/src/quantum_pipeline/data:ro
+      - ../gen:/usr/src/quantum_pipeline/gen
+    profiles:
+      - batch
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['1']
+              capabilities: [gpu]
+
+  quantum-pipeline-cpu:
+    image: quantum-pipeline:cpu
+    networks:
+      - quantum-net
+    environment:
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+    volumes:
+      - ../data:/usr/src/quantum_pipeline/data:ro
+      - ../gen:/usr/src/quantum_pipeline/gen
+    profiles:
+      - batch
