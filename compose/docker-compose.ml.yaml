@@ -145,14 +145,12 @@ services:
       # Standard AWS SDK env var names (used by the S3 Sink connector)
       AWS_ACCESS_KEY_ID: "${S3_ACCESS_KEY}"
       AWS_SECRET_ACCESS_KEY: "${S3_SECRET_KEY}"
-      # Disable chunked payload signing for Garage S3 compatibility
-      KAFKA_OPTS: "-Dcom.amazonaws.services.s3.disableChunkedEncoding=true"
     command:
       - bash
       - -c
       - |
         echo "Installing S3 connector plugin..."
-        confluent-hub install --no-prompt confluentinc/kafka-connect-s3:12.1.0
+        confluent-hub install --no-prompt confluentinc/kafka-connect-s3:10.5.17
         echo "Launching Kafka Connect worker..."
         /etc/confluent/docker/run
     networks:
@@ -178,12 +176,17 @@ services:
       kafka-connect:
         condition: service_healthy
     entrypoint: ["sh", "-c"]
+    environment:
+      AWS_ACCESS_KEY_ID: "${S3_ACCESS_KEY}"
+      AWS_SECRET_ACCESS_KEY: "${S3_SECRET_KEY}"
     command:
       - |
         echo 'Registering Garage S3 Sink Connector...'
+        cp /connectors/garage-sink-config.json /tmp/config.json
+        sed -i "s|\"s3.auto.create.buckets.on.start\"|\"s3.access.key.id\": \"$$AWS_ACCESS_KEY_ID\", \"s3.secret.access.key\": \"$$AWS_SECRET_ACCESS_KEY\", \"s3.auto.create.buckets.on.start\"|" /tmp/config.json
         for i in 1 2 3 4 5; do
           if curl -sf -X POST -H 'Content-Type: application/json' \
-            -d @/connectors/garage-sink-config.json \
+            -d @/tmp/config.json \
             http://kafka-connect:8083/connectors; then
             echo ''
             echo 'Garage Sink Connector registered successfully!'
