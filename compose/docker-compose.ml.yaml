@@ -179,10 +179,9 @@ services:
     command:
       - |
         echo 'Registering Garage S3 Sink Connector...'
-        CONFIG=$(cat /connectors/garage-sink-config.json)
         for i in 1 2 3 4 5; do
           if curl -sf -X POST -H 'Content-Type: application/json' \
-            --data "$$CONFIG" \
+            -d @/connectors/garage-sink-config.json \
             http://kafka-connect:8083/connectors; then
             echo ''
             echo 'Garage Sink Connector registered successfully!'
