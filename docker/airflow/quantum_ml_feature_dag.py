@@ -46,8 +46,8 @@ for k, v in DEFAULT_CONFIG.items():
     if Variable.get(k, default_var=None) is None:
         Variable.set(k, v)
 
-Variable.set('MINIO_ACCESS_KEY', os.getenv('MINIO_ACCESS_KEY'))
-Variable.set('MINIO_SECRET_KEY', os.getenv('MINIO_SECRET_KEY'))
+Variable.set('S3_ACCESS_KEY', os.getenv('S3_ACCESS_KEY'))
+Variable.set('S3_SECRET_KEY', os.getenv('S3_SECRET_KEY'))
 
 with DAG(
     'quantum_ml_feature_processing',
@@ -76,30 +76,14 @@ with DAG(
         conn_id='spark_default',
         name='quantum_ml_feature_processing',
         conf={
-            'spark.master': Variable.get('SPARK_MASTER'),
             'spark.app.name': Variable.get('APP_NAME'),
-            'spark.hadoop.fs.s3a.endpoint': Variable.get('S3_ENDPOINT'),
-            'spark.hadoop.fs.s3a.access.key': Variable.get('MINIO_ACCESS_KEY'),
-            'spark.hadoop.fs.s3a.secret.key': Variable.get('MINIO_SECRET_KEY'),
-            'spark.hadoop.fs.s3a.path.style.access': 'true',
-            'spark.hadoop.fs.s3a.connection.ssl.enabled': 'false',
-            'spark.jars.packages': (
-                'org.slf4j:slf4j-api:2.0.17,'
-                'commons-codec:commons-codec:1.18.0,'
-                'com.google.j2objc:j2objc-annotations:3.0.0,'
-                'org.apache.spark:spark-avro_2.12:3.5.5,'
-                'org.apache.hadoop:hadoop-aws:3.3.1,'
-                'org.apache.hadoop:hadoop-common:3.3.1,'
-                'org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2'
-            ),
         },
         env_vars={
-            'MINIO_ACCESS_KEY': Variable.get('MINIO_ACCESS_KEY'),
-            'MINIO_SECRET_KEY': Variable.get('MINIO_SECRET_KEY'),
+            'S3_ACCESS_KEY': Variable.get('S3_ACCESS_KEY'),
+            'S3_SECRET_KEY': Variable.get('S3_SECRET_KEY'),
             'S3_ENDPOINT': Variable.get('S3_ENDPOINT'),
             'S3_BUCKET': Variable.get('S3_BUCKET'),
             'S3_WAREHOUSE': Variable.get('S3_WAREHOUSE'),
-            'SPARK_MASTER': Variable.get('SPARK_MASTER'),
         },
         verbose=True,
     )

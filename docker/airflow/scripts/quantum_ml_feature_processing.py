@@ -38,7 +38,7 @@ from pyspark.sql.functions import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
-    'S3_ENDPOINT': os.getenv('S3_ENDPOINT', 'http://garage:3900'),
+    'S3_ENDPOINT': os.getenv('S3_ENDPOINT', 'http://garage:3901'),
     'SPARK_MASTER': os.getenv('SPARK_ENDPOINT', 'spark://spark-master:7077'),
     'S3_BUCKET': os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/'),
     'S3_WAREHOUSE': os.getenv('S3_WAREHOUSE_URL', 's3a://features/warehouse/'),
@@ -50,7 +50,7 @@ CATALOG = 'quantum_catalog.quantum_features'
 
 def validate_environment():
     """Validate that required environment variables are set."""
-    required_vars = ['MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY']
+    required_vars = ['S3_ACCESS_KEY', 'S3_SECRET_KEY']
     missing = [var for var in required_vars if not os.environ.get(var)]
     if missing:
         raise ValueError(f'Missing required environment variables: {", ".join(missing)}')
@@ -63,8 +63,8 @@ def create_spark_session(config=None):
 
     validate_environment()
 
-    access_key = os.environ.get('MINIO_ACCESS_KEY')
-    secret_key = os.environ.get('MINIO_SECRET_KEY')
+    access_key = os.environ.get('S3_ACCESS_KEY')
+    secret_key = os.environ.get('S3_SECRET_KEY')
 
     return (
         SparkSession.builder.appName(config.get('APP_NAME', DEFAULT_CONFIG['APP_NAME']))
