@@ -175,24 +175,24 @@ services:
     depends_on:
       kafka-connect:
         condition: service_healthy
-    entrypoint: >
-      sh -c "
-        echo 'Registering Garage S3 Sink Connector...';
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo 'Registering Garage S3 Sink Connector...'
         for i in 1 2 3 4 5; do
-          if curl -X POST -H 'Content-Type: application/json' \
+          if curl -sf -X POST -H 'Content-Type: application/json' \
             --data @/connectors/garage-sink-config.json \
             http://kafka-connect:8083/connectors; then
-            echo '';
-            echo 'Garage Sink Connector registered successfully!';
-            exit 0;
+            echo ''
+            echo 'Garage Sink Connector registered successfully!'
+            exit 0
           else
-            echo 'Attempt failed, retrying in 5s...';
-            sleep 5;
-          fi;
-        done;
-        echo 'Failed to register connector after 5 attempts';
-        exit 1;
-      "
+            echo "Attempt $i failed, retrying in 5s..."
+            sleep 5
+          fi
+        done
+        echo 'Failed to register connector after 5 attempts'
+        exit 1
     volumes:
       - ../docker/connectors/garage-sink-config.json:/connectors/garage-sink-config.json
     networks:
