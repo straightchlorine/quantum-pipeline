@@ -14,7 +14,7 @@ input:
 output:
   aws_s3:
     bucket: raw-results
-    path: 'experiments/experiment.vqe/year=${!now().format_timestamp("2006")}/month=${!now().format_timestamp("01")}/day=${!now().format_timestamp("02")}/hour=${!now().format_timestamp("15")}/${!count("s3_objects")}-${!timestamp_unix_nano()}.json'
+    path: experiments/experiment.vqe/${!count("s3_objects")}-${!timestamp_unix_nano()}.json
     endpoint: http://garage:3901
     region: garage
     force_path_style_urls: true
