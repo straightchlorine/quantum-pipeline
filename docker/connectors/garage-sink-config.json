@@ -31,6 +31,9 @@
     "key.converter.schema.registry.url": "http://schema-registry:8081",
     "value.converter.schema.registry.url": "http://schema-registry:8081",
 
+    "s3.credentials.provider.class": "com.amazonaws.auth.DefaultAWSCredentialsProviderChain",
+    "s3.http.send.expect.continue": "false",
+    "s3.wan.mode": "true",
     "s3.auto.create.buckets.on.start": "false",
 
     "errors.tolerance": "all",
