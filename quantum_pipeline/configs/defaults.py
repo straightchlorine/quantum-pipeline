@@ -16,7 +16,7 @@ DEFAULTS = {
         'min_qubits': None,
         'optimization_level': 3,
         'filters': None,
-        'method': 'tensor_network',  # Optimized for GPU acceleration and larger circuits
+        'method': 'statevector',  # tensor_network requires cuQuantum!
         'gpu': False,
         'noise_backend': None,
         'gpu_opts': {
