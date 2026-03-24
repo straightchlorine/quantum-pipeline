@@ -43,7 +43,6 @@ class TestSchemaRegistryInitialization:
         assert schema_registry.schema_cache == {}
         assert schema_registry.id_cache == {}
         assert schema_registry.registry_schema_existence == {}
-        assert schema_registry.schema_dir is not None
         assert schema_registry.schema_registry_url is not None
 
     def test_logger_creation(self, schema_registry):

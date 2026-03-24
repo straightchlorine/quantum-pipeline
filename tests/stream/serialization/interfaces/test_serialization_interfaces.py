@@ -1130,39 +1130,6 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
             # verify if everything aligns
             self.assertEqual(result, self.vqe_decorated_result)
 
-    def test_get_result_suffix(self):
-        """Test get_result_suffix method."""
-        mock_iteration_list = MagicMock()
-        mock_iteration_list.__len__.return_value = 10
-        self.vqe_decorated_result.vqe_result.iteration_list = mock_iteration_list
-
-        result = self.vqe_decorated_result.get_result_suffix()
-
-        self.assertEqual(result, '_it10')
-
-    def test_get_schema_suffix(self):
-        """Test get_schema_suffix method."""
-
-        # mock iteration list
-        mock_iteration_list = MagicMock()
-        mock_iteration_list.__len__.return_value = 10
-        self.vqe_decorated_result.vqe_result.iteration_list = mock_iteration_list
-
-        # mock initial data
-        mock_initial_data = MagicMock()
-        mock_initial_data.backend = 'fake-backend'
-        self.vqe_decorated_result.vqe_result.initial_data = mock_initial_data
-
-        self.vqe_decorated_result.molecule.symbols = ['H', 'H']
-        self.vqe_decorated_result.molecule_id = 42
-        self.vqe_decorated_result.basis_set = 'sto-3g'
-        self.vqe_decorated_result.vqe_result.initial_data.backend = 'fake-backend'
-
-        result = self.vqe_decorated_result.get_schema_suffix()
-
-        expected = '_mol42_HH_it10_bs_sto_3g_bk_fake_backend'
-        self.assertEqual(result, expected)
-
 
 class TestEndToEndSerialization(unittest.TestCase):
     """End-to-end tests for serialization and deserialization."""

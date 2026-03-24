@@ -1,8 +1,7 @@
 """Additional coverage tests for kafka_interface.py.
 
 Covers error-handling paths, serialization failures, retry logic,
-context-manager protocol, and the _update_topic helper that the
-existing test_kafka_interface.py does not exercise deeply.
+and the context-manager protocol.
 """
 
 from unittest.mock import Mock, patch
@@ -70,9 +69,7 @@ def producer(mock_config):
 @pytest.fixture
 def mock_result():
     """Mock VQEDecoratedResult."""
-    r = Mock(spec=VQEDecoratedResult)
-    r.get_schema_suffix.return_value = '_mol_H2_sto3g'
-    return r
+    return Mock(spec=VQEDecoratedResult)
 
 
 # ---------------------------------------------------------------------------
@@ -140,13 +137,11 @@ class TestSerialization:
 
     def test_serialize_delegates_to_serializer(self, producer, mock_result):
         producer.serializer.to_avro_bytes.return_value = b'\x00\x01'
-        producer.serializer.schema_name = 'test_schema'
         result = producer._serialize_result(mock_result)
         assert result == b'\x00\x01'
         producer.serializer.to_avro_bytes.assert_called_once()
 
     def test_serialize_failure_raises_producer_error(self, producer, mock_result):
-        producer.serializer.schema_name = 'test_schema'
         producer.serializer.to_avro_bytes.side_effect = Exception('avro boom')
         with pytest.raises(KafkaProducerError):
             producer._serialize_result(mock_result)
@@ -239,20 +234,12 @@ class TestSendResult:
     """Test the public send_result method."""
 
     def test_producer_not_initialized_raises(self, producer, mock_result):
-        # _update_topic runs before the None check, so wire up schema_name attrs
-        producer.serializer.schema_name = 'schema'
-        producer.serializer.result_interface = Mock()
-        producer.serializer.result_interface.schema_name = 'schema'
         producer.producer = None
         with pytest.raises(KafkaProducerError):
             producer.send_result(mock_result)
 
     def test_unexpected_error_wrapped(self, producer, mock_result):
         """Non-KafkaProducerError from _send_and_flush should be wrapped."""
-        producer.serializer.schema_name = 'schema'
-        producer.serializer.result_interface = Mock()
-        producer.serializer.result_interface.schema_name = 'schema'
-
         with (
             patch.object(producer, '_send_and_flush', side_effect=TypeError('bad type')),
             pytest.raises(KafkaProducerError),
@@ -261,10 +248,6 @@ class TestSendResult:
 
     def test_kafka_producer_error_propagated(self, producer, mock_result):
         """KafkaProducerError from _send_and_flush should propagate as-is."""
-        producer.serializer.schema_name = 'schema'
-        producer.serializer.result_interface = Mock()
-        producer.serializer.result_interface.schema_name = 'schema'
-
         with (
             patch.object(
                 producer,
@@ -274,38 +257,6 @@ class TestSendResult:
             pytest.raises(KafkaProducerError, match='inner fail'),
         ):
             producer.send_result(mock_result)
-
-
-# ---------------------------------------------------------------------------
-# _update_topic
-# ---------------------------------------------------------------------------
-
-
-class TestUpdateTopic:
-    """Test topic/schema suffix updating."""
-
-    def test_suffix_appended_to_topic_and_schema(self, producer, mock_result):
-        producer.config.topic = 'vqe_results'
-        producer.serializer.schema_name = 'vqe_results'
-        producer.serializer.result_interface = Mock()
-        producer.serializer.result_interface.schema_name = 'vqe_results'
-
-        producer._update_topic(mock_result)
-
-        assert producer.config.topic == 'vqe_results_mol_H2_sto3g'
-        assert producer.serializer.schema_name == 'vqe_results_mol_H2_sto3g'
-
-    def test_existing_suffix_replaced(self, producer, mock_result):
-        """If topic already has a _mol suffix it should be replaced."""
-        producer.config.topic = 'vqe_results_mol_old'
-        producer.serializer.schema_name = 'vqe_results_mol_old'
-        producer.serializer.result_interface = Mock()
-        producer.serializer.result_interface.schema_name = 'vqe_results_mol_old'
-
-        producer._update_topic(mock_result)
-
-        assert producer.config.topic == 'vqe_results_mol_H2_sto3g'
-        assert producer.serializer.schema_name == 'vqe_results_mol_H2_sto3g'
 
 
 # ---------------------------------------------------------------------------
