@@ -34,7 +34,7 @@ DEFAULTS = {
     },
     'kafka': {
         'servers': 'localhost:9092',
-        'topic': 'vqe_decorated_result',
+        'topic': 'experiment.vqe',
         'retries': 3,
         'internal_retries': 0,
         'acks': 'all',

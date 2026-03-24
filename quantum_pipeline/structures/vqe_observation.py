@@ -77,30 +77,6 @@ class VQEDecoratedResult:
     performance_start: dict | None = None
     performance_end: dict | None = None
 
-    def get_result_suffix(self) -> str:
-        """Return the result suffix for Avro serialization."""
-        return f'_it{self.vqe_result.iteration_list.__len__()}'
-
-    def get_schema_suffix(self) -> str:
-        """Generate a unique schema suffix for Avro serialization based on
-        molecule, iteration, basis set, and backend details.
-
-        Returns:
-            str: A formatted schema suffix string
-        """
-        mol_str = ''.join(self.molecule.symbols)
-
-        basis_set_formatted = self.basis_set.replace('-', '_')
-        backend_formatted = self.vqe_result.initial_data.backend.replace('-', '_')
-
-        return (
-            f'_mol{self.molecule_id}'
-            f'_{mol_str}'
-            f'_it{len(self.vqe_result.iteration_list)}'
-            f'_bs_{basis_set_formatted}'
-            f'_bk_{backend_formatted}'
-        )
-
     def get_performance_delta(self) -> dict:
         """Calculate performance metrics delta between start and end snapshots."""
         if not (self.performance_start and self.performance_end):

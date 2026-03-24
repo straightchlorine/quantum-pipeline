@@ -44,7 +44,6 @@ GEN_DIR = 'gen'
 GRAPH_DIR = Path(GEN_DIR, 'graphs')
 REPORT_DIR = GEN_DIR
 
-SCHEMA_DIR = Path('quantum_pipeline', 'stream', 'serialization', 'schemas')
 RUN_CONFIGS = Path('run_configs')
 
 # molecule graph settings
