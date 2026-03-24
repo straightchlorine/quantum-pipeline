@@ -1,0 +1,64 @@
+[
+  {
+    "name": "LiH",
+    "symbols": [
+      "Li",
+      "H"
+    ],
+    "coords": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.5949
+      ]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [
+      6.94,
+      1.008
+    ],
+    "description": "Lithium hydride - ionic character and correlation effects",
+    "expected_qubits": 8,
+    "complexity_level": 2,
+    "experimental_bond_length_angstrom": 1.5949,
+    "reference": "Herzberg G., Molecular Spectra and Molecular Structure"
+  },
+  {
+    "name": "N2",
+    "symbols": [
+      "N",
+      "N"
+    ],
+    "coords": [
+      [
+        0.0,
+        0.0,
+        -0.5488
+      ],
+      [
+        0.0,
+        0.0,
+        0.5488
+      ]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [
+      14.007,
+      14.007
+    ],
+    "description": "Nitrogen molecule - triple bond, strong correlation",
+    "expected_qubits": 10,
+    "complexity_level": 3,
+    "experimental_bond_length_angstrom": 1.0975,
+    "reference": "NIST CCCBDB, experimental spectroscopic data"
+  }
+]
