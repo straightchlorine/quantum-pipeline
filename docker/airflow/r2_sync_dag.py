@@ -112,7 +112,7 @@ _transfers = Variable.get('R2_SYNC_TRANSFERS', default_var='8')
 _checkers = Variable.get('R2_SYNC_CHECKERS', default_var='4')
 
 
-def _health_check_fn(**context):
+def _health_check_fn(env=None, **context):
     """
     Verify rclone can reach both Garage and R2 before attempting sync.
     Raises AirflowException on connectivity failure.
@@ -162,7 +162,7 @@ with DAG(
     health_check = PythonOperator(
         task_id='rclone_health_check',
         python_callable=_health_check_fn,
-        env=_env,
+        op_kwargs={'env': _env},
     )
 
     sync_iteration_features = BashOperator(
