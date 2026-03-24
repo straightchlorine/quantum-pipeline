@@ -445,43 +445,33 @@ services:
 
   quantum-pipeline-gpu1:
     image: quantum-pipeline:gpu
+    runtime: nvidia
     networks:
       - quantum-net
     environment:
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
       SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+      NVIDIA_VISIBLE_DEVICES: 0
     volumes:
       - ../data:/usr/src/quantum_pipeline/data:ro
       - ../gen:/usr/src/quantum_pipeline/gen
     profiles:
       - batch
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ['0']
-              capabilities: [gpu]
 
   quantum-pipeline-gpu2:
     image: quantum-pipeline:gpu
+    runtime: nvidia
     networks:
       - quantum-net
     environment:
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
       SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+      NVIDIA_VISIBLE_DEVICES: 1
     volumes:
       - ../data:/usr/src/quantum_pipeline/data:ro
       - ../gen:/usr/src/quantum_pipeline/gen
     profiles:
       - batch
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              device_ids: ['1']
-              capabilities: [gpu]
 
   quantum-pipeline-cpu:
     image: quantum-pipeline:cpu
