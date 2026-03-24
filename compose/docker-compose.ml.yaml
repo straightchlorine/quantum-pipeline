@@ -150,7 +150,7 @@ services:
       - -c
       - |
         echo "Installing S3 connector plugin..."
-        confluent-hub install --no-prompt confluentinc/kafka-connect-s3:10.5.17
+        confluent-hub install --no-prompt confluentinc/kafka-connect-s3:12.1.0
         echo "Launching Kafka Connect worker..."
         /etc/confluent/docker/run
     networks:

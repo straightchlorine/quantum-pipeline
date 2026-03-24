@@ -31,7 +31,7 @@
     "key.converter.schema.registry.url": "http://schema-registry:8081",
     "value.converter.schema.registry.url": "http://schema-registry:8081",
 
-    "s3.credentials.provider.class": "com.amazonaws.auth.DefaultAWSCredentialsProviderChain",
+    "s3.credentials.provider.class": "software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider",
     "s3.http.send.expect.continue": "false",
     "s3.part.size": "5242880",
     "s3.auto.create.buckets.on.start": "false",
