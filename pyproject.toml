@@ -85,7 +85,6 @@ docs = [
 ml = [
     "scikit-learn>=1.8.0",
     "xgboost>=3.2.0",
-    "pandas>=3.0.1",
     "seaborn>=0.13.2",
     "jupyterlab>=4.5.6",
     "mlflow>=3.10.1",
@@ -153,6 +152,7 @@ markers = [
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
 
 [tool.coverage.run]
