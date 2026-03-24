@@ -60,6 +60,6 @@ RUN rm -rf static && mkdir -p static && mv ./qiskit-aer/dist/* ./static && rm -r
 
 COPY . .
 RUN pip install --no-cache-dir .
-RUN find ./static -name "*.whl" -type f -exec pip install {} \;
+RUN find ./static -name "*.whl" -type f -exec pip install --force-reinstall --no-deps {} \;
 
 ENTRYPOINT ["python", "-m", "quantum_pipeline"]
