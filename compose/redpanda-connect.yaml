@@ -1,0 +1,28 @@
+input:
+  kafka:
+    addresses:
+      - kafka:9092
+    topics:
+      - experiment.vqe
+    consumer_group: redpanda-s3-sink
+
+  processors:
+    - schema_registry_decode:
+        url: http://schema-registry:8081
+        avro_raw_json: true
+
+output:
+  aws_s3:
+    bucket: raw-results
+    path: 'experiments/experiment.vqe/year=${!timestamp("2006")}/month=${!timestamp("01")}/day=${!timestamp("02")}/hour=${!timestamp("15")}/${!count("s3_objects")}-${!timestamp_unix_nano()}.json'
+    endpoint: http://garage:3901
+    region: garage
+    force_path_style_urls: true
+    credentials:
+      id: "${S3_ACCESS_KEY}"
+      secret: "${S3_SECRET_KEY}"
+    content_type: application/json
+    max_in_flight: 1
+    batching:
+      count: 1
+      period: 10s

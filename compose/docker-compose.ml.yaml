@@ -116,43 +116,18 @@ services:
       retries: 3
       start_period: 15s
 
-  kafka-connect:
-    image: confluentinc/cp-kafka-connect:${KAFKA_CONNECT_VERSION:-8.2.0}
-    container_name: ml-kafka-connect
-    restart: unless-stopped
-    ports:
-      - "${KAFKA_CONNECT_PORT:-8083}:8083"
+  # --- redpanda connect ---
+
+  redpanda-connect:
+    image: docker.redpanda.com/redpandadata/connect
+    container_name: ml-redpanda-connect
+    restart: on-failure
     environment:
-      CONNECT_BOOTSTRAP_SERVERS: "${KAFKA_SERVERS:-kafka:9092}"
-      CONNECT_REST_PORT: 8083
-      CONNECT_GROUP_ID: "ml-connect-cluster"
-      CONNECT_CONFIG_STORAGE_TOPIC: "ml-connect-configs"
-      CONNECT_OFFSET_STORAGE_TOPIC: "ml-connect-offsets"
-      CONNECT_STATUS_STORAGE_TOPIC: "ml-connect-status"
-      CONNECT_KEY_CONVERTER: "io.confluent.connect.avro.AvroConverter"
-      CONNECT_VALUE_CONVERTER: "io.confluent.connect.avro.AvroConverter"
-      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
-      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
-      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
-      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
-      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
-      CONNECT_LOG4J_ROOT_LOGLEVEL: "${KAFKA_CONNECT_LOG_LEVEL:-INFO}"
-      CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
-      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
-      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
-      # Standard AWS SDK env var names (used by the S3 Sink connector)
-      AWS_ACCESS_KEY_ID: "${S3_ACCESS_KEY}"
-      AWS_SECRET_ACCESS_KEY: "${S3_SECRET_KEY}"
-    command:
-      - bash
-      - -c
-      - |
-        echo "Installing S3 connector plugin..."
-        confluent-hub install --no-prompt confluentinc/kafka-connect-s3:10.5.17
-        echo "Launching Kafka Connect worker..."
-        /etc/confluent/docker/run
+      S3_ACCESS_KEY: "${S3_ACCESS_KEY}"
+      S3_SECRET_KEY: "${S3_SECRET_KEY}"
+    volumes:
+      - ./redpanda-connect.yaml:/connect.yaml:ro
+    command: run /connect.yaml
     networks:
       - quantum-net
     depends_on:
@@ -162,46 +137,6 @@ services:
         condition: service_healthy
       garage:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-
-  kafka-connect-init:
-    image: curlimages/curl
-    container_name: ml-kafka-connect-init
-    depends_on:
-      kafka-connect:
-        condition: service_healthy
-    entrypoint: ["sh", "-c"]
-    environment:
-      AWS_ACCESS_KEY_ID: "${S3_ACCESS_KEY}"
-      AWS_SECRET_ACCESS_KEY: "${S3_SECRET_KEY}"
-    command:
-      - |
-        echo 'Registering Garage S3 Sink Connector...'
-        cp /connectors/garage-sink-config.json /tmp/config.json
-        sed -i "s|\"s3.auto.create.buckets.on.start\"|\"s3.access.key.id\": \"$$AWS_ACCESS_KEY_ID\", \"s3.secret.access.key\": \"$$AWS_SECRET_ACCESS_KEY\", \"s3.auto.create.buckets.on.start\"|" /tmp/config.json
-        for i in 1 2 3 4 5; do
-          if curl -sf -X POST -H 'Content-Type: application/json' \
-            -d @/tmp/config.json \
-            http://kafka-connect:8083/connectors; then
-            echo ''
-            echo 'Garage Sink Connector registered successfully!'
-            exit 0
-          else
-            echo "Attempt $$i failed, retrying in 5s..."
-            sleep 5
-          fi
-        done
-        echo 'Failed to register connector after 5 attempts'
-        exit 1
-    volumes:
-      - ../docker/connectors/garage-sink-config.json:/connectors/garage-sink-config.json
-    networks:
-      - quantum-net
 
   # --- garage (s3-compatible storage) ---
 
