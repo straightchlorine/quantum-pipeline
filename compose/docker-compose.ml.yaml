@@ -130,6 +130,12 @@ services:
     command: run /connect.yaml
     networks:
       - quantum-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4195/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       kafka:
         condition: service_healthy

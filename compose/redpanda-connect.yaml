@@ -1,3 +1,6 @@
+http:
+  address: 0.0.0.0:4195
+
 input:
   kafka:
     addresses:
