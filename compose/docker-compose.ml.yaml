@@ -131,7 +131,7 @@ services:
     networks:
       - quantum-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4195/ping"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:4195/ping"]
       interval: 10s
       timeout: 5s
       retries: 3

@@ -1,0 +1,118 @@
+services:
+  kafka-connect:
+    image: confluentinc/cp-kafka-connect:${KAFKA_CONNECT_VERSION:-8.2.0}
+    container_name: ml-kafka-connect
+    restart: unless-stopped
+    ports:
+      - "${KAFKA_CONNECT_PORT:-8083}:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: "${KAFKA_SERVERS:-kafka:9092}"
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: "ml-connect-cluster"
+      CONNECT_CONFIG_STORAGE_TOPIC: "ml-connect-configs"
+      CONNECT_OFFSET_STORAGE_TOPIC: "ml-connect-offsets"
+      CONNECT_STATUS_STORAGE_TOPIC: "ml-connect-status"
+      CONNECT_KEY_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_VALUE_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
+      CONNECT_LOG4J_ROOT_LOGLEVEL: "${KAFKA_CONNECT_LOG_LEVEL:-WARN}"
+      CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      AWS_ACCESS_KEY_ID: "${S3_ACCESS_KEY}"
+      AWS_SECRET_ACCESS_KEY: "${S3_SECRET_KEY}"
+    command:
+      - bash
+      - -c
+      - |
+        echo "Installing S3 connector plugin..."
+        confluent-hub install --no-prompt confluentinc/kafka-connect-s3:12.1.0
+        echo "Launching Kafka Connect worker..."
+        /etc/confluent/docker/run
+    networks:
+      - quantum-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  kafka-connect-init:
+    image: curlimages/curl
+    container_name: ml-kafka-connect-init
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+    entrypoint: ["sh", "-c"]
+    environment:
+      AWS_ACCESS_KEY_ID: "${S3_ACCESS_KEY}"
+      AWS_SECRET_ACCESS_KEY: "${S3_SECRET_KEY}"
+    command:
+      - |
+        echo 'Registering Garage S3 Sink Connector...'
+        for i in 1 2 3 4 5; do
+          if curl -sf -X POST -H 'Content-Type: application/json' \
+            -d "{
+              \"name\": \"garage-sink\",
+              \"config\": {
+                \"connector.class\": \"io.confluent.connect.s3.S3SinkConnector\",
+                \"tasks.max\": \"1\",
+                \"topics\": \"experiment.vqe\",
+                \"topics.dir\": \"experiments\",
+                \"directory.delim\": \"/\",
+                \"s3.bucket.name\": \"raw-results\",
+                \"store.url\": \"http://garage:3901\",
+                \"s3.region\": \"garage\",
+                \"s3.path.style.access\": \"true\",
+                \"s3.access.key.id\": \"$$AWS_ACCESS_KEY_ID\",
+                \"s3.secret.access.key\": \"$$AWS_SECRET_ACCESS_KEY\",
+                \"s3.http.send.expect.continue\": \"false\",
+                \"s3.part.size\": \"5242880\",
+                \"s3.retry.backoff.ms\": \"1000\",
+                \"flush.size\": \"1\",
+                \"schema.compatibility\": \"NONE\",
+                \"storage.class\": \"io.confluent.connect.s3.storage.S3Storage\",
+                \"format.class\": \"io.confluent.connect.s3.format.avro.AvroFormat\",
+                \"key.converter\": \"io.confluent.connect.avro.AvroConverter\",
+                \"value.converter\": \"io.confluent.connect.avro.AvroConverter\",
+                \"key.converter.schema.registry.url\": \"http://schema-registry:8081\",
+                \"value.converter.schema.registry.url\": \"http://schema-registry:8081\",
+                \"partitioner.class\": \"io.confluent.connect.storage.partitioner.TimeBasedPartitioner\",
+                \"partition.duration.ms\": \"3600000\",
+                \"path.format\": \"'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH\",
+                \"locale\": \"en-US\",
+                \"timezone\": \"UTC\",
+                \"timestamp.extractor\": \"Wallclock\",
+                \"s3.auto.create.buckets.on.start\": \"false\",
+                \"errors.tolerance\": \"all\",
+                \"errors.log.enable\": \"true\",
+                \"errors.log.include.messages\": \"true\"
+              }
+            }" \
+            http://kafka-connect:8083/connectors; then
+            echo ''
+            echo 'Garage Sink Connector registered successfully!'
+            exit 0
+          else
+            echo "Attempt $$i failed, retrying in 5s..."
+            sleep 5
+          fi
+        done
+        echo 'Failed to register connector after 5 attempts'
+        exit 1
+    networks:
+      - quantum-net
