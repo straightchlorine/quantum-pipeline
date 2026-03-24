@@ -1,3 +1,13 @@
+# Kafka Connect S3 Sink (alternative to Redpanda Connect)
+#
+# Usage (run alongside the main compose, disabling Redpanda Connect):
+#   docker compose --env-file .env \
+#     -f compose/docker-compose.ml.yaml \
+#     -f compose/docker-compose.ml.kafka-connect.yaml \
+#     up -d --scale redpanda-connect=0
+#
+# Versions: cp-kafka-connect 8.2.0, kafka-connect-s3 12.1.0 (AWS SDK v2)
+
 services:
   kafka-connect:
     image: confluentinc/cp-kafka-connect:${KAFKA_CONNECT_VERSION:-8.2.0}
