@@ -158,8 +158,14 @@ def read_experiments_by_topic(spark, bucket_path, topic_name, num_partitions=Non
     Returns:
         DataFrame: Spark DataFrame with the topic data
     """
-    topic_path = f'{bucket_path}{topic_name}/**/*.avro'
-    df = spark.read.format('avro').load(topic_path)
+    # support both Avro (Kafka Connect) and JSON (Redpanda Connect) output
+    avro_path = f'{bucket_path}{topic_name}/**/*.avro'
+    json_path = f'{bucket_path}{topic_name}/**/*.json'
+
+    try:
+        df = spark.read.format('avro').load(avro_path)
+    except Exception:
+        df = spark.read.json(json_path)
 
     if num_partitions:
         df = df.repartition(num_partitions)
