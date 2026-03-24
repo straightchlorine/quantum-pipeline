@@ -4,8 +4,7 @@
     "connector.class": "io.confluent.connect.s3.S3SinkConnector",
     "tasks.max": "1",
 
-    "topics.regex": "vqe_decorated_result_.*",
-    "refresh.topics.enabled": "true",
+    "topics": "experiment.vqe",
 
     "topics.dir": "experiments",
     "directory.delim": "/",
@@ -18,6 +17,13 @@
     "s3.secret.access.key": "admin123",
     "s3.part.size": "5242880",
     "s3.retry.backoff.ms": "1000",
+
+    "partitioner.class": "io.confluent.connect.storage.partitioner.TimeBasedPartitioner",
+    "partition.duration.ms": "3600000",
+    "path.format": "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH",
+    "locale": "en-US",
+    "timezone": "UTC",
+    "timestamp.extractor": "Wallclock",
 
     "flush.size": "1",
     "schema.compatibility": "NONE",

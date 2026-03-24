@@ -158,7 +158,7 @@ def read_experiments_by_topic(spark, bucket_path, topic_name, num_partitions=Non
     Returns:
         DataFrame: Spark DataFrame with the topic data
     """
-    topic_path = f'{bucket_path}{topic_name}/partition=*/*.avro'
+    topic_path = f'{bucket_path}{topic_name}/**/*.avro'
     df = spark.read.format('avro').load(topic_path)
 
     if num_partitions:
