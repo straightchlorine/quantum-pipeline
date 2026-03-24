@@ -100,27 +100,37 @@ docs-serve:
 
 # --- docker ---
 
-# Build Docker image (target: cpu, gpu, spark, airflow)
+# Build Docker image (target: cpu, gpu)
+# For GPU: set CUDA_ARCH env var to match your GPU (default: 8.6/Ampere)
+#   CUDA_ARCH=6.1 just docker-build gpu   # Pascal (GTX 10xx)
+#   CUDA_ARCH=7.5 just docker-build gpu   # Turing (RTX 20xx)
+#   CUDA_ARCH=8.9 just docker-build gpu   # Ada Lovelace (RTX 40xx)
 docker-build TARGET="cpu":
     #!/usr/bin/env bash
+    VERSION=$(python -c "import quantum_pipeline; print(quantum_pipeline.__version__)")
     case "{{TARGET}}" in
-        cpu|gpu|spark|airflow)
-            echo "[ INFO ] Building {{TARGET}} image..."
-            if [ "{{TARGET}}" = "gpu" ]; then
-                VERSION=$(python -c "import quantum_pipeline; print(quantum_pipeline.__version__)")
-                docker build -f docker/Dockerfile.gpu \
-                    -t quantum-pipeline:gpu \
-                    -t straightchlorine/quantum-pipeline:gpu \
-                    -t straightchlorine/quantum-pipeline:gpu-${VERSION} \
-                    .
-                echo "[  OK  ] GPU image built (v${VERSION})"
-            else
-                docker build -f docker/Dockerfile.{{TARGET}} -t quantum-pipeline:{{TARGET}} .
-                echo "[  OK  ] Image built: quantum-pipeline:{{TARGET}}"
-            fi
+        cpu)
+            echo "[ INFO ] Building CPU image..."
+            docker build -f docker/Dockerfile.cpu \
+                -t quantum-pipeline:cpu \
+                -t straightchlorine/quantum-pipeline:cpu \
+                -t straightchlorine/quantum-pipeline:cpu-${VERSION} \
+                .
+            echo "[  OK  ] CPU image built (v${VERSION})"
+            ;;
+        gpu)
+            ARCH="${CUDA_ARCH:-8.6}"
+            echo "[ INFO ] Building GPU image (CUDA_ARCH=${ARCH})..."
+            docker build -f docker/Dockerfile.gpu \
+                --build-arg CUDA_ARCH="${ARCH}" \
+                -t quantum-pipeline:gpu \
+                -t straightchlorine/quantum-pipeline:gpu \
+                -t straightchlorine/quantum-pipeline:gpu-${VERSION} \
+                .
+            echo "[  OK  ] GPU image built (v${VERSION}, CUDA_ARCH=${ARCH})"
             ;;
         *)
-            echo "[ FAIL ] Unknown target: {{TARGET}} (expected: cpu, gpu, spark, airflow)"
+            echo "[ FAIL ] Unknown target: {{TARGET}} (expected: cpu, gpu)"
             exit 1
             ;;
     esac
