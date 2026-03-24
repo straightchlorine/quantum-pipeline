@@ -19,8 +19,8 @@ output:
     region: garage
     force_path_style_urls: true
     credentials:
-      id: "${S3_ACCESS_KEY}"
-      secret: "${S3_SECRET_KEY}"
+      id: ${S3_ACCESS_KEY}
+      secret: ${S3_SECRET_KEY}
     content_type: application/json
     max_in_flight: 1
     batching:

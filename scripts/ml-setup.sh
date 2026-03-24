@@ -110,19 +110,27 @@ else
     echo "[  OK  ] Layout applied"
 fi
 
-# key create (reuse existing if present)
-KEY_INFO=$($GARAGE key info ml-pipeline 2>/dev/null)
-if [ -n "${KEY_INFO}" ]; then
-    echo "[ SKIP ] Key ml-pipeline already exists"
-    KEY_ID=$(echo "${KEY_INFO}" | grep "Key ID:" | awk '{print $3}')
-    KEY_SECRET=$(echo "${KEY_INFO}" | grep "Secret key:" | awk '{print $3}')
-else
+# key create — secret is only shown at creation time, so if key exists
+# but .env has placeholder creds, we delete and recreate
+EXISTING_KEY=$($GARAGE key info ml-pipeline 2>/dev/null)
+if [ -n "${EXISTING_KEY}" ] && grep -q "GK_CHANGE_ME\|S3_ACCESS_KEY=$" .env; then
+    echo "[ INFO ] Key exists but .env has no valid credentials, recreating..."
+    $GARAGE key delete --yes ml-pipeline > /dev/null 2>&1
+    EXISTING_KEY=""
+fi
+
+if [ -z "${EXISTING_KEY}" ]; then
     echo "[ INFO ] Creating access key (ml-pipeline)..."
     KEY_OUTPUT=$($GARAGE key create ml-pipeline 2>/dev/null)
     KEY_ID=$(echo "${KEY_OUTPUT}" | grep "Key ID:" | awk '{print $3}')
     KEY_SECRET=$(echo "${KEY_OUTPUT}" | grep "Secret key:" | awk '{print $3}')
+else
+    echo "[ SKIP ] Key ml-pipeline already exists with valid credentials in .env"
+    KEY_ID=$(grep "S3_ACCESS_KEY=" .env | cut -d= -f2)
+    KEY_SECRET=$(grep "S3_SECRET_KEY=" .env | cut -d= -f2)
 fi
 [ -z "${KEY_ID}" ] && echo "[ FAIL ] Could not get access key" && exit 1
+[ -z "${KEY_SECRET}" ] || [ "${KEY_SECRET}" = "(redacted)" ] && echo "[ FAIL ] Could not get secret key" && exit 1
 echo "[  OK  ] Key: ${KEY_ID}"
 
 BUCKETS=("${S3_RAW_BUCKET:-raw-results}" "${S3_FEATURES_BUCKET:-features}" "${S3_ICEBERG_BUCKET:-warehouse}" "mlflow-artifacts")
