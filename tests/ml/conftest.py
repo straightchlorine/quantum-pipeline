@@ -7,6 +7,7 @@ try:
     import sklearn  # noqa: F401
 except ImportError:
     pytest.skip(
-        'ML dependencies not installed (install with: pdm install -G ml)',
+        'ML tests skipped - slow model training tests run locally only '
+        '(install with: pdm install -G ml)',
         allow_module_level=True,
     )
