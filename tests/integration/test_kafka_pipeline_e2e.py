@@ -124,17 +124,12 @@ def _build_decorated_result(
 
 
 @pytest.fixture
-def pipeline_env(schema_registry_url, monkeypatch, tmp_path):
+def pipeline_env(schema_registry_url, monkeypatch):
     """Wire SchemaRegistry to the real containerised registry.
 
-    Monkeypatches both the settings module and the schema_registry module
-    bindings so that newly created SchemaRegistry instances connect to
-    the testcontainer. Also redirects SCHEMA_DIR to a temp directory to
-    avoid polluting the repo with generated .avsc files.
+    Monkeypatches the settings and schema_registry module bindings so that
+    newly created SchemaRegistry instances connect to the testcontainer.
     """
-    schemas_dir = tmp_path / 'schemas'
-    schemas_dir.mkdir()
-
     monkeypatch.setattr(
         'quantum_pipeline.configs.settings.SCHEMA_REGISTRY_URL',
         schema_registry_url,
@@ -143,16 +138,8 @@ def pipeline_env(schema_registry_url, monkeypatch, tmp_path):
         'quantum_pipeline.utils.schema_registry.SCHEMA_REGISTRY_URL',
         schema_registry_url,
     )
-    monkeypatch.setattr(
-        'quantum_pipeline.configs.settings.SCHEMA_DIR',
-        schemas_dir,
-    )
-    monkeypatch.setattr(
-        'quantum_pipeline.utils.schema_registry.SCHEMA_DIR',
-        schemas_dir,
-    )
 
-    return {'schema_registry_url': schema_registry_url, 'schemas_dir': schemas_dir}
+    return {'schema_registry_url': schema_registry_url}
 
 
 @pytest.fixture
@@ -184,10 +171,7 @@ class TestKafkaPipelineE2E:
         topic = producer_config.topic
 
         # Serialize via the producer's serializer
-        avro_bytes = e2e_producer.serializer.to_avro_bytes(
-            result,
-            schema_name=e2e_producer.serializer.schema_name,
-        )
+        avro_bytes = e2e_producer.serializer.to_avro_bytes(result)
         assert isinstance(avro_bytes, bytes)
         assert len(avro_bytes) > 0
 
@@ -207,7 +191,7 @@ class TestKafkaPipelineE2E:
 
         # The bytes include the Confluent wire format header (magic + schema ID)
         # if the schema was registered. Verify the header is present.
-        if e2e_producer.registry.id_cache.get(e2e_producer.serializer.schema_name):
+        if e2e_producer.registry.id_cache.get(e2e_producer.serializer.SCHEMA_NAME):
             assert consumed_bytes[0:1] == b'\x00', 'Missing Confluent magic byte'
             schema_id = int.from_bytes(consumed_bytes[1:5], byteorder='big')
             assert schema_id > 0, 'Schema ID should be positive'
@@ -259,13 +243,10 @@ class TestKafkaPipelineE2E:
         sr_url = pipeline_env['schema_registry_url']
 
         # Serialize (triggers schema registration via the interface property)
-        e2e_producer.serializer.to_avro_bytes(
-            result,
-            schema_name=e2e_producer.serializer.schema_name,
-        )
+        e2e_producer.serializer.to_avro_bytes(result)
 
         # Query the Schema Registry REST API directly to verify registration
-        schema_name = e2e_producer.serializer.schema_name
+        schema_name = e2e_producer.serializer.SCHEMA_NAME
         resp = requests.get(
             f'{sr_url}/subjects/{schema_name}-value/versions/latest',
             timeout=10,
@@ -313,10 +294,7 @@ class TestKafkaPipelineE2E:
         sent_bytes = []
         for config in test_configs:
             result = _build_decorated_result(**config)
-            avro_bytes = e2e_producer.serializer.to_avro_bytes(
-                result,
-                schema_name=e2e_producer.serializer.schema_name,
-            )
+            avro_bytes = e2e_producer.serializer.to_avro_bytes(result)
             e2e_producer.producer.send(topic, avro_bytes).get(timeout=10)
             sent_bytes.append(avro_bytes)
 
@@ -332,7 +310,7 @@ class TestKafkaPipelineE2E:
         )
 
         # Verify each message can be deserialized if the Confluent header is present
-        schema_name = e2e_producer.serializer.schema_name
+        schema_name = e2e_producer.serializer.SCHEMA_NAME
         if e2e_producer.registry.id_cache.get(schema_name):
             for i, (config, consumed) in enumerate(zip(test_configs, received, strict=False)):
                 deserialized = e2e_producer.serializer.from_avro_bytes(consumed)
@@ -353,48 +331,6 @@ class TestKafkaPipelineE2E:
         # Verify all sent bytes were received
         for b in sent_bytes:
             assert b in received
-
-    def test_topic_suffix_from_result(
-        self,
-        producer_config,
-        pipeline_env,
-    ):
-        """Verify _update_topic() appends the correct schema suffix."""
-        producer = VQEKafkaProducer(producer_config)
-        _original_topic = producer.config.topic
-
-        result = _build_decorated_result(
-            molecule_symbols=['H', 'H'],
-            basis_set='sto-3g',
-            molecule_id=0,
-            num_iterations=1,
-        )
-
-        # Call _update_topic which modifies config.topic and serializer.schema_name
-        producer._update_topic(result)
-
-        expected_suffix = result.get_schema_suffix()
-        assert expected_suffix == '_mol0_HH_it1_bs_sto_3g_bk_aer_simulator'
-
-        # Topic should have the suffix appended
-        assert producer.config.topic.endswith(expected_suffix)
-        assert producer.serializer.schema_name.endswith(expected_suffix)
-        assert producer.serializer.result_interface.schema_name.endswith(expected_suffix)
-
-        # Calling _update_topic again with a different result should replace the suffix
-        result2 = _build_decorated_result(
-            molecule_symbols=['Li', 'H'],
-            basis_set='6-31g',
-            molecule_id=1,
-            num_iterations=2,
-        )
-        producer._update_topic(result2)
-
-        expected_suffix2 = result2.get_schema_suffix()
-        assert producer.config.topic.endswith(expected_suffix2)
-        assert not producer.config.topic.endswith(expected_suffix)
-
-        producer.close()
 
     def test_avro_schema_compatibility(
         self,
@@ -509,10 +445,7 @@ class TestKafkaPipelineE2E:
         topic = 'test-perf-data'
 
         # Serialize and produce
-        avro_bytes = e2e_producer.serializer.to_avro_bytes(
-            result,
-            schema_name=e2e_producer.serializer.schema_name,
-        )
+        avro_bytes = e2e_producer.serializer.to_avro_bytes(result)
         e2e_producer.producer.send(topic, avro_bytes).get(timeout=10)
         e2e_producer.producer.flush()
 
@@ -524,7 +457,7 @@ class TestKafkaPipelineE2E:
         assert avro_bytes in messages
 
         # Deserialize and verify performance data survives the round trip
-        schema_name = e2e_producer.serializer.schema_name
+        schema_name = e2e_producer.serializer.SCHEMA_NAME
         if e2e_producer.registry.id_cache.get(schema_name):
             consumed = messages[messages.index(avro_bytes)]
             deserialized = e2e_producer.serializer.from_avro_bytes(consumed)

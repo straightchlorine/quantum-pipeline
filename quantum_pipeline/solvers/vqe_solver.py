@@ -7,7 +7,7 @@ classical optimization to find the minimum eigenvalue of a Hamiltonian.
 """
 
 import numpy as np
-from qiskit.circuit.library import EfficientSU2
+from qiskit.circuit.library import EfficientSU2, ExcitationPreserving, RealAmplitudes
 from qiskit.quantum_info import Statevector, state_fidelity
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer.backends.aer_simulator import AerBackend
@@ -47,6 +47,7 @@ class VQESolver(Solver):
         max_iterations=50,
         optimizer='COBYLA',
         ansatz_reps=3,
+        ansatz_type='EfficientSU2',
         default_shots=1024,
         convergence_threshold=None,
         optimization_level=3,
@@ -58,6 +59,7 @@ class VQESolver(Solver):
         super().__init__()
         self.qubit_op = qubit_op
         self.ansatz_reps = ansatz_reps
+        self.ansatz_type = ansatz_type
         self.optimizer = optimizer
         self.max_iterations = max_iterations
         self.seed = seed
@@ -84,14 +86,25 @@ class VQESolver(Solver):
         return ansatz_isa, hamiltonian_isa
 
     def _build_ansatz(self, n_qubits):
-        """Build the EfficientSU2 ansatz.
+        """Build the ansatz circuit based on the configured ansatz_type.
 
-        Always builds a plain EfficientSU2 (no HF circuit prepended).
-        When using HF init, we compute initial parameters that prepare the HF
-        state through the ansatz instead — avoiding the problem where fixed CX
-        entangling gates destroy the HF state at zero parameters.
+        Supported types: EfficientSU2, RealAmplitudes, ExcitationPreserving.
+        Always builds a plain ansatz (no HF circuit prepended). When using HF
+        init, we compute initial parameters that approximate the HF state
+        through the ansatz instead.
         """
-        return EfficientSU2(n_qubits, reps=self.ansatz_reps)
+        ansatze = {
+            'EfficientSU2': lambda: EfficientSU2(n_qubits, reps=self.ansatz_reps),
+            'RealAmplitudes': lambda: RealAmplitudes(n_qubits, reps=self.ansatz_reps),
+            'ExcitationPreserving': lambda: ExcitationPreserving(
+                n_qubits, reps=self.ansatz_reps, entanglement='linear'
+            ),
+        }
+        if self.ansatz_type not in ansatze:
+            self.logger.warning(
+                'Unknown ansatz_type %r, falling back to EfficientSU2', self.ansatz_type
+            )
+        return ansatze.get(self.ansatz_type, ansatze['EfficientSU2'])()
 
     def _compute_hf_initial_parameters(self, ansatz):
         """Find EfficientSU2 parameters that prepare the HF state.
@@ -101,6 +114,7 @@ class VQESolver(Solver):
         This avoids the problem of prepending HF circuit + zero params, where
         the fixed CX gates in EfficientSU2 destroy the HF state.
         """
+        assert self.hf_data is not None and self.mapper is not None
         hf_circuit = build_hf_initial_state(self.hf_data, self.mapper)
         target_sv = Statevector(hf_circuit)
 
@@ -135,11 +149,15 @@ class VQESolver(Solver):
         """Compute initial ansatz parameters based on the configured strategy."""
         param_num = ansatz.num_parameters
 
-        if self.init_strategy == 'hf' and self.hf_data is not None and self.mapper is not None:
+        if self.init_strategy == 'hf' and self.ansatz_type != 'EfficientSU2':
+            self.logger.warning(
+                f'HF init is only supported for EfficientSU2, not {self.ansatz_type}. '
+                'Falling back to random initialization.'
+            )
+        elif self.init_strategy == 'hf' and self.hf_data is not None and self.mapper is not None:
             self.logger.info('Computing HF-equivalent initial parameters...')
             return self._compute_hf_initial_parameters(ansatz)
-
-        if self.init_strategy == 'hf' and (self.hf_data is None or self.mapper is None):
+        elif self.init_strategy == 'hf' and (self.hf_data is None or self.mapper is None):
             self.logger.warning(
                 'HF init strategy requested but no HF data/mapper available, falling back to random'
             )
@@ -174,6 +192,7 @@ class VQESolver(Solver):
             maxcv=None,
             minimization_time=np.float64(elapsed),
             nuclear_repulsion_energy=self._nuclear_repulsion,
+            success=False,
         )
 
     def compute_energy(self, params, ansatz, hamiltonian, estimator):
@@ -245,12 +264,13 @@ class VQESolver(Solver):
             default_shots=self.default_shots,
             seed=self.seed,
             init_strategy=self.init_strategy,
+            ansatz_name=self.ansatz_type,
         )
         self.logger.info('Opening a session...')
 
         with Session(backend=backend) as session:
             estimator = EstimatorV2(mode=session)
-            estimator.options.default_shots = self.default_shots
+            estimator.options.update(default_shots=self.default_shots)
 
             optimization_params, minimize_tol = get_optimizer_configuration(
                 optimizer=self.optimizer,
@@ -334,6 +354,9 @@ class VQESolver(Solver):
             maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
             nuclear_repulsion_energy=self._nuclear_repulsion,
+            success=bool(res.success),
+            nfev=int(res.nfev) if hasattr(res, 'nfev') and res.nfev is not None else None,
+            nit=int(res.nit) if hasattr(res, 'nit') and res.nit is not None else None,
         )
 
         self.logger.info('Session closed.')
@@ -370,6 +393,7 @@ class VQESolver(Solver):
             default_shots=self.default_shots,
             seed=self.seed,
             init_strategy=self.init_strategy,
+            ansatz_name=self.ansatz_type,
         )
 
         estimator = EstimatorV2(mode=backend)
@@ -456,6 +480,9 @@ class VQESolver(Solver):
             maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
             nuclear_repulsion_energy=self._nuclear_repulsion,
+            success=bool(res.success),
+            nfev=int(res.nfev) if hasattr(res, 'nfev') and res.nfev is not None else None,
+            nit=int(res.nit) if hasattr(res, 'nit') and res.nit is not None else None,
         )
 
         self.logger.info(

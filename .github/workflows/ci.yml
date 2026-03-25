@@ -20,10 +20,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install project with dev dependencies
+      - name: Install project
         run: |
           python -m pip install --upgrade pip
-          pip install .[dev]
+          pip install ".[dev]"
 
       - name: Lint with ruff
         run: ruff check .

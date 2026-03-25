@@ -81,6 +81,14 @@ class QuantumPipelineArgParser:
             help='Amount of reps for the ansatz',
         )
         sim_group.add_argument(
+            '--ansatz',
+            dest='ansatz_type',
+            choices=settings.SUPPORTED_ANSATZE,
+            default=DEFAULTS['ansatz_type'],
+            help='Ansatz type: EfficientSU2 (default), RealAmplitudes, or ExcitationPreserving',
+            metavar='ANSATZ',
+        )
+        sim_group.add_argument(
             '--ibm',
             action='store_false',
             default=DEFAULTS['backend']['local'],

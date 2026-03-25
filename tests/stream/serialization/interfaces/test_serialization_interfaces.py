@@ -309,7 +309,10 @@ class TestVQEInitialDataInterface(unittest.TestCase):
 
         self.assertIsInstance(schema, dict)
         self.assertEqual(schema['name'], 'VQEInitialData')
-        self.assertEqual(len(schema['fields']), 11)
+        self.assertEqual(len(schema['fields']), 13)
+        field_names = [f['name'] for f in schema['fields']]
+        self.assertIn('seed', field_names)
+        self.assertIn('ansatz_name', field_names)
 
     def test_serialize_hamiltonian(self):
         """Test serialization of Hamiltonian terms."""
@@ -354,6 +357,18 @@ class TestVQEInitialDataInterface(unittest.TestCase):
         self.assertEqual(serialized['ansatz_reps'], 1)
         self.assertEqual(serialized['noise_backend'], 'fake_noise_backend')
         self.assertEqual(serialized['default_shots'], 1024)
+        self.assertIsNone(serialized['seed'])
+
+    @patch('quantum_pipeline.stream.serialization.interfaces.vqe.dumps')
+    def test_serialize_with_seed(self, mock_dumps):
+        """Test serialization of VQEInitialData with seed."""
+        mock_dumps.return_value = 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];'
+        self.vqe_initial_data.seed = 42
+
+        serialized = self.interface.serialize(self.vqe_initial_data)
+
+        self.assertEqual(serialized['seed'], 42)
+        self.assertIsInstance(serialized['seed'], int)
 
     @patch('quantum_pipeline.stream.serialization.interfaces.vqe.loads')
     def test_deserialize(self, mock_loads):
@@ -389,6 +404,95 @@ class TestVQEInitialDataInterface(unittest.TestCase):
         self.assertEqual(deserialized.ansatz_reps, 1)
         self.assertEqual(deserialized.noise_backend, 'fake_noise_backend')
         self.assertEqual(deserialized.default_shots, 1024)
+        self.assertIsNone(deserialized.seed)
+
+    @patch('quantum_pipeline.stream.serialization.interfaces.vqe.loads')
+    def test_deserialize_with_seed(self, mock_loads):
+        """Test deserialization of VQEInitialData with seed field."""
+        mock_circuit = MagicMock(spec=QuantumCircuit)
+        mock_loads.return_value = mock_circuit
+
+        data = {
+            'backend': 'fake_backend',
+            'num_qubits': 2,
+            'hamiltonian': [
+                {'label': 'ZZ', 'coefficients': {'real': 1.0, 'imaginary': 0.0}},
+            ],
+            'num_parameters': 3,
+            'initial_parameters': [0.1, 0.2, 0.3],
+            'optimizer': 'SPSA',
+            'ansatz': 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];',
+            'ansatz_reps': 1,
+            'noise_backend': 'fake_noise_backend',
+            'default_shots': 1024,
+            'seed': 42,
+        }
+
+        deserialized = self.interface.deserialize(data)
+
+        self.assertEqual(deserialized.seed, 42)
+
+    @patch('quantum_pipeline.stream.serialization.interfaces.vqe.dumps')
+    def test_serialize_includes_ansatz_name(self, mock_dumps):
+        """Test that serialization includes ansatz_name field."""
+        mock_dumps.return_value = 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];'
+        self.vqe_initial_data.ansatz_name = 'RealAmplitudes'
+
+        serialized = self.interface.serialize(self.vqe_initial_data)
+
+        self.assertEqual(serialized['ansatz_name'], 'RealAmplitudes')
+
+    @patch('quantum_pipeline.stream.serialization.interfaces.vqe.loads')
+    def test_deserialize_with_ansatz_name(self, mock_loads):
+        """Test deserialization of VQEInitialData with ansatz_name field."""
+        mock_circuit = MagicMock(spec=QuantumCircuit)
+        mock_loads.return_value = mock_circuit
+
+        data = {
+            'backend': 'fake_backend',
+            'num_qubits': 2,
+            'hamiltonian': [
+                {'label': 'ZZ', 'coefficients': {'real': 1.0, 'imaginary': 0.0}},
+            ],
+            'num_parameters': 3,
+            'initial_parameters': [0.1, 0.2, 0.3],
+            'optimizer': 'SPSA',
+            'ansatz': 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];',
+            'ansatz_reps': 1,
+            'noise_backend': 'fake_noise_backend',
+            'default_shots': 1024,
+            'ansatz_name': 'ExcitationPreserving',
+        }
+
+        deserialized = self.interface.deserialize(data)
+
+        self.assertEqual(deserialized.ansatz_name, 'ExcitationPreserving')
+
+    @patch('quantum_pipeline.stream.serialization.interfaces.vqe.loads')
+    def test_deserialize_without_ansatz_name_defaults_to_efficient_su2(self, mock_loads):
+        """Test deserialization without ansatz_name defaults to EfficientSU2 (backward compat)."""
+        mock_circuit = MagicMock(spec=QuantumCircuit)
+        mock_loads.return_value = mock_circuit
+
+        data = {
+            'backend': 'fake_backend',
+            'num_qubits': 2,
+            'hamiltonian': [
+                {'label': 'ZZ', 'coefficients': {'real': 1.0, 'imaginary': 0.0}},
+            ],
+            'num_parameters': 3,
+            'initial_parameters': [0.1, 0.2, 0.3],
+            'optimizer': 'SPSA',
+            'ansatz': 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];',
+            'ansatz_reps': 1,
+            'noise_backend': 'fake_noise_backend',
+            'default_shots': 1024,
+            # ansatz_name intentionally absent (old Avro records)
+        }
+
+        deserialized = self.interface.deserialize(data)
+
+        self.assertEqual(deserialized.ansatz_name, 'EfficientSU2')
 
 
 class TestMoleculeInfoInterface(unittest.TestCase):
@@ -536,7 +640,10 @@ class TestVQEResultInterface(unittest.TestCase):
 
         self.assertIsInstance(schema, dict)
         self.assertEqual(schema['name'], 'VQEResult')
-        self.assertEqual(len(schema['fields']), 6)
+        self.assertEqual(len(schema['fields']), 10)
+        field_names = [f['name'] for f in schema['fields']]
+        for field in ('nuclear_repulsion_energy', 'success', 'nfev', 'nit'):
+            self.assertIn(field, field_names)
 
     def test_serialize(self):
         """Test serialization of VQEResult."""
@@ -548,9 +655,31 @@ class TestVQEResultInterface(unittest.TestCase):
         self.assertEqual(serialized['optimal_parameters'], [0.15, 0.25, 0.35])
         self.assertEqual(serialized['maxcv'], 0.001)
         self.assertEqual(serialized['minimization_time'], 10.5)
+        self.assertIsNone(serialized['nuclear_repulsion_energy'])
+        self.assertIsNone(serialized['success'])
+        self.assertIsNone(serialized['nfev'])
+        self.assertIsNone(serialized['nit'])
 
         self.mock_initial.assert_called_once_with(self.vqe_result.initial_data)
         self.assertEqual(self.mock_process.call_count, 2)
+
+    def test_serialize_with_ml_fields(self):
+        """Test serialization of VQEResult with ML-required fields populated."""
+        self.vqe_result.nuclear_repulsion_energy = np.float64(0.7199)
+        self.vqe_result.success = True
+        self.vqe_result.nfev = 150
+        self.vqe_result.nit = 42
+
+        serialized = self.interface.serialize(self.vqe_result)
+
+        self.assertAlmostEqual(serialized['nuclear_repulsion_energy'], 0.7199)
+        self.assertIsInstance(serialized['nuclear_repulsion_energy'], float)
+        self.assertTrue(serialized['success'])
+        self.assertIsInstance(serialized['success'], bool)
+        self.assertEqual(serialized['nfev'], 150)
+        self.assertIsInstance(serialized['nfev'], int)
+        self.assertEqual(serialized['nit'], 42)
+        self.assertIsInstance(serialized['nit'], int)
 
     def test_deserialize(self):
         """Test deserialization of VQEResult."""
@@ -584,9 +713,71 @@ class TestVQEResultInterface(unittest.TestCase):
             )
             self.assertEqual(deserialized.maxcv, np.float64(0.001))
             self.assertEqual(deserialized.minimization_time, np.float64(10.5))
+            self.assertIsNone(deserialized.nuclear_repulsion_energy)
+            self.assertIsNone(deserialized.success)
+            self.assertIsNone(deserialized.nfev)
+            self.assertIsNone(deserialized.nit)
 
             mock_initial_deserialize.assert_called_once_with({'mock': 'initial_data'})
             self.assertEqual(mock_process_deserialize.call_count, 2)
+
+    def test_deserialize_with_ml_fields(self):
+        """Test deserialization of VQEResult with ML-required fields."""
+        with (
+            patch.object(self.interface.initial_data_interface, 'deserialize') as mock_initial_d,
+            patch.object(self.interface.process_interface, 'deserialize') as mock_process_d,
+        ):
+            mock_initial_d.return_value = self.vqe_result.initial_data
+            mock_process_d.return_value = self.vqe_result.iteration_list[0]
+
+            data = {
+                'initial_data': {'mock': 'initial_data'},
+                'iteration_list': [{'mock': 'process'}],
+                'minimum': -74.5,
+                'optimal_parameters': [0.15, 0.25, 0.35],
+                'maxcv': None,
+                'minimization_time': 10.5,
+                'nuclear_repulsion_energy': 0.7199,
+                'success': True,
+                'nfev': 150,
+                'nit': 42,
+            }
+
+            deserialized = self.interface.deserialize(data)
+
+            self.assertAlmostEqual(float(deserialized.nuclear_repulsion_energy), 0.7199)
+            self.assertTrue(deserialized.success)
+            self.assertEqual(deserialized.nfev, 150)
+            self.assertEqual(deserialized.nit, 42)
+            self.assertIsNone(deserialized.maxcv)
+
+    def test_deserialize_backward_compat_missing_ml_fields(self):
+        """Test that deserialization handles old Avro records missing new ML fields (backward compat)."""
+        with (
+            patch.object(self.interface.initial_data_interface, 'deserialize') as mock_initial_d,
+            patch.object(self.interface.process_interface, 'deserialize') as mock_process_d,
+        ):
+            mock_initial_d.return_value = self.vqe_result.initial_data
+            mock_process_d.return_value = self.vqe_result.iteration_list[0]
+
+            # Old record without new fields (Avro default=null fills them in at read time,
+            # but we test the deserialization code handles absent keys safely)
+            data = {
+                'initial_data': {'mock': 'initial_data'},
+                'iteration_list': [{'mock': 'process'}],
+                'minimum': -74.5,
+                'optimal_parameters': [0.15, 0.25, 0.35],
+                'maxcv': None,
+                'minimization_time': 10.5,
+                # nuclear_repulsion_energy, success, nfev, nit absent
+            }
+
+            deserialized = self.interface.deserialize(data)
+
+            self.assertIsNone(deserialized.nuclear_repulsion_energy)
+            self.assertIsNone(deserialized.success)
+            self.assertIsNone(deserialized.nfev)
+            self.assertIsNone(deserialized.nit)
 
 
 class TestVQEDecoratedResultInterface(unittest.TestCase):
@@ -938,39 +1129,6 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
             # verify if everything aligns
             self.assertEqual(result, self.vqe_decorated_result)
-
-    def test_get_result_suffix(self):
-        """Test get_result_suffix method."""
-        mock_iteration_list = MagicMock()
-        mock_iteration_list.__len__.return_value = 10
-        self.vqe_decorated_result.vqe_result.iteration_list = mock_iteration_list
-
-        result = self.vqe_decorated_result.get_result_suffix()
-
-        self.assertEqual(result, '_it10')
-
-    def test_get_schema_suffix(self):
-        """Test get_schema_suffix method."""
-
-        # mock iteration list
-        mock_iteration_list = MagicMock()
-        mock_iteration_list.__len__.return_value = 10
-        self.vqe_decorated_result.vqe_result.iteration_list = mock_iteration_list
-
-        # mock initial data
-        mock_initial_data = MagicMock()
-        mock_initial_data.backend = 'fake-backend'
-        self.vqe_decorated_result.vqe_result.initial_data = mock_initial_data
-
-        self.vqe_decorated_result.molecule.symbols = ['H', 'H']
-        self.vqe_decorated_result.molecule_id = 42
-        self.vqe_decorated_result.basis_set = 'sto-3g'
-        self.vqe_decorated_result.vqe_result.initial_data.backend = 'fake-backend'
-
-        result = self.vqe_decorated_result.get_schema_suffix()
-
-        expected = '_mol42_HH_it10_bs_sto_3g_bk_fake_backend'
-        self.assertEqual(result, expected)
 
 
 class TestEndToEndSerialization(unittest.TestCase):

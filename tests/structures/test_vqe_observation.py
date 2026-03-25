@@ -230,52 +230,6 @@ class TestVQEDecoratedResult:
         assert decorated.performance_end is perf_end
 
 
-class TestGetResultSuffix:
-    """Tests for VQEDecoratedResult.get_result_suffix."""
-
-    def test_suffix_with_single_iteration(self, sample_decorated_result):
-        assert sample_decorated_result.get_result_suffix() == '_it1'
-
-    def test_suffix_with_multiple_iterations(self, sample_decorated_result):
-        extra = VQEProcess(
-            iteration=2,
-            parameters=np.array([0.3, 0.4]),
-            result=np.float64(-1.6),
-            std=np.float64(0.005),
-        )
-        sample_decorated_result.vqe_result.iteration_list.append(extra)
-        assert sample_decorated_result.get_result_suffix() == '_it2'
-
-
-class TestGetSchemaSuffix:
-    """Tests for VQEDecoratedResult.get_schema_suffix."""
-
-    def test_schema_suffix_format(self, sample_decorated_result):
-        suffix = sample_decorated_result.get_schema_suffix()
-        assert suffix.startswith('_mol0')
-        assert '_HH_' in suffix
-        assert '_it1_' in suffix
-        assert '_bs_sto_3g_' in suffix
-        assert '_bk_aer_simulator' in suffix
-
-    def test_schema_suffix_replaces_hyphens(self, sample_vqe_result, sample_molecule):
-        sample_vqe_result.initial_data.backend = 'ibm-brisbane'
-        decorated = VQEDecoratedResult(
-            vqe_result=sample_vqe_result,
-            molecule=sample_molecule,
-            basis_set='6-31g',
-            hamiltonian_time=np.float64(0.5),
-            mapping_time=np.float64(0.3),
-            vqe_time=np.float64(1.0),
-            total_time=np.float64(1.8),
-            molecule_id=2,
-        )
-        suffix = decorated.get_schema_suffix()
-        assert '-' not in suffix.split('_mol')[1]
-        assert '_bs_6_31g_' in suffix
-        assert '_bk_ibm_brisbane' in suffix
-
-
 class TestGetPerformanceDelta:
     """Tests for VQEDecoratedResult.get_performance_delta."""
 

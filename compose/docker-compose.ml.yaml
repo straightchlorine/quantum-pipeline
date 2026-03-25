@@ -1,0 +1,475 @@
+volumes:
+  garage-data:
+    name: quantum-garage-data
+  garage-meta:
+    name: quantum-garage-meta
+  spark-warehouse:
+    name: quantum-ml-spark-warehouse
+  spark-ivy-cache:
+    name: quantum-ml-spark-ivy-cache
+  airflow-postgres-data:
+    name: quantum-ml-airflow-postgres
+  airflow-logs:
+    name: quantum-ml-airflow-logs
+  redis-data:
+    name: quantum-ml-redis-data
+  kafka-data:
+    name: quantum-ml-kafka-data
+  airflow-ivy-cache:
+    name: quantum-ml-airflow-ivy-cache
+
+networks:
+  quantum-net:
+    name: quantum-ml-network
+    driver: bridge
+
+x-airflow-common:
+  &airflow-common
+  build:
+    context: ../docker/airflow
+    dockerfile: Dockerfile
+  environment: &airflow-common-env
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: ${AIRFLOW_DAGS_PAUSED_AT_CREATION:-True}
+    AIRFLOW__CORE__LOAD_EXAMPLES: ${AIRFLOW_LOAD_EXAMPLES:-False}
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
+    AIRFLOW__API__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
+    AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
+    AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
+    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    # S3 credentials and region (used by both Hadoop S3A and Iceberg S3FileIO)
+    AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+    AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+    AWS_REGION: ${S3_REGION:-garage}
+    # App-level S3 config (used by DAG scripts)
+    S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+    S3_SECRET_KEY: ${S3_SECRET_KEY}
+    S3_ENDPOINT: ${S3_ENDPOINT:-http://garage:3901}
+    # PySpark reads spark-defaults.conf from this directory
+    SPARK_CONF_DIR: /opt/spark/conf
+    PYSPARK_PYTHON: python3
+    # rclone remotes for R2 sync DAG (configured via env vars, no rclone.conf needed)
+    RCLONE_CONFIG_GARAGE_TYPE: s3
+    RCLONE_CONFIG_GARAGE_PROVIDER: Other
+    RCLONE_CONFIG_GARAGE_ENDPOINT: ${S3_ENDPOINT:-http://garage:3901}
+    RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+    RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+    RCLONE_CONFIG_GARAGE_REGION: ${S3_REGION:-garage}
+    RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE: "true"
+    RCLONE_CONFIG_GARAGE_NO_CHECK_BUCKET: "true"
+    RCLONE_CONFIG_R2_TYPE: s3
+    RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+    RCLONE_CONFIG_R2_ENDPOINT: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+    RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+    RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+    RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+  volumes: &airflow-common-volumes
+    - ../docker/airflow/:/opt/airflow/dags
+    - airflow-logs:/opt/airflow/logs
+    - airflow-ivy-cache:/tmp/.ivy2
+    - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+  networks:
+    - quantum-net
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+
+  # --- kafka + schema registry + connect ---
+
+  kafka:
+    image: apache/kafka:${KAFKA_VERSION:-4.2.0}
+    container_name: ml-kafka
+    restart: unless-stopped
+    ports:
+      - "${KAFKA_EXTERNAL_PORT:-9094}:9094"
+      - "${KAFKA_INTERNAL_PORT:-9092}:9092"
+    environment:
+      KAFKA_NODE_ID: ${KAFKA_NODE_ID:-1}
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: ${KAFKA_NODE_ID:-1}@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://:9093,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://${KAFKA_EXTERNAL_HOST_IP:-localhost}:${KAFKA_EXTERNAL_PORT:-9094}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      CLUSTER_ID: quantum-ml-kafka-cluster-id-01
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:${SCHEMA_REGISTRY_VERSION:-8.2.0}
+    container_name: ml-schema-registry
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "${KAFKA_SERVERS:-kafka:9092}"
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: "${SCHEMA_REGISTRY_TOPIC:-_schemas}"
+      SCHEMA_REGISTRY_HOST_NAME: "${SCHEMA_REGISTRY_HOSTNAME:-schema-registry}"
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
+    ports:
+      - "${SCHEMA_REGISTRY_PORT:-8081}:8081"
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "-s", "http://localhost:8081/subjects"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  # --- redpanda connect ---
+
+  redpanda-connect:
+    image: docker.redpanda.com/redpandadata/connect
+    container_name: ml-redpanda-connect
+    restart: on-failure
+    environment:
+      S3_ACCESS_KEY: "${S3_ACCESS_KEY}"
+      S3_SECRET_KEY: "${S3_SECRET_KEY}"
+    volumes:
+      - ./redpanda-connect.yaml:/connect.yaml:ro
+    command: run /connect.yaml
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4195/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+
+  # --- garage (s3-compatible storage) ---
+
+  garage:
+    image: dxflrs/garage:${GARAGE_VERSION:-v2.2.0}
+    container_name: ml-garage
+    restart: unless-stopped
+    ports:
+      - "${GARAGE_S3_API_PORT:-3901}:3901"
+      - "${GARAGE_ADMIN_PORT:-3903}:3903"
+    volumes:
+      - garage-data:/var/lib/garage/data
+      - garage-meta:/var/lib/garage/meta
+      - ./garage.toml:/etc/garage.toml:ro
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # --- spark ---
+
+  spark-master:
+    build:
+      context: ../docker
+      dockerfile: Dockerfile.spark
+    image: quantum-pipeline-spark:4.0.2-python3.12
+    container_name: ml-spark-master
+    command: /opt/spark/sbin/start-master.sh
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    environment: &spark-common-env
+      SPARK_MASTER_HOST: spark-master
+      SPARK_MASTER_PORT: 7077
+      SPARK_NO_DAEMONIZE: "true"
+      PYSPARK_PYTHON: python3
+      # S3 credentials and region via env vars (used by both Hadoop S3A and Iceberg S3FileIO)
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      AWS_REGION: ${S3_REGION:-garage}
+    volumes:
+      - spark-warehouse:/opt/spark/warehouse
+      - spark-ivy-cache:/home/spark/.ivy2
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    networks:
+      - quantum-net
+    depends_on:
+      - garage
+
+  spark-worker:
+    build:
+      context: ../docker
+      dockerfile: Dockerfile.spark
+    image: quantum-pipeline-spark:4.0.2-python3.12
+    container_name: ml-spark-worker
+    command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+    environment:
+      <<: *spark-common-env
+      SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-2G}
+      SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-2}
+    volumes:
+      - spark-warehouse:/opt/spark/warehouse
+      - spark-ivy-cache:/home/spark/.ivy2
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+    depends_on:
+      - spark-master
+    networks:
+      - quantum-net
+
+  # --- airflow (3.x with CeleryExecutor) ---
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-16-alpine}
+    container_name: ml-postgres
+    environment:
+      POSTGRES_USER: ${AIRFLOW_POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${AIRFLOW_POSTGRES_PASSWORD:-airflow}
+      POSTGRES_DB: ${AIRFLOW_POSTGRES_DB:-airflow}
+    volumes:
+      - airflow-postgres-data:/var/lib/postgresql/data
+      - ../docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${AIRFLOW_POSTGRES_USER:-airflow}"]
+      interval: 5s
+      retries: 5
+    restart: on-failure
+
+  redis:
+    image: redis:7.2-bookworm
+    container_name: ml-redis
+    expose:
+      - 6379
+    volumes:
+      - redis-data:/data
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: on-failure
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: ml-airflow-init
+    depends_on:
+      <<: *airflow-common-depends-on
+    # the base entrypoint handles db migrate + user creation via _AIRFLOW_* env vars,
+    # then runs this command which adds the spark connection
+    command: >
+      bash -c "airflow connections add 'spark_default'
+      --conn-type 'spark'
+      --conn-host 'spark://spark-master:7077'
+      --conn-extra '{\"queue\": \"default\"}' || true"
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+    user: "0:0"
+
+  airflow-apiserver:
+    <<: *airflow-common
+    container_name: ml-airflow-apiserver
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    ports:
+      - "${AIRFLOW_WEBSERVER_PORT:-8084}:8080"
+    command: api-server
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: on-failure
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: ml-airflow-scheduler
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: on-failure
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    container_name: ml-airflow-dag-processor
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: on-failure
+
+  airflow-worker:
+    <<: *airflow-common
+    container_name: ml-airflow-worker
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *airflow-common-env
+      DUMB_INIT_SETSID: "0"
+    command: celery worker
+    healthcheck:
+      test: ["CMD-SHELL", 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: on-failure
+
+  airflow-triggerer:
+    <<: *airflow-common
+    container_name: ml-airflow-triggerer
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: on-failure
+
+  # --- mlflow experiment tracking ---
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:${MLFLOW_VERSION:-v3.10.1}-full
+    container_name: ml-mlflow
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+    ports:
+      - "${MLFLOW_PORT:-5000}:5000"
+    environment:
+      MLFLOW_BACKEND_STORE_URI: "postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/mlflow"
+      MLFLOW_ARTIFACTS_DESTINATION: "s3://mlflow-artifacts/"
+      MLFLOW_S3_ENDPOINT_URL: "http://garage:3901"
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      MLFLOW_S3_IGNORE_TLS: "true"
+      MLFLOW_SERVER_ALLOWED_HOSTS: "*"
+    command: >
+      mlflow server
+        --backend-store-uri postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/mlflow
+        --artifacts-destination s3://mlflow-artifacts/
+        --serve-artifacts
+        --host 0.0.0.0
+        --port 5000
+    networks:
+      - quantum-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # --- vqe batch generation containers (no command: injected via docker compose run) ---
+
+  quantum-pipeline-gpu1:
+    image: quantum-pipeline:gpu
+    runtime: nvidia
+    networks:
+      - quantum-net
+    environment:
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+      NVIDIA_VISIBLE_DEVICES: 0
+    volumes:
+      - ../data:/usr/src/quantum_pipeline/data:ro
+      - ../gen:/usr/src/quantum_pipeline/gen
+    profiles:
+      - batch
+
+  quantum-pipeline-gpu2:
+    image: quantum-pipeline:gpu
+    runtime: nvidia
+    networks:
+      - quantum-net
+    environment:
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+      NVIDIA_VISIBLE_DEVICES: 1
+    volumes:
+      - ../data:/usr/src/quantum_pipeline/data:ro
+      - ../gen:/usr/src/quantum_pipeline/gen
+    profiles:
+      - batch
+
+  quantum-pipeline-cpu:
+    image: quantum-pipeline:cpu
+    networks:
+      - quantum-net
+    environment:
+      KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
+      SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+    volumes:
+      - ../data:/usr/src/quantum_pipeline/data:ro
+      - ../gen:/usr/src/quantum_pipeline/gen
+    profiles:
+      - batch

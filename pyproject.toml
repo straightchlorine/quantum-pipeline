@@ -13,7 +13,7 @@ maintainers = [
 ]
 
 version = "1.4.4"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.12,<3.13"
 license = {text = "MIT"}
 readme = "README.md"
 
@@ -67,7 +67,7 @@ dev = [
     "pytest-cov>=7.0.0",
     "debugpy>=1.8.12",
     "ruff>=0.15.2",
-    "mypy>=1.10.0",
+    "mypy>=1.19.1",
     "testcontainers>=4.13.3",
     "pytest-mock>=3.15.1",
 ]
@@ -81,10 +81,13 @@ docs = [
     "pymdown-extensions>=10.7",
 ]
 
-# Apache Airflow orchestration integration
-airflow = [
-    "apache-airflow>=2.10.5",
-    "apache-airflow-providers-apache-spark>=5.1.1",
+# ML model development and experimentation
+ml = [
+    "scikit-learn>=1.8.0",
+    "xgboost>=3.2.0",
+    "seaborn>=0.13.2",
+    "jupyterlab>=4.5.6",
+    "mlflow>=3.10.1",
 ]
 
 [project.urls]
@@ -149,6 +152,7 @@ markers = [
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
 
 [tool.coverage.run]

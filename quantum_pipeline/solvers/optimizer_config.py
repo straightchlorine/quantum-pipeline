@@ -153,6 +153,61 @@ class SLSQPConfig(OptimizerConfig):
             self.logger.warning(f'SLSQP max_iterations {self.max_iterations} should be >= 1')
 
 
+class GenericConfig(OptimizerConfig):
+    """Generic configuration for scipy optimizers not requiring custom logic.
+
+    Passes `maxiter` into the options dict and returns `convergence_threshold`
+    as the global `tol` argument for `scipy.optimize.minimize`.
+
+    Optimizer-specific default `maxiter values.
+    """
+
+    # Research-backed default maxiter values per optimizer
+    _DEFAULT_MAXITER: ClassVar[dict[str, int]] = {
+        'Nelder-Mead': 5000,  # gradient-free simplex; slow - needs high budget
+        'Powell': 10000,  # gradient-free conjugate-directions; one iter /approx n line searches
+        'BFGS': 1000,  # quasi-Newton; fast convergence, limit by outer iterations
+        'CG': 2000,  # conjugate gradient; moderate convergence
+        'TNC': 500,  # truncated Newton; each step is expensive (inner CG)
+    }
+
+    # Optimizers that use 'maxfun' instead of 'maxiter'
+    _USES_MAXFUN: ClassVar[set[str]] = {'TNC'}
+
+    def __init__(
+        self,
+        optimizer_name: str,
+        max_iterations: int | None = None,
+        convergence_threshold: float | None = None,
+    ):
+        super().__init__(
+            max_iterations=max_iterations, convergence_threshold=convergence_threshold
+        )
+        self.optimizer_name = optimizer_name
+
+    def _effective_maxiter(self) -> int:
+        """Return the effective maxiter for the options dict."""
+        if self.max_iterations is not None:
+            return self.max_iterations
+        return self._DEFAULT_MAXITER.get(self.optimizer_name, 1000)
+
+    def get_options(self, num_parameters: int) -> dict[str, Any]:
+        key = 'maxfun' if self.optimizer_name in self._USES_MAXFUN else 'maxiter'
+        return {
+            'disp': False,
+            key: self._effective_maxiter(),
+        }
+
+    def get_minimize_tol(self) -> float | None:
+        return self.convergence_threshold
+
+    def validate_parameters(self, num_parameters: int) -> None:
+        if self.max_iterations is not None and self.max_iterations < 1:
+            self.logger.warning(
+                f'{self.optimizer_name} max_iterations {self.max_iterations} should be >= 1'
+            )
+
+
 class OptimizerConfigFactory:
     """Factory class for creating optimizer-specific configurations."""
 
@@ -160,6 +215,11 @@ class OptimizerConfigFactory:
         'L-BFGS-B': LBFGSBConfig,
         'COBYLA': COBYLAConfig,
         'SLSQP': SLSQPConfig,
+        'Nelder-Mead': lambda **kw: GenericConfig('Nelder-Mead', **kw),
+        'Powell': lambda **kw: GenericConfig('Powell', **kw),
+        'BFGS': lambda **kw: GenericConfig('BFGS', **kw),
+        'CG': lambda **kw: GenericConfig('CG', **kw),
+        'TNC': lambda **kw: GenericConfig('TNC', **kw),
     }
 
     @classmethod

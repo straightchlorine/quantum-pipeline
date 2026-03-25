@@ -22,6 +22,8 @@ SUPPORTED_OPTIMIZERS = {
 
 SUPPORTED_BASIS_SETS = ['sto3g', '6-31g', 'cc-pvdz']
 
+SUPPORTED_ANSATZE = ['EfficientSU2', 'RealAmplitudes', 'ExcitationPreserving']
+
 SIMULATION_METHODS = {
     'automatic': 'Default simulation method. Selects the best method based on the circuit and noise model.',
     'statevector': 'Dense statevector simulation. Supports ideal circuits and noisy circuit sampling.',
@@ -42,7 +44,6 @@ GEN_DIR = 'gen'
 GRAPH_DIR = Path(GEN_DIR, 'graphs')
 REPORT_DIR = GEN_DIR
 
-SCHEMA_DIR = Path('quantum_pipeline', 'stream', 'serialization', 'schemas')
 RUN_CONFIGS = Path('run_configs')
 
 # molecule graph settings

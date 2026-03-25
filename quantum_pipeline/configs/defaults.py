@@ -7,6 +7,7 @@ DEFAULTS = {
     'convergence_threshold_enable': False,
     'convergence_threshold': 1e-6,
     'optimizer': 'L-BFGS-B',  # Optimal for GPU acceleration and accuracy
+    'ansatz_type': 'EfficientSU2',
     'seed': None,
     'init_strategy': 'random',
     'shots': 1024,
@@ -15,7 +16,7 @@ DEFAULTS = {
         'min_qubits': None,
         'optimization_level': 3,
         'filters': None,
-        'method': 'tensor_network',  # Optimized for GPU acceleration and larger circuits
+        'method': 'statevector',  # tensor_network requires cuQuantum!
         'gpu': False,
         'noise_backend': None,
         'gpu_opts': {
@@ -33,7 +34,7 @@ DEFAULTS = {
     },
     'kafka': {
         'servers': 'localhost:9092',
-        'topic': 'vqe_decorated_result',
+        'topic': 'experiment.vqe',
         'retries': 3,
         'internal_retries': 0,
         'acks': 'all',

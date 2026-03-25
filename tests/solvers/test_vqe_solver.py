@@ -887,3 +887,85 @@ class TestVQESolverHFInit:
             mock_esu2.assert_called_once()
             _, kwargs = mock_esu2.call_args
             assert 'initial_state' not in kwargs
+
+
+class TestAnsatzTypes:
+    """Tests for ansatz type selection in VQESolver."""
+
+    def test_default_ansatz_type_is_efficient_su2(self, mock_backend_config, sample_hamiltonian):
+        """Test that default ansatz_type is EfficientSU2."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+        )
+        assert solver.ansatz_type == 'EfficientSU2'
+
+    def test_real_amplitudes_ansatz_type_stored(self, mock_backend_config, sample_hamiltonian):
+        """Test that RealAmplitudes ansatz_type is stored correctly."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='RealAmplitudes',
+        )
+        assert solver.ansatz_type == 'RealAmplitudes'
+
+    def test_excitation_preserving_ansatz_type_stored(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        """Test that ExcitationPreserving ansatz_type is stored correctly."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='ExcitationPreserving',
+        )
+        assert solver.ansatz_type == 'ExcitationPreserving'
+
+    def test_build_ansatz_efficient_su2(self, mock_backend_config, sample_hamiltonian):
+        """Test that _build_ansatz builds EfficientSU2 by default."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='EfficientSU2',
+            ansatz_reps=2,
+        )
+        with patch('quantum_pipeline.solvers.vqe_solver.EfficientSU2') as mock_cls:
+            solver._build_ansatz(4)
+            mock_cls.assert_called_once_with(4, reps=2)
+
+    def test_build_ansatz_real_amplitudes(self, mock_backend_config, sample_hamiltonian):
+        """Test that _build_ansatz builds RealAmplitudes when ansatz_type is RealAmplitudes."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='RealAmplitudes',
+            ansatz_reps=2,
+        )
+        with patch('quantum_pipeline.solvers.vqe_solver.RealAmplitudes') as mock_cls:
+            solver._build_ansatz(4)
+            mock_cls.assert_called_once_with(4, reps=2)
+
+    def test_build_ansatz_excitation_preserving(self, mock_backend_config, sample_hamiltonian):
+        """Test that _build_ansatz builds ExcitationPreserving with linear entanglement."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='ExcitationPreserving',
+            ansatz_reps=2,
+        )
+        with patch('quantum_pipeline.solvers.vqe_solver.ExcitationPreserving') as mock_cls:
+            solver._build_ansatz(4)
+            mock_cls.assert_called_once_with(4, reps=2, entanglement='linear')
+
+    def test_unknown_ansatz_type_falls_back_to_efficient_su2(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        """Test that unknown ansatz_type falls back to EfficientSU2."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='Unknown',
+            ansatz_reps=1,
+        )
+        with patch('quantum_pipeline.solvers.vqe_solver.EfficientSU2') as mock_cls:
+            solver._build_ansatz(4)
+            mock_cls.assert_called_once_with(4, reps=1)

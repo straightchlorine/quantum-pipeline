@@ -1,0 +1,64 @@
+[
+  {
+    "name": "H2",
+    "symbols": [
+      "H",
+      "H"
+    ],
+    "coords": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.7414
+      ]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [
+      1.008,
+      1.008
+    ],
+    "description": "Hydrogen molecule - benchmark system for VQE algorithms",
+    "expected_qubits": 4,
+    "complexity_level": 1,
+    "experimental_bond_length_angstrom": 0.7414,
+    "reference": "NIST CCCBDB, experimental spectroscopic data"
+  },
+  {
+    "name": "HeH+",
+    "symbols": [
+      "He",
+      "H"
+    ],
+    "coords": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.7719
+      ]
+    ],
+    "multiplicity": 1,
+    "charge": 1,
+    "units": "angstrom",
+    "masses": [
+      4.0026,
+      1.008
+    ],
+    "description": "Helium hydride cation - first molecule formed in universe",
+    "expected_qubits": 4,
+    "complexity_level": 1,
+    "experimental_bond_length_angstrom": 0.7719,
+    "reference": "Roberge & Dalgarno, ApJ 1982; G\u00fcsten et al. Nature 2019"
+  }
+]
