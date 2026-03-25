@@ -183,7 +183,7 @@ services:
     build:
       context: ../docker
       dockerfile: Dockerfile.spark
-    image: quantum-pipeline-spark:4.1.1-python3.12
+    image: quantum-pipeline-spark:4.0.2-python3.12
     container_name: ml-spark-master
     command: /opt/spark/sbin/start-master.sh
     deploy:
@@ -215,7 +215,7 @@ services:
     build:
       context: ../docker
       dockerfile: Dockerfile.spark
-    image: quantum-pipeline-spark:4.1.1-python3.12
+    image: quantum-pipeline-spark:4.0.2-python3.12
     container_name: ml-spark-worker
     command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077
     deploy:
