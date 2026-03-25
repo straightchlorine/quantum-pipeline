@@ -15,6 +15,8 @@ volumes:
     name: quantum-ml-redis-data
   kafka-data:
     name: quantum-ml-kafka-data
+  airflow-ivy-cache:
+    name: quantum-ml-airflow-ivy-cache
 
 networks:
   quantum-net:
@@ -54,8 +56,8 @@ x-airflow-common:
   volumes: &airflow-common-volumes
     - ../docker/airflow/:/opt/airflow/dags
     - airflow-logs:/opt/airflow/logs
+    - airflow-ivy-cache:/tmp/.ivy2
     - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
-    - spark-ivy-cache:/home/spark/.ivy2
   networks:
     - quantum-net
   depends_on: &airflow-common-depends-on
@@ -179,6 +181,10 @@ services:
     image: apache/spark:${SPARK_VERSION:-4.0.2}-python3
     container_name: ml-spark-master
     command: /opt/spark/sbin/start-master.sh
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     environment: &spark-common-env
       SPARK_MASTER_HOST: spark-master
       SPARK_MASTER_PORT: 7077
@@ -202,6 +208,10 @@ services:
     image: apache/spark:${SPARK_VERSION:-4.0.2}-python3
     container_name: ml-spark-worker
     command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077
+    deploy:
+      resources:
+        limits:
+          memory: 3G
     environment:
       <<: *spark-common-env
       SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-2G}

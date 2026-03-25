@@ -21,8 +21,7 @@ logger = LoggingMixin().log
 default_args = {
     'owner': 'quantum_pipeline',
     'depends_on_past': False,
-    'email': ['quantum_alerts@example.com'],
-    'email_on_failure': True,
+    'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
@@ -59,20 +58,20 @@ with DAG(
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['quantum', 'ML', 'features', 'processing', 'Apache Spark'],
-    on_success_callback=send_success_email,
 ) as dag:
-    # submit Spark job - only run if check_for_data returns True
     quantum_simulation_results_processing = SparkSubmitOperator(
         task_id='run_quantum_processing',
         application='/opt/airflow/dags/scripts/quantum_incremental_processing.py',
         conn_id='spark_default',
         name='quantum_feature_processing',
         conf={
-            'spark.app.name': 'Quantum Pipeline Feature Processing',
+            'spark.jars.ivy': '/tmp/.ivy2',
         },
         env_vars={
             'S3_BUCKET_URL': os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/'),
             'S3_WAREHOUSE_URL': os.getenv('S3_WAREHOUSE_URL', 's3a://features/warehouse/'),
         },
+        execution_timeout=timedelta(hours=2),
+        on_success_callback=send_success_email,
         verbose=True,
     )

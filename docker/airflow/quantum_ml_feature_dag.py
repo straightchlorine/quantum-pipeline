@@ -23,8 +23,7 @@ logger = LoggingMixin().log
 default_args = {
     'owner': 'quantum_pipeline',
     'depends_on_past': False,
-    'email': ['quantum_alerts@example.com'],
-    'email_on_failure': True,
+    'email_on_failure': False,
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
@@ -46,7 +45,7 @@ with DAG(
         external_dag_id='quantum_feature_processing',
         external_task_id='run_quantum_processing',
         execution_delta=timedelta(0),
-        mode='poke',
+        mode='reschedule',
         poke_interval=60,
         timeout=3600,
     )
@@ -57,12 +56,13 @@ with DAG(
         conn_id='spark_default',
         name='quantum_ml_feature_processing',
         conf={
-            'spark.app.name': 'Quantum Pipeline Feature Processing',
+            'spark.jars.ivy': '/tmp/.ivy2',
         },
         env_vars={
             'S3_BUCKET_URL': os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/'),
             'S3_WAREHOUSE_URL': os.getenv('S3_WAREHOUSE_URL', 's3a://features/warehouse/'),
         },
+        execution_timeout=timedelta(hours=1),
         verbose=True,
     )
 

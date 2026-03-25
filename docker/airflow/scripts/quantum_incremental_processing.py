@@ -69,16 +69,8 @@ def list_available_topics(spark, bucket_path):
         list: List of available topics
     """
     try:
-        # configure hadoop to use appropriate filesystem
-        spark._jsc.hadoopConfiguration().set(
-            'fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem'
-        )
-        spark._jsc.hadoopConfiguration().set(
-            'fs.s3a.aws.credentials.provider',
-            'org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider',
-        )
-
-        # create a configured filesystem
+        # S3A filesystem and credentials provider are configured in spark-defaults.conf
+        # (EnvironmentVariableCredentialsProvider reads AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
         fs = spark._jvm.org.apache.hadoop.fs.FileSystem.get(
             spark._jvm.java.net.URI.create(bucket_path), spark._jsc.hadoopConfiguration()
         )
