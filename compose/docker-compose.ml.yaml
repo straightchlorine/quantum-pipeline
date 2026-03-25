@@ -42,13 +42,19 @@ x-airflow-common:
     AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
     AIRFLOW__LOGGING__LOGGING_LEVEL: WARNING
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
-    # S3 credentials for Spark/Airflow DAGs
+    # S3 credentials (AWS standard names for EnvironmentVariableCredentialsProvider)
+    AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+    AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+    # App-level S3 config (used by DAG scripts)
     S3_ACCESS_KEY: ${S3_ACCESS_KEY}
     S3_SECRET_KEY: ${S3_SECRET_KEY}
     S3_ENDPOINT: ${S3_ENDPOINT:-http://garage:3901}
+    # PySpark reads spark-defaults.conf from this directory
+    SPARK_CONF_DIR: /opt/spark/conf
   volumes: &airflow-common-volumes
     - ../docker/airflow/:/opt/airflow/dags
     - airflow-logs:/opt/airflow/logs
+    - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
   networks:
     - quantum-net
   depends_on: &airflow-common-depends-on

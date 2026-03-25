@@ -36,18 +36,10 @@ DEFAULT_CONFIG = {
 }
 
 
-def validate_environment():
-    """Validate that required environment variables are set."""
-    required_vars = ['S3_ACCESS_KEY', 'S3_SECRET_KEY']
-    missing = [var for var in required_vars if not os.environ.get(var)]
-
-    if missing:
-        raise ValueError(f'Missing required environment variables: {", ".join(missing)}')
-
-
 def create_spark_session(config=None):
     """
-    Create and configure a Spark session with Iceberg and S3 support.
+    Create a Spark session. Infrastructure config (JARs, S3, Iceberg catalog)
+    is inherited from spark-defaults.conf mounted into the container.
 
     Args:
         config: Dictionary with configuration values (defaults used if None)
@@ -58,53 +50,9 @@ def create_spark_session(config=None):
     if config is None:
         config = DEFAULT_CONFIG
 
-    validate_environment()
-
-    # access keys
-    access_key = os.environ.get('S3_ACCESS_KEY')
-    secret_key = os.environ.get('S3_SECRET_KEY')
-
     return (
-        SparkSession.builder.appName(config.get('APP_NAME', DEFAULT_CONFIG['APP_NAME']))
-        .master(config.get('SPARK_MASTER', DEFAULT_CONFIG['SPARK_MASTER']))
-        # TODO: check if its required if jars are already in the image
-        .config(
-            'spark.jars.packages',
-            (
-                'org.slf4j:slf4j-api:2.0.17,'
-                'commons-codec:commons-codec:1.18.0,'
-                'com.google.j2objc:j2objc-annotations:3.0.0,'
-                'org.apache.spark:spark-avro_2.12:3.5.5,'
-                'org.apache.hadoop:hadoop-aws:3.3.1,'
-                'org.apache.hadoop:hadoop-common:3.3.1,'
-                'org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2'
-            ),
-        )
-        .config(
-            'spark.sql.extensions',
-            'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
-        )
-        .config('spark.sql.catalog.quantum_catalog', 'org.apache.iceberg.spark.SparkCatalog')
-        .config('spark.sql.catalog.quantum_catalog.type', 'hadoop')
-        .config(
-            'spark.sql.catalog.quantum_catalog.warehouse',
-            config.get('S3_WAREHOUSE', DEFAULT_CONFIG['S3_WAREHOUSE']),
-        )
-        .config('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
-        .config('spark.hadoop.fs.s3a.access.key', access_key)
-        .config('spark.hadoop.fs.s3a.secret.key', secret_key)
-        .config(
-            'spark.hadoop.fs.s3a.endpoint',
-            config.get('S3_ENDPOINT', DEFAULT_CONFIG['S3_ENDPOINT']),
-        )
-        .config('spark.hadoop.fs.s3a.path.style.access', 'true')
-        .config('spark.hadoop.fs.s3a.connection.ssl.enabled', 'false')
-        .config(
-            'spark.hadoop.fs.s3a.aws.credentials.provider',
-            'org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider',
-        )
-        .config('spark.sql.adaptive.enabled', 'true')
-        .config('spark.sql.shuffle.partitions', '200')
+        SparkSession.builder
+        .appName(config.get('APP_NAME', DEFAULT_CONFIG['APP_NAME']))
         .getOrCreate()
     )
 
