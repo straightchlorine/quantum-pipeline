@@ -86,7 +86,7 @@ def load_source_tables(spark):
     Returns:
         dict: DataFrames keyed by table name
     """
-    tables = ['vqe_iterations', 'vqe_results', 'molecules', 'performance_metrics']
+    tables = ['vqe_iterations', 'vqe_results', 'molecules', 'performance_metrics', 'ansatz_info']
     return {t: spark.table(f'{CATALOG}.{t}') for t in tables}
 
 
@@ -112,12 +112,13 @@ def build_iteration_features(spark, source_dfs, new_experiment_ids_df):
     vqe = source_dfs['vqe_results']
     mols = source_dfs['molecules']
     perf = source_dfs['performance_metrics']
+    ansatz = source_dfs['ansatz_info']
 
     # filter to new experiment_ids only
     new_ids = new_experiment_ids_df.select('experiment_id')
     iters = iters.join(new_ids, on='experiment_id', how='inner')
 
-    # drop columns that exist in both iters and vqe to avoid ambiguous references after join
+    # drop columns that exist in multiple source tables to avoid ambiguous references
     # TODO: check if num_qubits/basis_set should be removed from vqe_iterations in the
     #       generation pipeline (quantum_incremental_processing.py) to avoid this duplication
     iters = iters.drop('num_qubits', 'basis_set')
@@ -126,16 +127,22 @@ def build_iteration_features(spark, source_dfs, new_experiment_ids_df):
     vqe_cols = vqe.select(
         'experiment_id',
         col('optimizer'),
-        col('ansatz_name').alias('ansatz_type'),
         col('ansatz_reps'),
-        col('init_strategy'),
         col('seed'),
         col('default_shots'),
         col('num_qubits'),
         col('total_iterations'),
         col('minimum_energy').alias('final_energy'),
         col('success').alias('converged'),
+    )
+
+    # basis_set and ansatz_type sourced from ansatz_info (consistently populated
+    # for both Avro/Kafka Connect and JSON/Redpanda Connect data)
+    ansatz_cols = ansatz.select(
+        'experiment_id',
         col('basis_set'),
+        col('ansatz_name').alias('ansatz_type'),
+        col('init_strategy'),
     )
 
     mol_cols = mols.select(
@@ -154,6 +161,7 @@ def build_iteration_features(spark, source_dfs, new_experiment_ids_df):
 
     df = (
         iters.join(vqe_cols, on='experiment_id', how='left')
+        .join(ansatz_cols, on='experiment_id', how='left')
         .join(mol_cols, on='experiment_id', how='left')
         .join(perf_cols, on='experiment_id', how='left')
     )
