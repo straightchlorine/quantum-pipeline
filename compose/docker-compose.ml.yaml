@@ -55,6 +55,7 @@ x-airflow-common:
     - ../docker/airflow/:/opt/airflow/dags
     - airflow-logs:/opt/airflow/logs
     - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+    - spark-ivy-cache:/home/spark/.ivy2
   networks:
     - quantum-net
   depends_on: &airflow-common-depends-on

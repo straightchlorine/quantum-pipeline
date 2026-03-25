@@ -11,25 +11,14 @@ Depends on: quantum_feature_processing DAG (waits via ExternalTaskSensor).
 """
 
 import os
-import sys
 from datetime import datetime, timedelta
 
 from airflow import DAG
-from airflow.models import Variable
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.utils.log.logging_mixin import LoggingMixin
 
 logger = LoggingMixin().log
-
-try:
-    from scripts.quantum_ml_feature_processing import DEFAULT_CONFIG
-except ImportError:
-    logger.error(
-        'Could not import the quantum ML feature processing module. '
-        'Make sure it is in the PYTHONPATH.'
-    )
-    sys.exit(1)
 
 default_args = {
     'owner': 'quantum_pipeline',
@@ -40,14 +29,6 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }
-
-# seed Airflow Variables from DEFAULT_CONFIG on first load
-for k, v in DEFAULT_CONFIG.items():
-    if Variable.get(k, default_var=None) is None:
-        Variable.set(k, v)
-
-Variable.set('S3_ACCESS_KEY', os.getenv('S3_ACCESS_KEY'))
-Variable.set('S3_SECRET_KEY', os.getenv('S3_SECRET_KEY'))
 
 with DAG(
     'quantum_ml_feature_processing',
@@ -76,14 +57,11 @@ with DAG(
         conn_id='spark_default',
         name='quantum_ml_feature_processing',
         conf={
-            'spark.app.name': Variable.get('APP_NAME'),
+            'spark.app.name': 'Quantum Pipeline Feature Processing',
         },
         env_vars={
-            'S3_ACCESS_KEY': Variable.get('S3_ACCESS_KEY'),
-            'S3_SECRET_KEY': Variable.get('S3_SECRET_KEY'),
-            'S3_ENDPOINT': Variable.get('S3_ENDPOINT'),
-            'S3_BUCKET': Variable.get('S3_BUCKET'),
-            'S3_WAREHOUSE': Variable.get('S3_WAREHOUSE'),
+            'S3_BUCKET_URL': os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/'),
+            'S3_WAREHOUSE_URL': os.getenv('S3_WAREHOUSE_URL', 's3a://features/warehouse/'),
         },
         verbose=True,
     )

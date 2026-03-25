@@ -8,24 +8,14 @@ This DAG handles:
 """
 
 import os
-import sys
 from datetime import datetime, timedelta
 
 from airflow import DAG
-from airflow.models import Variable
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.utils.email import send_email
 from airflow.utils.log.logging_mixin import LoggingMixin
 
 logger = LoggingMixin().log
-
-try:
-    from scripts.quantum_incremental_processing import DEFAULT_CONFIG
-except ImportError:
-    logger.error(
-        "Could not import the quantum processing module. Make sure it's in the PYTHONPATH."
-    )
-    sys.exit(1)
 
 # default args for the DAG
 default_args = {
@@ -60,13 +50,6 @@ def send_success_email(context):
     send_email(to=default_args['email'], subject=subject, html_content=html_content)
 
 
-for k, v in DEFAULT_CONFIG.items():
-    if Variable.get(k, default_var=None) is None:
-        Variable.set(k, v)
-
-Variable.set('S3_ACCESS_KEY', os.getenv('S3_ACCESS_KEY'))
-Variable.set('S3_SECRET_KEY', os.getenv('S3_SECRET_KEY'))
-
 # create the DAG
 with DAG(
     'quantum_feature_processing',
@@ -85,14 +68,11 @@ with DAG(
         conn_id='spark_default',
         name='quantum_feature_processing',
         conf={
-            'spark.app.name': Variable.get('APP_NAME'),
+            'spark.app.name': 'Quantum Pipeline Feature Processing',
         },
         env_vars={
-            'S3_ACCESS_KEY': Variable.get('S3_ACCESS_KEY'),
-            'S3_SECRET_KEY': Variable.get('S3_SECRET_KEY'),
-            'S3_ENDPOINT': Variable.get('S3_ENDPOINT'),
-            'S3_BUCKET': Variable.get('S3_BUCKET'),
-            'S3_WAREHOUSE': Variable.get('S3_WAREHOUSE'),
+            'S3_BUCKET_URL': os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/'),
+            'S3_WAREHOUSE_URL': os.getenv('S3_WAREHOUSE_URL', 's3a://features/warehouse/'),
         },
         verbose=True,
     )
