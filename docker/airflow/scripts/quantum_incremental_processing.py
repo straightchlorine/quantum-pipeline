@@ -99,13 +99,20 @@ def read_experiments_by_topic(spark, bucket_path, topic_name, num_partitions=Non
         DataFrame: Spark DataFrame with the topic data
     """
     # support both Avro (Kafka Connect) and JSON (Redpanda Connect) output
-    avro_path = f'{bucket_path}{topic_name}/**/*.avro'
-    json_path = f'{bucket_path}{topic_name}/**/*.json'
+    # Use recursiveFileLookup to handle both flat and time-partitioned layouts
+    # (S3A does not reliably support ** recursive globs)
+    topic_dir = f'{bucket_path}{topic_name}'
 
     try:
-        df = spark.read.format('avro').load(avro_path)
+        df = (spark.read.format('avro')
+              .option('recursiveFileLookup', 'true')
+              .option('pathGlobFilter', '*.avro')
+              .load(topic_dir))
     except Exception:
-        df = spark.read.json(json_path)
+        df = (spark.read
+              .option('recursiveFileLookup', 'true')
+              .option('pathGlobFilter', '*.json')
+              .json(topic_dir))
 
     if num_partitions:
         df = df.repartition(num_partitions)
