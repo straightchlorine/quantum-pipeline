@@ -54,6 +54,7 @@ x-airflow-common:
     S3_ENDPOINT: ${S3_ENDPOINT:-http://garage:3901}
     # PySpark reads spark-defaults.conf from this directory
     SPARK_CONF_DIR: /opt/spark/conf
+    PYSPARK_PYTHON: python3
   volumes: &airflow-common-volumes
     - ../docker/airflow/:/opt/airflow/dags
     - airflow-logs:/opt/airflow/logs
@@ -179,7 +180,10 @@ services:
   # --- spark ---
 
   spark-master:
-    image: apache/spark:${SPARK_VERSION:-4.1.1}-python3
+    build:
+      context: ../docker
+      dockerfile: Dockerfile.spark
+    image: quantum-pipeline-spark:4.1.1-python3.12
     container_name: ml-spark-master
     command: /opt/spark/sbin/start-master.sh
     deploy:
@@ -190,6 +194,7 @@ services:
       SPARK_MASTER_HOST: spark-master
       SPARK_MASTER_PORT: 7077
       SPARK_NO_DAEMONIZE: "true"
+      PYSPARK_PYTHON: python3
       # S3 credentials and region via env vars (used by both Hadoop S3A and Iceberg S3FileIO)
       AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
@@ -207,7 +212,10 @@ services:
       - garage
 
   spark-worker:
-    image: apache/spark:${SPARK_VERSION:-4.1.1}-python3
+    build:
+      context: ../docker
+      dockerfile: Dockerfile.spark
+    image: quantum-pipeline-spark:4.1.1-python3.12
     container_name: ml-spark-worker
     command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077
     deploy:
