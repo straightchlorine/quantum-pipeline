@@ -43,8 +43,8 @@ from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator
-from airflow.sensors.external_task import ExternalTaskSensor
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.sensors.external_task import ExternalTaskSensor
 from airflow.utils.log.logging_mixin import LoggingMixin
 
 logger = LoggingMixin().log

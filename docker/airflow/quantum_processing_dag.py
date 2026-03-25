@@ -37,7 +37,7 @@ def send_success_email(context):
     if not results:
         results = 'No data processed'
 
-    subject = f'Quantum Processing Success: {context["execution_date"]}'
+    subject = f'Quantum Processing Success: {context["logical_date"]}'
     html_content = f"""
     <h3>Quantum Processing Completed Successfully</h3>
     <p><b>Execution Date:</b> {context['execution_date']}</p>

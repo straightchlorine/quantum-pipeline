@@ -18,7 +18,7 @@ import os
 from datetime import datetime, timedelta
 
 from airflow import DAG
-from airflow.operators.bash import BashOperator
+from airflow.providers.standard.operators.bash import BashOperator
 
 # The batch script path inside the Airflow container.
 # docker-compose.ml.yaml mounts ../docker/airflow/ → /opt/airflow/dags,

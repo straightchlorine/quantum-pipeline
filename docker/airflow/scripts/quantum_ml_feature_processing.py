@@ -117,6 +117,11 @@ def build_iteration_features(spark, source_dfs, new_experiment_ids_df):
     new_ids = new_experiment_ids_df.select('experiment_id')
     iters = iters.join(new_ids, on='experiment_id', how='inner')
 
+    # drop columns that exist in both iters and vqe to avoid ambiguous references after join
+    # TODO: check if num_qubits/basis_set should be removed from vqe_iterations in the
+    #       generation pipeline (quantum_incremental_processing.py) to avoid this duplication
+    iters = iters.drop('num_qubits', 'basis_set')
+
     # --- join context tables (all on experiment_id) ---
     vqe_cols = vqe.select(
         'experiment_id',
