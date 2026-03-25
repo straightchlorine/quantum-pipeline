@@ -55,6 +55,20 @@ x-airflow-common:
     # PySpark reads spark-defaults.conf from this directory
     SPARK_CONF_DIR: /opt/spark/conf
     PYSPARK_PYTHON: python3
+    # rclone remotes for R2 sync DAG (configured via env vars, no rclone.conf needed)
+    RCLONE_CONFIG_GARAGE_TYPE: s3
+    RCLONE_CONFIG_GARAGE_PROVIDER: Other
+    RCLONE_CONFIG_GARAGE_ENDPOINT: ${S3_ENDPOINT:-http://garage:3901}
+    RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+    RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+    RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE: "true"
+    RCLONE_CONFIG_GARAGE_NO_CHECK_BUCKET: "true"
+    RCLONE_CONFIG_R2_TYPE: s3
+    RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+    RCLONE_CONFIG_R2_ENDPOINT: https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+    RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+    RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+    RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
   volumes: &airflow-common-volumes
     - ../docker/airflow/:/opt/airflow/dags
     - airflow-logs:/opt/airflow/logs
