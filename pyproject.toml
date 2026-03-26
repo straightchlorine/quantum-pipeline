@@ -106,7 +106,7 @@ ignore = ["E501"]
 "tests/**" = ["S101", "S108", "S105", "S106"]
 "examples/**" = ["ALL"]
 "quantum_pipeline/ml/**" = ["N803", "N806", "RUF002"]
-"scripts/**" = ["T201", "S603", "RUF002"]
+"scripts/**" = ["T201", "S603"]
 
 [tool.ruff.format]
 quote-style = "single"
