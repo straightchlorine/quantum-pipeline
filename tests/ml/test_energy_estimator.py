@@ -14,7 +14,6 @@ from quantum_pipeline.ml.energy_estimator import (
     generate_synthetic_trajectories,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

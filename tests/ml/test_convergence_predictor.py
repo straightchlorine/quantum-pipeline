@@ -16,7 +16,6 @@ from quantum_pipeline.ml.convergence_predictor import (
     get_horizon_feature_names,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -176,8 +175,8 @@ class TestComputeHorizonFeatures:
         df_k50 = compute_horizon_features(small_traj, k=50)
         # Energy slope at k=10 should differ from k=50 (more data → different slope)
         assert not np.allclose(
-            df_k10[f'energy_slope_first10'].values,
-            df_k50[f'energy_slope_first50'].values,
+            df_k10['energy_slope_first10'].values,
+            df_k50['energy_slope_first50'].values,
             atol=1e-3,
         )
 

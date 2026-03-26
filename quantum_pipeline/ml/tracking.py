@@ -43,14 +43,14 @@ class ExperimentTracker:
 
     def __init__(self, tracking_uri: str | None = None) -> None:
         self._tracking_uri = tracking_uri or get_tracking_uri()
-        self._mlflow: "mlflow | None" = None
+        self._mlflow: mlflow | None = None
 
     # ------------------------------------------------------------------
     # Lazy MLflow import
     # ------------------------------------------------------------------
 
     @property
-    def mlflow(self) -> "mlflow":
+    def mlflow(self) -> mlflow:
         if self._mlflow is None:
             try:
                 import mlflow as _mlflow
@@ -113,7 +113,7 @@ class ExperimentTracker:
         Falls back to ``mlflow.sklearn`` for unknown types.
         """
         try:
-            import xgboost  # noqa: F401
+            import xgboost
 
             if isinstance(model, xgboost.XGBModel):
                 self.mlflow.xgboost.log_model(model, artifact_path, **kwargs)

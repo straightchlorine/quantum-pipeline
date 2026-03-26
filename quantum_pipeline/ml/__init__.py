@@ -5,6 +5,8 @@ from quantum_pipeline.ml.convergence_predictor import (
     ConvergencePredictorResults,
     FoldResult,
     compute_horizon_features,
+)
+from quantum_pipeline.ml.convergence_predictor import (
     generate_synthetic_trajectories as generate_convergence_trajectories,
 )
 from quantum_pipeline.ml.energy_estimator import (

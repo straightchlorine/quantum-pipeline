@@ -15,6 +15,11 @@ from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
 from quantum_pipeline.circuits import HFData, build_hf_initial_state
+from quantum_pipeline.configs.constants import (
+    HF_FIDELITY_THRESHOLD,
+    HF_PRE_OPT_ATTEMPTS,
+    HF_PRE_OPT_MAXITER,
+)
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.mappers.mapper import Mapper
 from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
@@ -125,18 +130,18 @@ class VQESolver(Solver):
 
         best_fid = 0.0
         best_params = np.zeros(ansatz.num_parameters)
-        n_attempts = 10
+        n_attempts = HF_PRE_OPT_ATTEMPTS
         seed = self.seed if self.seed is not None else 0
 
         for i in range(n_attempts):
             np.random.seed(seed + i)
             x0 = 2 * np.pi * np.random.random(ansatz.num_parameters)
-            res = minimize(neg_fidelity, x0, method='COBYLA', options={'maxiter': 1000})
+            res = minimize(neg_fidelity, x0, method='COBYLA', options={'maxiter': HF_PRE_OPT_MAXITER})
             fid = -res.fun
             if fid > best_fid:
                 best_fid = fid
                 best_params = res.x
-            if best_fid > 0.9999:
+            if best_fid > HF_FIDELITY_THRESHOLD:
                 break
 
         self.logger.info(
@@ -236,8 +241,14 @@ class VQESolver(Solver):
         self.current_iter += 1
         return energy
 
-    def via_ibmq(self, backend):
-        """Run the VQE simulation on IBM Quantum backend."""
+    def _prepare_circuit(self, backend):
+        """Build and transpile the ansatz and Hamiltonian for the given backend.
+
+        Returns:
+            Tuple of (ansatz, x0, ansatz_isa, hamiltonian_isa) where ansatz and x0
+            are the untranspiled circuit and initial parameters, and the _isa variants
+            are the backend-compatible transpiled forms.
+        """
         hamiltonian = self.qubit_op
 
         self.logger.info(f'Initializing the ansatz with {self.ansatz_reps} reps...')
@@ -251,137 +262,12 @@ class VQESolver(Solver):
         ansatz_isa, hamiltonian_isa = self._optimize_circuits(ansatz, hamiltonian, backend)
         self.logger.info('Ansatz and hamiltonian optimized.')
 
+        return ansatz, x0, ansatz_isa, hamiltonian_isa
+
+    def _build_init_data(self, backend_name, ansatz_isa, hamiltonian_isa, x0):
+        """Construct and store VQEInitialData on self.init_data."""
         self.init_data = VQEInitialData(
-            backend=backend.name,
-            num_qubits=hamiltonian_isa.num_qubits,
-            hamiltonian=hamiltonian_isa.to_list(),
-            num_parameters=ansatz_isa.num_parameters,
-            initial_parameters=x0,
-            optimizer=self.optimizer,
-            ansatz=ansatz_isa,
-            ansatz_reps=self.ansatz_reps,
-            noise_backend=self.backend_config.noise if self.backend_config.noise else 'undef',
-            default_shots=self.default_shots,
-            seed=self.seed,
-            init_strategy=self.init_strategy,
-            ansatz_name=self.ansatz_type,
-        )
-        self.logger.info('Opening a session...')
-
-        with Session(backend=backend) as session:
-            estimator = EstimatorV2(mode=session)
-            estimator.options.update(default_shots=self.default_shots)
-
-            optimization_params, minimize_tol = get_optimizer_configuration(
-                optimizer=self.optimizer,
-                max_iterations=self.max_iterations,
-                convergence_threshold=self.convergence_threshold,
-                num_parameters=len(x0),
-            )
-
-            self.logger.debug(f'Optimization params: {optimization_params}')
-            if minimize_tol is not None:
-                self.logger.debug(f'Minimize tolerance: {minimize_tol}')
-
-            if self.convergence_threshold and self.max_iterations:
-                self.logger.info(
-                    f'Starting VQE optimization with max iterations {self.max_iterations} taking priority over '
-                    f'convergence threshold {self.convergence_threshold}'
-                )
-            elif self.convergence_threshold:
-                self.logger.info(
-                    f'Starting VQE optimization with convergence threshold {self.convergence_threshold}'
-                )
-            elif self.max_iterations:
-                self.logger.info(
-                    f'Starting VQE optimization with max iterations {self.max_iterations}'
-                )
-            else:
-                self.logger.info('Starting VQE optimization with default settings')
-
-        truncated = None
-        res = None
-        with Timer() as t:
-            try:
-                res = minimize(
-                    self.compute_energy,
-                    x0,
-                    args=(ansatz_isa, hamiltonian_isa, estimator),
-                    method=self.optimizer,
-                    options=optimization_params,
-                    tol=minimize_tol,
-                )
-            except MaxFunctionEvalsReachedError as e:
-                truncated = e
-
-        if truncated is not None:
-            self.logger.info(
-                f'Hard evaluation limit reached after {truncated.iteration} function evaluations '
-                f'(limit: {self.max_iterations}). Best energy: {truncated.best_energy:.8f} Ha'
-            )
-            self._log_total_energy(truncated.best_energy)
-            return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
-
-        actual_iterations = len(self.vqe_process)
-        best_energy = (
-            min(p.cumulative_min_energy for p in self.vqe_process)
-            if self.vqe_process
-            else res.fun
-        )
-        if self.convergence_threshold:
-            if res.success:
-                self.logger.info(
-                    f'VQE converged after {actual_iterations} iterations '
-                    f'(threshold: {self.convergence_threshold}). '
-                    f'Best energy: {best_energy:.8f} Ha'
-                )
-            else:
-                self.logger.info(
-                    f'VQE stopped after {actual_iterations} iterations - convergence not achieved. '
-                    f'Best energy: {best_energy:.8f} Ha'
-                )
-        else:
-            self.logger.info(
-                f'VQE completed {actual_iterations} iterations. Best energy: {best_energy:.8f} Ha'
-            )
-        self._log_total_energy(best_energy)
-
-        result = VQEResult(
-            initial_data=self.init_data,
-            iteration_list=self.vqe_process,
-            minimum=res.fun,
-            optimal_parameters=res.x,
-            maxcv=getattr(res, 'maxcv', None),
-            minimization_time=np.float64(t.elapsed),
-            nuclear_repulsion_energy=self._nuclear_repulsion,
-            success=bool(res.success),
-            nfev=int(res.nfev) if hasattr(res, 'nfev') and res.nfev is not None else None,
-            nit=int(res.nit) if hasattr(res, 'nit') and res.nit is not None else None,
-        )
-
-        self.logger.info('Session closed.')
-        self.logger.info(
-            f'Calculations on quantum hardware via IBMQ completed in {t.elapsed:.6f} seconds.'
-        )
-        return result
-
-    def via_aer(self, backend):
-        """Run the VQE simulation via Aer simulator."""
-        hamiltonian = self.qubit_op
-
-        self.logger.info(f'Initializing the ansatz with {self.ansatz_reps} reps...')
-        ansatz = self._build_ansatz(hamiltonian.num_qubits)
-        self.logger.info('Ansatz initialized.')
-
-        x0 = self._compute_initial_parameters(ansatz)
-        self.logger.debug(f'Initial ansatz parameters:\n\n{x0}\n')
-
-        self.logger.info('Optimizing ansatz and hamiltonian...')
-        ansatz_isa, hamiltonian_isa = self._optimize_circuits(ansatz, hamiltonian, backend)
-        self.logger.info('Ansatz and hamiltonian optimized.')
-
-        self.init_data = VQEInitialData(
-            backend=backend.name,
+            backend=backend_name,
             num_qubits=hamiltonian_isa.num_qubits,
             hamiltonian=hamiltonian_isa.to_list(),
             num_parameters=ansatz_isa.num_parameters,
@@ -396,9 +282,12 @@ class VQESolver(Solver):
             ansatz_name=self.ansatz_type,
         )
 
-        estimator = EstimatorV2(mode=backend)
-        estimator.options.default_shots = self.default_shots
+    def _run_optimization(self, ansatz_isa, hamiltonian_isa, estimator, x0) -> VQEResult:
+        """Run the scipy optimization loop and return a VQEResult.
 
+        Handles convergence-mode logging, the Timer-wrapped minimize call,
+        MaxFunctionEvalsReachedError early termination, and result construction.
+        """
         optimization_params, minimize_tol = get_optimizer_configuration(
             optimizer=self.optimizer,
             max_iterations=self.max_iterations,
@@ -425,6 +314,7 @@ class VQESolver(Solver):
             )
         else:
             self.logger.info('Starting VQE optimization with default settings')
+
         truncated = None
         res = None
         with Timer() as t:
@@ -472,7 +362,7 @@ class VQESolver(Solver):
             )
         self._log_total_energy(best_energy)
 
-        result = VQEResult(
+        return VQEResult(
             initial_data=self.init_data,
             iteration_list=self.vqe_process,
             minimum=res.fun,
@@ -485,8 +375,36 @@ class VQESolver(Solver):
             nit=int(res.nit) if hasattr(res, 'nit') and res.nit is not None else None,
         )
 
+    def via_ibmq(self, backend):
+        """Run the VQE simulation on IBM Quantum backend."""
+        ansatz, x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
+        self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0)
+
+        self.logger.info('Opening a session...')
+        with Session(backend=backend) as session:
+            estimator = EstimatorV2(mode=session)
+            estimator.options.update(default_shots=self.default_shots)
+            result = self._run_optimization(ansatz_isa, hamiltonian_isa, estimator, x0)
+
+        self.logger.info('Session closed.')
         self.logger.info(
-            f'Simulation via Aer completed in {t.elapsed:.6f} seconds and {len(result.iteration_list)} iterations.'
+            f'Calculations on quantum hardware via IBMQ completed in {result.minimization_time:.6f} seconds.'
+        )
+        return result
+
+    def via_aer(self, backend):
+        """Run the VQE simulation via Aer simulator."""
+        ansatz, x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
+        self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0)
+
+        estimator = EstimatorV2(mode=backend)
+        estimator.options.default_shots = self.default_shots
+
+        result = self._run_optimization(ansatz_isa, hamiltonian_isa, estimator, x0)
+
+        self.logger.info(
+            f'Simulation via Aer completed in {result.minimization_time:.6f} seconds '
+            f'and {len(result.iteration_list)} iterations.'
         )
         return result
 

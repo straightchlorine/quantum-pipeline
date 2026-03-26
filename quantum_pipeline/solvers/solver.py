@@ -1,4 +1,5 @@
 import os
+from abc import ABC, abstractmethod
 
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel
@@ -9,13 +10,18 @@ from quantum_pipeline.configs.settings import SUPPORTED_OPTIMIZERS
 from quantum_pipeline.utils.logger import get_logger
 
 
-class Solver:
+class Solver(ABC):
     """Base class for quantum solvers."""
 
     backend_config: BackendConfig
 
     def __init__(self):
         self.logger = get_logger(self.__class__.__name__)
+
+    @abstractmethod
+    def solve(self):
+        """Run the quantum solver and return the result. Subclasses must implement this."""
+        ...
 
     def supported_optimizers_prompt(self):
         supported_optimizers = ''

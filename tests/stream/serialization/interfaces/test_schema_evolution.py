@@ -13,7 +13,6 @@ the updated pipeline.
 import io
 import json
 import unittest
-from copy import deepcopy
 from unittest.mock import patch
 
 import avro.schema

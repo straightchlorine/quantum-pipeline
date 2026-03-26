@@ -19,6 +19,14 @@ import pytest
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.solvers.solver import Solver
 
+
+class _ConcreteSolver(Solver):
+    """Minimal concrete Solver for testing the base class."""
+
+    def solve(self):
+        raise NotImplementedError
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -27,7 +35,7 @@ from quantum_pipeline.solvers.solver import Solver
 @pytest.fixture
 def solver():
     """Return a bare Solver instance (no backend_config set yet)."""
-    return Solver()
+    return _ConcreteSolver()
 
 
 @pytest.fixture
@@ -108,11 +116,12 @@ def remote_config_no_filters():
 class TestSolverInit:
     def test_logger_is_created(self, solver):
         assert solver.logger is not None
-        assert solver.logger.name == 'Solver'
+        assert solver.logger.name == '_ConcreteSolver'
 
     def test_subclass_logger_name(self):
         class MySolver(Solver):
-            pass
+            def solve(self):
+                raise NotImplementedError
 
         s = MySolver()
         assert s.logger.name == 'MySolver'

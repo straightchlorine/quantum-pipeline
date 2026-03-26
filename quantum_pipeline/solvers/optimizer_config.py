@@ -10,6 +10,13 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
+from quantum_pipeline.configs.constants import (
+    COBYLA_DEFAULT_MAXITER,
+    LBFGSB_DEFAULT_MAXITER,
+    LBFGSB_TIGHT_TOL,
+    SLSQP_DEFAULT_MAXITER,
+)
+
 
 class OptimizerConfig(ABC):
     """Abstract base class for optimizer configurations."""
@@ -59,19 +66,19 @@ class LBFGSBConfig(OptimizerConfig):
             options['maxfun'] = self.max_iterations
             options['maxiter'] = self.max_iterations
             # Use tight tolerances to ensure iteration limit is respected
-            options['ftol'] = 1e-15
-            options['gtol'] = 1e-15
+            options['ftol'] = LBFGSB_TIGHT_TOL
+            options['gtol'] = LBFGSB_TIGHT_TOL
 
         elif self.convergence_threshold is not None:
             # Mode: Convergence-based optimization
             # Use high iteration limit to allow convergence
-            options['maxiter'] = 15000
+            options['maxiter'] = LBFGSB_DEFAULT_MAXITER
             options['ftol'] = self.convergence_threshold
             options['gtol'] = self.convergence_threshold
 
         else:
             # Mode: Defaults
-            options['maxiter'] = 15000
+            options['maxiter'] = LBFGSB_DEFAULT_MAXITER
             # Let scipy use its default tolerances
 
         return options
@@ -97,9 +104,9 @@ class COBYLAConfig(OptimizerConfig):
         if self.max_iterations is not None:
             maxiter = self.max_iterations
         elif self.convergence_threshold is not None:
-            maxiter = 1000  # Default when using convergence
+            maxiter = COBYLA_DEFAULT_MAXITER  # Default when using convergence
         else:
-            maxiter = 1000  # scipy default
+            maxiter = COBYLA_DEFAULT_MAXITER  # scipy default
 
         return {
             'disp': False,
@@ -133,9 +140,9 @@ class SLSQPConfig(OptimizerConfig):
         if self.max_iterations is not None:
             maxiter = self.max_iterations
         elif self.convergence_threshold is not None:
-            maxiter = 100  # Default when using convergence
+            maxiter = SLSQP_DEFAULT_MAXITER  # Default when using convergence
         else:
-            maxiter = 100  # scipy default
+            maxiter = SLSQP_DEFAULT_MAXITER  # scipy default
 
         options = {'disp': False, 'maxiter': maxiter}
 
