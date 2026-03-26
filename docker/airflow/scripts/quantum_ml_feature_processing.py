@@ -12,9 +12,24 @@ target table are processed, preventing re-computation of already-materialized ru
 """
 
 import logging
-import os
+import sys
 
-from pyspark.sql import SparkSession, Window
+sys.path.insert(0, '/opt/airflow/dags')
+
+try:
+    from common.pipeline_config import CATALOG_FQN, ML_ROLLING_WINDOW, ML_TRAJECTORY_HEAD, ML_TRAJECTORY_TAIL  # noqa: E402
+    from common.spark_factory import create_spark_session  # noqa: E402
+except ModuleNotFoundError:
+    # Fallback for running outside the Airflow container (e.g. tests)
+    CATALOG_FQN = 'quantum_catalog.quantum_features'
+    ML_ROLLING_WINDOW = 5
+    ML_TRAJECTORY_HEAD = 10
+    ML_TRAJECTORY_TAIL = 10
+
+    def create_spark_session(app_name):
+        from pyspark.sql import SparkSession
+        return SparkSession.builder.appName(app_name).getOrCreate()
+from pyspark.sql import Window
 from pyspark.sql.functions import (
     abs as spark_abs,
     avg,
@@ -37,24 +52,7 @@ from pyspark.sql.functions import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG = {
-    'S3_BUCKET': os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/'),
-    'APP_NAME': 'Quantum ML Feature Processing',
-}
-
-CATALOG = 'quantum_catalog.quantum_features'
-
-
-def create_spark_session(config=None):
-    """Create a Spark session. Infrastructure config (JARs, S3, Iceberg catalog) is
-    supplied via spark-defaults.conf mounted into the container."""
-    if config is None:
-        config = DEFAULT_CONFIG
-    return (
-        SparkSession.builder
-        .appName(config.get('APP_NAME', DEFAULT_CONFIG['APP_NAME']))
-        .getOrCreate()
-    )
+_APP_NAME = 'Quantum ML Feature Processing'
 
 
 def get_new_experiment_ids(spark, source_experiment_ids, target_table):
@@ -87,7 +85,7 @@ def load_source_tables(spark):
         dict: DataFrames keyed by table name
     """
     tables = ['vqe_iterations', 'vqe_results', 'molecules', 'performance_metrics', 'ansatz_info']
-    return {t: spark.table(f'{CATALOG}.{t}') for t in tables}
+    return {t: spark.table(f'{CATALOG_FQN}.{t}') for t in tables}
 
 
 def build_iteration_features(spark, source_dfs, new_experiment_ids_df):
@@ -169,7 +167,7 @@ def build_iteration_features(spark, source_dfs, new_experiment_ids_df):
     # --- window specs ---
     w_exp_ord = Window.partitionBy('experiment_id').orderBy('iteration_step')
     w_exp_full = Window.partitionBy('experiment_id')
-    w_5 = w_exp_ord.rowsBetween(-4, 0)
+    w_rolling = w_exp_ord.rowsBetween(-(ML_ROLLING_WINDOW - 1), 0)
     w_cumul = w_exp_ord.rowsBetween(Window.unboundedPreceding, 0)
 
     # is_new_minimum: first iteration always establishes minimum; thereafter when
@@ -205,10 +203,10 @@ def build_iteration_features(spark, source_dfs, new_experiment_ids_df):
         spark_max(when(col('is_new_minimum'), col('iteration_step'))).over(w_exp_full),
     )
 
-    # rolling statistics (window=5)
+    # rolling statistics (configurable window size, default 5)
     df = (
-        df.withColumn('energy_moving_avg_5', avg('iteration_energy').over(w_5))
-        .withColumn('energy_moving_std_5', stddev('iteration_energy').over(w_5))
+        df.withColumn('energy_moving_avg_5', avg('iteration_energy').over(w_rolling))
+        .withColumn('energy_moving_std_5', stddev('iteration_energy').over(w_rolling))
     )
 
     # initial_energy: energy at the first iteration of each experiment
@@ -308,8 +306,8 @@ def build_run_summary(df_iter):
         ),
     )
 
-    first_10 = df_with_rank.filter(col('_rn_asc') <= 10)
-    last_10 = df_with_rank.filter(col('_rn_desc') <= 10)
+    first_10 = df_with_rank.filter(col('_rn_asc') <= ML_TRAJECTORY_HEAD)
+    last_10 = df_with_rank.filter(col('_rn_desc') <= ML_TRAJECTORY_TAIL)
 
     first_10_agg = first_10.groupBy('experiment_id').agg(
         avg('energy').alias('first_10_mean_energy'),
@@ -388,10 +386,10 @@ def write_incremental(spark, df, table_name, partition_columns):
     Args:
         spark: SparkSession
         df: DataFrame to write
-        table_name: Unqualified table name (written under CATALOG)
+        table_name: Unqualified table name (written under CATALOG_FQN)
         partition_columns: list of partition column names
     """
-    full_name = f'{CATALOG}.{table_name}'
+    full_name = f'{CATALOG_FQN}.{table_name}'
     table_exists = spark.catalog.tableExists(full_name)
 
     writer = df.write.format('iceberg').option('write-format', 'parquet')
@@ -406,9 +404,9 @@ def write_incremental(spark, df, table_name, partition_columns):
         logger.info(f'Created {full_name}: {df.count()} rows')
 
 
-def main(config=None):
+def main():
     """Main entry point for the ML feature processing script."""
-    spark = create_spark_session(config)
+    spark = create_spark_session(_APP_NAME)
 
     try:
         source_dfs = load_source_tables(spark)
@@ -416,7 +414,7 @@ def main(config=None):
 
         # find experiment_ids not yet materialized into ml_iteration_features
         new_ids = get_new_experiment_ids(
-            spark, all_experiment_ids, f'{CATALOG}.ml_iteration_features'
+            spark, all_experiment_ids, f'{CATALOG_FQN}.ml_iteration_features'
         )
 
         if new_ids.isEmpty():
@@ -428,6 +426,32 @@ def main(config=None):
 
         # build and cache iteration features (used for both tables)
         df_iter = build_iteration_features(spark, source_dfs, new_ids).cache()
+
+        # --- NULL validation on key columns after joins ---
+        key_columns = ['molecule_name', 'optimizer', 'basis_set', 'num_qubits']
+        null_filter = None
+        for kc in key_columns:
+            cond = col(kc).isNull()
+            null_filter = cond if null_filter is None else null_filter | cond
+        null_row_count = df_iter.filter(null_filter).count()
+        if null_row_count > 0:
+            logger.warning(
+                f'{null_row_count} row(s) have NULLs in key columns {key_columns} '
+                f'after joins — dropping before write.'
+            )
+            df_iter = df_iter.filter(~null_filter).cache()
+
+        # --- fan-out guard: result must not exceed source iteration count ---
+        iter_row_count = df_iter.count()
+        source_iter_count = source_dfs['vqe_iterations'].join(
+            new_ids.select('experiment_id'), on='experiment_id', how='inner'
+        ).count()
+        if iter_row_count > source_iter_count:
+            raise RuntimeError(
+                f'Join fan-out detected: ml_iteration_features has {iter_row_count} rows '
+                f'but source vqe_iterations for new experiments has {source_iter_count} rows. '
+                f'Check for many-to-many join explosion in build_iteration_features().'
+            )
 
         # write ml_iteration_features
         write_incremental(
