@@ -94,6 +94,7 @@ class VQERunner(Runner):
                 self.logger.error(
                     f'Unable to create ProducerConfig, ensure required parameters are passed to the VQERunner instance: {e}'
                 )
+                raise
 
         def is_any_backend_option_set():
             return (
@@ -124,6 +125,7 @@ class VQERunner(Runner):
                 self.logger.error(
                     f'Unable to create BackendConfig, ensure required parameters are passed to the VQERunner instance: {e}'
                 )
+                raise
         else:
             try:
                 self.backend_config = BackendConfig.default_backend_config()
@@ -132,6 +134,7 @@ class VQERunner(Runner):
                     'Unable to create default backend_config. '
                     f'ensure required parameters are passed to the VQERunner instance: {e}'
                 )
+                raise
 
         self.run_results = []
 
@@ -337,39 +340,50 @@ class VQERunner(Runner):
 
         return decorated_result
 
+    def _get_producer(self) -> VQEKafkaProducer:
+        """Return the shared Kafka producer, creating it on first use."""
+        if not hasattr(self, '_producer') or self._producer is None:
+            self._producer = VQEKafkaProducer(self.kafka_config)
+        return self._producer
+
+    def _close_producer(self) -> None:
+        """Close the Kafka producer if it was created."""
+        if hasattr(self, '_producer') and self._producer is not None:
+            try:
+                self._producer.close()
+            except Exception as e:
+                self.logger.debug(f'Error closing Kafka producer: {e}')
+            self._producer = None
+
     def _stream_result(self, decorated_result):
         """Send a decorated VQE result to the Kafka broker."""
         try:
-            self.producer = VQEKafkaProducer(self.kafka_config)
-
-            try:
-                self.producer.send_result(decorated_result)
-            except Exception as e:
-                self.logger.error('Unable to send the result to the Kafka broker.')
-                self.logger.debug(f'Error: {e}')
-
+            producer = self._get_producer()
+            producer.send_result(decorated_result)
         except Exception as e:
-            self.logger.error(
-                'Unable to create Kafka Producer, cannot send the results to the broker.'
-            )
+            self.logger.error('Unable to send the result to the Kafka broker.')
             self.logger.debug(f'Error: {e}')
 
     def run(self):
         self.molecules = self.load_molecules()
 
-        with self.performance_monitor:
-            for molecule_id, molecule in enumerate(self.molecules):
-                self.logger.info(f'Processing molecule {molecule_id + 1}:\n\n{molecule}\n')
-                decorated_result = self._process_molecule(molecule_id, molecule)
-                self.run_results.append(decorated_result)
+        try:
+            with self.performance_monitor:
+                for molecule_id, molecule in enumerate(self.molecules):
+                    self.logger.info(f'Processing molecule {molecule_id + 1}:\n\n{molecule}\n')
+                    decorated_result = self._process_molecule(molecule_id, molecule)
+                    self.run_results.append(decorated_result)
 
-                if self.kafka:
-                    self._stream_result(decorated_result)
+                    if self.kafka:
+                        self._stream_result(decorated_result)
 
-                if self.report:
-                    self.logger.info(f'Generating report for molecule {molecule_id + 1}...')
-                    self.generate_report()
-                    self.logger.info(f'Generated the report for molecule {molecule_id + 1}.')
+                    if self.report:
+                        self.logger.info(f'Generating report for molecule {molecule_id + 1}...')
+                        self.generate_report()
+                        self.logger.info(f'Generated the report for molecule {molecule_id + 1}.')
+        finally:
+            if self.kafka:
+                self._close_producer()
 
         self.logger.info('All molecules processed.')
 
@@ -381,10 +395,10 @@ class VQERunner(Runner):
             self.report_gen.add_header('Structure of the molecule in 3D')
             self.report_gen.add_molecule_plot(result.molecule)
 
-            self.report_gen.add_insight('Energy analysis', 'Results of VQE algorihtm:')
+            self.report_gen.add_insight('Energy analysis', 'Results of VQE algorithm:')
             self.report_gen.add_metrics(
                 {
-                    'Minimum Energy': str(round(result.vqe_result.minimum, 4)) + ' Heartree',
+                    'Minimum Energy': str(round(result.vqe_result.minimum, 4)) + ' Hartree',
                     'Optimizer': result.vqe_result.initial_data.optimizer,
                     'Iterations': len(result.vqe_result.iteration_list),
                     'Ansatz Repetitions': result.vqe_result.initial_data.ansatz_reps,

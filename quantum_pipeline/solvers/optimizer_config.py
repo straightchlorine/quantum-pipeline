@@ -61,9 +61,13 @@ class LBFGSBConfig(OptimizerConfig):
 
         if self.max_iterations is not None:
             # Mode: Strict iteration control
-            # Set both maxfun and maxiter to prevent hanging
+            # Set both maxfun and maxiter to prevent hanging.
+            # Use tight tolerances to ensure the full iteration budget is used
+            # (scipy's defaults would cause early stopping).
             options['maxfun'] = self.max_iterations
             options['maxiter'] = self.max_iterations
+            options['ftol'] = 1e-15
+            options['gtol'] = 1e-15
 
         elif self.convergence_threshold is not None:
             # Mode: Convergence-based optimization

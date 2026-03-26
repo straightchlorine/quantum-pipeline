@@ -45,6 +45,7 @@ import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:
+    # Only used as return-type annotation; actual import happens in _build_preprocessor
     from sklearn.compose import ColumnTransformer
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import Ridge

@@ -114,9 +114,9 @@ class TestLBFGSBPriorities:
         minimize_tol = config.get_minimize_tol()
 
         assert options['maxiter'] == 30
-        # No tolerance overrides — scipy uses its own defaults
-        assert 'ftol' not in options
-        assert 'gtol' not in options
+        # Tight tolerances to prevent premature convergence
+        assert options['ftol'] == 1e-15
+        assert options['gtol'] == 1e-15
         assert minimize_tol is None  # L-BFGS-B uses ftol/gtol, not global tol
 
     def test_lbfgsb_convergence_only(self):
@@ -167,8 +167,8 @@ class TestLBFGSBPriorities:
         )
 
         assert options['maxiter'] == 200
-        assert 'ftol' not in options
-        assert 'gtol' not in options
+        assert options['ftol'] == 1e-15
+        assert options['gtol'] == 1e-15
         assert minimize_tol is None
 
     def test_lbfgsb_realistic_scenario_convergence(self):
@@ -209,9 +209,9 @@ class TestOptimizerPriorityIntegration:
             # COBYLA doesn't set tolerance when using max_iterations
             assert minimize_tol is None
         elif optimizer == 'L-BFGS-B':
-            # L-BFGS-B uses only maxfun/maxiter; no tolerance overrides
-            assert 'ftol' not in options
-            assert 'gtol' not in options
+            # L-BFGS-B sets tight tolerances to prevent premature convergence
+            assert options['ftol'] == 1e-15
+            assert options['gtol'] == 1e-15
             assert minimize_tol is None
 
     @pytest.mark.parametrize(
@@ -263,8 +263,8 @@ class TestOptimizerPriorityIntegration:
             optimizer='L-BFGS-B', max_iterations=100, num_parameters=50
         )
         assert lbfgsb_options['maxiter'] == 100
-        assert 'ftol' not in lbfgsb_options
-        assert 'gtol' not in lbfgsb_options
+        assert lbfgsb_options['ftol'] == 1e-15
+        assert lbfgsb_options['gtol'] == 1e-15
 
         # L-BFGS-B example with convergence_threshold only
         lbfgsb_options, _lbfgsb_tol = get_optimizer_configuration(
@@ -332,8 +332,8 @@ class TestOptimizerPriorityIntegration:
             optimizer='L-BFGS-B', max_iterations=50, num_parameters=10
         )
         assert max_iter_options['maxiter'] == 50
-        assert 'ftol' not in max_iter_options
-        assert 'gtol' not in max_iter_options
+        assert max_iter_options['ftol'] == 1e-15
+        assert max_iter_options['gtol'] == 1e-15
         assert max_iter_tol is None
 
         # convergence_threshold only - should use default iterations

@@ -54,9 +54,9 @@ class TestLBFGSBConfig:
         assert options['disp'] is False
         assert options['maxfun'] == 50
         assert options['maxiter'] == 50
-        # No tolerance overrides — scipy uses its own defaults
-        assert 'ftol' not in options
-        assert 'gtol' not in options
+        # Tight tolerances to prevent premature convergence
+        assert options['ftol'] == 1e-15
+        assert options['gtol'] == 1e-15
 
     def test_get_options_convergence_threshold_only(self):
         """Test get_options with convergence_threshold only."""
@@ -337,8 +337,8 @@ class TestGetOptimizerConfiguration:
         assert isinstance(options, dict)
         assert options['maxfun'] == 50
         assert options['maxiter'] == 50
-        assert 'ftol' not in options
-        assert 'gtol' not in options
+        assert options['ftol'] == 1e-15
+        assert options['gtol'] == 1e-15
         assert minimize_tol is None
 
     def test_get_optimizer_configuration_lbfgsb_convergence(self):

@@ -132,11 +132,12 @@ class VQESolver(Solver):
         best_fid = 0.0
         best_params = np.zeros(ansatz.num_parameters)
         n_attempts = HF_PRE_OPT_ATTEMPTS
+        # Default to seed 0 for reproducible HF pre-optimization
         seed = self.seed if self.seed is not None else 0
 
         for i in range(n_attempts):
-            np.random.seed(seed + i)
-            x0 = 2 * np.pi * np.random.random(ansatz.num_parameters)
+            rng = np.random.default_rng(seed + i)
+            x0 = 2 * np.pi * rng.random(ansatz.num_parameters)
             res = minimize(neg_fidelity, x0, method='COBYLA', options={'maxiter': HF_PRE_OPT_MAXITER})
             fid = -res.fun
             if fid > best_fid:
@@ -169,9 +170,11 @@ class VQESolver(Solver):
             )
 
         if self.seed is not None:
-            np.random.seed(self.seed)
+            rng = np.random.default_rng(self.seed)
             self.logger.info(f'Using seed {self.seed} for parameter initialization')
-        return 2 * np.pi * np.random.random(param_num)
+        else:
+            rng = np.random.default_rng()
+        return 2 * np.pi * rng.random(param_num)
 
     @property
     def _nuclear_repulsion(self) -> np.float64 | None:
@@ -225,9 +228,9 @@ class VQESolver(Solver):
             parameter_delta_norm = None
             cumulative_min_energy = np.float64(energy)
 
-        iter = VQEProcess(
+        step = VQEProcess(
             iteration=self.current_iter,
-            parameters=params,
+            parameters=np.array(params, copy=True),
             result=energy,
             std=std,
             energy_delta=energy_delta,
@@ -235,7 +238,7 @@ class VQESolver(Solver):
             cumulative_min_energy=cumulative_min_energy,
         )
 
-        self.vqe_process.append(iter)
+        self.vqe_process.append(step)
         self.logger.debug(
             f'Iters. done: {self.current_iter:0{self.digits_iter}d} [Current cost: {energy}]'
         )
@@ -246,9 +249,9 @@ class VQESolver(Solver):
         """Build and transpile the ansatz and Hamiltonian for the given backend.
 
         Returns:
-            Tuple of (ansatz, x0, ansatz_isa, hamiltonian_isa) where ansatz and x0
-            are the untranspiled circuit and initial parameters, and the _isa variants
-            are the backend-compatible transpiled forms.
+            Tuple of (x0, ansatz_isa, hamiltonian_isa) where x0 contains the
+            initial parameters and the _isa variants are the backend-compatible
+            transpiled forms.
         """
         hamiltonian = self.qubit_op
 
@@ -263,7 +266,7 @@ class VQESolver(Solver):
         ansatz_isa, hamiltonian_isa = self._optimize_circuits(ansatz, hamiltonian, backend)
         self.logger.info('Ansatz and hamiltonian optimized.')
 
-        return ansatz, x0, ansatz_isa, hamiltonian_isa
+        return x0, ansatz_isa, hamiltonian_isa
 
     def _build_init_data(self, backend_name, ansatz_isa, hamiltonian_isa, x0):
         """Construct and store VQEInitialData on self.init_data."""
@@ -378,7 +381,7 @@ class VQESolver(Solver):
 
     def via_ibmq(self, backend):
         """Run the VQE simulation on IBM Quantum backend."""
-        _ansatz, x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
+        x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
         self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0)
 
         self.logger.info('Opening a session...')
@@ -395,7 +398,7 @@ class VQESolver(Solver):
 
     def via_aer(self, backend):
         """Run the VQE simulation via Aer simulator."""
-        _ansatz, x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
+        x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
         self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0)
 
         estimator = EstimatorV2(mode=backend)

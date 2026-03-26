@@ -12,6 +12,23 @@ from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.monitoring import init_performance_monitoring
 from quantum_pipeline.utils.logger import get_logger
 
+_SENSITIVE_KEYS = {'password', 'token', 'secret', 'pass', 'key', 'ssl_password',
+                    'sasl_plain_password', 'sasl_plain_username'}
+
+
+def _redact_sensitive(data: Any, _depth: int = 0) -> Any:
+    """Return a deep copy of data with sensitive values replaced by '***'."""
+    if _depth > 10:
+        return data
+    if isinstance(data, dict):
+        return {
+            k: '***' if any(s in k.lower() for s in _SENSITIVE_KEYS) else _redact_sensitive(v, _depth + 1)
+            for k, v in data.items()
+        }
+    if isinstance(data, list):
+        return [_redact_sensitive(v, _depth + 1) for v in data]
+    return data
+
 
 class ConfigurationManager:
     """Class for managing application configurations."""
@@ -113,8 +130,8 @@ class ConfigurationManager:
             raise
 
         self.logger.info(f'Configuration saved to:\n\n{file_path}\n')
-        self.logger.debug(f'Arguments:\n\n{vars(args)}\n')
-        self.logger.debug(f'Configurations:\n\n{config_dict}\n')
+        self.logger.debug(f'Arguments:\n\n{_redact_sensitive(vars(args))}\n')
+        self.logger.debug(f'Configurations:\n\n{_redact_sensitive(config_dict)}\n')
 
     def load(self, file_path: str) -> dict[str, Any]:
         """Load the configurations from a JSON file."""

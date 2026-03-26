@@ -351,9 +351,9 @@ class TestVQEConvergencePriority:
 
         assert options['maxiter'] == max_iterations
         assert options['maxfun'] == max_iterations
-        # Natural convergence is allowed — no tight tolerance hack
-        assert 'ftol' not in options
-        assert 'gtol' not in options
+        # Tight tolerances to prevent premature convergence
+        assert options['ftol'] == 1e-15
+        assert options['gtol'] == 1e-15
         assert minimize_tol is None
 
     def test_lbfgs_b_without_max_iterations(self):
@@ -519,9 +519,9 @@ class TestVQEEdgeCases:
         assert options['maxiter'] == max_iterations
         assert options['maxfun'] == max_iterations
         assert options['disp'] is False
-        # No tolerance overrides when using max_iterations
-        assert 'ftol' not in options
-        assert 'gtol' not in options
+        # Tight tolerances to prevent premature convergence
+        assert options['ftol'] == 1e-15
+        assert options['gtol'] == 1e-15
         assert minimize_tol is None
 
 
@@ -992,9 +992,9 @@ class TestVQESolverOptimizerConfig:
             num_parameters=160,
         )
 
-        # No tolerance overrides — scipy uses its own defaults
-        assert 'ftol' not in options
-        assert 'gtol' not in options
+        # Tight tolerances to prevent premature convergence
+        assert options['ftol'] == 1e-15
+        assert options['gtol'] == 1e-15
         assert options['maxiter'] == 50
 
         # L-BFGS-B doesn't use global tol parameter
