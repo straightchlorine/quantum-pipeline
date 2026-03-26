@@ -206,7 +206,7 @@ clean:
     #!/usr/bin/env bash
     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
-    rm -rf .coverage htmlcov/ .mypy_cache/ build/ dist/ *.egg-info gen/ run_configs/
+    rm -rf .coverage .coverage.* htmlcov/ .mypy_cache/ build/ dist/ *.egg-info gen/ run_configs/
     echo "[  OK  ] Cleaned"
 
 # Generate requirements.txt from pdm.lock

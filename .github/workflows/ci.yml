@@ -47,7 +47,7 @@ jobs:
           -v
 
       - name: Coverage check
-        if: always()
+        if: success() || failure()
         run: |
           coverage combine 2>/dev/null || true
           coverage report --fail-under=50
