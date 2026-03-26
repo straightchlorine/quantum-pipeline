@@ -42,10 +42,12 @@ import os
 from datetime import datetime, timedelta
 
 from airflow import DAG
+from airflow.exceptions import AirflowException
 from airflow.models import Variable
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.sensors.external_task import ExternalTaskSensor
 from airflow.utils.log.logging_mixin import LoggingMixin
+from common.dag_defaults import make_default_args
 
 logger = LoggingMixin().log
 
@@ -76,14 +78,7 @@ _RCLONE_ENV_KEYS = [
     'RCLONE_CONFIG_R2_NO_CHECK_BUCKET',
 ]
 
-default_args = {
-    'owner': 'quantum_pipeline',
-    'depends_on_past': False,
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=10),
-}
+default_args = make_default_args(retry_delay=timedelta(minutes=10))
 
 
 def _resolve_rclone_env():
@@ -112,7 +107,7 @@ def _resolve_sync_config():
 
 def _health_check_fn(**context):
     """Verify rclone can reach both Garage and R2 before attempting sync."""
-    import subprocess  # noqa: PLC0415
+    import subprocess
 
     env = _resolve_rclone_env()
     cfg = _resolve_sync_config()
@@ -138,7 +133,7 @@ def _health_check_fn(**context):
 
 def _sync_table_fn(table_name, **context):
     """Run rclone sync for a single table at task runtime."""
-    import subprocess  # noqa: PLC0415
+    import subprocess
 
     env = _resolve_rclone_env()
     cfg = _resolve_sync_config()
@@ -153,13 +148,20 @@ def _sync_table_fn(table_name, **context):
         f'--stats-one-line '
         f'--log-level INFO'
     )
+    timeout_seconds = int(Variable.get('R2_SYNC_TIMEOUT_SECONDS', default_var='3600'))
     logger.info(f'Running: {cmd}')
-    result = subprocess.run(  # noqa: S603
-        cmd.split(),
-        capture_output=True,
-        text=True,
-        env={**os.environ, **env},
-    )
+    try:
+        result = subprocess.run(  # noqa: S603
+            cmd.split(),
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            env={**os.environ, **env},
+        )
+    except subprocess.TimeoutExpired:
+        raise AirflowException(
+            f'rclone sync timed out after {timeout_seconds}s for table {table_name}'
+        )
     if result.stdout:
         logger.info(result.stdout)
     if result.returncode != 0:

@@ -7,25 +7,16 @@ This DAG handles:
 3. Status monitoring and error notification
 """
 
-import os
 from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.utils.email import send_email
 from airflow.utils.log.logging_mixin import LoggingMixin
+from common.dag_defaults import make_default_args
+from common.pipeline_config import AIRFLOW_ALERT_EMAIL, S3_BUCKET_URL, S3_WAREHOUSE_URL
 
 logger = LoggingMixin().log
-
-# default args for the DAG
-default_args = {
-    'owner': 'quantum_pipeline',
-    'depends_on_past': False,
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-}
 
 
 # function to send success email with processing results
@@ -46,13 +37,13 @@ def send_success_email(context):
     <p>View the <a href="{context['task_instance'].log_url}">logs</a> for more details.</p>
     """
 
-    send_email(to=default_args['email'], subject=subject, html_content=html_content)
+    send_email(to=[AIRFLOW_ALERT_EMAIL], subject=subject, html_content=html_content)
 
 
 # create the DAG
 with DAG(
     'quantum_feature_processing',
-    default_args={**default_args, 'retries': 3, 'retry_delay': timedelta(minutes=20)},
+    default_args=make_default_args(retries=3, retry_delay=timedelta(minutes=20)),
     description='Process quantum experiment data into ML feature tables',
     schedule=timedelta(days=1),
     start_date=datetime(2025, 1, 1),
@@ -68,10 +59,11 @@ with DAG(
             'spark.jars.ivy': '/tmp/.ivy2',
         },
         env_vars={
-            'S3_BUCKET_URL': os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/'),
-            'S3_WAREHOUSE_URL': os.getenv('S3_WAREHOUSE_URL', 's3a://features/warehouse/'),
+            'S3_BUCKET_URL': S3_BUCKET_URL,
+            'S3_WAREHOUSE_URL': S3_WAREHOUSE_URL,
         },
         execution_timeout=timedelta(hours=2),
+        sla=timedelta(hours=1, minutes=30),
         on_success_callback=send_success_email,
         verbose=True,
     )

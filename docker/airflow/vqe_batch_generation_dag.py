@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
+from common.dag_defaults import make_default_args
 
 # The batch script path inside the Airflow container.
 # docker-compose.ml.yaml mounts ../docker/airflow/ → /opt/airflow/dags,
@@ -26,15 +27,10 @@ from airflow.providers.standard.operators.bash import BashOperator
 # Adjust REPO_ROOT below if the Airflow container mounts it differently.
 _REPO_ROOT = os.environ.get("QUANTUM_PIPELINE_ROOT", "/home/zweiss/code/quantum-pipeline")
 
-default_args = {
-    "owner": "quantum_pipeline",
-    "depends_on_past": False,
-    "email": ["quantum_alerts@example.com"],
-    "email_on_failure": True,
-    "email_on_retry": False,
-    "retries": 1,
-    "retry_delay": timedelta(minutes=30),
-}
+default_args = make_default_args(
+    email_on_failure=True,
+    retry_delay=timedelta(minutes=30),
+)
 
 with DAG(
     "vqe_batch_generation",

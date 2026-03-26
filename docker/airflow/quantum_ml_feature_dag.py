@@ -16,7 +16,6 @@ from airflow import DAG
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.providers.standard.sensors.external_task import ExternalTaskSensor
 from airflow.utils.log.logging_mixin import LoggingMixin
-
 from common.dag_defaults import make_default_args
 from common.pipeline_config import S3_BUCKET_URL, S3_WAREHOUSE_URL
 

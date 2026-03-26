@@ -17,8 +17,13 @@ import sys
 sys.path.insert(0, '/opt/airflow/dags')
 
 try:
-    from common.pipeline_config import CATALOG_FQN, ML_ROLLING_WINDOW, ML_TRAJECTORY_HEAD, ML_TRAJECTORY_TAIL  # noqa: E402
-    from common.spark_factory import create_spark_session  # noqa: E402
+    from common.pipeline_config import (
+        CATALOG_FQN,
+        ML_ROLLING_WINDOW,
+        ML_TRAJECTORY_HEAD,
+        ML_TRAJECTORY_TAIL,
+    )
+    from common.spark_factory import create_spark_session
 except ModuleNotFoundError:
     # Fallback for running outside the Airflow container (e.g. tests)
     CATALOG_FQN = 'quantum_catalog.quantum_features'
@@ -32,22 +37,29 @@ except ModuleNotFoundError:
 from pyspark.sql import Window
 from pyspark.sql.functions import (
     abs as spark_abs,
+)
+from pyspark.sql.functions import (
     avg,
     col,
     count,
     current_date,
     first,
     lag,
-    last,
     lit,
-    max as spark_max,
-    min as spark_min,
+    regr_slope,
     row_number,
     size,
     stddev,
-    sum as spark_sum,
     when,
-    regr_slope,
+)
+from pyspark.sql.functions import (
+    max as spark_max,
+)
+from pyspark.sql.functions import (
+    min as spark_min,
+)
+from pyspark.sql.functions import (
+    sum as spark_sum,
 )
 
 logger = logging.getLogger(__name__)

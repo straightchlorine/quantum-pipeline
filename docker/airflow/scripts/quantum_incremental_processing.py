@@ -12,8 +12,8 @@ import uuid
 sys.path.insert(0, '/opt/airflow/dags')
 
 try:
-    from common.pipeline_config import CATALOG_FQN, S3_BUCKET_URL  # noqa: E402
-    from common.spark_factory import create_spark_session  # noqa: E402
+    from common.pipeline_config import CATALOG_FQN, S3_BUCKET_URL
+    from common.spark_factory import create_spark_session
 except ModuleNotFoundError:
     # Fallback for running outside the Airflow container (e.g. tests)
     import os
