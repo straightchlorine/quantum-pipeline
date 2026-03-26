@@ -10,7 +10,6 @@ into two ML-ready feature tables:
 Depends on: quantum_feature_processing DAG (waits via ExternalTaskSensor).
 """
 
-import os
 from datetime import datetime, timedelta
 
 from airflow import DAG
@@ -18,20 +17,14 @@ from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOpe
 from airflow.providers.standard.sensors.external_task import ExternalTaskSensor
 from airflow.utils.log.logging_mixin import LoggingMixin
 
-logger = LoggingMixin().log
+from common.dag_defaults import make_default_args
+from common.pipeline_config import S3_BUCKET_URL, S3_WAREHOUSE_URL
 
-default_args = {
-    'owner': 'quantum_pipeline',
-    'depends_on_past': False,
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-}
+logger = LoggingMixin().log
 
 with DAG(
     'quantum_ml_feature_processing',
-    default_args={**default_args, 'retries': 2, 'retry_delay': timedelta(minutes=15)},
+    default_args=make_default_args(retries=2, retry_delay=timedelta(minutes=15)),
     description='Materialize ML feature tables from normalized VQE Iceberg tables',
     schedule=timedelta(days=1),
     start_date=datetime(2025, 1, 1),
@@ -59,10 +52,11 @@ with DAG(
             'spark.jars.ivy': '/tmp/.ivy2',
         },
         env_vars={
-            'S3_BUCKET_URL': os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/'),
-            'S3_WAREHOUSE_URL': os.getenv('S3_WAREHOUSE_URL', 's3a://features/warehouse/'),
+            'S3_BUCKET_URL': S3_BUCKET_URL,
+            'S3_WAREHOUSE_URL': S3_WAREHOUSE_URL,
         },
         execution_timeout=timedelta(hours=1),
+        sla=timedelta(minutes=45),
         verbose=True,
     )
 
