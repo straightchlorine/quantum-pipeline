@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -13,6 +14,10 @@ class TestMoleculeLoader(unittest.TestCase):
     def setUp(self):
         """Set up test environment before each test method."""
         self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        """Clean up temporary directory after each test method."""
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_temp_json_file(self, data):
         """Helper method to create a temporary JSON file with given data."""

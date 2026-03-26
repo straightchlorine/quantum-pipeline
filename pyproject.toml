@@ -71,6 +71,9 @@ dev = [
     "testcontainers>=4.13.3",
     "pytest-mock>=3.15.1",
     "pytest-xdist>=3.5.0",
+    "pytest-timeout>=2.3.1",
+    "pytest-randomly>=3.16.0",
+    "pytest-watch>=4.2.0",
 ]
 
 # Documentation generation and serving
@@ -141,7 +144,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --strict-markers --strict-config"
+addopts = "-ra -q --strict-markers --strict-config --timeout=120 -p randomly"
 testpaths = [
     "tests"
 ]
@@ -149,7 +152,7 @@ pythonpath = [
     "."
 ]
 markers = [
-    "integration: integration tests",
+    "integration: integration tests (require Docker)",
     "slow: slow-running tests",
 ]
 filterwarnings = [
@@ -162,6 +165,11 @@ filterwarnings = [
 source = ["quantum_pipeline"]
 omit = ["tests/*"]
 branch = true
+parallel = true
+concurrency = ["multiprocessing"]
+
+[tool.coverage.paths]
+source = ["quantum_pipeline/"]
 
 [tool.coverage.report]
 fail_under = 50

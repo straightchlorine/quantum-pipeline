@@ -4,6 +4,8 @@ Provides session-scoped Kafka and Schema Registry containers
 that can be reused across all integration test modules.
 """
 
+import uuid
+
 import pytest
 
 docker = pytest.importorskip('docker', reason='Docker SDK not available')
@@ -23,7 +25,8 @@ from quantum_pipeline.configs.module.security import SecurityConfig  # noqa: E40
 def docker_network():
     """Create a shared Docker network for inter-container communication."""
     client = docker.from_env()
-    network = client.networks.create('test-network', driver='bridge')
+    network_name = f'test-network-{uuid.uuid4().hex[:8]}'
+    network = client.networks.create(network_name, driver='bridge')
     yield network
     network.remove()
 
@@ -49,9 +52,9 @@ def schema_registry_container(kafka_container, docker_network):
     # Get Kafka's internal IP address on the shared network
     kafka_wrapper = kafka_container.get_wrapped_container()
     kafka_wrapper.reload()  # refresh attrs after network connect
-    kafka_internal_host = kafka_wrapper.attrs['NetworkSettings']['Networks']['test-network'][
-        'IPAddress'
-    ]
+    kafka_internal_host = kafka_wrapper.attrs['NetworkSettings']['Networks'][
+        docker_network.name
+    ]['IPAddress']
     # The BROKER listener on port 9092 uses PLAINTEXT security protocol
     # (KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=BROKER:PLAINTEXT).
     # Schema Registry requires the actual security protocol, not the listener name.

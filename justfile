@@ -27,45 +27,56 @@ shell:
 
 # --- testing ---
 
-# Run tests - pass a path for targeting: just test tests/solvers
+# Run tests: just test | just test ml | just test integration | just test cov
+#             just test quick | just test debug [path] | just test <path>
 test *ARGS:
     #!/usr/bin/env bash
     set -- {{ARGS}}
-    if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
-        pdm run pytest tests/ "$@" -v
-    else
-        pdm run pytest "$@" -v
-    fi
+    case "${1:-}" in
+        ml)
+            shift
+            echo "[ INFO ] ML tests (sequential)..."
+            pdm run pytest tests/ml/ "$@" -v --timeout=300
+            ;;
+        integration)
+            shift
+            echo "[ INFO ] Integration tests (sequential, requires Docker)..."
+            pdm run pytest tests/integration/ "$@" -v -m integration --timeout=300
+            ;;
+        cov)
+            shift
+            echo "[ INFO ] Unit tests with coverage..."
+            pdm run coverage erase
+            pdm run pytest tests/ "$@" -n auto -m "not integration and not slow" --cov=quantum_pipeline --cov-report= -v
+            pdm run coverage combine 2>/dev/null || true
+            pdm run coverage report --show-missing
+            pdm run coverage html -d htmlcov
+            echo "[  OK  ] Coverage report: htmlcov/index.html"
+            ;;
+        quick)
+            shift
+            pdm run pytest tests/ "$@" -x --tb=short -q -n auto -m "not integration and not slow"
+            ;;
+        debug)
+            shift
+            if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+                pdm run pytest tests/ "$@" -vv -s --tb=long --timeout=0
+            else
+                pdm run pytest "$@" -vv -s --tb=long --timeout=0
+            fi
+            ;;
+        ""|-*)
+            pdm run pytest tests/ "$@" -v -n auto -m "not integration and not slow"
+            ;;
+        *)
+            pdm run pytest "$@" -v -n auto
+            ;;
+    esac
     echo "[  OK  ] Tests passed"
-
-# Run tests with coverage
-test-cov *ARGS:
-    #!/usr/bin/env bash
-    set -- {{ARGS}}
-    if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
-        pdm run pytest tests/ "$@" --cov=quantum_pipeline --cov-report=term-missing --cov-report=html:htmlcov -v
-    else
-        pdm run pytest "$@" --cov=quantum_pipeline --cov-report=term-missing --cov-report=html:htmlcov -v
-    fi
-    echo "[  OK  ] Coverage report: htmlcov/index.html"
-
-# Quick smoke test (fail-fast, minimal output)
-test-quick *ARGS:
-    pdm run pytest tests/ {{ARGS}} -x --tb=short -q
-
-# Debug tests (verbose, no capture, long tracebacks)
-test-debug *ARGS:
-    #!/usr/bin/env bash
-    set -- {{ARGS}}
-    if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
-        pdm run pytest tests/ "$@" -vv -s --tb=long
-    else
-        pdm run pytest "$@" -vv -s --tb=long
-    fi
 
 # Watch tests and rerun on changes
 test-watch:
-    pdm run ptw tests/ -- -v
+    pdm run ptw tests/ -- -v -n auto -m "not integration and not slow"
 
 # --- code quality ---
 
@@ -180,10 +191,6 @@ ml-down:
     docker compose -f compose/docker-compose.ml.yaml down
     echo "[  OK  ] ML stack stopped"
 
-# End-to-end smoke test (VQE → Kafka → Garage → Spark)
-ml-smoke-test:
-    bash scripts/smoke_test_ml_pipeline.sh
-
 # --- build ---
 
 # Build distribution packages (wheel + sdist)
@@ -227,13 +234,15 @@ help:
     @echo "  just install          Install dev + docs dependencies"
     @echo "  just install-core     Install core only (no dev tools)"
     @echo ""
-    @echo "Testing (pass any path for targeting, e.g. tests/solvers):"
-    @echo "  just test             Run all tests"
-    @echo "  just test <path>      Run tests at path"
-    @echo "  just test-cov         Run with coverage"
-    @echo "  just test-quick       Fail-fast smoke test"
-    @echo "  just test-debug       Verbose with full tracebacks"
-    @echo "  just test-watch       Rerun on file changes"
+    @echo "Testing:"
+    @echo "  just test               Run unit tests (parallel)"
+    @echo "  just test ml            Run ML tests (sequential)"
+    @echo "  just test integration   Run integration tests (Docker)"
+    @echo "  just test cov           Unit tests with coverage"
+    @echo "  just test quick         Fail-fast smoke test"
+    @echo "  just test debug [path]  Verbose, no capture, no timeout"
+    @echo "  just test <path>        Run tests at specific path"
+    @echo "  just test-watch         Rerun on file changes"
     @echo ""
     @echo "Code Quality:"
     @echo "  just fmt              Format + lint fix (ruff)"
@@ -249,7 +258,6 @@ help:
     @echo "ML Pipeline:"
     @echo "  just ml-setup         First-time setup (run once)"
     @echo "  just ml-up / ml-down  Start / stop ML stack"
-    @echo "  just ml-smoke-test    End-to-end smoke test"
     @echo ""
     @echo "Docs:"
     @echo "  just docs-build       Build mkdocs site"

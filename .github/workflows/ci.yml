@@ -12,6 +12,7 @@ permissions:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -19,6 +20,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pdm.lock') }}
+          restore-keys: ${{ runner.os }}-pip-
 
       - name: Install project
         run: |
@@ -29,4 +37,17 @@ jobs:
         run: ruff check .
 
       - name: Run tests
-        run: pytest
+        run: >
+          pytest tests/
+          -n auto
+          -m "not integration and not slow"
+          --timeout=120
+          --cov=quantum_pipeline
+          --cov-report=term-missing
+          -v
+
+      - name: Coverage check
+        if: always()
+        run: |
+          coverage combine 2>/dev/null || true
+          coverage report --fail-under=50
