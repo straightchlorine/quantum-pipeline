@@ -179,7 +179,7 @@ def generate_synthetic_trajectories(
     """Generate VQE-like trajectory data with convergence labels.
 
     Simulates energy descent using an exponential decay model:
-        E(t) = E_final + A * exp(-k * t) + σ * noise(t)
+        E(t) = E_final + A * exp(-k * t) + \\sigma * noise(t)
 
     Convergence probability scales with molecular complexity (qubit count) and
     initialization strategy, mirroring barren plateau effects (McClean et al., 2018).

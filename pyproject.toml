@@ -105,7 +105,7 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S108", "S105", "S106"]
 "examples/**" = ["ALL"]
-"quantum_pipeline/ml/**" = ["N803", "N806", "RUF002"]
+"quantum_pipeline/ml/**" = ["N803", "N806"]
 "scripts/**" = ["T201", "S603"]
 
 [tool.ruff.format]

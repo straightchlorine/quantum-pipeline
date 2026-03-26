@@ -141,7 +141,7 @@ def generate_synthetic_trajectories(
     """Generate VQE-like trajectory data for development and testing.
 
     Simulates energy descent using an exponential decay model:
-        E(t) = E_final + A * exp(-k * t) + σ * noise(t)
+        E(t) = E_final + A * exp(-k * t) + \\sigma * noise(t)
 
     Converged runs reach near E_final; non-converged runs plateau at a sub-optimal
     intermediate energy, which is the primary ML signal.
