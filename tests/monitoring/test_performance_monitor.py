@@ -368,9 +368,7 @@ class TestMonitoringThread:
         assert monitor.monitoring_thread.is_alive()
 
         monitor.stop_monitoring_thread()
-
-        # Wait a bit for thread to stop
-        time.sleep(0.5)
+        monitor.monitoring_thread.join(timeout=1.0)
 
         # Verify thread stopped
         assert not monitor.monitoring_thread.is_alive()
@@ -395,7 +393,7 @@ class TestMonitoringThread:
             assert monitor.monitoring_thread.is_alive()
 
         # After context exit, thread should be stopped
-        time.sleep(0.5)
+        monitor.monitoring_thread.join(timeout=1.0)
         assert not monitor.monitoring_thread.is_alive()
 
 
@@ -487,6 +485,7 @@ class TestConfigurationEdgeCases:
             assert 'error' in snapshot['system']
 
 
+@pytest.mark.slow
 class TestPerformanceMonitorIntegration:
     """Integration tests for complete monitoring workflows."""
 
@@ -560,7 +559,7 @@ class TestPerformanceMonitorIntegration:
             assert snapshot is not None
 
             # Give thread time to collect at least one metric
-            time.sleep(1.5)
+            time.sleep(0.3)
 
         # After context exit, check that system metrics were collected
         system_json_files = list(temp_metrics_dir.glob('system_metrics_*.json'))

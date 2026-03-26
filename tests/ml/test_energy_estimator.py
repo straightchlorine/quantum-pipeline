@@ -31,6 +31,22 @@ def medium_traj() -> pd.DataFrame:
     return generate_synthetic_trajectories(n_runs=200, max_iter=80, seed=1)
 
 
+@pytest.fixture(scope='module')
+def fitted_estimator(medium_traj: pd.DataFrame) -> EnergyEstimator:
+    """Train energy estimator once, share across all tests."""
+    est = EnergyEstimator(completion_fracs=[0.25, 0.5, 0.75])
+    est.fit_evaluate(medium_traj)
+    return est
+
+
+@pytest.fixture(scope='module')
+def estimator_results(medium_traj: pd.DataFrame) -> tuple[EnergyEstimator, EnergyEstimatorResults]:
+    """Estimator and results from the single training run."""
+    est = EnergyEstimator(completion_fracs=[0.25, 0.5, 0.75])
+    results = est.fit_evaluate(medium_traj)
+    return est, results
+
+
 # ---------------------------------------------------------------------------
 # generate_synthetic_trajectories
 # ---------------------------------------------------------------------------
@@ -168,36 +184,46 @@ class TestExtractFeaturesAtFraction:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 class TestEnergyEstimatorFitEvaluate:
-    def test_returns_results_object(self, medium_traj: pd.DataFrame) -> None:
-        est = EnergyEstimator(completion_fracs=[0.5])
-        results = est.fit_evaluate(medium_traj)
+    def test_returns_results_object(
+        self,
+        estimator_results: tuple[EnergyEstimator, EnergyEstimatorResults],
+    ) -> None:
+        _, results = estimator_results
         assert isinstance(results, EnergyEstimatorResults)
 
-    def test_produces_results_for_each_model_and_frac(self, medium_traj: pd.DataFrame) -> None:
-        fracs = [0.25, 0.75]
-        est = EnergyEstimator(completion_fracs=fracs)
-        results = est.fit_evaluate(medium_traj)
+    def test_produces_results_for_each_model_and_frac(
+        self,
+        estimator_results: tuple[EnergyEstimator, EnergyEstimatorResults],
+    ) -> None:
+        _, results = estimator_results
         model_frac_pairs = {(r.model_name, r.completion_frac) for r in results.results}
-        for frac in fracs:
+        for frac in [0.25, 0.75]:
             assert ('Ridge', frac) in model_frac_pairs
             assert ('XGBoost', frac) in model_frac_pairs
 
-    def test_mae_is_positive(self, medium_traj: pd.DataFrame) -> None:
-        est = EnergyEstimator(completion_fracs=[0.5])
-        results = est.fit_evaluate(medium_traj)
+    def test_mae_is_positive(
+        self,
+        estimator_results: tuple[EnergyEstimator, EnergyEstimatorResults],
+    ) -> None:
+        _, results = estimator_results
         for r in results.results:
             assert r.mae >= 0.0
 
-    def test_rmse_geq_mae(self, medium_traj: pd.DataFrame) -> None:
-        est = EnergyEstimator(completion_fracs=[0.5])
-        results = est.fit_evaluate(medium_traj)
+    def test_rmse_geq_mae(
+        self,
+        estimator_results: tuple[EnergyEstimator, EnergyEstimatorResults],
+    ) -> None:
+        _, results = estimator_results
         for r in results.results:
             assert r.rmse >= r.mae - 1e-10
 
-    def test_per_molecule_metrics_present(self, medium_traj: pd.DataFrame) -> None:
-        est = EnergyEstimator(completion_fracs=[0.5])
-        results = est.fit_evaluate(medium_traj)
+    def test_per_molecule_metrics_present(
+        self,
+        estimator_results: tuple[EnergyEstimator, EnergyEstimatorResults],
+    ) -> None:
+        _, results = estimator_results
         for r in results.results:
             assert len(r.per_molecule) > 0
             for metrics in r.per_molecule.values():
@@ -205,11 +231,12 @@ class TestEnergyEstimatorFitEvaluate:
                 assert 'rmse' in metrics
                 assert 'r2' in metrics
 
-    def test_higher_completion_frac_improves_mae(self, medium_traj: pd.DataFrame) -> None:
+    def test_higher_completion_frac_improves_mae(
+        self,
+        estimator_results: tuple[EnergyEstimator, EnergyEstimatorResults],
+    ) -> None:
         """More trajectory information should generally improve energy prediction."""
-        est = EnergyEstimator(completion_fracs=[0.25, 0.5, 0.75])
-        results = est.fit_evaluate(medium_traj)
-
+        _, results = estimator_results
         xgb_results = {
             r.completion_frac: r.mae
             for r in results.results
@@ -218,21 +245,24 @@ class TestEnergyEstimatorFitEvaluate:
         # 75% should not be worse than 25% (allow small tolerance)
         if 0.25 in xgb_results and 0.75 in xgb_results:
             assert xgb_results[0.75] <= xgb_results[0.25] * 1.5, (
-                f'Expected MAE at 75% ≤ MAE at 25% * 1.5, '
+                f'Expected MAE at 75% <= MAE at 25% * 1.5, '
                 f'got {xgb_results[0.75]:.4f} vs {xgb_results[0.25]:.4f}'
             )
 
-    def test_fitted_models_stored(self, medium_traj: pd.DataFrame) -> None:
-        fracs = [0.5]
-        est = EnergyEstimator(completion_fracs=fracs)
-        results = est.fit_evaluate(medium_traj)
+    def test_fitted_models_stored(
+        self,
+        estimator_results: tuple[EnergyEstimator, EnergyEstimatorResults],
+    ) -> None:
+        _, results = estimator_results
         assert 'ridge_0.5' in results.fitted_models
         assert 'xgboost_0.5' in results.fitted_models
 
-    def test_both_models_produce_finite_mae(self, medium_traj: pd.DataFrame) -> None:
+    def test_both_models_produce_finite_mae(
+        self,
+        estimator_results: tuple[EnergyEstimator, EnergyEstimatorResults],
+    ) -> None:
         """Both Ridge and XGBoost should produce finite, non-NaN MAE values."""
-        est = EnergyEstimator(completion_fracs=[0.5])
-        results = est.fit_evaluate(medium_traj)
+        _, results = estimator_results
         for r in results.results:
             assert np.isfinite(r.mae), f'{r.model_name} MAE is not finite: {r.mae}'
             assert np.isfinite(r.rmse), f'{r.model_name} RMSE is not finite: {r.rmse}'
@@ -250,9 +280,11 @@ class TestEnergyEstimatorFitEvaluate:
         results = est.fit_evaluate(df)
         assert isinstance(results, EnergyEstimatorResults)
 
-    def test_summary_contains_model_names(self, medium_traj: pd.DataFrame) -> None:
-        est = EnergyEstimator(completion_fracs=[0.5])
-        results = est.fit_evaluate(medium_traj)
+    def test_summary_contains_model_names(
+        self,
+        estimator_results: tuple[EnergyEstimator, EnergyEstimatorResults],
+    ) -> None:
+        _, results = estimator_results
         summary = results.summary()
         assert 'Ridge' in summary
         assert 'XGBoost' in summary
@@ -263,18 +295,23 @@ class TestEnergyEstimatorFitEvaluate:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 class TestEnergyEstimatorPredict:
-    def test_predict_returns_series(self, medium_traj: pd.DataFrame) -> None:
-        est = EnergyEstimator(completion_fracs=[0.5])
-        est.fit_evaluate(medium_traj)
-        preds = est.predict(medium_traj, completion_frac=0.5, model='xgboost')
+    def test_predict_returns_series(
+        self,
+        fitted_estimator: EnergyEstimator,
+        medium_traj: pd.DataFrame,
+    ) -> None:
+        preds = fitted_estimator.predict(medium_traj, completion_frac=0.5, model='xgboost')
         assert isinstance(preds, pd.Series)
 
-    def test_predict_length_matches_experiments(self, medium_traj: pd.DataFrame) -> None:
-        est = EnergyEstimator(completion_fracs=[0.5])
-        est.fit_evaluate(medium_traj)
+    def test_predict_length_matches_experiments(
+        self,
+        fitted_estimator: EnergyEstimator,
+        medium_traj: pd.DataFrame,
+    ) -> None:
         n_experiments = medium_traj['experiment_id'].nunique()
-        preds = est.predict(medium_traj, completion_frac=0.5, model='xgboost')
+        preds = fitted_estimator.predict(medium_traj, completion_frac=0.5, model='xgboost')
         assert len(preds) == n_experiments
 
     def test_predict_before_fit_raises(self, medium_traj: pd.DataFrame) -> None:
@@ -282,17 +319,22 @@ class TestEnergyEstimatorPredict:
         with pytest.raises(ValueError, match='No fitted model'):
             est.predict(medium_traj, completion_frac=0.5, model='xgboost')
 
-    def test_predict_unavailable_frac_raises(self, medium_traj: pd.DataFrame) -> None:
-        est = EnergyEstimator(completion_fracs=[0.5])
-        est.fit_evaluate(medium_traj)
+    def test_predict_unavailable_frac_raises(
+        self,
+        fitted_estimator: EnergyEstimator,
+        medium_traj: pd.DataFrame,
+    ) -> None:
+        # fitted_estimator has fracs=[0.25, 0.5, 0.75]; frac=0.9 is not available
         with pytest.raises(ValueError, match='No fitted model'):
-            est.predict(medium_traj, completion_frac=0.9, model='xgboost')
+            fitted_estimator.predict(medium_traj, completion_frac=0.9, model='xgboost')
 
-    def test_predict_ridge_and_xgboost(self, medium_traj: pd.DataFrame) -> None:
-        est = EnergyEstimator(completion_fracs=[0.5])
-        est.fit_evaluate(medium_traj)
-        preds_ridge = est.predict(medium_traj, completion_frac=0.5, model='ridge')
-        preds_xgb = est.predict(medium_traj, completion_frac=0.5, model='xgboost')
+    def test_predict_ridge_and_xgboost(
+        self,
+        fitted_estimator: EnergyEstimator,
+        medium_traj: pd.DataFrame,
+    ) -> None:
+        preds_ridge = fitted_estimator.predict(medium_traj, completion_frac=0.5, model='ridge')
+        preds_xgb = fitted_estimator.predict(medium_traj, completion_frac=0.5, model='xgboost')
         assert len(preds_ridge) == len(preds_xgb)
         # Predictions should differ between models
         assert not preds_ridge.equals(preds_xgb)

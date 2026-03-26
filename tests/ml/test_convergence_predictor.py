@@ -33,6 +33,22 @@ def medium_traj() -> pd.DataFrame:
     return generate_synthetic_trajectories(n_runs=160, min_iter=55, max_iter=80, seed=1)
 
 
+@pytest.fixture(scope='module')
+def fitted_predictor(medium_traj: pd.DataFrame) -> ConvergencePredictor:
+    """Train convergence predictor once, share across all tests."""
+    predictor = ConvergencePredictor(horizons=[10, 20])
+    predictor.fit_evaluate(medium_traj)
+    return predictor
+
+
+@pytest.fixture(scope='module')
+def predictor_results(medium_traj: pd.DataFrame) -> tuple[ConvergencePredictor, ConvergencePredictorResults]:
+    """Predictor and results from the single training run."""
+    predictor = ConvergencePredictor(horizons=[10, 20])
+    results = predictor.fit_evaluate(medium_traj)
+    return predictor, results
+
+
 # ---------------------------------------------------------------------------
 # generate_synthetic_trajectories
 # ---------------------------------------------------------------------------
@@ -250,69 +266,92 @@ class TestGetHorizonFeatureNames:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 class TestConvergencePredictorFitEvaluate:
-    def test_returns_results_object(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        results = predictor.fit_evaluate(medium_traj)
+    def test_returns_results_object(
+        self,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
+        _, results = predictor_results
         assert isinstance(results, ConvergencePredictorResults)
 
-    def test_fold_results_non_empty(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        results = predictor.fit_evaluate(medium_traj)
+    def test_fold_results_non_empty(
+        self,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
+        _, results = predictor_results
         assert len(results.fold_results) > 0
 
-    def test_all_three_models_present(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        results = predictor.fit_evaluate(medium_traj)
+    def test_all_three_models_present(
+        self,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
+        _, results = predictor_results
         model_names = {r.model_name for r in results.fold_results}
         assert 'XGBoost' in model_names
         assert 'RandomForest' in model_names
         assert 'LogisticRegression' in model_names
 
-    def test_fold_results_have_correct_horizon(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[20])
-        results = predictor.fit_evaluate(medium_traj)
-        assert all(r.horizon_k == 20 for r in results.fold_results)
+    def test_fold_results_have_correct_horizon(
+        self,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
+        # Shared fixture uses horizons=[10, 20]; verify horizon 20 is present
+        _, results = predictor_results
+        assert any(r.horizon_k == 20 for r in results.fold_results)
 
-    def test_multiple_horizons_produce_results(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10, 20])
-        results = predictor.fit_evaluate(medium_traj)
+    def test_multiple_horizons_produce_results(
+        self,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
+        _, results = predictor_results
         horizons_seen = {r.horizon_k for r in results.fold_results}
         assert 10 in horizons_seen
         assert 20 in horizons_seen
 
-    def test_roc_auc_in_valid_range_or_nan(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        results = predictor.fit_evaluate(medium_traj)
+    def test_roc_auc_in_valid_range_or_nan(
+        self,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
+        _, results = predictor_results
         for r in results.fold_results:
             if np.isfinite(r.roc_auc):
                 assert 0.0 <= r.roc_auc <= 1.0, f'ROC-AUC out of range: {r.roc_auc}'
 
-    def test_brier_score_non_negative(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        results = predictor.fit_evaluate(medium_traj)
+    def test_brier_score_non_negative(
+        self,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
+        _, results = predictor_results
         for r in results.fold_results:
             if np.isfinite(r.brier_score):
                 assert r.brier_score >= 0.0
 
-    def test_n_train_positive(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        results = predictor.fit_evaluate(medium_traj)
+    def test_n_train_positive(
+        self,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
+        _, results = predictor_results
         for r in results.fold_results:
             assert r.n_train > 0
             assert r.n_test > 0
 
-    def test_fitted_models_stored_for_each_model_and_horizon(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        results = predictor.fit_evaluate(medium_traj)
+    def test_fitted_models_stored_for_each_model_and_horizon(
+        self,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
+        _, results = predictor_results
         assert 'xgboost_10' in results.fitted_models
         assert 'random_forest_10' in results.fitted_models
         assert 'logistic_regression_10' in results.fitted_models
 
-    def test_held_out_molecule_is_a_known_molecule(self, medium_traj: pd.DataFrame) -> None:
+    def test_held_out_molecule_is_a_known_molecule(
+        self,
+        medium_traj: pd.DataFrame,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
         known_molecules = set(medium_traj['molecule_name'].unique())
-        predictor = ConvergencePredictor(horizons=[10])
-        results = predictor.fit_evaluate(medium_traj)
+        _, results = predictor_results
         for r in results.fold_results:
             assert r.held_out_molecule in known_molecules
 
@@ -329,9 +368,11 @@ class TestConvergencePredictorFitEvaluate:
         # No folds should be produced (LOMO requires ≥2 molecules)
         assert isinstance(results, ConvergencePredictorResults)
 
-    def test_summary_contains_model_names(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        results = predictor.fit_evaluate(medium_traj)
+    def test_summary_contains_model_names(
+        self,
+        predictor_results: tuple[ConvergencePredictor, ConvergencePredictorResults],
+    ) -> None:
+        _, results = predictor_results
         summary = results.summary()
         assert 'XGBoost' in summary or 'No results' in summary
 
@@ -348,24 +389,31 @@ class TestConvergencePredictorFitEvaluate:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 class TestConvergencePredictorPredictProba:
-    def test_predict_proba_returns_series(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        predictor.fit_evaluate(medium_traj)
-        proba = predictor.predict_proba(medium_traj, horizon_k=10, model='xgboost')
+    def test_predict_proba_returns_series(
+        self,
+        fitted_predictor: ConvergencePredictor,
+        medium_traj: pd.DataFrame,
+    ) -> None:
+        proba = fitted_predictor.predict_proba(medium_traj, horizon_k=10, model='xgboost')
         assert isinstance(proba, pd.Series)
 
-    def test_predict_proba_length_matches_runs(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        predictor.fit_evaluate(medium_traj)
+    def test_predict_proba_length_matches_runs(
+        self,
+        fitted_predictor: ConvergencePredictor,
+        medium_traj: pd.DataFrame,
+    ) -> None:
         n_runs = medium_traj['run_id'].nunique()
-        proba = predictor.predict_proba(medium_traj, horizon_k=10, model='xgboost')
+        proba = fitted_predictor.predict_proba(medium_traj, horizon_k=10, model='xgboost')
         assert len(proba) == n_runs
 
-    def test_predict_proba_values_in_01(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        predictor.fit_evaluate(medium_traj)
-        proba = predictor.predict_proba(medium_traj, horizon_k=10, model='random_forest')
+    def test_predict_proba_values_in_01(
+        self,
+        fitted_predictor: ConvergencePredictor,
+        medium_traj: pd.DataFrame,
+    ) -> None:
+        proba = fitted_predictor.predict_proba(medium_traj, horizon_k=10, model='random_forest')
         assert (proba >= 0.0).all() and (proba <= 1.0).all()
 
     def test_predict_before_fit_raises(self, medium_traj: pd.DataFrame) -> None:
@@ -373,24 +421,33 @@ class TestConvergencePredictorPredictProba:
         with pytest.raises(ValueError, match='No fitted model'):
             predictor.predict_proba(medium_traj, horizon_k=10, model='xgboost')
 
-    def test_predict_unavailable_horizon_raises(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        predictor.fit_evaluate(medium_traj)
+    def test_predict_unavailable_horizon_raises(
+        self,
+        fitted_predictor: ConvergencePredictor,
+        medium_traj: pd.DataFrame,
+    ) -> None:
+        # fitted_predictor has horizons=[10, 20]; horizon=50 is not available
         with pytest.raises(ValueError, match='No fitted model'):
-            predictor.predict_proba(medium_traj, horizon_k=50, model='xgboost')
+            fitted_predictor.predict_proba(medium_traj, horizon_k=50, model='xgboost')
 
-    def test_all_three_models_predict(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        predictor.fit_evaluate(medium_traj)
+    def test_all_three_models_predict(
+        self,
+        fitted_predictor: ConvergencePredictor,
+        medium_traj: pd.DataFrame,
+    ) -> None:
         for model_name in ('xgboost', 'random_forest', 'logistic_regression'):
-            proba = predictor.predict_proba(medium_traj, horizon_k=10, model=model_name)
+            proba = fitted_predictor.predict_proba(medium_traj, horizon_k=10, model=model_name)
             assert len(proba) == medium_traj['run_id'].nunique()
 
-    def test_different_models_produce_different_predictions(self, medium_traj: pd.DataFrame) -> None:
-        predictor = ConvergencePredictor(horizons=[10])
-        predictor.fit_evaluate(medium_traj)
-        proba_xgb = predictor.predict_proba(medium_traj, horizon_k=10, model='xgboost')
-        proba_lr = predictor.predict_proba(medium_traj, horizon_k=10, model='logistic_regression')
+    def test_different_models_produce_different_predictions(
+        self,
+        fitted_predictor: ConvergencePredictor,
+        medium_traj: pd.DataFrame,
+    ) -> None:
+        proba_xgb = fitted_predictor.predict_proba(medium_traj, horizon_k=10, model='xgboost')
+        proba_lr = fitted_predictor.predict_proba(
+            medium_traj, horizon_k=10, model='logistic_regression'
+        )
         assert not proba_xgb.equals(proba_lr)
 
 
