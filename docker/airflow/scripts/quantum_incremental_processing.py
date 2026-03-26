@@ -6,10 +6,24 @@ transforming raw data into feature tables stored in Iceberg format.
 """
 
 import logging
-import os
+import sys
 import uuid
 
-from pyspark.sql import SparkSession
+sys.path.insert(0, '/opt/airflow/dags')
+
+try:
+    from common.pipeline_config import CATALOG_FQN, S3_BUCKET_URL  # noqa: E402
+    from common.spark_factory import create_spark_session  # noqa: E402
+except ModuleNotFoundError:
+    # Fallback for running outside the Airflow container (e.g. tests)
+    import os
+
+    CATALOG_FQN = 'quantum_catalog.quantum_features'
+    S3_BUCKET_URL = os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/')
+
+    def create_spark_session(app_name):
+        from pyspark.sql import SparkSession
+        return SparkSession.builder.appName(app_name).getOrCreate()
 from pyspark.sql.functions import (
     array_join,
     coalesce,
@@ -27,34 +41,7 @@ from pyspark.sql.types import StringType
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG = {
-    'S3_ENDPOINT': os.getenv('S3_ENDPOINT', 'http://garage:3901'),
-    'SPARK_MASTER': os.getenv('SPARK_ENDPOINT', 'spark://spark-master:7077'),
-    'S3_BUCKET': os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/'),
-    'S3_WAREHOUSE': os.getenv('S3_WAREHOUSE_URL', 's3a://features/warehouse/'),
-    'APP_NAME': 'Quantum Pipeline Feature Processing',
-}
-
-
-def create_spark_session(config=None):
-    """
-    Create a Spark session. Infrastructure config (JARs, S3, Iceberg catalog)
-    is inherited from spark-defaults.conf mounted into the container.
-
-    Args:
-        config: Dictionary with configuration values (defaults used if None)
-
-    Returns:
-        SparkSession: Configured Spark session
-    """
-    if config is None:
-        config = DEFAULT_CONFIG
-
-    return (
-        SparkSession.builder
-        .appName(config.get('APP_NAME', DEFAULT_CONFIG['APP_NAME']))
-        .getOrCreate()
-    )
+_APP_NAME = 'Quantum Pipeline Feature Processing'
 
 
 def list_available_topics(spark, bucket_path):
@@ -163,12 +150,12 @@ def identify_new_records(spark, new_data_df, table_name, key_columns):
             return new_data_df
 
         # if table does not exist, every record is new
-        if not spark.catalog.tableExists(f'quantum_catalog.quantum_features.{table_name}'):
+        if not spark.catalog.tableExists(f'{CATALOG_FQN}.{table_name}'):
             return new_data_df
 
         # retrieve existing keys
         existing_keys = spark.sql(
-            f'SELECT DISTINCT {", ".join(key_columns)} FROM quantum_catalog.quantum_features.{table_name}'  # noqa: S608
+            f'SELECT DISTINCT {", ".join(key_columns)} FROM {CATALOG_FQN}.{table_name}'  # noqa: S608
         )
 
         # if table exists, but has no records - return all records
@@ -219,7 +206,7 @@ def process_incremental_data(
     """
     # check if table exists
     table_exists = spark.catalog._jcatalog.tableExists(
-        f'quantum_catalog.quantum_features.{table_name}'
+        f'{CATALOG_FQN}.{table_name}'
     )
 
     # if the table doesn't exist, create it
@@ -235,13 +222,13 @@ def process_incremental_data(
             writer = writer.option('comment', comment)
 
         # create the table for the feature
-        writer.mode('overwrite').saveAsTable(f'quantum_catalog.quantum_features.{table_name}')
+        writer.mode('overwrite').saveAsTable(f'{CATALOG_FQN}.{table_name}')
 
-        logger.info(f'Created table: quantum_catalog.quantum_features.{table_name}')
+        logger.info(f'Created table: {CATALOG_FQN}.{table_name}')
 
         # create a tag for this version of the table
         snapshot_id = spark.sql(
-            f'SELECT snapshot_id FROM quantum_catalog.quantum_features.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'  # noqa: S608
+            f'SELECT snapshot_id FROM {CATALOG_FQN}.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'  # noqa: S608
         ).collect()[0][0]
 
         # Get processing_batch_id before we lose reference to the DataFrame
@@ -250,7 +237,7 @@ def process_incremental_data(
         version_tag = f'v_{processing_batch_id}'
 
         spark.sql(f"""
-        ALTER TABLE quantum_catalog.quantum_features.{table_name}
+        ALTER TABLE {CATALOG_FQN}.{table_name}
         CREATE TAG {version_tag} AS OF VERSION {snapshot_id}
         """)
 
@@ -283,19 +270,19 @@ def process_incremental_data(
         writer = writer.partitionBy(*partition_columns)
 
     # append to the existing table
-    writer.mode('append').saveAsTable(f'quantum_catalog.quantum_features.{table_name}')
+    writer.mode('append').saveAsTable(f'{CATALOG_FQN}.{table_name}')
 
     logger.info(f'Appended {new_record_count} new records to table {table_name}')
 
     # create a tag for the incremental update
     snapshot_id = spark.sql(
-        f'SELECT snapshot_id FROM quantum_catalog.quantum_features.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'  # noqa: S608
+        f'SELECT snapshot_id FROM {CATALOG_FQN}.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'  # noqa: S608
     ).collect()[0][0]
 
     version_tag = f'v_incr_{processing_batch_id}'
 
     spark.sql(f"""
-        ALTER TABLE quantum_catalog.quantum_features.{table_name}
+        ALTER TABLE {CATALOG_FQN}.{table_name}
         CREATE TAG {version_tag} AS OF VERSION {snapshot_id}
     """)
 
@@ -593,8 +580,8 @@ def transform_quantum_data(df):
 
 def create_metadata_table_if_not_exists(spark):
     """Create the metadata tracking table if it doesn't exist."""
-    spark.sql("""
-    CREATE TABLE IF NOT EXISTS quantum_catalog.quantum_features.processing_metadata (
+    spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {CATALOG_FQN}.processing_metadata (
         processing_batch_id STRING,
         processing_name STRING,
         processing_timestamp TIMESTAMP,
@@ -627,7 +614,7 @@ def update_metadata_table(spark, dfs, table_names, table_versions, record_counts
     )
 
     processing_info.write.format('iceberg').mode('append').saveAsTable(
-        'quantum_catalog.quantum_features.processing_metadata'
+        f'{CATALOG_FQN}.processing_metadata'
     )
 
     logger.info(
@@ -735,6 +722,26 @@ def process_experiments_incrementally(spark, df, topic_name=None):
 
     logger.info('Incremental processing completed!')
 
+    # --- Volume validation ---
+    processed_count = sum(1 for c in record_counts if c > 0)
+    logger.info(
+        'Volume check: %d/%d tables received new records this batch',
+        processed_count, len(table_names),
+    )
+
+    summary_parts = [f'{t}={c}' for t, c in zip(table_names, record_counts)]
+    logger.info('Table row counts this batch: %s', ', '.join(summary_parts))
+
+    if 'vqe_iterations' in table_names and 'vqe_results' in table_names:
+        iter_count = record_counts[table_names.index('vqe_iterations')]
+        results_count = record_counts[table_names.index('vqe_results')]
+        if results_count > 0 and iter_count < results_count:
+            logger.warning(
+                'Volume mismatch: vqe_iterations (%d) < vqe_results (%d) — '
+                'possible truncated Kafka events for this batch',
+                iter_count, results_count,
+            )
+
     # release cached dataframes
     for df_name, dataframe in dfs.items():
         if df_name != 'base_df':  # Keep base_df for metadata
@@ -744,21 +751,20 @@ def process_experiments_incrementally(spark, df, topic_name=None):
     return dict(zip(table_names, record_counts, strict=False))
 
 
-def check_for_new_data(spark, topic, config=None):
+def check_for_new_data(spark, topic, bucket_path=None):
     """
     Check for new data in the S3 bucket.
 
     Args:
         spark: SparkSession
-        config: Optional configuration dictionary
+        topic: Topic name to read
+        bucket_path: Optional S3 bucket path override (defaults to S3_BUCKET_URL)
 
     Returns:
         tuple: (topic_name, dataframe) or (None, None) if no new data
     """
-    if config is None:
-        config = DEFAULT_CONFIG
-
-    bucket_path = config.get('S3_BUCKET', DEFAULT_CONFIG['S3_BUCKET'])
+    if bucket_path is None:
+        bucket_path = S3_BUCKET_URL
 
     logger.info(f'Processing topic: {topic}')
 
@@ -773,28 +779,20 @@ def check_for_new_data(spark, topic, config=None):
     return topic, df
 
 
-def main(config=None):
-    """
-    Main entry point for the quantum feature processing script.
-
-    Args:
-        config: Optional configuration dictionary
-    """
+def main():
+    """Main entry point for the quantum feature processing script."""
     # create spark session
-    spark = create_spark_session(config)
+    spark = create_spark_session(_APP_NAME)
 
     try:
-        if config is None:
-            config = DEFAULT_CONFIG
-
-        bucket_path = config.get('S3_BUCKET', DEFAULT_CONFIG['S3_BUCKET'])
+        bucket_path = S3_BUCKET_URL
         available_topics = list_available_topics(spark, bucket_path)
 
         for topic in available_topics:
             logger.info(f'Found topic: {topic}')
 
             # check for new data
-            topic_name, df = check_for_new_data(spark, topic, config)
+            topic_name, df = check_for_new_data(spark, topic)
 
             if df is None:
                 logger.info('No new data to process.')
