@@ -29,7 +29,7 @@ class TestVQESolverOptimizerConfig:
         assert minimize_tol is None  # No convergence threshold specified
 
     def test_lbfgsb_strict_max_iterations(self):
-        """Test that L-BFGS-B uses tight tolerances for strict max_iterations mode."""
+        """Test that L-BFGS-B uses only maxfun/maxiter for strict max_iterations mode."""
         options, minimize_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B',
             max_iterations=50,
@@ -37,9 +37,9 @@ class TestVQESolverOptimizerConfig:
             num_parameters=160,
         )
 
-        # For strict max_iterations, should use very tight tolerances to prioritize iteration limit
-        assert options['ftol'] == 1e-15  # Tight tolerance for strict iteration control
-        assert options['gtol'] == 1e-15  # Tight tolerance for strict iteration control
+        # No tolerance overrides — scipy uses its own defaults
+        assert 'ftol' not in options
+        assert 'gtol' not in options
         assert options['maxiter'] == 50
 
         # L-BFGS-B doesn't use global tol parameter

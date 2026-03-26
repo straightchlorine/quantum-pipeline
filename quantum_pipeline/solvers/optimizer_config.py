@@ -13,7 +13,6 @@ from typing import Any, ClassVar
 from quantum_pipeline.configs.constants import (
     COBYLA_DEFAULT_MAXITER,
     LBFGSB_DEFAULT_MAXITER,
-    LBFGSB_TIGHT_TOL,
     SLSQP_DEFAULT_MAXITER,
 )
 
@@ -52,7 +51,7 @@ class LBFGSBConfig(OptimizerConfig):
     """Configuration for L-BFGS-B optimizer.
 
     Simplified behavior:
-    - If max_iterations is set: Use it with tight tolerances (1e-15) to enforce iteration limit
+    - If max_iterations is set: Use it as the iteration limit (maxfun and maxiter)
     - If convergence_threshold is set: Use it with high max iterations (15000) to let it converge
     - If neither is set: Use defaults (15000 iterations, standard scipy tolerances)
     """
@@ -65,9 +64,6 @@ class LBFGSBConfig(OptimizerConfig):
             # Set both maxfun and maxiter to prevent hanging
             options['maxfun'] = self.max_iterations
             options['maxiter'] = self.max_iterations
-            # Use tight tolerances to ensure iteration limit is respected
-            options['ftol'] = LBFGSB_TIGHT_TOL
-            options['gtol'] = LBFGSB_TIGHT_TOL
 
         elif self.convergence_threshold is not None:
             # Mode: Convergence-based optimization

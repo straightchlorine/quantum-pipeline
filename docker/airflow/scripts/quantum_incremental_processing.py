@@ -729,7 +729,7 @@ def process_experiments_incrementally(spark, df, topic_name=None):
         processed_count, len(table_names),
     )
 
-    summary_parts = [f'{t}={c}' for t, c in zip(table_names, record_counts)]
+    summary_parts = [f'{t}={c}' for t, c in zip(table_names, record_counts, strict=True)]
     logger.info('Table row counts this batch: %s', ', '.join(summary_parts))
 
     if 'vqe_iterations' in table_names and 'vqe_results' in table_names:

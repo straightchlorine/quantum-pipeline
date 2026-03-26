@@ -56,7 +56,7 @@ with DAG(
         conn_id='spark_default',
         name='quantum_feature_processing',
         conf={
-            'spark.jars.ivy': '/tmp/.ivy2',
+            'spark.jars.ivy': '/tmp/.ivy2',  # noqa: S108
         },
         env_vars={
             'S3_BUCKET_URL': S3_BUCKET_URL,

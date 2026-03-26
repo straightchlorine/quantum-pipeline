@@ -200,7 +200,7 @@ class TestEnergyEstimatorFitEvaluate:
         results = est.fit_evaluate(medium_traj)
         for r in results.results:
             assert len(r.per_molecule) > 0
-            for mol, metrics in r.per_molecule.items():
+            for metrics in r.per_molecule.values():
                 assert 'mae' in metrics
                 assert 'rmse' in metrics
                 assert 'r2' in metrics

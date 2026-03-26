@@ -114,7 +114,7 @@ def _health_check_fn(**context):
 
     def _check(remote_name, path):
         result = subprocess.run(  # noqa: S603
-            ['rclone', 'lsd', path],
+            ['rclone', 'lsd', path],  # noqa: S607
             capture_output=True,
             text=True,
             timeout=30,
@@ -161,7 +161,7 @@ def _sync_table_fn(table_name, **context):
     except subprocess.TimeoutExpired:
         raise AirflowException(
             f'rclone sync timed out after {timeout_seconds}s for table {table_name}'
-        )
+        ) from None
     if result.stdout:
         logger.info(result.stdout)
     if result.returncode != 0:

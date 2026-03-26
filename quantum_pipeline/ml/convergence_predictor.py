@@ -466,8 +466,7 @@ def get_horizon_feature_names(k: int, available_cols: list[str]) -> tuple[list[s
     numeric: list[str] = list(RUN_NUMERIC_FEATURES)
 
     # Per-iteration energy delta features
-    for i in range(1, min(6, k + 1)):
-        numeric.append(f'energy_delta_k{i}')
+    numeric.extend(f'energy_delta_k{i}' for i in range(1, min(6, k + 1)))
 
     numeric.append(f'energy_slope_first{k}')
     numeric.append('energy_moving_std_5_at_k')

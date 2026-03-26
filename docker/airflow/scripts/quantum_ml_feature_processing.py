@@ -379,7 +379,7 @@ def build_run_summary(df_iter):
         current_date().alias('processing_date'),
     )
 
-    summary = (
+    return (
         summary.join(first_10_agg, on='experiment_id', how='left')
         .join(last_10_agg, on='experiment_id', how='left')
         .withColumn(
@@ -387,8 +387,6 @@ def build_run_summary(df_iter):
             col('vqe_time') / col('total_iterations').cast('double'),
         )
     )
-
-    return summary
 
 
 def write_incremental(spark, df, table_name, partition_columns):

@@ -24,7 +24,7 @@ def _java_17_available() -> bool:
 
     try:
         result = subprocess.run(
-            ['java', '-version'], capture_output=True, text=True, timeout=5
+            ['java', '-version'], capture_output=True, text=True, timeout=5  # noqa: S607
         )
         output = result.stderr + result.stdout
         # Java 17 reports "17.", Java 11 reports "11."
@@ -364,7 +364,7 @@ class TestIterationParametersPosexplode:
             .collect()
         )
         expected = [0.1, 0.2, 0.3, 0.4]
-        for row, exp in zip(rows, expected):
+        for row, exp in zip(rows, expected, strict=True):
             assert abs(row['parameter_value'] - exp) < 1e-9
 
     def test_parameter_id_uses_positional_index(self, transformed):

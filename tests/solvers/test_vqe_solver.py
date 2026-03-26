@@ -340,24 +340,20 @@ class TestVQEConvergencePriority:
         assert solver.convergence_threshold is None
 
     def test_lbfgs_b_priority_logic(self):
-        """Test L-BFGS-B specific logic when max_iterations is specified."""
-        optimizer = 'L-BFGS-B'
+        """Test L-BFGS-B max_iterations mode sets only iteration limits, no tolerance overrides."""
+        from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
+
         max_iterations = 5
-        _convergence_threshold = 1e-6
-
-        # Test the specific L-BFGS-B logic - should disable early convergence when max_iterations is set
-        should_disable_early_convergence = optimizer == 'L-BFGS-B' and max_iterations
-
-        assert should_disable_early_convergence, (
-            'L-BFGS-B should disable default convergence when max_iterations is set'
+        options, minimize_tol = get_optimizer_configuration(
+            optimizer='L-BFGS-B', max_iterations=max_iterations, num_parameters=10
         )
 
-        # Verify the ftol and gtol values that would be set
-        expected_ftol = 1e-15
-        expected_gtol = 1e-15
-
-        assert expected_ftol < 1e-10, 'ftol should be very small to prevent early convergence'
-        assert expected_gtol < 1e-10, 'gtol should be very small to prevent early convergence'
+        assert options['maxiter'] == max_iterations
+        assert options['maxfun'] == max_iterations
+        # Natural convergence is allowed — no tight tolerance hack
+        assert 'ftol' not in options
+        assert 'gtol' not in options
+        assert minimize_tol is None
 
     def test_lbfgs_b_without_max_iterations(self):
         """Test L-BFGS-B behavior when max_iterations is not specified."""
@@ -509,30 +505,23 @@ class TestVQEEdgeCases:
             assert bool(value), f'Value {value} should be truthy'
 
     def test_optimization_params_structure(self):
-        """Test that optimization parameters have correct structure."""
+        """Test that L-BFGS-B max_iterations options have correct structure."""
+        from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
+
         max_iterations = 42
+        options, minimize_tol = get_optimizer_configuration(
+            optimizer='L-BFGS-B', max_iterations=max_iterations, num_parameters=10
+        )
 
-        # Base params that should always be present
-        optimization_params = {
-            'maxiter': max_iterations,
-            'disp': False,
-        }
-
-        # L-BFGS-B specific additions
-        if True:  # Simulating L-BFGS-B condition
-            optimization_params.update(
-                {
-                    'ftol': 1e-15,
-                    'gtol': 1e-15,
-                }
-            )
-
-        assert 'maxiter' in optimization_params
-        assert 'disp' in optimization_params
-        assert optimization_params['maxiter'] == max_iterations
-        assert optimization_params['disp'] is False
-        assert optimization_params['ftol'] == 1e-15
-        assert optimization_params['gtol'] == 1e-15
+        assert 'maxiter' in options
+        assert 'disp' in options
+        assert options['maxiter'] == max_iterations
+        assert options['maxfun'] == max_iterations
+        assert options['disp'] is False
+        # No tolerance overrides when using max_iterations
+        assert 'ftol' not in options
+        assert 'gtol' not in options
+        assert minimize_tol is None
 
 
 class TestMaxFunctionEvalsReachedError:

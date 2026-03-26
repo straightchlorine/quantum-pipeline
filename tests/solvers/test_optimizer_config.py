@@ -54,9 +54,9 @@ class TestLBFGSBConfig:
         assert options['disp'] is False
         assert options['maxfun'] == 50
         assert options['maxiter'] == 50
-        # For strict max_iterations mode, should use tight tolerances
-        assert options['ftol'] == 1e-15
-        assert options['gtol'] == 1e-15
+        # No tolerance overrides — scipy uses its own defaults
+        assert 'ftol' not in options
+        assert 'gtol' not in options
 
     def test_get_options_convergence_threshold_only(self):
         """Test get_options with convergence_threshold only."""
@@ -337,8 +337,8 @@ class TestGetOptimizerConfiguration:
         assert isinstance(options, dict)
         assert options['maxfun'] == 50
         assert options['maxiter'] == 50
-        assert options['ftol'] == 1e-15  # Tight tolerance
-        assert options['gtol'] == 1e-15
+        assert 'ftol' not in options
+        assert 'gtol' not in options
         assert minimize_tol is None
 
     def test_get_optimizer_configuration_lbfgsb_convergence(self):
@@ -602,7 +602,7 @@ class TestGenericConfig:
     @pytest.mark.parametrize('optimizer', ['Nelder-Mead', 'Powell', 'BFGS', 'CG', 'TNC'])
     def test_get_optimizer_configuration_with_convergence(self, optimizer):
         """Test convergence threshold is passed through for each new optimizer."""
-        options, tol = get_optimizer_configuration(
+        _options, tol = get_optimizer_configuration(
             optimizer, convergence_threshold=1e-6, num_parameters=24
         )
         assert tol == 1e-6
@@ -610,7 +610,7 @@ class TestGenericConfig:
     @pytest.mark.parametrize('optimizer', ['Nelder-Mead', 'Powell', 'BFGS', 'CG', 'TNC'])
     def test_get_optimizer_configuration_with_max_iterations(self, optimizer):
         """Test custom max_iterations overrides default."""
-        options, tol = get_optimizer_configuration(
+        options, _tol = get_optimizer_configuration(
             optimizer, max_iterations=300, num_parameters=24
         )
         iter_key = 'maxfun' if optimizer == 'TNC' else 'maxiter'

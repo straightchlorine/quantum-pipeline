@@ -119,7 +119,8 @@ class VQESolver(Solver):
         This avoids the problem of prepending HF circuit + zero params, where
         the fixed CX gates in EfficientSU2 destroy the HF state.
         """
-        assert self.hf_data is not None and self.mapper is not None
+        if self.hf_data is None or self.mapper is None:
+            raise ValueError('HF data and mapper must be provided for HF parameter computation')
         hf_circuit = build_hf_initial_state(self.hf_data, self.mapper)
         target_sv = Statevector(hf_circuit)
 
@@ -377,7 +378,7 @@ class VQESolver(Solver):
 
     def via_ibmq(self, backend):
         """Run the VQE simulation on IBM Quantum backend."""
-        ansatz, x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
+        _ansatz, x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
         self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0)
 
         self.logger.info('Opening a session...')
@@ -394,7 +395,7 @@ class VQESolver(Solver):
 
     def via_aer(self, backend):
         """Run the VQE simulation via Aer simulator."""
-        ansatz, x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
+        _ansatz, x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
         self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0)
 
         estimator = EstimatorV2(mode=backend)

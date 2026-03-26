@@ -43,7 +43,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.compose import ColumnTransformer
+from sklearn.compose import ColumnTransformer  # noqa: TC002
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -113,8 +113,7 @@ class EnergyEstimatorResults:
 
     def summary(self) -> str:
         lines = ['Energy Estimator - LOMO Cross-Validation Summary', '=' * 60]
-        for r in sorted(self.results, key=lambda x: (x.completion_frac, x.model_name)):
-            lines.append(str(r))
+        lines.extend(str(r) for r in sorted(self.results, key=lambda x: (x.completion_frac, x.model_name)))
         return '\n'.join(lines)
 
     _HIGHER_IS_BETTER = frozenset({'r2'})
@@ -204,7 +203,6 @@ def generate_synthetic_trajectories(
             energies = []
             prev_energy = e_start
             cummin = e_start
-            steps_since_imp = 0
 
             for step in range(n_iter):
                 t = step
