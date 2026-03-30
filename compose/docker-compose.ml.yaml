@@ -75,6 +75,9 @@ x-airflow-common:
     - airflow-logs:/opt/airflow/logs
     - airflow-ivy-cache:/tmp/.ivy2
     - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+    # Repo root mount + Docker socket for batch generation DAG
+    - ../:/opt/quantum-pipeline
+    - /var/run/docker.sock:/var/run/docker.sock
   networks:
     - quantum-net
   depends_on: &airflow-common-depends-on

@@ -12,6 +12,10 @@ Architecture: Option C1 (hybrid) from QUA-36 research.
 
 Trigger: Manual only (schedule=None). Run via Airflow UI "Trigger DAG"
          with optional JSON conf: {"tier": 1}
+
+Requires:
+  - Docker socket mounted into the Airflow worker (/var/run/docker.sock)
+  - Repo root mounted at /opt/quantum-pipeline (for scripts/, compose/, data/, gen/)
 """
 
 import os
@@ -21,11 +25,9 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from common.dag_defaults import make_default_args
 
-# The batch script path inside the Airflow container.
-# docker-compose.ml.yaml mounts ../docker/airflow/ -> /opt/airflow/dags,
-# but the script lives in the repo root's scripts/ directory.
-# Adjust REPO_ROOT below if the Airflow container mounts it differently.
-_REPO_ROOT = os.environ.get('QUANTUM_PIPELINE_ROOT', '/home/zweiss/code/quantum-pipeline')
+# The repo root is mounted at this path inside the Airflow worker container.
+# docker-compose.ml.yaml binds the host repo root here.
+_REPO_ROOT = os.environ.get('QUANTUM_PIPELINE_ROOT', '/opt/quantum-pipeline')
 
 default_args = make_default_args(
     email_on_failure=True,
