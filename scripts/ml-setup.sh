@@ -110,7 +110,7 @@ else
     echo "[  OK  ] Layout applied"
 fi
 
-# key create — secret is only shown at creation time, so if key exists
+# key create - secret is only shown at creation time, so if key exists
 # but .env has placeholder creds, we delete and recreate
 EXISTING_KEY=$($GARAGE key info ml-pipeline 2>/dev/null)
 if [ -n "${EXISTING_KEY}" ] && grep -q "GK_CHANGE_ME\|S3_ACCESS_KEY=$" .env; then

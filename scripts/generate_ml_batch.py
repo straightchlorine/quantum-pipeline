@@ -172,6 +172,53 @@ def make_run_key(
 
 
 # ---------------------------------------------------------------------------
+# Image verification
+# ---------------------------------------------------------------------------
+
+# Maps lane names to the Docker image they require
+LANE_IMAGES = {
+    "gpu1": "quantum-pipeline:gpu",
+    "gpu2": "quantum-pipeline:gpu",
+    "cpu":  "quantum-pipeline:cpu",
+}
+
+# Dockerfile paths relative to REPO_ROOT for building missing images
+IMAGE_DOCKERFILES = {
+    "quantum-pipeline:gpu": "docker/Dockerfile.gpu",
+    "quantum-pipeline:cpu": "docker/Dockerfile.cpu",
+}
+
+
+def ensure_images(lanes: dict[str, list]) -> None:
+    """Build required Docker images, using cache to skip unchanged layers.
+
+    Always runs `docker build` so that Dockerfile or context changes are
+    picked up. Docker's layer cache makes this fast (~1s) when nothing
+    has changed.
+
+    Raises RuntimeError if a build fails.
+    """
+    needed = {LANE_IMAGES[lane] for lane in lanes}
+    for image_tag in sorted(needed):
+        dockerfile = IMAGE_DOCKERFILES.get(image_tag)
+        if dockerfile is None:
+            raise RuntimeError(
+                f"No Dockerfile mapping configured for image {image_tag}"
+            )
+
+        logger.info("Building %s from %s (cached layers reused if unchanged) ...", image_tag, dockerfile)
+        result = subprocess.run(
+            ["docker", "build", "-f", str(REPO_ROOT / dockerfile), "-t", image_tag, str(REPO_ROOT)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            logger.error("Failed to build %s:\n%s", image_tag, result.stderr[-3000:])
+            raise RuntimeError(f"Failed to build image {image_tag}")
+        logger.info("Image %s ready", image_tag)
+
+
+# ---------------------------------------------------------------------------
 # Docker command builder
 # ---------------------------------------------------------------------------
 
@@ -277,7 +324,7 @@ def run_experiment(
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "error": str(exc),
         })
-        logger.error("[%s] Error: %s — %s", service, run_key, exc)
+        logger.error("[%s] Error: %s - %s", service, run_key, exc)
         return False
 
 
@@ -525,7 +572,7 @@ def main(argv: list[str] | None = None) -> int:
     lanes = generate_run_matrix(config, LANE_MOLECULE_FILES)
 
     if not lanes:
-        logger.error("No active lanes for tier %d — check molecule filter and lane files", args.tier)
+        logger.error("No active lanes for tier %d - check molecule filter and lane files", args.tier)
         return 1
 
     total = sum(len(v) for v in lanes.values())
@@ -545,7 +592,10 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.dry_run:
-        logger.info("Dry-run mode — no containers will be started")
+        logger.info("Dry-run mode - no containers will be started")
+
+    if not args.dry_run:
+        ensure_images(lanes)
 
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = {
@@ -565,7 +615,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if total_failed > 0:
         logger.warning(
-            "%d invocations failed — rerun to resume (completed runs will be skipped)",
+            "%d invocations failed - rerun to resume (completed runs will be skipped)",
             total_failed,
         )
         return 1
