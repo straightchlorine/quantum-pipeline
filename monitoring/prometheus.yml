@@ -1,14 +1,105 @@
+# Prometheus configuration for the quantum-pipeline ML stack.
+#
+# Assumes Prometheus and PushGateway run on the monitoring host,
+# and the pipeline services run on a separate machine (<pipeline-host>).
+# Replace <pipeline-host> with the actual hostname or IP.
+#
+# Services marked "requires exporter" need a sidecar container added
+# to compose/docker-compose.ml.yaml before they can be scraped.
+
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
 scrape_configs:
+
+  # --- prometheus self-monitoring ---
+
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
+  # --- VQE simulation metrics (push model) ---
+
+  # VQE containers push quantum_vqe_* metrics to PushGateway after
+  # each molecule completes. Labels: container_type, molecule_symbols,
+  # basis_set, optimizer, backend_type.
   - job_name: 'pushgateway'
     static_configs:
       - targets: ['localhost:9091']
     scrape_interval: 30s
     honor_labels: true
+
+  # --- data platform ---
+
+  # Redpanda Connect (Kafka-to-S3 bridge)
+  # Built-in Prometheus endpoint. Metrics: input/output message counts,
+  # processing latency, error counts.
+  # Port 4195 must be published in docker-compose.ml.yaml.
+  - job_name: 'redpanda-connect'
+    static_configs:
+      - targets: ['<pipeline-host>:4195']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Garage (S3-compatible storage)
+  # Admin API exposes cluster metrics: bucket sizes, request counts,
+  # replication status. Port 3903 published by default.
+  - job_name: 'garage'
+    static_configs:
+      - targets: ['<pipeline-host>:3903']
+    metrics_path: '/v0/metrics'
+    scrape_interval: 30s
+
+  # Spark Master
+  # REST API metrics: active jobs, task duration, shuffle I/O,
+  # executor memory. Port 8080 published by default.
+  - job_name: 'spark'
+    static_configs:
+      - targets: ['<pipeline-host>:8080']
+    metrics_path: '/metrics/prometheus'
+    scrape_interval: 30s
+
+  # --- requires exporter services in docker-compose.ml.yaml ---
+
+  # Kafka (via JMX exporter)
+  # Metrics: messages in/out, consumer lag, partition count, ISR.
+  # Requires jmx_prometheus_javaagent added to the Kafka container.
+  # - job_name: 'kafka'
+  #   static_configs:
+  #     - targets: ['<pipeline-host>:9404']
+  #   scrape_interval: 30s
+
+  # Airflow (via statsd-exporter)
+  # Metrics: DAG run duration, task states, scheduler heartbeat,
+  # pool slots, executor slots.
+  # Requires statsd-exporter sidecar + Airflow STATSD_ON config.
+  # - job_name: 'airflow'
+  #   static_configs:
+  #     - targets: ['<pipeline-host>:9102']
+  #   scrape_interval: 30s
+
+  # Postgres (via postgres-exporter)
+  # Metrics: connections, transactions, cache hit ratio, table sizes.
+  # Requires prometheuscommunity/postgres-exporter container.
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['<pipeline-host>:9187']
+  #   scrape_interval: 30s
+
+  # Redis (via redis-exporter)
+  # Metrics: connected clients, memory, keyspace hits/misses,
+  # commands processed.
+  # Requires oliver006/redis_exporter container.
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['<pipeline-host>:9121']
+  #   scrape_interval: 30s
+
+  # GPU (via nvidia_gpu_exporter)
+  # Metrics: utilization %, temperature, memory, power draw per device.
+  # Requires utkuozdemir/nvidia_gpu_exporter on the pipeline host.
+  # - job_name: 'gpu'
+  #   static_configs:
+  #     - targets: ['<pipeline-host>:9835']
+  #   scrape_interval: 15s
