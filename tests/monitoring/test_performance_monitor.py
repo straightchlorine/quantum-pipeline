@@ -213,10 +213,10 @@ class TestPrometheusExport:
         assert len(prometheus_output) > 0
 
         # Verify key metrics are present
-        assert 'quantum_vqe_total_time' in prometheus_output
-        assert 'quantum_vqe_minimum_energy' in prometheus_output
-        assert 'quantum_vqe_accuracy_score' in prometheus_output
-        assert 'quantum_vqe_iterations_count' in prometheus_output
+        assert 'qp_vqe_total_time' in prometheus_output
+        assert 'qp_vqe_minimum_energy' in prometheus_output
+        assert 'qp_vqe_accuracy_score' in prometheus_output
+        assert 'qp_vqe_iterations_count' in prometheus_output
 
         # Verify labels are present
         assert 'container_type="CPU_TEST"' in prometheus_output
@@ -225,9 +225,9 @@ class TestPrometheusExport:
         assert 'optimizer="COBYLA"' in prometheus_output
 
         # Verify calculated efficiency metrics
-        assert 'quantum_vqe_iterations_per_second' in prometheus_output
-        assert 'quantum_vqe_time_per_iteration' in prometheus_output
-        assert 'quantum_vqe_efficiency' in prometheus_output
+        assert 'qp_vqe_iterations_per_second' in prometheus_output
+        assert 'qp_vqe_time_per_iteration' in prometheus_output
+        assert 'qp_vqe_efficiency' in prometheus_output
 
     def test_prometheus_export_with_missing_data(self, temp_metrics_dir):
         """Test Prometheus export handles missing optional data gracefully."""

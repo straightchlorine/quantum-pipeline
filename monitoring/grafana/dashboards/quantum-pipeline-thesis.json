@@ -111,7 +111,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(quantum_system_uptime_seconds{container_type=~\"$container_type\"})",
+          "expr": "count(qp_sys_uptime_seconds{container_type=~\"$container_type\"})",
           "legendFormat": "Active Containers",
           "range": true,
           "refId": "A"
@@ -204,7 +204,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "avg by (container_type) (quantum_vqe_total_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"})",
+          "expr": "avg by (container_type) (qp_vqe_total_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"})",
           "format": "table",
           "legendFormat": "__auto",
           "range": true,
@@ -325,7 +325,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "quantum_vqe_total_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+          "expr": "qp_vqe_total_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
           "legendFormat": "{{container_type}} - {{molecule_symbols}}",
           "range": true,
           "refId": "A"
@@ -416,7 +416,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "quantum_vqe_iterations_count{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"} / quantum_vqe_total_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+          "expr": "qp_vqe_iterations_count{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"} / qp_vqe_total_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
           "legendFormat": "{{container_type}} - {{molecule_symbols}}",
           "range": true,
           "refId": "A"
@@ -509,7 +509,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "quantum_vqe_vqe_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"} / quantum_vqe_total_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+          "expr": "qp_vqe_vqe_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"} / qp_vqe_total_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
           "legendFormat": "{{container_type}} - {{molecule_symbols}}",
           "range": true,
           "refId": "A"
@@ -600,7 +600,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(quantum_vqe_hamiltonian_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"} + quantum_vqe_mapping_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}) / quantum_vqe_vqe_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+          "expr": "(qp_vqe_hamiltonian_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"} + qp_vqe_mapping_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}) / qp_vqe_vqe_time{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
           "legendFormat": "{{container_type}} - {{molecule_symbols}}",
           "range": true,
           "refId": "A"
@@ -704,7 +704,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "quantum_experiment_minimum_energy{container_type=~\"$container_type\"} or quantum_vqe_minimum_energy{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+          "expr": "quantum_experiment_minimum_energy{container_type=~\"$container_type\"} or qp_vqe_minimum_energy{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
           "legendFormat": "{{container_type}} - {{molecule_symbols}}",
           "range": true,
           "refId": "A"
@@ -803,7 +803,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "quantum_vqe_energy_error_millihartree{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+          "expr": "qp_vqe_energy_error_millihartree{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
           "legendFormat": "{{container_type}} - {{molecule_symbols}}",
           "range": true,
           "refId": "A"
@@ -1001,7 +1001,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "quantum_vqe_within_chemical_accuracy{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"} or quantum_vqe_accuracy_score{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+          "expr": "qp_vqe_within_chemical_accuracy{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"} or qp_vqe_accuracy_score{container_type=~\"$container_type\",molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
           "legendFormat": "{{container_type}} - {{molecule_symbols}}",
           "range": true,
           "refId": "A"
@@ -1115,7 +1115,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "quantum_system_cpu_percent{container_type=~\"$container_type\"}",
+          "expr": "qp_sys_cpu_percent{container_type=~\"$container_type\"}",
           "legendFormat": "{{container_type}}",
           "range": true,
           "refId": "A"
@@ -1216,7 +1216,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "quantum_system_memory_percent{container_type=~\"$container_type\"}",
+          "expr": "qp_sys_memory_percent{container_type=~\"$container_type\"}",
           "legendFormat": "{{container_type}}",
           "range": true,
           "refId": "A"
@@ -1308,7 +1308,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "quantum_system_uptime_seconds{container_type=~\"$container_type\"}",
+          "expr": "qp_sys_uptime_seconds{container_type=~\"$container_type\"}",
           "legendFormat": "{{container_type}}",
           "range": true,
           "refId": "A"
@@ -1356,7 +1356,7 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(quantum_system_cpu_percent, container_type)",
+        "definition": "label_values(qp_sys_cpu_percent, container_type)",
         "hide": 0,
         "includeAll": true,
         "label": "Container Type",
@@ -1364,7 +1364,7 @@
         "name": "container_type",
         "options": [],
         "query": {
-          "query": "label_values(quantum_system_cpu_percent, container_type)",
+          "query": "label_values(qp_sys_cpu_percent, container_type)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -1383,7 +1383,7 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(quantum_vqe_minimum_energy, molecule_symbols)",
+        "definition": "label_values(qp_vqe_minimum_energy, molecule_symbols)",
         "hide": 0,
         "includeAll": true,
         "label": "Molecule",
@@ -1391,7 +1391,7 @@
         "name": "molecule",
         "options": [],
         "query": {
-          "query": "label_values(quantum_vqe_minimum_energy, molecule_symbols)",
+          "query": "label_values(qp_vqe_minimum_energy, molecule_symbols)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -1410,7 +1410,7 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(quantum_vqe_minimum_energy, optimizer)",
+        "definition": "label_values(qp_vqe_minimum_energy, optimizer)",
         "hide": 0,
         "includeAll": true,
         "label": "Optimizer",
@@ -1418,7 +1418,7 @@
         "name": "optimizer",
         "options": [],
         "query": {
-          "query": "label_values(quantum_vqe_minimum_energy, optimizer)",
+          "query": "label_values(qp_vqe_minimum_energy, optimizer)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,

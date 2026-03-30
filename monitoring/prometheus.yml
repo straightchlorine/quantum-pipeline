@@ -21,7 +21,7 @@ scrape_configs:
 
   # --- VQE simulation metrics (push model) ---
 
-  # VQE containers push quantum_vqe_* metrics to PushGateway after
+  # VQE containers push qp_vqe_* metrics to PushGateway after
   # each molecule completes. Labels: container_type, molecule_symbols,
   # basis_set, optimizer, backend_type.
   - job_name: 'pushgateway'

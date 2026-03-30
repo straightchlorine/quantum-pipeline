@@ -402,7 +402,7 @@ class PerformanceMonitor:
             # Debug logging to see what we're sending
             self.logger.debug(f'VQE metrics payload: {prometheus_metrics[:500]}...')
 
-            job_name = f'quantum-vqe-{self.container_type.lower()}'
+            job_name = f'qp-vqe-{self.container_type.lower()}'
             url = f'{self.pushgateway_url}/metrics/job/{job_name}'
 
             response = requests.post(
@@ -426,7 +426,7 @@ class PerformanceMonitor:
         try:
             prometheus_metrics = self._convert_system_to_prometheus_format(metrics)
 
-            job_name = f'quantum-system-{self.container_type.lower()}'
+            job_name = f'qp-sys-{self.container_type.lower()}'
             url = f'{self.pushgateway_url}/metrics/job/{job_name}'
 
             response = requests.post(
@@ -514,13 +514,13 @@ class PerformanceMonitor:
             for metric_name in ['total_time', 'hamiltonian_time', 'mapping_time', 'vqe_time']:
                 value = vqe_data.get(metric_name)
                 if isinstance(value, (int, float)):
-                    lines.append(f'quantum_vqe_{metric_name}{{{labels}}} {value}')
+                    lines.append(f'qp_vqe_{metric_name}{{{labels}}} {value}')
 
             # VQE result metrics
             for metric_name in ['minimum_energy', 'iterations_count', 'optimal_parameters_count']:
                 value = vqe_data.get(metric_name)
                 if isinstance(value, (int, float)):
-                    lines.append(f'quantum_vqe_{metric_name}{{{labels}}} {value}')
+                    lines.append(f'qp_vqe_{metric_name}{{{labels}}} {value}')
 
             # Scientific accuracy metrics
             for metric_name in [
@@ -532,7 +532,7 @@ class PerformanceMonitor:
             ]:
                 value = vqe_data.get(metric_name)
                 if isinstance(value, (int, float)):
-                    lines.append(f'quantum_vqe_{metric_name}{{{labels}}} {value}')
+                    lines.append(f'qp_vqe_{metric_name}{{{labels}}} {value}')
 
             # Calculate and add efficiency metrics from existing data
             vqe_time = vqe_data.get('vqe_time')
@@ -545,28 +545,28 @@ class PerformanceMonitor:
                 # Iterations per second
                 iterations_per_second = iterations_count / vqe_time
                 lines.append(
-                    f'quantum_vqe_iterations_per_second{{{labels}}} {iterations_per_second}'
+                    f'qp_vqe_iterations_per_second{{{labels}}} {iterations_per_second}'
                 )
 
                 # Average time per iteration
                 time_per_iteration = vqe_time / iterations_count
-                lines.append(f'quantum_vqe_time_per_iteration{{{labels}}} {time_per_iteration}')
+                lines.append(f'qp_vqe_time_per_iteration{{{labels}}} {time_per_iteration}')
 
             if total_time and vqe_time and vqe_time > 0:
                 # Overhead ratio (setup time vs computation time)
                 overhead_time = total_time - vqe_time
                 overhead_ratio = overhead_time / vqe_time
-                lines.append(f'quantum_vqe_overhead_ratio{{{labels}}} {overhead_ratio}')
+                lines.append(f'qp_vqe_overhead_ratio{{{labels}}} {overhead_ratio}')
 
                 # VQE efficiency (time spent in actual VQE vs total)
                 vqe_efficiency = vqe_time / total_time
-                lines.append(f'quantum_vqe_efficiency{{{labels}}} {vqe_efficiency}')
+                lines.append(f'qp_vqe_efficiency{{{labels}}} {vqe_efficiency}')
 
             if hamiltonian_time and mapping_time and vqe_time:
                 # Setup phase efficiency
                 setup_time = hamiltonian_time + mapping_time
                 setup_ratio = setup_time / total_time if total_time else 0
-                lines.append(f'quantum_vqe_setup_ratio{{{labels}}} {setup_ratio}')
+                lines.append(f'qp_vqe_setup_ratio{{{labels}}} {setup_ratio}')
 
             return '\n'.join(lines) + '\n'
 
@@ -585,28 +585,28 @@ class PerformanceMonitor:
             cpu = system.get('cpu', {})
             if cpu.get('percent') is not None:
                 lines.append(
-                    f'quantum_system_cpu_percent{{container_type="{self.container_type}"}} {cpu["percent"]}'
+                    f'qp_sys_cpu_percent{{container_type="{self.container_type}"}} {cpu["percent"]}'
                 )
             if cpu.get('load_avg_1m') is not None:
                 lines.append(
-                    f'quantum_system_cpu_load_1m{{container_type="{self.container_type}"}} {cpu["load_avg_1m"]}'
+                    f'qp_sys_cpu_load_1m{{container_type="{self.container_type}"}} {cpu["load_avg_1m"]}'
                 )
 
             # Memory metrics
             memory = system.get('memory', {})
             if memory.get('percent') is not None:
                 lines.append(
-                    f'quantum_system_memory_percent{{container_type="{self.container_type}"}} {memory["percent"]}'
+                    f'qp_sys_memory_percent{{container_type="{self.container_type}"}} {memory["percent"]}'
                 )
             if memory.get('used') is not None:
                 lines.append(
-                    f'quantum_system_memory_used_bytes{{container_type="{self.container_type}"}} {memory["used"]}'
+                    f'qp_sys_memory_used_bytes{{container_type="{self.container_type}"}} {memory["used"]}'
                 )
 
             # Container uptime metric
             uptime_seconds = time.time() - self._start_time
             lines.append(
-                f'quantum_system_uptime_seconds{{container_type="{self.container_type}"}} {uptime_seconds}'
+                f'qp_sys_uptime_seconds{{container_type="{self.container_type}"}} {uptime_seconds}'
             )
 
             return '\n'.join(lines) + '\n'

@@ -26,16 +26,16 @@ ratio, VQE efficiency (VQE time / total time).
 Enable monitoring by setting environment variables:
 
 ```bash
-export QUANTUM_PERFORMANCE_ENABLED=true
-export QUANTUM_PERFORMANCE_PUSHGATEWAY_URL=http://pushgateway:9091
+export MONITORING_ENABLED=true
+export PUSHGATEWAY_URL=http://pushgateway:9091
 ```
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `QUANTUM_PERFORMANCE_ENABLED` | `false` | Enable monitoring |
-| `QUANTUM_PERFORMANCE_COLLECTION_INTERVAL` | `30` | Collection interval in seconds |
-| `QUANTUM_PERFORMANCE_PUSHGATEWAY_URL` | — | Prometheus PushGateway URL |
-| `QUANTUM_PERFORMANCE_EXPORT_FORMAT` | `json` | `json`, `prometheus`, or `both` |
+| `MONITORING_ENABLED` | `false` | Enable monitoring |
+| `MONITORING_INTERVAL` | `30` | Collection interval in seconds |
+| `PUSHGATEWAY_URL` | — | Prometheus PushGateway URL |
+| `MONITORING_EXPORT_FORMAT` | `json` | `json`, `prometheus`, or `both` |
 | `CONTAINER_TYPE` | `unknown` | Label for the container (set automatically in Docker) |
 
 Constructor parameters take priority over environment variables, which
@@ -70,8 +70,8 @@ with PerformanceMonitor(enabled=True) as monitor:
 
 ## Prometheus metric names
 
-All metrics are prefixed with `quantum_`. System metrics use
-`quantum_system_*`, VQE metrics use `quantum_vqe_*`. Labels include
+All metrics are prefixed with `qp_`. System metrics use
+`qp_sys_*`, VQE metrics use `qp_vqe_*`. Labels include
 `container_type`, `molecule_symbols`, `basis_set`, `optimizer`, and
 `backend_type`.
 
