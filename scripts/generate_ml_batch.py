@@ -28,7 +28,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import subprocess
 import sys
 import threading
@@ -183,42 +182,28 @@ LANE_IMAGES = {
     "cpu":  "quantum-pipeline:cpu",
 }
 
-# Dockerfile paths relative to REPO_ROOT for building missing images
-IMAGE_DOCKERFILES = {
-    "quantum-pipeline:gpu": "docker/Dockerfile.gpu",
-    "quantum-pipeline:cpu": "docker/Dockerfile.cpu",
-}
+def verify_images(lanes: dict[str, list]) -> None:
+    """Verify required Docker images exist locally.
 
-
-def ensure_images(lanes: dict[str, list]) -> None:
-    """Build required Docker images, using cache to skip unchanged layers.
-
-    Always runs `docker build` so that Dockerfile or context changes are
-    picked up. Docker's layer cache makes this fast (~1s) when nothing
-    has changed.
-
-    Raises RuntimeError if a build fails.
+    Images should be built by the upstream build_images DAG task.
+    Raises RuntimeError if any image is missing.
     """
     needed = {LANE_IMAGES[lane] for lane in lanes}
+    missing = []
     for image_tag in sorted(needed):
-        dockerfile = IMAGE_DOCKERFILES.get(image_tag)
-        if dockerfile is None:
-            raise RuntimeError(
-                f"No Dockerfile mapping configured for image {image_tag}"
-            )
-
-        logger.info("Building %s from %s (cached layers reused if unchanged) ...", image_tag, dockerfile)
-        build_env = {**os.environ, "DOCKER_BUILDKIT": "1"}
         result = subprocess.run(
-            ["docker", "build", "-f", str(REPO_ROOT / dockerfile), "-t", image_tag, str(REPO_ROOT)],
+            ["docker", "image", "inspect", image_tag],
             capture_output=True,
-            text=True,
-            env=build_env,
         )
         if result.returncode != 0:
-            logger.error("Failed to build %s:\n%s", image_tag, result.stderr[-3000:])
-            raise RuntimeError(f"Failed to build image {image_tag}")
-        logger.info("Image %s ready", image_tag)
+            missing.append(image_tag)
+
+    if missing:
+        raise RuntimeError(
+            f"Missing Docker images: {', '.join(missing)}. "
+            f"Run the build_images DAG task first."
+        )
+    logger.info("All required images present: %s", ", ".join(sorted(needed)))
 
 
 # ---------------------------------------------------------------------------
@@ -598,7 +583,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Dry-run mode - no containers will be started")
 
     if not args.dry_run:
-        ensure_images(lanes)
+        verify_images(lanes)
 
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = {

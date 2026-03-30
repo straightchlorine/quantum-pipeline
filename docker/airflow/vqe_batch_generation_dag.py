@@ -10,6 +10,10 @@ Architecture: Option C1 (hybrid) from QUA-36 research.
   - Script handles all generation logic (3-lane parallel, JSON state, resume)
   - Airflow handles: scheduling, email-on-failure, ExternalTaskSensor trigger
 
+Tasks:
+  1. build_images   - build quantum-pipeline:cpu and :gpu via Docker socket
+  2. run_batch_generation - run the batch script (3 parallel hardware lanes)
+
 Trigger: Manual only (schedule=None). Run via Airflow UI "Trigger DAG"
          with optional JSON conf: {"tier": 1}
 
@@ -38,7 +42,7 @@ with DAG(
     'vqe_batch_generation',
     default_args=default_args,
     description=(
-        'Run scripts/generate_ml_batch.py for one tier. '
+        'Build simulation images, then run scripts/generate_ml_batch.py for one tier. '
         'Resumes automatically from last completed invocation. '
         "Pass {'tier': N} in the trigger conf to select tier (default: 1)."
     ),
@@ -47,6 +51,20 @@ with DAG(
     catchup=False,
     tags=['quantum', 'batch', 'generation', 'VQE'],
 ) as dag:
+    build_images = BashOperator(
+        task_id='build_images',
+        bash_command=(
+            'cd {{ params.repo_root }} && '
+            'echo "Building quantum-pipeline:cpu ..." && '
+            'docker build -f docker/Dockerfile.cpu -t quantum-pipeline:cpu . && '
+            'echo "Building quantum-pipeline:gpu ..." && '
+            'docker build -f docker/Dockerfile.gpu -t quantum-pipeline:gpu .'
+        ),
+        params={'repo_root': _REPO_ROOT},
+        execution_timeout=timedelta(hours=2),
+        append_env=True,
+    )
+
     run_batch_generation = BashOperator(
         task_id='run_batch_generation',
         bash_command=(
@@ -59,6 +77,7 @@ with DAG(
         # Safety cap: Tier 1 is ~15-25h; allow 30h before Airflow kills the task.
         # The script's JSON state ensures generation resumes on next trigger.
         execution_timeout=timedelta(hours=30),
-        # Surface the script's stdout in Airflow task logs
         append_env=True,
     )
+
+    build_images >> run_batch_generation
