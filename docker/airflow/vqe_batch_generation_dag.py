@@ -55,16 +55,21 @@ with DAG(
     catchup=False,
     tags=['quantum', 'batch', 'generation', 'VQE'],
 ) as dag:
+    # CUDA_ARCH: 6.1=Pascal(GTX10xx), 7.5=Turing(RTX20xx), 8.6=Ampere(RTX30xx), 8.9=Ada(RTX40xx)
+    _CUDA_ARCH = os.environ.get('CUDA_ARCH', '6.1')
+
     build_images = BashOperator(
         task_id='build_images',
         bash_command=(
             'cd {{ params.repo_root }} && '
             'echo "Building quantum-pipeline:cpu ..." && '
             'docker build -f docker/Dockerfile.cpu -t quantum-pipeline:cpu . && '
-            'echo "Building quantum-pipeline:gpu ..." && '
-            'docker build -f docker/Dockerfile.gpu -t quantum-pipeline:gpu .'
+            'echo "Building quantum-pipeline:gpu (CUDA_ARCH={{ params.cuda_arch }}) ..." && '
+            'docker build -f docker/Dockerfile.gpu '
+            '--build-arg CUDA_ARCH={{ params.cuda_arch }} '
+            '-t quantum-pipeline:gpu .'
         ),
-        params={'repo_root': _REPO_ROOT},
+        params={'repo_root': _REPO_ROOT, 'cuda_arch': _CUDA_ARCH},
         execution_timeout=timedelta(hours=2),
         append_env=True,
     )
