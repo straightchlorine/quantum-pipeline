@@ -10,16 +10,13 @@ Architecture: Option C1 (hybrid) from QUA-36 research.
   - Script handles all generation logic (3-lane parallel, JSON state, resume)
   - Airflow handles: scheduling, email-on-failure, ExternalTaskSensor trigger
 
-Tasks:
-  1. build_images   - build quantum-pipeline:cpu and :gpu via Docker socket
-  2. run_batch_generation - run the batch script (3 parallel hardware lanes)
+Prerequisites:
+  - Docker images built on host: just docker-build all
+  - Docker socket mounted into the Airflow worker (/var/run/docker.sock)
+  - Repo root mounted at /opt/quantum-pipeline
 
 Trigger: Manual only (schedule=None). Run via Airflow UI "Trigger DAG"
          with optional JSON conf: {"tier": 1}
-
-Requires:
-  - Docker socket mounted into the Airflow worker (/var/run/docker.sock)
-  - Repo root mounted at /opt/quantum-pipeline (for scripts/, compose/, data/, gen/)
 """
 
 import os
@@ -29,8 +26,6 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from common.dag_defaults import make_default_args
 
-# The repo root is mounted at this path inside the Airflow worker container.
-# docker-compose.ml.yaml binds the host repo root here.
 _REPO_ROOT = os.environ.get('QUANTUM_PIPELINE_ROOT', '/opt/quantum-pipeline')
 
 default_args = make_default_args(
@@ -42,29 +37,15 @@ with DAG(
     'vqe_batch_generation',
     default_args=default_args,
     description=(
-        'Build simulation images, then run scripts/generate_ml_batch.py for one tier. '
+        'Run scripts/generate_ml_batch.py for one tier. '
         'Resumes automatically from last completed invocation. '
         "Pass {'tier': N} in the trigger conf to select tier (default: 1)."
     ),
-    schedule=None,  # manual trigger only
+    schedule=None,
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=['quantum', 'batch', 'generation', 'VQE'],
 ) as dag:
-    build_images = BashOperator(
-        task_id='build_images',
-        bash_command=(
-            'cd {{ params.repo_root }} && '
-            'echo "Building quantum-pipeline:cpu ..." && '
-            'docker build -f docker/Dockerfile.cpu -t quantum-pipeline:cpu . && '
-            'echo "Building quantum-pipeline:gpu ..." && '
-            'docker build -f docker/Dockerfile.gpu -t quantum-pipeline:gpu .'
-        ),
-        params={'repo_root': _REPO_ROOT},
-        execution_timeout=timedelta(hours=2),
-        append_env=True,
-    )
-
     run_batch_generation = BashOperator(
         task_id='run_batch_generation',
         bash_command=(
@@ -74,10 +55,6 @@ with DAG(
             '--log-level INFO'
         ),
         params={'repo_root': _REPO_ROOT},
-        # Safety cap: Tier 1 is ~15-25h; allow 30h before Airflow kills the task.
-        # The script's JSON state ensures generation resumes on next trigger.
         execution_timeout=timedelta(hours=30),
         append_env=True,
     )
-
-    build_images >> run_batch_generation

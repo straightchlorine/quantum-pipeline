@@ -140,8 +140,12 @@ docker-build TARGET="cpu":
                 .
             echo "[  OK  ] GPU image built (v${VERSION}, CUDA_ARCH=${ARCH})"
             ;;
+        all)
+            just docker-build cpu
+            just docker-build gpu
+            ;;
         *)
-            echo "[ FAIL ] Unknown target: {{TARGET}} (expected: cpu, gpu)"
+            echo "[ FAIL ] Unknown target: {{TARGET}} (expected: cpu, gpu, all)"
             exit 1
             ;;
     esac
@@ -251,6 +255,7 @@ help:
     @echo "Docker:"
     @echo "  just docker-build         Build CPU image (default)"
     @echo "  just docker-build gpu     Build GPU image"
+    @echo "  just docker-build all     Build CPU + GPU images"
     @echo "  just docker-up            Start compose stack"
     @echo "  just docker-down          Stop compose stack"
     @echo "  just docker-logs [svc]    Tail logs"
