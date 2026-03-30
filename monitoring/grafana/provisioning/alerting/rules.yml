@@ -1,0 +1,268 @@
+# Grafana provisioned alert rules for Quantum Pipeline.
+#
+# Copy to /etc/grafana/provisioning/alerting/rules.yml on the monitoring VM.
+# Replace <PROMETHEUS_UID> with the actual Prometheus datasource UID
+# (find it in Grafana: Connections > Data sources > Prometheus > UID in URL).
+
+apiVersion: 1
+groups:
+  # --- batch generation ---
+  - orgId: 1
+    name: batch-generation
+    folder: Quantum Pipeline
+    interval: 1m
+    rules:
+      - uid: qp-batch-stalled
+        title: Batch Lane Stalled
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 3600, to: 0}
+            datasourceUid: <PROMETHEUS_UID>
+            model:
+              expr: time() - max(qp_batch_last_completion_ts) by (lane)
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange: {from: 3600, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [3600]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Batch lane {{ $labels.lane }} has not completed a run in over 1 hour"
+
+      - uid: qp-batch-high-failure
+        title: High Batch Failure Rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: <PROMETHEUS_UID>
+            model:
+              expr: sum(qp_batch_failed) by (tier) / sum(qp_batch_total) by (tier)
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0.1]}
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tier {{ $labels.tier }} failure rate exceeds 10%"
+
+      - uid: qp-batch-lane-idle
+        title: Batch Lane Idle With Pending Work
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: <PROMETHEUS_UID>
+            model:
+              expr: qp_batch_in_progress == 0 and qp_batch_pending > 0
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lane {{ $labels.lane }} is idle but has pending work"
+
+  # --- vqe quality ---
+  - orgId: 1
+    name: vqe-quality
+    folder: Quantum Pipeline
+    interval: 1m
+    rules:
+      - uid: qp-vqe-accuracy-degraded
+        title: VQE Accuracy Degraded
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: <PROMETHEUS_UID>
+            model:
+              expr: qp_vqe_accuracy_score
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [30]}
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VQE accuracy score below 30 for {{ $labels.molecule_symbols }} / {{ $labels.optimizer }}"
+
+  # --- system resources ---
+  - orgId: 1
+    name: system-resources
+    folder: Quantum Pipeline
+    interval: 1m
+    rules:
+      - uid: qp-sys-high-cpu
+        title: High CPU Usage
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: <PROMETHEUS_UID>
+            model:
+              expr: qp_sys_cpu_percent
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [95]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU usage above 95% for {{ $labels.container_type }}"
+
+      - uid: qp-sys-high-memory
+        title: High Memory Usage
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: <PROMETHEUS_UID>
+            model:
+              expr: qp_sys_memory_percent
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [95]}
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Memory usage above 95% for {{ $labels.container_type }}"
+
+  # --- gpu ---
+  - orgId: 1
+    name: gpu
+    folder: Quantum Pipeline
+    interval: 1m
+    rules:
+      - uid: qp-gpu-overheat
+        title: GPU Overheating
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: <PROMETHEUS_UID>
+            model:
+              expr: nvidia_gpu_temperature_celsius
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [85]}
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "GPU {{ $labels.index }} temperature above 85C"
+
+  # --- services ---
+  - orgId: 1
+    name: services
+    folder: Quantum Pipeline
+    interval: 1m
+    rules:
+      - uid: qp-service-down
+        title: Service Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: <PROMETHEUS_UID>
+            model:
+              expr: up == 0
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+
+  # --- data platform ---
+  - orgId: 1
+    name: data-platform
+    folder: Quantum Pipeline
+    interval: 1m
+    rules:
+      - uid: qp-redpanda-errors
+        title: Redpanda Connect Errors
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: <PROMETHEUS_UID>
+            model:
+              expr: rate(output_error_total[5m])
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange: {from: 600, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redpanda Connect producing errors"
