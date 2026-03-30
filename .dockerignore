@@ -2,6 +2,7 @@
 .gitignore
 .jython_cache
 .claude
+.pdm-build
 __pycache__
 
 notebooks
