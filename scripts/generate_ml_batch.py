@@ -32,6 +32,7 @@ import os
 import subprocess
 import sys
 import threading
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -165,6 +166,60 @@ def update_run_state(state_file: Path, key: str, updates: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Metrics push
+# ---------------------------------------------------------------------------
+
+def _push_batch_metrics(state_file: Path, tier: int, lanes: dict[str, list]) -> None:
+    """Push batch progress gauges to PushGateway from state file.
+
+    All metrics are gauges recomputed from the state file on each push,
+    so they survive script restarts. Fire-and-forget - failures are
+    logged but don't break the batch run.
+    """
+    pushgateway_url = os.getenv("PUSHGATEWAY_URL")
+    if not pushgateway_url:
+        return
+
+    state = load_state(state_file)
+    total = sum(len(v) for v in lanes.values())
+
+    lines = [f'qp_batch_total{{tier="{tier}"}} {total}']
+
+    for lane, runs in lanes.items():
+        lane_keys = {r["key"] for r in runs}
+        done = sum(1 for k in lane_keys if state.get(k, {}).get("state") == "done")
+        failed = sum(1 for k in lane_keys if state.get(k, {}).get("state") in ("failed", "timed_out"))
+        in_prog = sum(1 for k in lane_keys if state.get(k, {}).get("state") == "in_progress")
+        pending = len(lane_keys) - done - failed - in_prog
+
+        lines.append(f'qp_batch_done{{tier="{tier}",lane="{lane}"}} {done}')
+        lines.append(f'qp_batch_failed{{tier="{tier}",lane="{lane}"}} {failed}')
+        lines.append(f'qp_batch_pending{{tier="{tier}",lane="{lane}"}} {pending}')
+        lines.append(f'qp_batch_in_progress{{tier="{tier}",lane="{lane}"}} {in_prog}')
+
+        # Last completion timestamp
+        timestamps = []
+        for k in lane_keys:
+            entry = state.get(k, {})
+            if entry.get("state") == "done" and entry.get("completed_at"):
+                timestamps.append(datetime.fromisoformat(entry["completed_at"]).timestamp())
+        if timestamps:
+            lines.append(f'qp_batch_last_completion_ts{{tier="{tier}",lane="{lane}"}} {max(timestamps)}')
+
+    payload = "\n".join(lines) + "\n"
+    url = f"{pushgateway_url}/metrics/job/qp-batch/tier/{tier}"
+
+    try:
+        req = urllib.request.Request(  # noqa: S310
+            url, data=payload.encode(), method="POST",
+            headers={"Content-Type": "text/plain"},
+        )
+        urllib.request.urlopen(req, timeout=5)  # noqa: S310
+    except Exception:
+        logger.debug("Failed to push batch metrics to %s", url, exc_info=True)
+
+
+# ---------------------------------------------------------------------------
 # Run key
 # ---------------------------------------------------------------------------
 
@@ -279,6 +334,8 @@ def run_experiment(
     config: dict,
     use_gpu: bool,
     state_file: Path,
+    tier: int,
+    lanes: dict[str, list],
 ) -> bool:
     """Execute a single VQE lane invocation. Returns True on success."""
     cmd = build_docker_command(
@@ -291,6 +348,7 @@ def run_experiment(
         "started_at": datetime.now(timezone.utc).isoformat(),
         "command": " ".join(cmd),
     })
+    _push_batch_metrics(state_file, tier, lanes)
 
     logger.info("[%s] Starting: %s | opt=%s init=%s seed=%d ansatz=%s",
                 service, run_key.split("__")[0], optimizer, init_strategy, seed, ansatz)
@@ -303,6 +361,7 @@ def run_experiment(
                 "return_code": 0,
             })
             logger.info("[%s] Done: %s", service, run_key)
+            _push_batch_metrics(state_file, tier, lanes)
             return True
         stderr_tail = result.stderr[-2000:].decode(errors="replace") if result.stderr else None
         update_run_state(state_file, run_key, {
@@ -312,6 +371,7 @@ def run_experiment(
             **({"stderr_tail": stderr_tail} if stderr_tail else {}),
         })
         logger.error("[%s] Failed (rc=%d): %s", service, result.returncode, run_key)
+        _push_batch_metrics(state_file, tier, lanes)
         return False
     except subprocess.TimeoutExpired:
         update_run_state(state_file, run_key, {
@@ -320,6 +380,7 @@ def run_experiment(
             "error": "subprocess timed out after 7200s",
         })
         logger.error("[%s] Timed out after 7200s: %s", service, run_key)
+        _push_batch_metrics(state_file, tier, lanes)
         return False
     except Exception as exc:
         update_run_state(state_file, run_key, {
@@ -328,6 +389,7 @@ def run_experiment(
             "error": str(exc),
         })
         logger.error("[%s] Error: %s - %s", service, run_key, exc)
+        _push_batch_metrics(state_file, tier, lanes)
         return False
 
 
@@ -407,6 +469,8 @@ def run_lane(
     state: dict,
     state_file: Path,
     dry_run: bool,
+    tier: int,
+    lanes: dict[str, list],
 ) -> dict[str, int]:
     """Process all runs for a single hardware lane sequentially."""
     service = LANE_SERVICES[lane]
@@ -440,6 +504,8 @@ def run_lane(
             config=run["config"],
             use_gpu=use_gpu,
             state_file=state_file,
+            tier=tier,
+            lanes=lanes,
         )
         if success:
             results["done"] += 1
@@ -600,9 +666,15 @@ def main(argv: list[str] | None = None) -> int:
     if not args.dry_run:
         verify_images(lanes)
 
+    # Push initial metrics snapshot
+    _push_batch_metrics(state_file, args.tier, lanes)
+
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = {
-            lane: executor.submit(run_lane, lane, runs, state, state_file, args.dry_run)
+            lane: executor.submit(
+                run_lane, lane, runs, state, state_file, args.dry_run,
+                tier=args.tier, lanes=lanes,
+            )
             for lane, runs in lanes.items()
         }
         all_results = {lane: f.result() for lane, f in futures.items()}
