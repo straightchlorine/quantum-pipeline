@@ -47,9 +47,10 @@ STATE_FILE = REPO_ROOT / "gen" / "ml_batch_state.json"
 # When running inside a container (e.g. Airflow worker), the Docker daemon
 # resolves compose volume paths on the HOST filesystem. QUANTUM_PIPELINE_HOST_ROOT
 # tells us the host-side repo path so the daemon can find data/, gen/, etc.
+# The compose CLI reads the file locally (container path), but volume mounts
+# must resolve on the host.
 _HOST_ROOT = os.getenv("QUANTUM_PIPELINE_HOST_ROOT")
-_COMPOSE_ROOT = Path(_HOST_ROOT) if _HOST_ROOT else REPO_ROOT
-COMPOSE_FILE = _COMPOSE_ROOT / "compose" / "docker-compose.ml.yaml"
+COMPOSE_FILE = REPO_ROOT / "compose" / "docker-compose.ml.yaml"
 
 # Per-lane molecule files (pre-created, mounted into containers at ./data/)
 LANE_MOLECULE_FILES = {
@@ -228,11 +229,18 @@ def build_docker_command(
     use_gpu: bool,
 ) -> list[str]:
     """Build the `docker compose run --rm` command for one VQE invocation."""
-    compose_path = str(COMPOSE_FILE)
-
     cmd = [
         "docker", "compose",
-        "-f", compose_path,
+        "-f", str(COMPOSE_FILE),
+    ]
+
+    # When running inside a container, volume paths in the compose file
+    # (e.g. ../data:/usr/src/...) must resolve on the host filesystem.
+    # --project-directory tells the daemon the host-side base path.
+    if _HOST_ROOT:
+        cmd.extend(["--project-directory", str(Path(_HOST_ROOT) / "compose")])
+
+    cmd.extend([
         "--profile", "batch",
         "run", "--rm",
         service,
@@ -245,7 +253,7 @@ def build_docker_command(
         "--ansatz", ansatz,
         "--simulation-method", config["simulation_method"],
         "--log-level", "INFO",
-    ]
+    ])
 
     if use_gpu:
         cmd.append("--gpu")
