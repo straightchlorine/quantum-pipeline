@@ -48,6 +48,11 @@ x-airflow-common:
     AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    # StatsD metrics -> statsd-exporter -> Prometheus
+    AIRFLOW__METRICS__STATSD_ON: "true"
+    AIRFLOW__METRICS__STATSD_HOST: "airflow-statsd-exporter"
+    AIRFLOW__METRICS__STATSD_PORT: "9125"
+    AIRFLOW__METRICS__STATSD_PREFIX: "airflow"
     # S3 credentials and region (used by both Hadoop S3A and Iceberg S3FileIO)
     AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
     AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
@@ -155,6 +160,8 @@ services:
     image: docker.redpanda.com/redpandadata/connect
     container_name: ml-redpanda-connect
     restart: on-failure
+    ports:
+      - "4195:4195"
     environment:
       S3_ACCESS_KEY: "${S3_ACCESS_KEY}"
       S3_SECRET_KEY: "${S3_SECRET_KEY}"
@@ -435,6 +442,58 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
+
+  # --- monitoring exporters ---
+
+  airflow-statsd-exporter:
+    image: prom/statsd-exporter:latest
+    container_name: ml-airflow-statsd
+    ports:
+      - "9102:9102"
+      - "9125:9125/udp"
+    networks:
+      - quantum-net
+    restart: on-failure
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: ml-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres:5432/${AIRFLOW_POSTGRES_DB:-airflow}?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - quantum-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: ml-redis-exporter
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    ports:
+      - "9121:9121"
+    networks:
+      - quantum-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: on-failure
+
+  nvidia-gpu-exporter:
+    image: utkuozdemir/nvidia_gpu_exporter:1.2.0
+    container_name: ml-gpu-exporter
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+    ports:
+      - "9835:9835"
+    networks:
+      - quantum-net
+    restart: on-failure
 
   # --- vqe batch generation containers (no command: injected via docker compose run) ---
 
