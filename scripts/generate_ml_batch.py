@@ -201,7 +201,7 @@ def verify_images(lanes: dict[str, list]) -> None:
     if missing:
         raise RuntimeError(
             f"Missing Docker images: {', '.join(missing)}. "
-            f"Run the build_images DAG task first."
+            f"Build them on the host first: just docker-build all"
         )
     logger.info("All required images present: %s", ", ".join(sorted(needed)))
 
