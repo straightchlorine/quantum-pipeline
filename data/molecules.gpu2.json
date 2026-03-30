@@ -31,6 +31,45 @@
     "reference": "Herzberg G., Molecular Spectra and Molecular Structure"
   },
   {
+    "name": "BeH2",
+    "symbols": [
+      "Be",
+      "H",
+      "H"
+    ],
+    "coords": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.3264
+      ],
+      [
+        0.0,
+        0.0,
+        -1.3264
+      ]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [
+      9.0122,
+      1.008,
+      1.008
+    ],
+    "description": "Beryllium dihydride - linear molecule, electron correlation",
+    "expected_qubits": 12,
+    "complexity_level": 3,
+    "experimental_bond_length_angstrom": 1.3264,
+    "bond_angle_degrees": 180.0,
+    "reference": "CCSD(T) calculations, Dunning basis sets"
+  },
+  {
     "name": "N2",
     "symbols": [
       "N",
@@ -60,5 +99,44 @@
     "complexity_level": 3,
     "experimental_bond_length_angstrom": 1.0975,
     "reference": "NIST CCCBDB, experimental spectroscopic data"
+  },
+  {
+    "name": "H2O",
+    "symbols": [
+      "O",
+      "H",
+      "H"
+    ],
+    "coords": [
+      [
+        0.0,
+        0.0,
+        0.1173
+      ],
+      [
+        0.0,
+        0.7572,
+        -0.4692
+      ],
+      [
+        0.0,
+        -0.7572,
+        -0.4692
+      ]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [
+      15.999,
+      1.008,
+      1.008
+    ],
+    "description": "Water molecule - bent geometry, lone pairs",
+    "expected_qubits": 14,
+    "complexity_level": 3,
+    "experimental_bond_length_angstrom": 0.9584,
+    "bond_angle_degrees": 104.478,
+    "reference": "NIST Webbook, microwave spectroscopy"
   }
 ]

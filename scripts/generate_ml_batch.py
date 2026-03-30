@@ -55,9 +55,9 @@ COMPOSE_FILE = REPO_ROOT / "compose" / "docker-compose.ml.yaml"
 
 # Per-lane molecule files (pre-created, mounted into containers at ./data/)
 LANE_MOLECULE_FILES = {
-    "gpu1": "data/molecules.gpu1.json",   # NH3, CO2, H2O, BeH2
-    "gpu2": "data/molecules.gpu2.json",   # N2, LiH
-    "cpu":  "data/molecules.cpu.json",    # H2, HeH+
+    "gpu1": "data/molecules.gpu1.json",   # NH3(16q), CO2(18q) - needs 6GB VRAM
+    "gpu2": "data/molecules.gpu2.json",   # LiH(8q), BeH2(12q), N2(10q), H2O(14q)
+    "cpu":  "data/molecules.cpu.json",    # H2(4q), HeH+(4q)
 }
 
 # Docker Compose service names matching docker-compose.ml.yaml
@@ -286,6 +286,7 @@ def build_docker_command(
     """Build the `docker compose run --rm` command for one VQE invocation."""
     cmd = [
         "docker", "compose",
+        "-p", "ml",
         "-f", str(COMPOSE_FILE),
     ]
 
