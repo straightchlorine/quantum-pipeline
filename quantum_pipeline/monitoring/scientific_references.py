@@ -6,6 +6,7 @@ ground state energies for molecules used in VQE benchmarking.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -136,7 +137,7 @@ class ScientificReferenceDatabase:
 
     def calculate_accuracy_metrics(
         self, molecule_name: str, vqe_energy: float, basis_set: str = 'sto3g'
-    ) -> dict[str, float]:
+    ) -> dict[str, Any]:
         """
         Calculate accuracy metrics for VQE result vs reference.
 
