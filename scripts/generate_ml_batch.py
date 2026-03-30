@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import subprocess
 import sys
 import threading
@@ -207,10 +208,12 @@ def ensure_images(lanes: dict[str, list]) -> None:
             )
 
         logger.info("Building %s from %s (cached layers reused if unchanged) ...", image_tag, dockerfile)
+        build_env = {**os.environ, "DOCKER_BUILDKIT": "1"}
         result = subprocess.run(
             ["docker", "build", "-f", str(REPO_ROOT / dockerfile), "-t", image_tag, str(REPO_ROOT)],
             capture_output=True,
             text=True,
+            env=build_env,
         )
         if result.returncode != 0:
             logger.error("Failed to build %s:\n%s", image_tag, result.stderr[-3000:])

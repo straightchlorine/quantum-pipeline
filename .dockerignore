@@ -1,10 +1,15 @@
 .git
 .gitignore
+.jython_cache
+.claude
+__pycache__
 
 notebooks
 examples
 dist
 venv
+site
+gen
 
 schemas
 static
