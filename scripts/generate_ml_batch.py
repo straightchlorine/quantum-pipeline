@@ -185,7 +185,7 @@ LANE_IMAGES = {
 def verify_images(lanes: dict[str, list]) -> None:
     """Verify required Docker images exist locally.
 
-    Images should be built by the upstream build_images DAG task.
+    Images are built by the upstream build_images DAG task.
     Raises RuntimeError if any image is missing.
     """
     needed = {LANE_IMAGES[lane] for lane in lanes}
@@ -201,7 +201,7 @@ def verify_images(lanes: dict[str, list]) -> None:
     if missing:
         raise RuntimeError(
             f"Missing Docker images: {', '.join(missing)}. "
-            f"Build them on the host first: just docker-build all"
+            f"The build_images DAG task should run first, or build manually: just docker-build all"
         )
     logger.info("All required images present: %s", ", ".join(sorted(needed)))
 

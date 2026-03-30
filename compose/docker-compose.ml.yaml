@@ -28,6 +28,8 @@ x-airflow-common:
   build:
     context: ../docker/airflow
     dockerfile: Dockerfile
+    args:
+      DOCKER_GID: ${DOCKER_GID:-970}
   environment: &airflow-common-env
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor

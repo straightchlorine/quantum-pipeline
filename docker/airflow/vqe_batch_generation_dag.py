@@ -10,13 +10,22 @@ Architecture: Option C1 (hybrid) from QUA-36 research.
   - Script handles all generation logic (3-lane parallel, JSON state, resume)
   - Airflow handles: scheduling, email-on-failure, ExternalTaskSensor trigger
 
-Prerequisites:
-  - Docker images built on host: just docker-build all
-  - Docker socket mounted into the Airflow worker (/var/run/docker.sock)
-  - Repo root mounted at /opt/quantum-pipeline
+Tasks:
+  1. build_images         - builds quantum-pipeline:cpu and :gpu via Docker socket
+  2. run_batch_generation - runs the batch script (3 parallel hardware lanes)
+
+Docker images are built using the host's Docker daemon via the mounted
+socket (/var/run/docker.sock). The .dockerignore whitelist keeps the
+build context minimal. Docker layer cache makes rebuilds fast (~1-2s)
+when nothing changed.
 
 Trigger: Manual only (schedule=None). Run via Airflow UI "Trigger DAG"
          with optional JSON conf: {"tier": 1}
+
+Requires:
+  - Docker socket mounted into the Airflow worker (/var/run/docker.sock)
+  - Repo root mounted at /opt/quantum-pipeline
+  - Airflow user in a group matching the host's docker socket GID
 """
 
 import os
@@ -37,7 +46,7 @@ with DAG(
     'vqe_batch_generation',
     default_args=default_args,
     description=(
-        'Run scripts/generate_ml_batch.py for one tier. '
+        'Build simulation images, then run scripts/generate_ml_batch.py for one tier. '
         'Resumes automatically from last completed invocation. '
         "Pass {'tier': N} in the trigger conf to select tier (default: 1)."
     ),
@@ -46,6 +55,20 @@ with DAG(
     catchup=False,
     tags=['quantum', 'batch', 'generation', 'VQE'],
 ) as dag:
+    build_images = BashOperator(
+        task_id='build_images',
+        bash_command=(
+            'cd {{ params.repo_root }} && '
+            'echo "Building quantum-pipeline:cpu ..." && '
+            'docker build -f docker/Dockerfile.cpu -t quantum-pipeline:cpu . && '
+            'echo "Building quantum-pipeline:gpu ..." && '
+            'docker build -f docker/Dockerfile.gpu -t quantum-pipeline:gpu .'
+        ),
+        params={'repo_root': _REPO_ROOT},
+        execution_timeout=timedelta(hours=2),
+        append_env=True,
+    )
+
     run_batch_generation = BashOperator(
         task_id='run_batch_generation',
         bash_command=(
@@ -58,3 +81,5 @@ with DAG(
         execution_timeout=timedelta(hours=30),
         append_env=True,
     )
+
+    build_images >> run_batch_generation
