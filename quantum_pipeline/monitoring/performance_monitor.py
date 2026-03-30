@@ -21,6 +21,13 @@ import requests
 from quantum_pipeline.configs import settings
 from quantum_pipeline.utils.logger import get_logger
 
+_ENV_MAP = {
+    'enabled': 'MONITORING_ENABLED',
+    'collection_interval': 'MONITORING_INTERVAL',
+    'pushgateway_url': 'PUSHGATEWAY_URL',
+    'export_format': 'MONITORING_EXPORT_FORMAT',
+}
+
 
 class PerformanceMonitor:
     """
@@ -63,7 +70,7 @@ class PerformanceMonitor:
         )
         self.pushgateway_url = self._get_config_value('pushgateway_url', pushgateway_url, str)
         self.export_format = self._get_config_value('export_format', export_format, list)
-        self.metrics_dir = metrics_dir or settings.PERFORMANCE_METRICS_DIR
+        self.metrics_dir = metrics_dir or settings.MONITORING_METRICS_DIR
 
         # Runtime state
         self.monitoring_thread = None
@@ -92,7 +99,7 @@ class PerformanceMonitor:
             return override_value
 
         # Priority 2: Environment variable
-        env_key = f'QUANTUM_PERFORMANCE_{key.upper()}'
+        env_key = _ENV_MAP.get(key, f'MONITORING_{key.upper()}')
         env_value = os.getenv(env_key)
         if env_value is not None:
             try:
@@ -108,10 +115,10 @@ class PerformanceMonitor:
 
         # Priority 3: Settings.py defaults
         settings_map = {
-            'enabled': settings.PERFORMANCE_MONITORING_ENABLED,
-            'collection_interval': settings.PERFORMANCE_COLLECTION_INTERVAL,
-            'pushgateway_url': settings.PERFORMANCE_PUSHGATEWAY_URL,
-            'export_format': settings.PERFORMANCE_EXPORT_FORMAT,
+            'enabled': settings.MONITORING_ENABLED,
+            'collection_interval': settings.MONITORING_INTERVAL,
+            'pushgateway_url': settings.PUSHGATEWAY_URL,
+            'export_format': settings.MONITORING_EXPORT_FORMAT,
         }
 
         return settings_map.get(key)

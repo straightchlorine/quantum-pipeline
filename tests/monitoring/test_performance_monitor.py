@@ -70,10 +70,10 @@ class TestPerformanceMonitorInitialization:
 
     def test_initialization_enabled_via_env_vars(self, temp_metrics_dir, monkeypatch):
         """Test enabling monitoring via environment variables."""
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_ENABLED', 'true')
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_COLLECTION_INTERVAL', '45')
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_PUSHGATEWAY_URL', 'http://env:9091')
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_EXPORT_FORMAT', 'json,prometheus')
+        monkeypatch.setenv('MONITORING_ENABLED', 'true')
+        monkeypatch.setenv('MONITORING_INTERVAL', '45')
+        monkeypatch.setenv('PUSHGATEWAY_URL', 'http://env:9091')
+        monkeypatch.setenv('MONITORING_EXPORT_FORMAT', 'json,prometheus')
 
         monitor = PerformanceMonitor(metrics_dir=temp_metrics_dir)
 
@@ -84,8 +84,8 @@ class TestPerformanceMonitorInitialization:
 
     def test_config_priority_constructor_over_env(self, temp_metrics_dir, monkeypatch):
         """Test that constructor parameters override environment variables."""
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_ENABLED', 'false')
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_COLLECTION_INTERVAL', '45')
+        monkeypatch.setenv('MONITORING_ENABLED', 'false')
+        monkeypatch.setenv('MONITORING_INTERVAL', '45')
 
         monitor = PerformanceMonitor(
             enabled=True, collection_interval=10, metrics_dir=temp_metrics_dir
@@ -441,14 +441,14 @@ class TestConfigurationEdgeCases:
 
     def test_invalid_env_var_collection_interval(self, temp_metrics_dir, monkeypatch, caplog):
         """Test handling of invalid collection interval from env var."""
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_COLLECTION_INTERVAL', 'not_a_number')
+        monkeypatch.setenv('MONITORING_INTERVAL', 'not_a_number')
 
         monitor = PerformanceMonitor(metrics_dir=temp_metrics_dir)
 
         # Should fall back to settings default
         from quantum_pipeline.configs import settings
 
-        assert monitor.collection_interval == settings.PERFORMANCE_COLLECTION_INTERVAL
+        assert monitor.collection_interval == settings.MONITORING_INTERVAL
 
     def test_export_format_both_expands_to_list(self, temp_metrics_dir):
         """Test that 'both' export format is expanded correctly."""

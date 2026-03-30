@@ -69,7 +69,7 @@ class TestConfigurationManagerMonitoringInit:
         ]
 
         # Set temp metrics dir via env var
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_METRICS_DIR', '/tmp/test_metrics')
+        monkeypatch.setenv('MONITORING_METRICS_DIR', '/tmp/test_metrics')
 
         parser = QuantumPipelineArgParser()
         parser.get_config()
@@ -229,8 +229,8 @@ class TestMonitoringConfigurationPriority:
     def test_env_var_overrides_settings(self, clean_global_monitor, monkeypatch):
         """Test that environment variables override settings.py defaults."""
         # Set env vars
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_ENABLED', 'true')
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_COLLECTION_INTERVAL', '60')
+        monkeypatch.setenv('MONITORING_ENABLED', 'true')
+        monkeypatch.setenv('MONITORING_INTERVAL', '60')
 
         from quantum_pipeline.monitoring import init_performance_monitoring
 

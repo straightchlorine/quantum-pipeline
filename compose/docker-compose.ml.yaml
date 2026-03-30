@@ -447,6 +447,10 @@ services:
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
       SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
       NVIDIA_VISIBLE_DEVICES: 0
+      MONITORING_ENABLED: "true"
+      PUSHGATEWAY_URL: "${PUSHGATEWAY_URL:-http://localhost:9091}"
+      MONITORING_EXPORT_FORMAT: "prometheus"
+      CONTAINER_TYPE: "GPU_GTX1060_6GB"
     volumes:
       - ../data:/usr/src/quantum_pipeline/data:ro
       - ../gen:/usr/src/quantum_pipeline/gen
@@ -462,6 +466,10 @@ services:
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
       SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
       NVIDIA_VISIBLE_DEVICES: 1
+      MONITORING_ENABLED: "true"
+      PUSHGATEWAY_URL: "${PUSHGATEWAY_URL:-http://localhost:9091}"
+      MONITORING_EXPORT_FORMAT: "prometheus"
+      CONTAINER_TYPE: "GPU_GTX1050Ti"
     volumes:
       - ../data:/usr/src/quantum_pipeline/data:ro
       - ../gen:/usr/src/quantum_pipeline/gen
@@ -475,6 +483,10 @@ services:
     environment:
       KAFKA_SERVERS: ${KAFKA_SERVERS:-kafka:9092}
       SCHEMA_REGISTRY_URL: ${SCHEMA_REGISTRY_URL:-http://schema-registry:8081}
+      MONITORING_ENABLED: "true"
+      PUSHGATEWAY_URL: "${PUSHGATEWAY_URL:-http://localhost:9091}"
+      MONITORING_EXPORT_FORMAT: "prometheus"
+      CONTAINER_TYPE: "CPU"
     volumes:
       - ../data:/usr/src/quantum_pipeline/data:ro
       - ../gen:/usr/src/quantum_pipeline/gen
