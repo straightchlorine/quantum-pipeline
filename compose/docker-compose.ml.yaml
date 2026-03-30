@@ -31,6 +31,8 @@ x-airflow-common:
     args:
       DOCKER_GID: ${DOCKER_GID:-970}
   environment: &airflow-common-env
+    # Host-side repo path so Docker daemon can resolve compose volume mounts
+    QUANTUM_PIPELINE_HOST_ROOT: ${QUANTUM_PIPELINE_HOST_ROOT:-/home/zweiss/code/quantum-pipeline}
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/${AIRFLOW_POSTGRES_DB:-airflow}

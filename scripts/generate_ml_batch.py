@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import subprocess
 import sys
 import threading
@@ -42,7 +43,13 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).parent.parent
 STATE_FILE = REPO_ROOT / "gen" / "ml_batch_state.json"
-COMPOSE_FILE = REPO_ROOT / "compose" / "docker-compose.ml.yaml"
+
+# When running inside a container (e.g. Airflow worker), the Docker daemon
+# resolves compose volume paths on the HOST filesystem. QUANTUM_PIPELINE_HOST_ROOT
+# tells us the host-side repo path so the daemon can find data/, gen/, etc.
+_HOST_ROOT = os.getenv("QUANTUM_PIPELINE_HOST_ROOT")
+_COMPOSE_ROOT = Path(_HOST_ROOT) if _HOST_ROOT else REPO_ROOT
+COMPOSE_FILE = _COMPOSE_ROOT / "compose" / "docker-compose.ml.yaml"
 
 # Per-lane molecule files (pre-created, mounted into containers at ./data/)
 LANE_MOLECULE_FILES = {
@@ -221,7 +228,7 @@ def build_docker_command(
     use_gpu: bool,
 ) -> list[str]:
     """Build the `docker compose run --rm` command for one VQE invocation."""
-    compose_path = str(COMPOSE_FILE.relative_to(REPO_ROOT))
+    compose_path = str(COMPOSE_FILE)
 
     cmd = [
         "docker", "compose",
