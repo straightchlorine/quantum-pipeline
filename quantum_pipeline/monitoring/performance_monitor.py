@@ -410,8 +410,14 @@ class PerformanceMonitor:
 
             self.logger.debug(f'VQE metrics payload: {prometheus_metrics[:500]}...')
 
-            job_name = f'qp-vqe-{self.container_type.lower()}'
-            url = f'{self.pushgateway_url}/metrics/job/{job_name}'
+            molecule = vqe_data.get('molecule_symbols', 'unknown')
+            optimizer = vqe_data.get('optimizer', 'unknown')
+            url = (
+                f'{self.pushgateway_url}/metrics/job/qp-vqe'
+                f'/container_type/{self.container_type}'
+                f'/molecule/{molecule}'
+                f'/optimizer/{optimizer}'
+            )
 
             response = requests.post(
                 url, data=prometheus_metrics, headers={'Content-Type': 'text/plain'}, timeout=10
