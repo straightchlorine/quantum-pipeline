@@ -490,7 +490,7 @@ services:
     environment:
       NVIDIA_VISIBLE_DEVICES: all
     ports:
-      - "9835:9835"
+      - "${GPU_EXPORTER_PORT:-9835}:9835"
     networks:
       - quantum-net
     restart: on-failure
