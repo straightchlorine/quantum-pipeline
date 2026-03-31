@@ -77,6 +77,7 @@ class PerformanceMonitor:
         self.stop_monitoring = threading.Event()
         self.container_type = os.getenv('CONTAINER_TYPE', 'unknown')
         self.experiment_context = {}
+        self._context_lock = threading.Lock()
         self._start_time = time.time()  # Track container start time for uptime
 
         # Ensure metrics directory exists
@@ -130,7 +131,8 @@ class PerformanceMonitor:
     def set_experiment_context(self, **context):
         """Set experiment context for correlation with metrics."""
         if self.enabled:
-            self.experiment_context.update(context)
+            with self._context_lock:
+                self.experiment_context.update(context)
             self.logger.debug(f'Updated experiment context: {context}')
 
     def start_monitoring(self):
@@ -200,10 +202,12 @@ class PerformanceMonitor:
             return {}
 
         try:
+            with self._context_lock:
+                context = self.experiment_context.copy()
             return {
                 'timestamp': datetime.now().isoformat(),
                 'container_type': self.container_type,
-                'experiment_context': self.experiment_context.copy(),
+                'experiment_context': context,
                 'system': self._collect_system_metrics(),
                 'container': self._collect_container_metrics(),
             }
@@ -315,10 +319,12 @@ class PerformanceMonitor:
         while not self.stop_monitoring.is_set():
             try:
                 # Collect only system and GPU metrics for background monitoring
+                with self._context_lock:
+                    context = self.experiment_context.copy()
                 metrics = {
                     'timestamp': datetime.now().isoformat(),
                     'container_type': self.container_type,
-                    'experiment_context': self.experiment_context.copy(),
+                    'experiment_context': context,
                     'system': self._collect_system_metrics(),
                     'container': self._collect_container_metrics(),
                 }
@@ -398,8 +404,10 @@ class PerformanceMonitor:
 
         try:
             prometheus_metrics = self._convert_vqe_to_prometheus(vqe_data)
+            if not prometheus_metrics:
+                self.logger.warning('Empty metrics payload, skipping export')
+                return
 
-            # Debug logging to see what we're sending
             self.logger.debug(f'VQE metrics payload: {prometheus_metrics[:500]}...')
 
             job_name = f'qp-vqe-{self.container_type.lower()}'

@@ -8,7 +8,7 @@ from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.drivers.basis_sets import validate_basis_set
-from quantum_pipeline.drivers.molecule_loader import load_molecule
+from quantum_pipeline.drivers.molecule_loader import load_molecule, load_molecule_names
 from quantum_pipeline.mappers import JordanWignerMapper
 from quantum_pipeline.monitoring import get_performance_monitor
 from quantum_pipeline.monitoring.scientific_references import get_reference_database
@@ -150,6 +150,7 @@ class VQERunner(Runner):
         """Load molecule data and validate the basis set."""
         self.logger.info(f'Loading molecule data from {self.filepath}')
         molecules = load_molecule(self.filepath)
+        self.molecule_names = load_molecule_names(self.filepath)
         validate_basis_set(self.basis_set)
         return molecules
 
@@ -265,24 +266,22 @@ class VQERunner(Runner):
             'minimum_energy': float(result.total_energy),
             'iterations_count': len(result.iteration_list),
             'optimal_parameters_count': len(result.optimal_parameters),
-            # Accuracy metrics
-            'reference_energy': accuracy_metrics.get('reference_energy_hartree', 0),
-            'energy_error_hartree': accuracy_metrics.get('energy_error_hartree', 0),
-            'energy_error_millihartree': accuracy_metrics.get(
-                'energy_error_millihartree', 0
-            ),
-            'accuracy_score': accuracy_metrics.get('accuracy_score', 0),
-            'within_chemical_accuracy': 1
-            if accuracy_metrics.get('within_chemical_accuracy', False)
-            else 0,
+            # Accuracy metrics (use `or 0` to handle both missing keys and None values)
+            'reference_energy': accuracy_metrics.get('reference_energy_hartree') or 0,
+            'energy_error_hartree': accuracy_metrics.get('energy_error_hartree') or 0,
+            'energy_error_millihartree': accuracy_metrics.get('energy_error_millihartree') or 0,
+            'accuracy_score': accuracy_metrics.get('accuracy_score') or 0,
+            'within_chemical_accuracy': 1 if accuracy_metrics.get('within_chemical_accuracy') else 0,
         }
 
     def _process_molecule(self, molecule_id, molecule) -> VQEDecoratedResult:
         """Run the full VQE pipeline for a single molecule and return a decorated result."""
+        molecule_name = self.molecule_names[molecule_id]
+
         # Set experiment context for monitoring
         self.performance_monitor.set_experiment_context(
             molecule_id=molecule_id,
-            molecule_symbols=''.join(molecule.symbols),
+            molecule_symbols=molecule_name,
             basis_set=self.basis_set,
             optimizer=self.optimizer,
             max_iterations=self.max_iterations,
@@ -311,14 +310,16 @@ class VQERunner(Runner):
             optimal_parameters_count=len(result.optimal_parameters),
         )
 
-        molecule_name = ''.join(molecule.symbols)
         accuracy_metrics = self._collect_accuracy_metrics(molecule_name, result)
 
         # Export VQE metrics immediately to Prometheus with full context and accuracy
-        vqe_metrics_data = self._build_metrics_data(
-            molecule_id, molecule_name, result, total_time, accuracy_metrics
-        )
-        self.performance_monitor.export_vqe_metrics_immediate(vqe_metrics_data)
+        try:
+            vqe_metrics_data = self._build_metrics_data(
+                molecule_id, molecule_name, result, total_time, accuracy_metrics
+            )
+            self.performance_monitor.export_vqe_metrics_immediate(vqe_metrics_data)
+        except Exception as e:
+            self.logger.warning(f'Metrics export failed (non-fatal): {e}')
 
         decorated_result = VQEDecoratedResult(
             vqe_result=result,
