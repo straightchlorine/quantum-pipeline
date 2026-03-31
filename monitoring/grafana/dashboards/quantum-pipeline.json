@@ -1,316 +1,3668 @@
 {
   "__inputs": [
-    {"name": "DS_PROMETHEUS", "label": "Prometheus", "type": "datasource", "pluginId": "prometheus"}
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "type": "datasource",
+      "pluginId": "prometheus"
+    }
   ],
-  "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
   "links": [],
-  "tags": ["quantum", "ML", "VQE", "observability"],
+  "tags": [
+    "quantum",
+    "ML",
+    "VQE",
+    "observability"
+  ],
   "templating": {
     "list": [
-      {"name": "DS_PROMETHEUS", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0},
-      {"name": "tier", "type": "query", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "query": "label_values(qp_batch_total, tier)", "includeAll": true, "allValue": ".*", "current": {"text": "All", "value": "$__all"}, "hide": 0, "refresh": 2, "multi": false, "sort": 1},
-      {"name": "lane", "type": "query", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "query": "label_values(qp_batch_done, lane)", "includeAll": true, "allValue": ".*", "current": {"text": "All", "value": "$__all"}, "hide": 0, "refresh": 2, "multi": false, "sort": 1},
-      {"name": "optimizer", "type": "query", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "query": "label_values(qp_vqe_total_time, optimizer)", "includeAll": true, "allValue": ".*", "current": {"text": "All", "value": "$__all"}, "hide": 0, "refresh": 2, "multi": true, "sort": 1},
-      {"name": "molecule", "type": "query", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "query": "label_values(qp_vqe_total_time, molecule_symbols)", "includeAll": true, "allValue": ".*", "current": {"text": "All", "value": "$__all"}, "hide": 0, "refresh": 2, "multi": true, "sort": 1},
-      {"name": "container_type", "type": "query", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "query": "label_values(qp_vqe_total_time, container_type)", "includeAll": true, "allValue": ".*", "current": {"text": "All", "value": "$__all"}, "hide": 0, "refresh": 2, "multi": true, "sort": 1}
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "tier",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(qp_batch_total, tier)",
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "refresh": 2,
+        "multi": false,
+        "sort": 1
+      },
+      {
+        "name": "lane",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(qp_batch_done, lane)",
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "refresh": 2,
+        "multi": false,
+        "sort": 1
+      },
+      {
+        "name": "optimizer",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(qp_vqe_total_time, optimizer)",
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "refresh": 2,
+        "multi": true,
+        "sort": 1
+      },
+      {
+        "name": "molecule",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(qp_vqe_total_time, molecule_symbols)",
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "refresh": 2,
+        "multi": true,
+        "sort": 1
+      },
+      {
+        "name": "container_type",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "query": "label_values(qp_vqe_total_time, container_type)",
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "refresh": 2,
+        "multi": true,
+        "sort": 1
+      }
     ]
   },
-  "time": {"from": "now-6h", "to": "now"},
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "",
   "title": "Quantum Pipeline",
   "uid": null,
-  "version": 1,
+  "version": 2,
   "panels": [
-    {"type": "row", "id": 1, "title": "Batch Generation", "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "panels": []},
     {
-      "id": 2, "type": "gauge", "title": "Progress", "gridPos": {"h": 6, "w": 6, "x": 0, "y": 1},
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 50, "color": "yellow"}, {"value": 80, "color": "green"}]}}},
-      "targets": [{"expr": "sum(qp_batch_done{tier=~\"$tier\"}) / sum(qp_batch_total{tier=~\"$tier\"}) * 100", "legendFormat": ""}]
-    },
-    {
-      "id": 3, "type": "stat", "title": "Done", "gridPos": {"h": 6, "w": 3, "x": 6, "y": 1},
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}]}}},
-      "targets": [{"expr": "sum(qp_batch_done{tier=~\"$tier\"})", "legendFormat": "done"}]
-    },
-    {
-      "id": 4, "type": "stat", "title": "Failed", "gridPos": {"h": 6, "w": 3, "x": 9, "y": 1},
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 1, "color": "yellow"}, {"value": 10, "color": "red"}]}}},
-      "targets": [{"expr": "sum(qp_batch_failed{tier=~\"$tier\"})", "legendFormat": "failed"}]
-    },
-    {
-      "id": 5, "type": "stat", "title": "Pending", "gridPos": {"h": 6, "w": 3, "x": 12, "y": 1},
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "blue"}]}}},
-      "targets": [{"expr": "sum(qp_batch_pending{tier=~\"$tier\"})", "legendFormat": "pending"}]
-    },
-    {
-      "id": 6, "type": "bargauge", "title": "Per-Lane Progress", "gridPos": {"h": 6, "w": 9, "x": 15, "y": 1},
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}]}}},
-      "options": {"orientation": "horizontal", "displayMode": "gradient"},
-      "targets": [{"expr": "qp_batch_done{tier=~\"$tier\",lane=~\"$lane\"}", "legendFormat": "{{lane}}"}]
-    },
-    {
-      "id": 7, "type": "timeseries", "title": "Throughput (runs/hour)", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 7},
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 10}}},
-      "options": {"tooltip": {"mode": "multi"}},
-      "targets": [{"expr": "increase(qp_batch_done{tier=~\"$tier\",lane=~\"$lane\"}[10m]) * 6", "legendFormat": "{{lane}}"}]
-    },
-    {
-      "id": 8, "type": "timeseries", "title": "Failed Over Time", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 7},
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 10}, "color": {"fixedColor": "red", "mode": "fixed"}}},
-      "options": {"tooltip": {"mode": "multi"}},
-      "targets": [{"expr": "qp_batch_failed{tier=~\"$tier\",lane=~\"$lane\"}", "legendFormat": "{{lane}}"}]
-    },
-
-    {"type": "row", "id": 10, "title": "VQE Performance", "collapsed": true, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 15}, "panels": [
-      {
-        "id": 11, "type": "timeseries", "title": "VQE Total Time", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "s", "custom": {"drawStyle": "line", "fillOpacity": 10}}},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "qp_vqe_total_time{optimizer=~\"$optimizer\",molecule_symbols=~\"$molecule\",container_type=~\"$container_type\"}", "legendFormat": "{{molecule_symbols}} / {{optimizer}}"}]
+      "type": "row",
+      "id": 1,
+      "title": "Batch Generation",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
       },
-      {
-        "id": 12, "type": "timeseries", "title": "Iterations per Second", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "qp_vqe_iterations_per_second{optimizer=~\"$optimizer\",molecule_symbols=~\"$molecule\",container_type=~\"$container_type\"}", "legendFormat": "{{molecule_symbols}} / {{container_type}}"}]
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Progress",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 1
       },
-      {
-        "id": 13, "type": "gauge", "title": "VQE Efficiency", "gridPos": {"h": 4, "w": 4, "x": 16, "y": 16},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 0.5, "color": "yellow"}, {"value": 0.8, "color": "green"}]}}},
-        "targets": [{"expr": "avg(qp_vqe_efficiency{container_type=~\"$container_type\"})"}]
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      {
-        "id": 14, "type": "gauge", "title": "Overhead Ratio", "gridPos": {"h": 4, "w": 4, "x": 20, "y": 16},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 0.5, "color": "yellow"}, {"value": 1, "color": "red"}]}}},
-        "targets": [{"expr": "avg(qp_vqe_overhead_ratio{container_type=~\"$container_type\"})"}]
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": 0,
+                "color": "red"
+              },
+              {
+                "value": 50,
+                "color": "yellow"
+              },
+              {
+                "value": 80,
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
       },
-      {
-        "id": 15, "type": "timeseries", "title": "Iteration Count", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 24},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "qp_vqe_iterations_count{optimizer=~\"$optimizer\",molecule_symbols=~\"$molecule\"}", "legendFormat": "{{molecule_symbols}} / {{optimizer}}"}]
-      },
-      {
-        "id": 16, "type": "timeseries", "title": "Time per Iteration", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 24},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "s"}},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "qp_vqe_time_per_iteration{optimizer=~\"$optimizer\",molecule_symbols=~\"$molecule\"}", "legendFormat": "{{molecule_symbols}}"}]
-      },
-      {
-        "id": 17, "type": "timeseries", "title": "Setup Ratio", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 24},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "percentunit"}},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "qp_vqe_setup_ratio{container_type=~\"$container_type\"}", "legendFormat": "{{container_type}}"}]
+      "targets": [
+        {
+          "expr": "sum(qp_batch_done{tier=~\"$tier\"}) / sum(qp_batch_total{tier=~\"$tier\"}) * 100",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       }
-    ]},
-
-    {"type": "row", "id": 20, "title": "Scientific Accuracy", "collapsed": true, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 16}, "panels": [
-      {
-        "id": 21, "type": "timeseries", "title": "Energy Error (mHa)", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 17},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "qp_vqe_energy_error_millihartree{molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}", "legendFormat": "{{molecule_symbols}} / {{optimizer}}"}]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Done",
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 6,
+        "y": 1
       },
-      {
-        "id": 22, "type": "bargauge", "title": "Accuracy Score", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 17},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 50, "color": "yellow"}, {"value": 90, "color": "green"}]}}},
-        "options": {"orientation": "horizontal", "displayMode": "gradient"},
-        "targets": [{"expr": "qp_vqe_accuracy_score{molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}", "legendFormat": "{{molecule_symbols}} / {{optimizer}}"}]
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      {
-        "id": 23, "type": "stat", "title": "Chemical Accuracy", "gridPos": {"h": 4, "w": 4, "x": 16, "y": 17},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 50, "color": "yellow"}, {"value": 80, "color": "green"}]}}},
-        "targets": [{"expr": "avg(qp_vqe_within_chemical_accuracy{molecule_symbols=~\"$molecule\"}) * 100"}]
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": 0,
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
       },
-      {
-        "id": 24, "type": "timeseries", "title": "Ground State Energy", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 25},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "Hartree"}},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "qp_vqe_minimum_energy{molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}", "legendFormat": "{{molecule_symbols}} / {{optimizer}}"}]
-      },
-      {
-        "id": 25, "type": "timeseries", "title": "Reference Energy", "gridPos": {"h": 8, "w": 8, "x": 12, "y": 25},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "qp_vqe_reference_energy{molecule_symbols=~\"$molecule\"}", "legendFormat": "{{molecule_symbols}} ref"}]
+      "targets": [
+        {
+          "expr": "sum(qp_batch_done{tier=~\"$tier\"})",
+          "legendFormat": "done"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value"
       }
-    ]},
-
-    {"type": "row", "id": 30, "title": "System Resources", "collapsed": true, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 17}, "panels": [
-      {
-        "id": 31, "type": "timeseries", "title": "CPU Usage", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 18},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 70, "color": "yellow"}, {"value": 90, "color": "red"}]}, "custom": {"drawStyle": "line", "fillOpacity": 10, "thresholdsStyle": {"mode": "line"}}}},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "qp_sys_cpu_percent{container_type=~\"$container_type\"}", "legendFormat": "{{container_type}}"}]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Failed",
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 9,
+        "y": 1
       },
-      {
-        "id": 32, "type": "timeseries", "title": "Memory Usage", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 18},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 85, "color": "yellow"}, {"value": 95, "color": "red"}]}, "custom": {"drawStyle": "line", "fillOpacity": 10, "thresholdsStyle": {"mode": "line"}}}},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "qp_sys_memory_percent{container_type=~\"$container_type\"}", "legendFormat": "{{container_type}}"}]
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      {
-        "id": 33, "type": "stat", "title": "Uptime", "gridPos": {"h": 4, "w": 4, "x": 16, "y": 18},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "dtdurations"}},
-        "targets": [{"expr": "qp_sys_uptime_seconds{container_type=~\"$container_type\"}", "legendFormat": "{{container_type}}"}]
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": 0,
+                "color": "green"
+              },
+              {
+                "value": 1,
+                "color": "yellow"
+              },
+              {
+                "value": 10,
+                "color": "red"
+              }
+            ]
+          }
+        },
+        "overrides": []
       },
-      {
-        "id": 34, "type": "stat", "title": "Load Average (1m)", "gridPos": {"h": 4, "w": 4, "x": 20, "y": 18},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "targets": [{"expr": "qp_sys_cpu_load_1m{container_type=~\"$container_type\"}", "legendFormat": "{{container_type}}"}]
+      "targets": [
+        {
+          "expr": "sum(qp_batch_failed{tier=~\"$tier\"})",
+          "legendFormat": "failed"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value"
       }
-    ]},
-
-    {"type": "row", "id": 40, "title": "GPU", "collapsed": true, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 18}, "panels": [
-      {
-        "id": 41, "type": "timeseries", "title": "GPU Utilization", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 19},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "nvidia_gpu_utilization_gpu_ratio * 100", "legendFormat": "GPU {{index}}"}],
-        "noDataMessage": "Requires nvidia_gpu_exporter"
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Pending",
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 12,
+        "y": 1
       },
-      {
-        "id": 42, "type": "timeseries", "title": "GPU Temperature", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 19},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "celsius", "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 70, "color": "yellow"}, {"value": 85, "color": "red"}]}, "custom": {"thresholdsStyle": {"mode": "line"}}}},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "nvidia_gpu_temperature_celsius", "legendFormat": "GPU {{index}}"}],
-        "noDataMessage": "Requires nvidia_gpu_exporter"
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      {
-        "id": 43, "type": "bargauge", "title": "GPU Memory", "gridPos": {"h": 8, "w": 4, "x": 16, "y": 19},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
-        "options": {"orientation": "horizontal"},
-        "targets": [{"expr": "nvidia_gpu_memory_used_bytes / nvidia_gpu_memory_total_bytes * 100", "legendFormat": "GPU {{index}}"}],
-        "noDataMessage": "Requires nvidia_gpu_exporter"
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": 0,
+                "color": "blue"
+              }
+            ]
+          }
+        },
+        "overrides": []
       },
-      {
-        "id": 44, "type": "timeseries", "title": "GPU Power", "gridPos": {"h": 8, "w": 4, "x": 20, "y": 19},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "watt"}},
-        "targets": [{"expr": "nvidia_gpu_power_draw_watts", "legendFormat": "GPU {{index}}"}],
-        "noDataMessage": "Requires nvidia_gpu_exporter"
+      "targets": [
+        {
+          "expr": "sum(qp_batch_pending{tier=~\"$tier\"})",
+          "legendFormat": "pending"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value"
       }
-    ]},
-
-    {"type": "row", "id": 50, "title": "Data Platform", "collapsed": true, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 19}, "panels": [
-      {
-        "id": 51, "type": "timeseries", "title": "Kafka Messages In/sec", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 20},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "rate(kafka_server_brokertopicmetrics_messagesin_total[5m])", "legendFormat": "messages/s"}],
-        "noDataMessage": "Requires Kafka JMX exporter"
+    },
+    {
+      "id": 6,
+      "type": "bargauge",
+      "title": "Per-Lane Progress",
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 15,
+        "y": 1
       },
-      {
-        "id": 52, "type": "timeseries", "title": "Kafka Bytes In/sec", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 20},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "Bps"}},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "rate(kafka_server_brokertopicmetrics_bytesin_total[5m])", "legendFormat": "bytes/s"}],
-        "noDataMessage": "Requires Kafka JMX exporter"
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      {
-        "id": 53, "type": "timeseries", "title": "Redpanda Connect Throughput", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 20},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "rate(input_received_total[5m])", "legendFormat": "msgs/s"}],
-        "noDataMessage": "Requires Redpanda Connect port 4195"
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": 0,
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
       },
-      {
-        "id": 54, "type": "stat", "title": "Redpanda Errors/sec", "gridPos": {"h": 4, "w": 4, "x": 0, "y": 28},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 0.1, "color": "red"}]}}},
-        "targets": [{"expr": "rate(output_error_total[5m])"}],
-        "noDataMessage": "Waiting for data..."
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
-      {
-        "id": 55, "type": "stat", "title": "Spark Workers", "gridPos": {"h": 4, "w": 4, "x": 4, "y": 28},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "targets": [{"expr": "spark_master_workers_count"}],
-        "noDataMessage": "Requires Spark Prometheus metrics"
+      "targets": [
+        {
+          "expr": "qp_batch_done{tier=~\"$tier\",lane=~\"$lane\"}",
+          "legendFormat": "{{lane}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Throughput (runs/hour)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 7
       },
-      {
-        "id": 56, "type": "timeseries", "title": "Garage Request Rate", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 28},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "rate(garage_api_request_total[5m])", "legendFormat": "req/s"}],
-        "noDataMessage": "Requires Garage admin API"
-      }
-    ]},
-
-    {"type": "row", "id": 60, "title": "Orchestration", "collapsed": true, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 20}, "panels": [
-      {
-        "id": 61, "type": "timeseries", "title": "Airflow DAG Run Duration", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 21},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "s"}},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "airflow_dagrun_duration_sum", "legendFormat": "{{dag_id}}"}],
-        "noDataMessage": "Requires Airflow StatsD exporter"
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      {
-        "id": 62, "type": "stat", "title": "Scheduler Heartbeat", "gridPos": {"h": 4, "w": 4, "x": 8, "y": 21},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "targets": [{"expr": "airflow_scheduler_heartbeat"}],
-        "noDataMessage": "Requires Airflow StatsD exporter"
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
       },
-      {
-        "id": 63, "type": "timeseries", "title": "Postgres Connections", "gridPos": {"h": 8, "w": 6, "x": 12, "y": 21},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "options": {"tooltip": {"mode": "multi"}},
-        "targets": [{"expr": "pg_stat_database_numbackends", "legendFormat": "{{datname}}"}],
-        "noDataMessage": "Requires postgres-exporter"
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
       },
-      {
-        "id": 64, "type": "gauge", "title": "Postgres Cache Hit Ratio", "gridPos": {"h": 4, "w": 6, "x": 18, "y": 21},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "red"}, {"value": 0.9, "color": "yellow"}, {"value": 0.95, "color": "green"}]}}},
-        "targets": [{"expr": "pg_stat_database_blks_hit / (pg_stat_database_blks_hit + pg_stat_database_blks_read)"}],
-        "noDataMessage": "Requires postgres-exporter"
+      "targets": [
+        {
+          "expr": "increase(qp_batch_done{tier=~\"$tier\",lane=~\"$lane\"}[10m]) * 6",
+          "legendFormat": "{{lane}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Failed Over Time",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 7
       },
-      {
-        "id": 65, "type": "timeseries", "title": "Redis Memory", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 29},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "fieldConfig": {"defaults": {"unit": "bytes"}},
-        "targets": [{"expr": "redis_memory_used_bytes"}],
-        "noDataMessage": "Requires redis-exporter"
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
       },
-      {
-        "id": 66, "type": "stat", "title": "Redis Ops/sec", "gridPos": {"h": 4, "w": 4, "x": 8, "y": 29},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "targets": [{"expr": "rate(redis_commands_processed_total[5m])"}],
-        "noDataMessage": "Requires redis-exporter"
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          },
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          }
+        },
+        "overrides": []
       },
-      {
-        "id": 67, "type": "stat", "title": "Redis Clients", "gridPos": {"h": 4, "w": 4, "x": 12, "y": 29},
-        "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-        "targets": [{"expr": "redis_connected_clients"}],
-        "noDataMessage": "Requires redis-exporter"
-      }
-    ]}
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "qp_batch_failed{tier=~\"$tier\",lane=~\"$lane\"}",
+          "legendFormat": "{{lane}}"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 10,
+      "title": "VQE Performance",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "panels": [
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "VQE Total Time",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_vqe_total_time{optimizer=~\"$optimizer\",molecule_symbols=~\"$molecule\",container_type=~\"$container_type\"}",
+              "legendFormat": "{{molecule_symbols}} / {{optimizer}}"
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "Iterations per Second",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_vqe_iterations_per_second{optimizer=~\"$optimizer\",molecule_symbols=~\"$molecule\",container_type=~\"$container_type\"}",
+              "legendFormat": "{{molecule_symbols}} / {{container_type}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        },
+        {
+          "id": 13,
+          "type": "gauge",
+          "title": "VQE Efficiency",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 16,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 0.5,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 0.8,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "avg(qp_vqe_efficiency{container_type=~\"$container_type\"})"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          }
+        },
+        {
+          "id": 14,
+          "type": "gauge",
+          "title": "Overhead Ratio",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 20,
+            "y": 16
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 0.5,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 1,
+                    "color": "red"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "avg(qp_vqe_overhead_ratio{container_type=~\"$container_type\"})"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          }
+        },
+        {
+          "id": 15,
+          "type": "timeseries",
+          "title": "Iteration Count",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 24
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_vqe_iterations_count{optimizer=~\"$optimizer\",molecule_symbols=~\"$molecule\"}",
+              "legendFormat": "{{molecule_symbols}} / {{optimizer}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        },
+        {
+          "id": 16,
+          "type": "timeseries",
+          "title": "Time per Iteration",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 24
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_vqe_time_per_iteration{optimizer=~\"$optimizer\",molecule_symbols=~\"$molecule\"}",
+              "legendFormat": "{{molecule_symbols}}"
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "type": "timeseries",
+          "title": "Setup Ratio",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 24
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_vqe_setup_ratio{container_type=~\"$container_type\"}",
+              "legendFormat": "{{container_type}}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 20,
+      "title": "Scientific Accuracy",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "panels": [
+        {
+          "id": 21,
+          "type": "timeseries",
+          "title": "Energy Error (mHa)",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 17
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_vqe_energy_error_millihartree{molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+              "legendFormat": "{{molecule_symbols}} / {{optimizer}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        },
+        {
+          "id": 22,
+          "type": "bargauge",
+          "title": "Accuracy Score",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 17
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 50,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 90,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_vqe_accuracy_score{molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+              "legendFormat": "{{molecule_symbols}} / {{optimizer}}"
+            }
+          ]
+        },
+        {
+          "id": 23,
+          "type": "stat",
+          "title": "Chemical Accuracy",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 16,
+            "y": 17
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 50,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 80,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "avg(qp_vqe_within_chemical_accuracy{molecule_symbols=~\"$molecule\"}) * 100"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 24,
+          "type": "timeseries",
+          "title": "Ground State Energy",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 25
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Hartree"
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_vqe_minimum_energy{molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+              "legendFormat": "{{molecule_symbols}} / {{optimizer}}"
+            }
+          ]
+        },
+        {
+          "id": 25,
+          "type": "timeseries",
+          "title": "Reference Energy",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 12,
+            "y": 25
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_vqe_reference_energy{molecule_symbols=~\"$molecule\"}",
+              "legendFormat": "{{molecule_symbols}} ref"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 30,
+      "title": "System Resources",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "panels": [
+        {
+          "id": 31,
+          "type": "timeseries",
+          "title": "CPU Usage",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 18
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 70,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 90,
+                    "color": "red"
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "thresholdsStyle": {
+                  "mode": "line"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_sys_cpu_percent{container_type=~\"$container_type\"}",
+              "legendFormat": "{{container_type}}"
+            }
+          ]
+        },
+        {
+          "id": 32,
+          "type": "timeseries",
+          "title": "Memory Usage",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 18
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 85,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 95,
+                    "color": "red"
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "thresholdsStyle": {
+                  "mode": "line"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "qp_sys_memory_percent{container_type=~\"$container_type\"}",
+              "legendFormat": "{{container_type}}"
+            }
+          ]
+        },
+        {
+          "id": 33,
+          "type": "stat",
+          "title": "Uptime",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 16,
+            "y": 18
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "dtdurations"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "qp_sys_uptime_seconds{container_type=~\"$container_type\"}",
+              "legendFormat": "{{container_type}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 34,
+          "type": "stat",
+          "title": "Load Average (1m)",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 20,
+            "y": 18
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "expr": "qp_sys_cpu_load_1m{container_type=~\"$container_type\"}",
+              "legendFormat": "{{container_type}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 40,
+      "title": "GPU",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "panels": [
+        {
+          "id": 41,
+          "type": "timeseries",
+          "title": "GPU Utilization",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 19
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "nvidia_smi_utilization_gpu_ratio * 100",
+              "legendFormat": "{{uuid}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 42,
+          "type": "timeseries",
+          "title": "GPU Temperature",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 6,
+            "y": 19
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "celsius",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 70,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 85,
+                    "color": "red"
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "thresholdsStyle": {
+                  "mode": "line"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "nvidia_smi_temperature_gpu",
+              "legendFormat": "{{uuid}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 43,
+          "type": "bargauge",
+          "title": "GPU Memory Usage",
+          "gridPos": {
+            "h": 8,
+            "w": 4,
+            "x": 12,
+            "y": 19
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 80,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 95,
+                    "color": "red"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          },
+          "targets": [
+            {
+              "expr": "nvidia_smi_memory_used_bytes / nvidia_smi_memory_total_bytes * 100",
+              "legendFormat": "{{uuid}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 44,
+          "type": "timeseries",
+          "title": "GPU Power Draw",
+          "gridPos": {
+            "h": 8,
+            "w": 4,
+            "x": 16,
+            "y": 19
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "watt",
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "nvidia_smi_power_draw_watts",
+              "legendFormat": "{{uuid}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 45,
+          "type": "timeseries",
+          "title": "Fan Speed",
+          "gridPos": {
+            "h": 8,
+            "w": 4,
+            "x": 20,
+            "y": 19
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "nvidia_smi_fan_speed_ratio * 100",
+              "legendFormat": "{{uuid}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 46,
+          "type": "timeseries",
+          "title": "Graphics Clock (MHz)",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 27
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "MHz",
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "nvidia_smi_clocks_current_graphics_clock_hz / 1e6",
+              "legendFormat": "{{uuid}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 47,
+          "type": "stat",
+          "title": "Memory Free",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 6,
+            "y": 27
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "nvidia_smi_memory_free_bytes",
+              "legendFormat": "{{uuid}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 48,
+          "type": "stat",
+          "title": "Power State",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 12,
+            "y": 27
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "expr": "nvidia_smi_pstate",
+              "legendFormat": "{{uuid}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 50,
+      "title": "Data Platform",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "panels": [
+        {
+          "id": 51,
+          "type": "timeseries",
+          "title": "Redpanda Messages In/sec",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 20
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "rate(input_received[5m])",
+              "legendFormat": "in/s"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 52,
+          "type": "timeseries",
+          "title": "Redpanda Messages Out/sec",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 6,
+            "y": 20
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "rate(output_sent[5m])",
+              "legendFormat": "out/s"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 53,
+          "type": "stat",
+          "title": "Redpanda Errors/sec",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 12,
+            "y": 20
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 0.1,
+                    "color": "red"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "rate(output_error[5m])",
+              "legendFormat": "errors/s"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 54,
+          "type": "stat",
+          "title": "Redpanda Input Connection",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 15,
+            "y": 20
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "DOWN",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "UP",
+                      "color": "green"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 1,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "input_connection_up",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 55,
+          "type": "stat",
+          "title": "Redpanda Output Connection",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 18,
+            "y": 20
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "DOWN",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "UP",
+                      "color": "green"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 1,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "output_connection_up",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 56,
+          "type": "timeseries",
+          "title": "Redpanda Input Latency (ms)",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 28
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "rate(input_latency_ns_sum[5m]) / rate(input_latency_ns_count[5m]) / 1e6",
+              "legendFormat": "input latency"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 57,
+          "type": "timeseries",
+          "title": "Redpanda Output Latency (ms)",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 6,
+            "y": 28
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "rate(output_latency_ns_sum[5m]) / rate(output_latency_ns_count[5m]) / 1e6",
+              "legendFormat": "output latency"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 58,
+          "type": "timeseries",
+          "title": "Redpanda Batch Throughput",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 12,
+            "y": 28
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "rate(processor_batch_received[5m])",
+              "legendFormat": "batch received/s"
+            },
+            {
+              "expr": "rate(processor_batch_sent[5m])",
+              "legendFormat": "batch sent/s"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 59,
+          "type": "stat",
+          "title": "Garage Cluster Health",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 21,
+            "y": 20
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "UNHEALTHY",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "HEALTHY",
+                      "color": "green"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 1,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "cluster_healthy",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 70,
+          "type": "gauge",
+          "title": "Garage Disk Usage",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 18,
+            "y": 28
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 0.7,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 0.9,
+                    "color": "red"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "1 - (garage_local_disk_avail / garage_local_disk_total)",
+              "legendFormat": "disk used"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          }
+        },
+        {
+          "id": 71,
+          "type": "stat",
+          "title": "Garage Connected Nodes",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 12,
+            "y": 24
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 1,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "cluster_connected_nodes",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 72,
+          "type": "stat",
+          "title": "Garage Stored Blocks",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 15,
+            "y": 24
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "expr": "block_rc_size",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        },
+        {
+          "id": 73,
+          "type": "stat",
+          "title": "Garage Storage Nodes",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 18,
+            "y": 24
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 1,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "cluster_storage_nodes_ok",
+              "legendFormat": "ok / {{cluster_storage_nodes}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 74,
+          "type": "stat",
+          "title": "Garage Partitions OK",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 21,
+            "y": 24
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "expr": "cluster_partitions_all_ok",
+              "legendFormat": "ok / {{cluster_partitions}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        },
+        {
+          "id": 75,
+          "type": "timeseries",
+          "title": "Garage Resync Queue",
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 36
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "block_resync_queue_length",
+              "legendFormat": "queue length"
+            },
+            {
+              "expr": "block_resync_errored_blocks",
+              "legendFormat": "errored blocks"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          }
+        },
+        {
+          "id": 76,
+          "type": "timeseries",
+          "title": "Garage Admin Request Rate",
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 36
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "rate(api_admin_request_counter[5m])",
+              "legendFormat": "req/s"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "id": 60,
+      "title": "Orchestration",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "panels": [
+        {
+          "id": 61,
+          "type": "timeseries",
+          "title": "Airflow Executor Tasks",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 21
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "stacking": {
+                  "mode": "normal"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "airflow_executor_running_tasks",
+              "legendFormat": "running"
+            },
+            {
+              "expr": "airflow_executor_queued_tasks",
+              "legendFormat": "queued"
+            },
+            {
+              "expr": "airflow_executor_open_slots",
+              "legendFormat": "open slots"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 62,
+          "type": "timeseries",
+          "title": "Airflow Scheduler Heartbeat",
+          "gridPos": {
+            "h": 8,
+            "w": 4,
+            "x": 8,
+            "y": 21
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "rate(airflow_scheduler_heartbeat[5m])",
+              "legendFormat": "scheduler"
+            },
+            {
+              "expr": "rate(airflow_dag_processor_heartbeat[5m])",
+              "legendFormat": "dag processor"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 63,
+          "type": "stat",
+          "title": "DAGBag Size",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 12,
+            "y": 21
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "blue"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "airflow_dagbag_size",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 64,
+          "type": "stat",
+          "title": "DAG Import Errors",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 16,
+            "y": 21
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 1,
+                    "color": "red"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "airflow_dag_processing_import_errors",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 65,
+          "type": "timeseries",
+          "title": "Airflow DAG Parse Time",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 20,
+            "y": 21
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "airflow_dag_processing_total_parse_time",
+              "legendFormat": "parse time"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          }
+        },
+        {
+          "id": 66,
+          "type": "timeseries",
+          "title": "Airflow Pool Slots (default_pool)",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 29
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "stacking": {
+                  "mode": "normal"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "airflow_pool_running_slots_default_pool",
+              "legendFormat": "running"
+            },
+            {
+              "expr": "airflow_pool_queued_slots_default_pool",
+              "legendFormat": "queued"
+            },
+            {
+              "expr": "airflow_pool_open_slots_default_pool",
+              "legendFormat": "open"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 67,
+          "type": "timeseries",
+          "title": "Airflow Task Instances",
+          "gridPos": {
+            "h": 8,
+            "w": 4,
+            "x": 8,
+            "y": 29
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "airflow_ti_running",
+              "legendFormat": "running"
+            },
+            {
+              "expr": "rate(airflow_task_instance_created[5m])",
+              "legendFormat": "created/s"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 68,
+          "type": "stat",
+          "title": "Scheduler Executable Tasks",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 12,
+            "y": 25
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "expr": "airflow_scheduler_tasks_executable",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        },
+        {
+          "id": 69,
+          "type": "stat",
+          "title": "Triggerer Capacity",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 16,
+            "y": 25
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "expr": "airflow_triggerer_capacity_left",
+              "legendFormat": "capacity left"
+            },
+            {
+              "expr": "airflow_triggers_running",
+              "legendFormat": "triggers running"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        },
+        {
+          "id": 80,
+          "type": "timeseries",
+          "title": "Postgres Connections",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 37
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "pg_stat_database_numbackends{datname=~\"airflow|mlflow\"}",
+              "legendFormat": "{{datname}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 81,
+          "type": "gauge",
+          "title": "Postgres Cache Hit Ratio",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 6,
+            "y": 37
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 0.9,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 0.95,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "pg_stat_database_blks_hit{datname=~\"airflow|mlflow\"} / (pg_stat_database_blks_hit{datname=~\"airflow|mlflow\"} + pg_stat_database_blks_read{datname=~\"airflow|mlflow\"})",
+              "legendFormat": "{{datname}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          }
+        },
+        {
+          "id": 82,
+          "type": "timeseries",
+          "title": "Postgres Transactions/sec",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 12,
+            "y": 37
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "rate(pg_stat_database_xact_commit{datname=~\"airflow|mlflow\"}[5m])",
+              "legendFormat": "{{datname}} commits/s"
+            },
+            {
+              "expr": "rate(pg_stat_database_xact_rollback{datname=~\"airflow|mlflow\"}[5m])",
+              "legendFormat": "{{datname}} rollbacks/s"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 83,
+          "type": "bargauge",
+          "title": "Postgres DB Size",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 18,
+            "y": 37
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "blue"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          },
+          "targets": [
+            {
+              "expr": "pg_database_size_bytes{datname=~\"airflow|mlflow\"}",
+              "legendFormat": "{{datname}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 84,
+          "type": "stat",
+          "title": "Postgres Deadlocks",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 45
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 1,
+                    "color": "red"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "pg_stat_database_deadlocks{datname=~\"airflow|mlflow\"}",
+              "legendFormat": "{{datname}}"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 85,
+          "type": "stat",
+          "title": "Postgres Active Queries",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 4,
+            "y": 45
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "expr": "pg_stat_activity_count",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        },
+        {
+          "id": 86,
+          "type": "stat",
+          "title": "Postgres Locks",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 8,
+            "y": 45
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 10,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 50,
+                    "color": "red"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "pg_locks_count",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 87,
+          "type": "stat",
+          "title": "Postgres Exporter Up",
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 12,
+            "y": 45
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "DOWN",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "UP",
+                      "color": "green"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 1,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "pg_up",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 88,
+          "type": "timeseries",
+          "title": "Postgres Tuple Operations/sec",
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 45
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "rate(pg_stat_database_tup_inserted{datname=~\"airflow|mlflow\"}[5m])",
+              "legendFormat": "{{datname}} inserts/s"
+            },
+            {
+              "expr": "rate(pg_stat_database_tup_updated{datname=~\"airflow|mlflow\"}[5m])",
+              "legendFormat": "{{datname}} updates/s"
+            },
+            {
+              "expr": "rate(pg_stat_database_tup_deleted{datname=~\"airflow|mlflow\"}[5m])",
+              "legendFormat": "{{datname}} deletes/s"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 90,
+          "type": "timeseries",
+          "title": "Redis Memory",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 53
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "redis_memory_used_bytes",
+              "legendFormat": "used"
+            },
+            {
+              "expr": "redis_memory_used_rss_bytes",
+              "legendFormat": "rss"
+            },
+            {
+              "expr": "redis_memory_used_peak_bytes",
+              "legendFormat": "peak"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 91,
+          "type": "timeseries",
+          "title": "Redis Ops/sec",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 6,
+            "y": 53
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "rate(redis_commands_processed_total[5m])",
+              "legendFormat": "ops/s"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 92,
+          "type": "gauge",
+          "title": "Redis Hit Rate",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 12,
+            "y": 53
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 0.8,
+                    "color": "yellow"
+                  },
+                  {
+                    "value": 0.95,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "redis_keyspace_hits_total / (redis_keyspace_hits_total + redis_keyspace_misses_total)",
+              "legendFormat": "hit rate"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          }
+        },
+        {
+          "id": 93,
+          "type": "stat",
+          "title": "Redis Clients",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 18,
+            "y": 53
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "redis_connected_clients",
+              "legendFormat": "connected"
+            },
+            {
+              "expr": "redis_blocked_clients",
+              "legendFormat": "blocked"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 94,
+          "type": "stat",
+          "title": "Redis Keys",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 21,
+            "y": 53
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "targets": [
+            {
+              "expr": "redis_db_keys{db=\"db0\"}",
+              "legendFormat": "db0"
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": []
+          }
+        },
+        {
+          "id": 95,
+          "type": "timeseries",
+          "title": "Redis Network I/O",
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 18,
+            "y": 57
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "tooltip": {
+              "mode": "multi"
+            },
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom"
+            }
+          },
+          "targets": [
+            {
+              "expr": "rate(redis_net_input_bytes_total[5m])",
+              "legendFormat": "input"
+            },
+            {
+              "expr": "rate(redis_net_output_bytes_total[5m])",
+              "legendFormat": "output"
+            }
+          ],
+          "noDataMessage": "Waiting for data..."
+        },
+        {
+          "id": 96,
+          "type": "stat",
+          "title": "Redis Evicted Keys",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 18,
+            "y": 65
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "green"
+                  },
+                  {
+                    "value": 1,
+                    "color": "red"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "redis_evicted_keys_total",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 97,
+          "type": "stat",
+          "title": "Redis Uptime",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 21,
+            "y": 65
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "dtdurations"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "redis_uptime_in_seconds",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        },
+        {
+          "id": 98,
+          "type": "stat",
+          "title": "Redis Exporter Up",
+          "gridPos": {
+            "h": 4,
+            "w": 3,
+            "x": 12,
+            "y": 57
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "DOWN",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "UP",
+                      "color": "green"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "value": 0,
+                    "color": "red"
+                  },
+                  {
+                    "value": 1,
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "redis_up",
+              "legendFormat": ""
+            }
+          ],
+          "noDataMessage": "Waiting for data...",
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value"
+          }
+        }
+      ]
+    }
   ]
 }

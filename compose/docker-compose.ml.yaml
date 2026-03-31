@@ -48,6 +48,8 @@ x-airflow-common:
     AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    # Monitoring (used by batch generation script for progress metrics)
+    PUSHGATEWAY_URL: "${PUSHGATEWAY_URL:-http://localhost:9091}"
     # StatsD metrics -> statsd-exporter -> Prometheus
     AIRFLOW__METRICS__STATSD_ON: "true"
     AIRFLOW__METRICS__STATSD_HOST: "airflow-statsd-exporter"
