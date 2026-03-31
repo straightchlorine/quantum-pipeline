@@ -186,14 +186,17 @@ ml-setup:
 ml-up:
     #!/usr/bin/env bash
     [ ! -f .env ] && echo "[ FAIL ] .env not found - run 'just ml-setup' first" && exit 1
-    docker compose -f compose/docker-compose.ml.yaml up -d
+    docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d
     echo "[  OK  ] ML stack started"
-    docker compose -f compose/docker-compose.ml.yaml ps
+    docker compose --env-file .env -f compose/docker-compose.ml.yaml ps
 
-# Stop the ML pipeline stack
+# Stop the ML pipeline stack (including batch containers and state)
 ml-down:
-    docker compose -f compose/docker-compose.ml.yaml down
-    echo "[  OK  ] ML stack stopped"
+    #!/usr/bin/env bash
+    docker compose --env-file .env -f compose/docker-compose.ml.yaml --profile batch down
+    docker rm -f $(docker ps -q --filter "name=ml-quantum-pipeline" 2>/dev/null) 2>/dev/null || true
+    rm -f gen/ml_batch_state.json
+    echo "[  OK  ] ML stack stopped, batch state cleared"
 
 # --- build ---
 
