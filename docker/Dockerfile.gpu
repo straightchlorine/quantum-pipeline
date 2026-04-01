@@ -57,6 +57,8 @@ RUN python ./setup.py bdist_wheel -- \
 
 WORKDIR /usr/src/quantum_pipeline
 RUN rm -rf static && mkdir -p static && mv ./qiskit-aer/dist/* ./static && rm -rf ./qiskit-aer
+# conan is a build-only dep for aer's C++ compilation - remove to avoid urllib3 conflict noise
+RUN pip uninstall -y conan
 
 COPY . .
 RUN pip install --no-cache-dir .
