@@ -1,3 +1,4 @@
+import math
 import os
 
 import numpy as np
@@ -11,7 +12,6 @@ from quantum_pipeline.drivers.basis_sets import validate_basis_set
 from quantum_pipeline.drivers.molecule_loader import load_molecule, load_molecule_names
 from quantum_pipeline.mappers import JordanWignerMapper
 from quantum_pipeline.monitoring import get_performance_monitor
-from quantum_pipeline.monitoring.scientific_references import get_reference_database
 from quantum_pipeline.report.report_generator import ReportGenerator
 from quantum_pipeline.runners.runner import Runner
 from quantum_pipeline.solvers.vqe_solver import VQESolver
@@ -140,9 +140,8 @@ class VQERunner(Runner):
 
         self.run_results = []
 
-        # Initialize performance monitoring and reference database
+        # Initialize performance monitoring
         self.performance_monitor = get_performance_monitor()
-        self.reference_db = get_reference_database()
 
     @staticmethod
     def default_backend():
@@ -188,9 +187,10 @@ class VQERunner(Runner):
             second_q_op, hf_data = self.provide_hamiltonian(molecule)
 
         self.hamiltonian_time = t.elapsed
+        self.hf_reference_energy = hf_data.reference_energy
         self.logger.info(f'Hamiltonian generated in {t.elapsed:.6f} seconds.')
-        if hf_data.reference_energy is not None:
-            self.logger.info(f'HF reference energy: {hf_data.reference_energy:.6f} Ha')
+        if self.hf_reference_energy is not None:
+            self.logger.info(f'HF reference energy: {self.hf_reference_energy:.6f} Ha')
 
         mapper = JordanWignerMapper()
 
@@ -226,28 +226,42 @@ class VQERunner(Runner):
         return result
 
     def _collect_accuracy_metrics(self, molecule_name, result) -> dict:
-        """Look up scientific reference data and calculate accuracy metrics for a VQE result."""
-        accuracy_metrics = self.reference_db.calculate_accuracy_metrics(
-            molecule_name=molecule_name,
-            vqe_energy=float(result.total_energy),
-            basis_set=self.basis_set,
-        )
+        """Calculate accuracy metrics for a VQE result against the HF baseline."""
+        hf_energy = self.hf_reference_energy
+        if hf_energy is None:
+            return {
+                'reference_available': False,
+                'reference_energy_hartree': None,
+                'energy_error_hartree': None,
+                'energy_error_millihartree': None,
+                'relative_error_percent': None,
+                'accuracy_score': None,
+            }
 
-        # Log accuracy results
-        if accuracy_metrics['reference_available']:
-            self.logger.info(f'Accuracy assessment for {molecule_name}:')
-            self.logger.info(f'  VQE Total Energy: {result.total_energy:.6f} Ha')
-            self.logger.info(
-                f'  Reference: {accuracy_metrics["reference_energy_hartree"]:.6f} Ha ({accuracy_metrics["reference_method"]})'
-            )
-            self.logger.info(
-                f'  Error: {accuracy_metrics["energy_error_millihartree"]:.3f} mHa'
-            )
-            self.logger.info(
-                f'  Accuracy Score: {accuracy_metrics["accuracy_score"]:.1f}/100'
-            )
+        vqe_energy = float(result.total_energy)
+        energy_error = vqe_energy - hf_energy
+        relative_error = abs(energy_error / hf_energy) * 100
 
-        return accuracy_metrics
+        if abs(energy_error) < 1e-10:
+            accuracy_score = 100.0
+        else:
+            log_error = math.log10(abs(energy_error) * 1000 + 1)
+            accuracy_score = max(0.0, 100.0 * (1.0 - log_error / 5.0))
+
+        self.logger.info(f'Accuracy assessment for {molecule_name}:')
+        self.logger.info(f'  VQE Total Energy: {vqe_energy:.6f} Ha')
+        self.logger.info(f'  HF Reference:     {hf_energy:.6f} Ha')
+        self.logger.info(f'  Error:            {energy_error * 1000:.3f} mHa')
+        self.logger.info(f'  Accuracy Score:   {accuracy_score:.1f}/100')
+
+        return {
+            'reference_available': True,
+            'reference_energy_hartree': hf_energy,
+            'energy_error_hartree': energy_error,
+            'energy_error_millihartree': energy_error * 1000,
+            'relative_error_percent': relative_error,
+            'accuracy_score': min(100, accuracy_score),
+        }
 
     def _build_metrics_data(self, molecule_id, molecule_name, result, total_time, accuracy_metrics) -> dict:
         """Build the metrics dict used for Prometheus export."""

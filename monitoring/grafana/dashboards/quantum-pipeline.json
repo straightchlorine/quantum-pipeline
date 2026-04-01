@@ -1343,7 +1343,7 @@
                 "uid": "eewnvr188581sa"
               },
               "expr": "qp_vqe_reference_energy{molecule_symbols=~\"$molecule\"}",
-              "legendFormat": "{{molecule_symbols}} ref",
+              "legendFormat": "{{molecule_symbols}} HF",
               "refId": "A"
             }
           ],
