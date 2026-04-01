@@ -357,10 +357,11 @@ def run_experiment(
     })
     _push_batch_metrics(state_file, tier, lanes)
 
+    run_timeout = int(os.getenv("RUN_TIMEOUT", "0")) or None
     logger.info("[%s] Starting: %s | opt=%s init=%s seed=%d ansatz=%s",
                 service, run_key.split("__")[0], optimizer, init_strategy, seed, ansatz)
     try:
-        result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, timeout=7200)
+        result = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, timeout=run_timeout)
         if result.returncode == 0:
             update_run_state(state_file, run_key, {
                 "state": "done",
@@ -384,9 +385,9 @@ def run_experiment(
         update_run_state(state_file, run_key, {
             "state": "timed_out",
             "completed_at": datetime.now(timezone.utc).isoformat(),
-            "error": "subprocess timed out after 7200s",
+            "error": f"subprocess timed out after {run_timeout}s",
         })
-        logger.error("[%s] Timed out after 7200s: %s", service, run_key)
+        logger.error("[%s] Timed out after %ss: %s", service, run_timeout, run_key)
         _push_batch_metrics(state_file, tier, lanes)
         return False
     except Exception as exc:
