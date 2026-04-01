@@ -101,6 +101,15 @@ instance/
 # Sphinx documentation
 docs/_build/
 
+# Notes on the implementation plans
+docs/roadmap/
+
+# Still very experimental
+terraform/
+
+# Examples (often not audited nor carefully maintainted scripts)
+examples/
+
 # PyBuilder
 .pybuilder/
 target/
