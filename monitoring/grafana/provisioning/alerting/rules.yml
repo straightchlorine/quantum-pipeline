@@ -111,12 +111,12 @@ groups:
               type: threshold
               expression: A
               conditions:
-                - evaluator: {type: lt, params: [30]}
+                - evaluator: {type: lt, params: [50]}
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "VQE accuracy score below 30 for {{ $labels.molecule_symbols }} / {{ $labels.optimizer }}"
+          summary: "VQE accuracy score below 50 for {{ $labels.molecule_symbols }} / {{ $labels.optimizer }}"
 
   # --- system resources ---
   - orgId: 1

@@ -131,6 +131,17 @@ class TestVQERunner:
         assert runner.report is False
         assert runner.run_results == []
         assert runner.backend_config is not None
+        assert runner.molecule_index is None
+
+    def test_initialization_with_molecule_index(self):
+        """Test VQERunner initialization with molecule_index parameter."""
+        runner = VQERunner(filepath='/path/to/molecules.xyz', basis_set='sto3g', molecule_index=0)
+        assert runner.molecule_index == 0
+
+    def test_molecule_index_none_by_default(self):
+        """Test molecule_index defaults to None (process all)."""
+        runner = VQERunner(filepath='/path/to/molecules.xyz', basis_set='sto3g')
+        assert runner.molecule_index is None
 
     def test_initialization_with_custom_backend(self):
         """Test VQERunner initialization with custom backend config."""
@@ -286,6 +297,84 @@ class TestVQERunner:
             assert runner.hamiltonian_time == 0.5
             assert runner.mapping_time == 0.5
             assert runner.vqe_time == 0.5
+
+    def test_run_with_molecule_index(self, multiple_molecules_file):
+        """Test run() with molecule_index filters to a single molecule."""
+        with (
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule_names') as mock_names,
+            patch('quantum_pipeline.runners.vqe_runner.validate_basis_set'),
+            patch('quantum_pipeline.runners.vqe_runner.PySCFDriver.from_molecule') as mock_driver,
+            patch('quantum_pipeline.runners.vqe_runner.JordanWignerMapper') as mock_mapper,
+            patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
+            patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
+        ):
+            mock_mol_a = Mock()
+            mock_mol_a.symbols = ['H', 'H']
+            mock_mol_b = Mock()
+            mock_mol_b.symbols = ['O', 'H', 'H']
+            mock_load.return_value = [mock_mol_a, mock_mol_b]
+            mock_names.return_value = ['H2', 'H2O']
+
+            mock_problem = Mock()
+            mock_second_q_op = Mock()
+            mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
+            mock_driver.return_value.run.return_value = mock_problem
+
+            mock_qubit_op = Mock()
+            mock_mapper.return_value.map.return_value = mock_qubit_op
+
+            mock_result = Mock()
+            mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
+            mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
+            mock_result.initial_data = Mock()
+            mock_result.initial_data.optimizer = 'COBYLA'
+            mock_result.initial_data.ansatz_reps = 3
+            mock_result.initial_data.hamiltonian = Mock()
+            mock_result.initial_data.ansatz = Mock()
+            mock_solver.return_value.solve.return_value = mock_result
+
+            mock_timer_context = MagicMock()
+            mock_timer_context.__enter__.return_value = mock_timer_context
+            mock_timer_context.elapsed = 0.5
+            mock_timer.return_value = mock_timer_context
+
+            runner = VQERunner(
+                filepath=str(multiple_molecules_file),
+                basis_set='sto3g',
+                molecule_index=1,
+            )
+            runner.run()
+
+            # Only one molecule processed (index 1 = H2O)
+            assert len(runner.run_results) == 1
+            assert runner.molecule_names == ['H2O']
+
+    def test_run_with_molecule_index_out_of_range(self, single_molecule_file):
+        """Test run() raises IndexError when molecule_index is out of range."""
+        with (
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule_names') as mock_names,
+            patch('quantum_pipeline.runners.vqe_runner.validate_basis_set'),
+        ):
+            mock_molecule = Mock()
+            mock_molecule.symbols = ['H', 'H']
+            mock_load.return_value = [mock_molecule]
+            mock_names.return_value = ['H2']
+
+            runner = VQERunner(
+                filepath=str(single_molecule_file),
+                basis_set='sto3g',
+                molecule_index=5,
+            )
+
+            with pytest.raises(IndexError, match='molecule-index 5 out of range'):
+                runner.run()
 
     def test_run_with_kafka_enabled(self, single_molecule_file):
         """Test running with Kafka enabled using a real file."""

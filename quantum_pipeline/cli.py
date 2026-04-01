@@ -38,6 +38,7 @@ def execute_simulation(**kwargs):
         kafka=kwargs['kafka'],
         kafka_config=kwargs['kafka_config'] if kwargs['kafka'] else None,
         backend_config=kwargs['backend_config'],
+        molecule_index=kwargs.get('molecule_index'),
     )
     runner.run()
 

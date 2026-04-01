@@ -55,9 +55,11 @@ class VQERunner(Runner):
         backend_gpu=None,
         backend_noise=None,
         backend_gpu_opts=None,
+        molecule_index=None,
     ):
         super().__init__()
         self.filepath = filepath
+        self.molecule_index = molecule_index
         self.basis_set = basis_set
         self.max_iterations = max_iterations
         self.ansatz_reps = ansatz_reps
@@ -367,6 +369,15 @@ class VQERunner(Runner):
 
     def run(self):
         self.molecules = self.load_molecules()
+
+        if self.molecule_index is not None:
+            if self.molecule_index >= len(self.molecules):
+                raise IndexError(
+                    f'molecule-index {self.molecule_index} out of range '
+                    f'(file has {len(self.molecules)} molecules)'
+                )
+            self.molecules = [self.molecules[self.molecule_index]]
+            self.molecule_names = [self.molecule_names[self.molecule_index]]
 
         try:
             with self.performance_monitor:

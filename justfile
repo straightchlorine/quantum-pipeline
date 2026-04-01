@@ -193,8 +193,8 @@ ml-up:
 # Stop the ML pipeline stack (including batch containers and state)
 ml-down:
     #!/usr/bin/env bash
-    docker compose --env-file .env -f compose/docker-compose.ml.yaml --profile batch down
     docker rm -f $(docker ps -q --filter "name=ml-quantum-pipeline" 2>/dev/null) 2>/dev/null || true
+    docker compose --env-file .env -f compose/docker-compose.ml.yaml --profile batch down
     rm -f gen/ml_batch_state.json
     echo "[  OK  ] ML stack stopped, batch state cleared"
 

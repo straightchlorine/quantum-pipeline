@@ -62,6 +62,13 @@ class QuantumPipelineArgParser:
         self.parser.add_argument(
             '-f', '--file', required=True, help='Path to molecule data file (JSON)'
         )
+        self.parser.add_argument(
+            '--molecule-index',
+            type=int,
+            default=None,
+            help='Process only the molecule at this 0-based index in the data file. '
+            'If not set, all molecules are processed.',
+        )
 
     def _add_simulation_config(self):
         """Add simulation configuration arguments."""

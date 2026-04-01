@@ -5,6 +5,7 @@ This module contains experimentally determined and high-level theoretical
 ground state energies for molecules used in VQE benchmarking.
 """
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -164,10 +165,15 @@ class ScientificReferenceDatabase:
         energy_error = vqe_energy - reference.ground_state_energy_hartree
         relative_error = abs(energy_error / reference.ground_state_energy_hartree) * 100
 
-        # Accuracy score (0-100, where 100 is perfect)
-        # Based on chemical accuracy (1 mH = 0.001 Hartree)
+        # Accuracy score (0-100) - logarithmic scale for monitoring
+        # Graduated measure: tracks improvement/degradation across the full error range
+        # ~100 at sub-mHa, ~94 at chemical accuracy (1 mHa), ~60 at 100 mHa, 0 at 100+ Ha
         chemical_accuracy_threshold = 0.001  # 1 millihartree
-        accuracy_score = max(0, 100 * (1 - abs(energy_error) / chemical_accuracy_threshold))
+        if abs(energy_error) < 1e-10:
+            accuracy_score = 100.0
+        else:
+            log_error = math.log10(abs(energy_error) * 1000 + 1)
+            accuracy_score = max(0.0, 100.0 * (1.0 - log_error / 5.0))
 
         return {
             'reference_available': True,

@@ -229,9 +229,10 @@ def make_run_key(
     init_strategy: str,
     seed: int,
     ansatz: str,
+    molecule: str,
 ) -> str:
-    """Unique key per container invocation (lane x optimizer x init x seed x ansatz)."""
-    return f"{lane}__{optimizer}__{init_strategy}__seed{seed}__{ansatz}"
+    """Unique key per container invocation (lane x molecule x optimizer x init x seed x ansatz)."""
+    return f"{lane}__{molecule}__{optimizer}__{init_strategy}__seed{seed}__{ansatz}"
 
 
 # ---------------------------------------------------------------------------
@@ -282,6 +283,7 @@ def build_docker_command(
     ansatz: str,
     config: dict,
     use_gpu: bool,
+    molecule_index: int | None = None,
 ) -> list[str]:
     """Build the `docker compose run --rm` command for one VQE invocation."""
     cmd = [
@@ -311,6 +313,9 @@ def build_docker_command(
         "--log-level", "INFO",
     ])
 
+    if molecule_index is not None:
+        cmd.extend(["--molecule-index", str(molecule_index)])
+
     if use_gpu:
         cmd.append("--gpu")
 
@@ -337,11 +342,12 @@ def run_experiment(
     state_file: Path,
     tier: int,
     lanes: dict[str, list],
+    molecule_index: int | None = None,
 ) -> bool:
-    """Execute a single VQE lane invocation. Returns True on success."""
+    """Execute a single VQE invocation for one molecule. Returns True on success."""
     cmd = build_docker_command(
         service, molecule_file, optimizer, init_strategy,
-        seed, ansatz, config, use_gpu,
+        seed, ansatz, config, use_gpu, molecule_index=molecule_index,
     )
 
     update_run_state(state_file, run_key, {
@@ -425,37 +431,55 @@ def generate_run_matrix(
     ansatz_types: list[str] = config.get("ansatz_types") or [config["ansatz"]]
     optimizers = _phase_sorted_optimizers(config["optimizers"])
 
-    # Determine which lanes are active (filter out empty lanes for this tier)
-    active_lanes: dict[str, str] = {}
+    # Determine which lanes are active and load their molecules
+    active_lanes: dict[str, list[dict]] = {}
+    lane_files: dict[str, str] = {}
     for lane, mol_file in lane_molecule_files.items():
         mol_path = REPO_ROOT / mol_file
         if not mol_path.exists():
             logger.warning("Molecule file not found for lane %s: %s", lane, mol_path)
             continue
         with open(mol_path) as f:
-            lane_molecules = [m["name"] for m in json.load(f)]
-        if molecule_filter and not any(m in molecule_filter for m in lane_molecules):
-            continue  # no molecules in this lane for this tier
-        active_lanes[lane] = mol_file
+            lane_mols = json.load(f)
+        if molecule_filter:
+            lane_mols_filtered = [
+                m for m in lane_mols if m["name"] in molecule_filter
+            ]
+            if not lane_mols_filtered:
+                continue
+        active_lanes[lane] = lane_mols
+        lane_files[lane] = mol_file
 
     lanes: dict[str, list[dict]] = {lane: [] for lane in active_lanes}
 
-    for lane, mol_file in active_lanes.items():
-        for ansatz in ansatz_types:
-            for optimizer in optimizers:
-                for init_strategy in config["init_strategies"]:
-                    for seed in config["seeds"]:
-                        key = make_run_key(lane, optimizer, init_strategy, seed, ansatz)
-                        lanes[lane].append({
-                            "key": key,
-                            "lane": lane,
-                            "optimizer": optimizer,
-                            "init_strategy": init_strategy,
-                            "seed": seed,
-                            "ansatz": ansatz,
-                            "molecule_file": mol_file,
-                            "config": config,
-                        })
+    for lane, lane_mols in active_lanes.items():
+        mol_file = lane_files[lane]
+        # Build per-molecule index mapping (before filtering)
+        mol_index_by_name = {m["name"]: i for i, m in enumerate(lane_mols)}
+        mols_to_run = lane_mols
+        if molecule_filter:
+            mols_to_run = [m for m in lane_mols if m["name"] in molecule_filter]
+
+        for mol_data in mols_to_run:
+            mol_name = mol_data["name"]
+            mol_idx = mol_index_by_name[mol_name]
+            for ansatz in ansatz_types:
+                for optimizer in optimizers:
+                    for init_strategy in config["init_strategies"]:
+                        for seed in config["seeds"]:
+                            key = make_run_key(lane, optimizer, init_strategy, seed, ansatz, mol_name)
+                            lanes[lane].append({
+                                "key": key,
+                                "lane": lane,
+                                "optimizer": optimizer,
+                                "init_strategy": init_strategy,
+                                "seed": seed,
+                                "ansatz": ansatz,
+                                "molecule_file": mol_file,
+                                "molecule_index": mol_idx,
+                                "molecule_name": mol_name,
+                                "config": config,
+                            })
 
     return lanes
 
@@ -488,7 +512,7 @@ def run_lane(
             cmd = build_docker_command(
                 service, run["molecule_file"], run["optimizer"],
                 run["init_strategy"], run["seed"], run["ansatz"],
-                run["config"], use_gpu,
+                run["config"], use_gpu, molecule_index=run.get("molecule_index"),
             )
             logger.info("[DRY RUN][%s] %s", lane, " ".join(cmd))
             results["done"] += 1
@@ -507,6 +531,7 @@ def run_lane(
             state_file=state_file,
             tier=tier,
             lanes=lanes,
+            molecule_index=run.get("molecule_index"),
         )
         if success:
             results["done"] += 1
