@@ -246,9 +246,6 @@ class VQERunner(Runner):
             self.logger.info(
                 f'  Accuracy Score: {accuracy_metrics["accuracy_score"]:.1f}/100'
             )
-            self.logger.info(
-                f'  Chemical Accuracy: {"✓" if accuracy_metrics["within_chemical_accuracy"] else "✗"}'
-            )
 
         return accuracy_metrics
 
@@ -273,7 +270,6 @@ class VQERunner(Runner):
             'energy_error_hartree': accuracy_metrics.get('energy_error_hartree') or 0,
             'energy_error_millihartree': accuracy_metrics.get('energy_error_millihartree') or 0,
             'accuracy_score': accuracy_metrics.get('accuracy_score') or 0,
-            'within_chemical_accuracy': 1 if accuracy_metrics.get('within_chemical_accuracy') else 0,
         }
 
     def _process_molecule(self, molecule_id, molecule) -> VQEDecoratedResult:

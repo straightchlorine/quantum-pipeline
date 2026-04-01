@@ -542,7 +542,6 @@ class PerformanceMonitor:
                 'energy_error_hartree',
                 'energy_error_millihartree',
                 'accuracy_score',
-                'within_chemical_accuracy',
             ]:
                 value = vqe_data.get(metric_name)
                 if isinstance(value, (int, float)):

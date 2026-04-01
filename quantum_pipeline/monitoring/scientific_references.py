@@ -159,6 +159,7 @@ class ScientificReferenceDatabase:
                 'energy_error_millihartree': None,
                 'relative_error_percent': None,
                 'accuracy_score': None,
+                'basis_set_correction_needed': False,
             }
 
         # Calculate errors
@@ -167,8 +168,7 @@ class ScientificReferenceDatabase:
 
         # Accuracy score (0-100) - logarithmic scale for monitoring
         # Graduated measure: tracks improvement/degradation across the full error range
-        # ~100 at sub-mHa, ~94 at chemical accuracy (1 mHa), ~60 at 100 mHa, 0 at 100+ Ha
-        chemical_accuracy_threshold = 0.001  # 1 millihartree
+        # ~100 at sub-mHa, ~94 at 1 mHa, ~60 at 100 mHa, 0 at 100+ Ha
         if abs(energy_error) < 1e-10:
             accuracy_score = 100.0
         else:
@@ -184,7 +184,6 @@ class ScientificReferenceDatabase:
             'energy_error_millihartree': energy_error * 1000,
             'relative_error_percent': relative_error,
             'accuracy_score': min(100, accuracy_score),
-            'within_chemical_accuracy': abs(energy_error) <= chemical_accuracy_threshold,
             'basis_set_correction_needed': basis_set.lower() in ['sto3g', 'sto-3g'],
         }
 

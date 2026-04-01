@@ -89,20 +89,6 @@ class TestAccuracyMetrics:
         assert result['reference_available'] is False
         assert result['accuracy_score'] is None
 
-    def test_within_chemical_accuracy_flag(self, ref_db):
-        ref = ref_db.get_reference('H2')
-        # Within chemical accuracy (< 1 mHa)
-        vqe_energy = ref.ground_state_energy_hartree + 0.0005
-        result = ref_db.calculate_accuracy_metrics('H2', vqe_energy)
-        assert result['within_chemical_accuracy'] is True
-
-    def test_outside_chemical_accuracy_flag(self, ref_db):
-        ref = ref_db.get_reference('H2')
-        # Outside chemical accuracy (> 1 mHa)
-        vqe_energy = ref.ground_state_energy_hartree + 0.01
-        result = ref_db.calculate_accuracy_metrics('H2', vqe_energy)
-        assert result['within_chemical_accuracy'] is False
-
     def test_energy_error_fields(self, ref_db):
         ref = ref_db.get_reference('H2')
         error_hartree = 0.005

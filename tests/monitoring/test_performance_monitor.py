@@ -203,7 +203,6 @@ class TestPrometheusExport:
             'reference_energy': -1.17447901,
             'energy_error_hartree': 0.00007901,
             'accuracy_score': 99.2,
-            'within_chemical_accuracy': 1,
         }
 
         prometheus_output = monitor._convert_vqe_to_prometheus(vqe_data)
