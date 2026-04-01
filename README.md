@@ -17,33 +17,35 @@
 
 ---
 
-A framework for running quantum algorithms, with optional Kafka streaming, Spark processing, Iceberg storage, and Airflow orchestration. Currently implements the Variational Quantum Eigensolver (VQE) for ground-state energy estimation.
+A framework for running quantum algorithms, with optional Kafka streaming, Spark processing, and Airflow orchestration. Currently implements the Variational Quantum Eigensolver (VQE) for ground-state energy estimation. Built as an engineering thesis project.
 
 ## Quick Start
 
 ```bash
 pip install quantum-pipeline
-quantum-pipeline -f molecules.json -b sto-3g --max-iterations 100 --optimizer L-BFGS-B
+quantum-pipeline -f molecules.json -b sto3g --max-iterations 100 --optimizer L-BFGS-B
 ```
 
 Or with Docker:
 
 ```bash
-docker pull straightchlorine/quantum-pipeline:latest
-docker run --rm straightchlorine/quantum-pipeline:latest -f /app/data/molecule.json -b sto-3g
+docker pull straightchlorine/quantum-pipeline:cpu
+docker run --rm straightchlorine/quantum-pipeline:cpu -f /app/data/molecule.json -b sto3g
 ```
 
 See the [installation guide](https://docs.qp.piotrkrzysztof.dev/getting-started/installation/) for detailed setup, including GPU acceleration and full platform deployment.
 
 ## Features
 
-**Quantum Computing** — VQE execution with multiple optimizers (L-BFGS-B tested extensively, 15+ others available), configurable ansatz circuits, multiple basis sets (sto-3g, 6-31g, cc-pVDZ), and GPU acceleration via CUDA. [Learn more](https://docs.qp.piotrkrzysztof.dev/scientific/vqe-algorithm/)
+**Quantum Computing** -- VQE execution with multiple optimizers (L-BFGS-B, COBYLA, SLSQP, and others), configurable ansatz circuits (EfficientSU2, RealAmplitudes, ExcitationPreserving), parameter initialization strategies (random or Hartree-Fock based), multiple basis sets (sto-3g, 6-31g, cc-pVDZ), and GPU acceleration via CUDA. [Learn more](https://docs.qp.piotrkrzysztof.dev/scientific/vqe-algorithm/)
 
-**Data Platform** — Real-time Kafka streaming with Avro serialization, Spark-based ML feature engineering, Iceberg data lake with time-travel, Airflow workflow orchestration. [Architecture overview](https://docs.qp.piotrkrzysztof.dev/architecture/)
+**Data Platform** -- Real-time Kafka streaming with Avro serialization, Spark-based ML feature engineering, Airflow workflow orchestration. [Architecture overview](https://docs.qp.piotrkrzysztof.dev/architecture/)
 
-**Deployment** — Multi-service Docker Compose stack with GPU support. [Deployment guide](https://docs.qp.piotrkrzysztof.dev/deployment/)
+**ML Pipeline** -- Convergence prediction and energy estimation models trained on VQE experiment data. Includes preprocessing, experiment tracking, and a dedicated Docker Compose stack (`just ml-up` / `just ml-down`).
 
-**Monitoring** — Prometheus metrics, Grafana dashboards, energy convergence tracking, reference validation against literature values for 9 molecules. [Monitoring setup](https://docs.qp.piotrkrzysztof.dev/monitoring/)
+**Monitoring** -- Prometheus metrics export, Grafana dashboards, resource tracking. Configurable via environment variables (`MONITORING_ENABLED`, `PUSHGATEWAY_URL`, `MONITORING_INTERVAL`, `MONITORING_EXPORT_FORMAT`) or CLI flags. [Monitoring setup](https://docs.qp.piotrkrzysztof.dev/monitoring/)
+
+**Deployment** -- Docker images for CPU and GPU (`quantum-pipeline:cpu`, `quantum-pipeline:gpu`), multi-service Docker Compose stack. [Deployment guide](https://docs.qp.piotrkrzysztof.dev/deployment/)
 
 ## Python API
 
@@ -54,39 +56,11 @@ runner = VQERunner(
     filepath='data/molecules.json',
     basis_set='sto3g',
     max_iterations=100,
-    convergence_threshold=1e-6,
     optimizer='L-BFGS-B',
     ansatz_reps=3,
 )
 runner.run()
 ```
-
-## Architecture
-
-```
-┌─────────────────┐    ┌──────────────┐    ┌───────────────┐
-│  Quantum        │───>│ Apache Kafka │───>│ Apache Spark  │
-│  Pipeline (VQE) │    │ (Streaming)  │    │ (Processing)  │
-└─────────────────┘    └──────────────┘    └───────────────┘
-                              │                     │
-                              v                     v
-┌─────────────────┐    ┌──────────────┐    ┌───────────────┐
-│ Apache Airflow  │    │   Schema     │    │    Apache     │
-│ (Orchestration) │    │   Registry   │    │    Iceberg    │
-└─────────────────┘    └──────────────┘    └───────────────┘
-         │                    │                     │
-         └────────────────────┼─────────────────────┘
-                              v
-                    ┌──────────────────┐
-                    │  MinIO Storage   │
-                    └──────────────────┘
-```
-
-For detailed architecture documentation, see the [system design](https://docs.qp.piotrkrzysztof.dev/architecture/system-design/) and [data flow](https://docs.qp.piotrkrzysztof.dev/architecture/data-flow/) pages.
-
-## Contributing
-
-This project is not currently open for contributions as it is a university project. Feel free to fork it and make your own version.
 
 ## License
 
