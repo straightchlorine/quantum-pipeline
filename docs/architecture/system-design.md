@@ -105,7 +105,6 @@ graph LR
 
 For dashboard configuration, see [Monitoring](../monitoring/index.md).
 
----
 
 ## Apache Kafka Integration
 
@@ -143,7 +142,6 @@ Producer configuration is in
 (servers, topic, retries, acks, timeout). Security options (SSL, SASL) are in
 [`SecurityConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/security.py#L60).
 
----
 
 ## Garage Storage
 
@@ -212,7 +210,6 @@ Each table has Iceberg's `metadata/` (snapshots, manifests) and `data/`
     Garage is S3 compatible. Use `aws configure --profile garage` with your
     `S3_ACCESS_KEY` / `S3_SECRET_KEY` from `.env` to browse files wth `aws s3`.
 
----
 
 ## Apache Airflow Orchestration
 
@@ -287,7 +284,6 @@ sequenceDiagram
     SSO->>S: Task success
 ```
 
----
 
 ## Incremental Processing
 
@@ -356,7 +352,6 @@ joins these into 2 ML-ready tables:
 All tables live under `quantum_catalog.quantum_features` (Hadoop catalog backed
 by Garage).
 
----
 
 ## Monitoring Stack
 
@@ -371,7 +366,6 @@ by Garage).
 Grafana dashboards at `http://grafana:3000`. For configuration details, see
 [Monitoring](../monitoring/index.md).
 
----
 
 ## ML Modules
 
