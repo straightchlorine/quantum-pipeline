@@ -1,14 +1,12 @@
 # Quick Start
 
-Get started with Quantum Pipeline in under 5 minutes by running a simple VQE simulation for the H₂ molecule.
+Run a VQE simulation for the H\(_2\) molecule in a few steps.
 
----
+## Molecule data
 
-## Basic VQE Simulation
+The repository includes `data/molecules.json` with 9 molecules (H\(_2\), H\(_2\)O, He\(_2\), LiH, BeH, BH, CH\(_4\), NH\(_3\), N\(_2\)). You can use it directly.
 
-### Step 1: Prepare Molecule Data
-
-Create a file `h2_molecule.json` with the following content:
+To create your own file, use this JSON format:
 
 ```json
 [
@@ -23,60 +21,48 @@ Create a file `h2_molecule.json` with the following content:
 ]
 ```
 
-!!! info "Molecule Format"
-    - `symbols`: Atomic symbols
-    - `coords`: 3D coordinates in specified units
-    - `multiplicity`: Spin multiplicity (1 = singlet, 2 = doublet, etc.)
-    - `charge`: Total molecular charge
-    - `units`: Coordinate units (`angstrom` or `bohr`)
-    - `masses`: Atomic masses (optional)
+The molecule format fields:
 
----
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `symbols` | list of str | Yes | Atomic symbols (e.g. `"H"`, `"O"`, `"Li"`) |
+| `coords` | list of [x, y, z] | Yes | 3D coordinates for each atom |
+| `multiplicity` | int | Yes | Spin multiplicity (1 = singlet, 2 = doublet, etc.) |
+| `charge` | int | Yes | Total molecular charge |
+| `units` | str | Yes | `"angstrom"` or `"bohr"` |
+| `masses` | list of float | No | Atomic masses (auto-detected if omitted) |
 
-### Step 2: Run VQE Simulation
+## Run a simulation
 
-=== "Command Line"
+=== "CLI"
     ```bash
-    python quantum_pipeline.py \
-        --file h2_molecule.json \
+    quantum-pipeline \
+        --file data/molecules.json \
+        --molecule-index 0 \
         --basis sto3g \
         --max-iterations 100 \
-        --optimizer COBYLA \
+        --optimizer L-BFGS-B \
         --report
-    ```
-
-=== "Python API"
-    ```python
-    from quantum_pipeline.runners.vqe_runner import VQERunner
-
-    # Create runner
-    runner = VQERunner(
-        filepath='h2_molecule.json',
-        basis_set='sto3g',
-        max_iterations=100,
-        optimizer='COBYLA',
-        ansatz_reps=2
-    )
-
-    # Run simulation
-    runner.run()
     ```
 
 === "Docker"
     ```bash
-    docker run --rm -v $(pwd):/data \
-        straightchlorine/quantum-pipeline:latest \
-        --file /data/h2_molecule.json \
+    docker run --rm -v $(pwd)/data:/data \
+        straightchlorine/quantum-pipeline:cpu \
+        --file /data/molecules.json \
+        --molecule-index 0 \
         --basis sto3g \
         --max-iterations 100 \
-        --optimizer COBYLA
+        --optimizer L-BFGS-B
     ```
 
----
+`--molecule-index 0` selects the first molecule (H\(_2\)). Without it, all molecules in the file are processed.
 
-### Step 3: View Results
+The `--report` flag generates a PDF in `gen/` with molecular structure
+visualization, energy convergence plot, and Hamiltonian operator coefficients.
+See an [example report (H2, 6-31g, L-BFGS-B, HF init)](https://qp-docs.codextechnologies.org/mkdocs/quantum_report.pdf).
 
-The simulation outputs:
+## Expected output
 
 ```
 2025-06-15 11:33:36,762 - VQERunner - INFO - Processing molecule 1:
@@ -98,90 +84,54 @@ Molecule:
 Final Energy: -1.1372 Hartree
 ```
 
-!!! info "Expected Result"
-    For H₂ with STO-3G basis, the ground state energy should be approximately **-1.137 Hartree**, which is within chemical accuracy of experimental values.
+For H\(_2\) with STO-3G, the ground state energy should be approximately -1.137 Hartree.
 
-<figure>
-  <img src="https://qp-docs.codextechnologies.org/mkdocs/convergence_HH.png"
-       alt="Energy convergence plot for H₂ molecule VQE simulation">
-  <figcaption>Figure 1. Energy convergence during VQE optimization of the H₂ molecule with the STO-3G basis set.</figcaption>
-</figure>
+## Key parameters
 
----
-
-## Understanding the Parameters
-
-| Parameter | Description | Example |
+| Parameter | Description | Default |
 |-----------|-------------|---------|
-| `--file` | Path to molecule data file | `h2_molecule.json` |
-| `--basis` | Basis set for simulation | `sto3g`, `6-31g`, `cc-pvdz` |
+| `-f` / `--file` | Path to molecule JSON file (required) | - |
+| `--molecule-index` | 0-based index of a single molecule to process | all |
+| `-b` / `--basis` | Basis set: `sto3g`, `6-31g`, `cc-pvdz` | `sto3g` |
 | `--max-iterations` | Maximum VQE iterations | `100` |
-| `--optimizer` | Optimization algorithm | `COBYLA`, `L-BFGS-B`, `SLSQP` |
-| `--report` | Generate PDF report | Flag (no value) |
+| `--optimizer` | Optimization algorithm (see below) | `L-BFGS-B` |
+| `--ansatz` | Ansatz type: `EfficientSU2`, `RealAmplitudes`, `ExcitationPreserving` | `EfficientSU2` |
+| `-ar` / `--ansatz-reps` | Ansatz repetition depth | `2` |
+| `--init-strategy` | Parameter initialization: `random` or `hf` | `random` |
+| `--seed` | Random seed for reproducibility | None |
+| `--shots` | Number of shots per circuit execution | `1024` |
+| `--simulation-method` | Simulator backend method | `statevector` |
+| `--gpu` | Enable GPU acceleration | off |
+| `--report` | Generate a PDF report | off |
+| `--kafka` | Stream results to Kafka | off |
+| `--convergence` | Enable convergence threshold (replaces fixed iterations) | off |
+| `--threshold` | Convergence threshold value (requires `--convergence`) | `1e-6` |
+| `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO` |
 
-See [Configuration Guide](../usage/configuration.md) for all available parameters.
+See [Configuration](../usage/configuration.md) for the full parameter reference.
 
----
+## Convergence-based optimization
 
-## Running Multiple Molecules
-
-Create a file with multiple molecules:
-
-```json
-[
-    {
-        "symbols": ["H", "H"],
-        "coords": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-        "multiplicity": 1,
-        "charge": 0,
-        "units": "angstrom"
-    },
-    {
-        "symbols": ["O", "H", "H"],
-        "coords": [[0.0, 0.0, 0.0], [0.0, 0.757, 0.586], [0.0, -0.757, 0.586]],
-        "multiplicity": 1,
-        "charge": 0,
-        "units": "angstrom"
-    }
-]
-```
-
-Run the simulation:
+Instead of a fixed iteration count, stop when the energy change is below a threshold:
 
 ```bash
-python quantum_pipeline.py \
-    --file molecules.json \
-    --basis sto3g \
-    --max-iterations 150 \
-    --optimizer L-BFGS-B
-```
-
----
-
-## Convergence-Based Optimization
-
-Instead of fixed iterations, use convergence threshold:
-
-```bash
-python quantum_pipeline.py \
-    --file h2_molecule.json \
+quantum-pipeline \
+    --file data/molecules.json \
+    --molecule-index 0 \
     --basis sto3g \
     --convergence --threshold 1e-6 \
     --optimizer L-BFGS-B
 ```
 
-!!! warning "Mutually Exclusive"
-    Do not use both `--max-iterations` and `--convergence` together.
+Do not combine `--max-iterations` with `--convergence`. If you set `--convergence`, the default iteration limit is removed. If you explicitly set both, the iteration cap still applies but convergence is checked at each step.
 
----
-
-## Enabling GPU Acceleration
+## GPU acceleration
 
 If you have an NVIDIA GPU:
 
 ```bash
-python quantum_pipeline.py \
-    --file h2_molecule.json \
+quantum-pipeline \
+    --file data/molecules.json \
     --basis sto3g \
     --max-iterations 100 \
     --gpu \
@@ -192,116 +142,40 @@ Or with Docker:
 
 ```bash
 docker run --rm --gpus all \
-    straightchlorine/quantum-pipeline:latest-gpu \
-    --file /app/data/h2_molecule.json \
+    straightchlorine/quantum-pipeline:gpu \
+    --file /app/data/molecules.json \
     --gpu \
     --max-iterations 100
 ```
 
-See [GPU Acceleration Guide](../deployment/gpu-acceleration.md) for setup.
+See [GPU Acceleration Guide](../deployment/gpu-acceleration.md) for setup details.
 
----
+## Streaming to Kafka
 
-## Streaming Results to Kafka
-
-Enable real-time data streaming:
+Send VQE results to a Kafka topic in real time:
 
 ```bash
-python quantum_pipeline.py \
-    --file molecules.json \
+quantum-pipeline \
+    --file data/molecules.json \
     --basis sto3g \
     --max-iterations 100 \
     --kafka
 ```
 
-!!! info "Kafka Required"
-    This requires Kafka and Schema Registry to be running. See [Kafka Streaming Guide](../data-platform/kafka-streaming.md).
+This requires Kafka and Schema Registry to be running. See [Kafka Streaming](../data-platform/kafka-streaming.md).
 
----
+## Common issues
 
-## Generating Reports
+**Simulation takes too long?** Use fixed iterations instead of `--convergence`. Consider starting with `sto3g` basis set.
 
-Generate a PDF report with visualizations:
+**Results do not match reference energies?** Random initialization can trap the optimizer in local minima, especially with `cc-pvdz`. Try `--init-strategy hf` for Hartree-Fock-based initialization, or increase `--max-iterations`.
 
-```bash
-python quantum_pipeline.py \
-    --file h2_molecule.json \
-    --basis sto3g \
-    --max-iterations 100 \
-    --report
-```
+**Memory errors with large molecules?** Use `--simulation-method matrix_product_state`, reduce `--ansatz-reps`, or use a smaller basis set.
 
-The report includes:
+See the [Troubleshooting Guide](../reference/troubleshooting.md) for more.
 
-- Molecular structure visualization
-- Energy convergence plot
-- Hamiltonian coefficients
-- Optimal parameters
-- Timing breakdown
+## Next steps
 
----
-
-## Example: Advanced Configuration
-
-A more advanced example with custom parameters:
-
-```bash
-python quantum_pipeline.py \
-    --file molecules.json \
-    --basis cc-pvdz \
-    --max-iterations 200 \
-    --optimizer L-BFGS-B \
-    --ansatz-reps 5 \
-    --shots 2048 \
-    --optimization-level 3 \
-    --simulation-method statevector \
-    --report \
-    --kafka \
-    --log-level DEBUG
-```
-
-This configuration:
-
-- Uses a larger basis set (`cc-pvdz`) for higher accuracy
-- Allows more iterations for convergence
-- Uses gradient-based optimizer (`L-BFGS-B`)
-- Increases ansatz depth (`ansatz-reps=5`)
-- Enables both reporting and Kafka streaming
-- Sets verbose logging
-
----
-
-## What's Next?
-
-Now that you've run your first simulation:
-
-1. **[Explore Configuration Options](../usage/configuration.md)** - Learn about all parameters
-2. **[Choose the Right Optimizer](../usage/optimizers.md)** - Multiple optimizers available
-3. **[Understand System Architecture](../architecture/index.md)** - How it all works
-4. **[Deploy Full Platform](../deployment/docker-compose.md)** - Run with data engineering
-5. **[Monitor Performance](../monitoring/index.md)** - Track system metrics
-
----
-
-## Common Issues
-
-??? question "Simulation takes too long"
-    - Try using fixed iterations instead of `--convergence`
-    - Choose a faster optimizer like `L-BFGS-B`
-    - Start with smaller basis sets like `sto3g`
-
-??? question "Memory errors with large molecules"
-    - Use `--simulation-method matrix_product_state` for memory efficiency
-    - Reduce `--ansatz-reps` to decrease circuit depth
-    - Consider using a smaller basis set
-    - Enable GPU to offload memory to VRAM (if available)
-
-??? question "Results don't match reference energies"
-    - This can also be ansatz initialization issue - currently it's random, which may cause process to get stuck
-      in local minima. This issue is something to be addressed in the future.
-    - Increase `--max-iterations` (try 200-500)
-    - Use tighter convergence threshold: `--convergence --threshold 1e-8`
-    - Try different optimizers (L-BFGS-B recommended)
-    - Use larger basis sets for better accuracy
-
-See [Troubleshooting Guide](../reference/troubleshooting.md) for more help.
+- [Basic Usage](basic-usage.md) - workflows, configuration files, output structure
+- [Optimizer Guide](../usage/optimizers.md) - choosing the right optimizer
+- [Architecture](../architecture/index.md) - how the system works

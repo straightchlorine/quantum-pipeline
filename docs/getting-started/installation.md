@@ -1,258 +1,149 @@
 # Installation
 
-This guide covers different installation methods for the Quantum Pipeline framework.
-
----
-
 ## Prerequisites
 
-- **Python**: 3.10, 3.11, or 3.12
-- **Operating System**: Linux (tested), macOS (untested, CPU only in theory), Windows (untested, via WSL2 in theory)
-- **Memory**: Minimum 8 GB RAM (16 GB recommended)
-- **Optional**: NVIDIA GPU with CUDA support for GPU acceleration
+- **Python**: 3.12 (the only supported version)
+- **OS**: Linux (tested). macOS and Windows (via WSL2) are untested but may work for CPU-only use.
+- **Optional**: NVIDIA GPU with CUDA for GPU acceleration
 
----
+## From source
 
-## Installation Methods
-
-### Method 1: PyPI Package
-
-Install the latest stable release from PyPI:
+Clone the repository and install:
 
 ```bash
-pip install quantum-pipeline
-```
+# codeberg mirror
+git clone https://codeberg.org/piotrkrzysztof/quantum-pipeline.git
 
-Verify the installation:
-
-```bash
-python -c "import quantum_pipeline; print(quantum_pipeline.__version__)"
-```
-
----
-
-### Method 2: From Source
-
-Clone the repository and install in development mode:
-
-```bash
-# Clone the repository
+# or github
 git clone https://github.com/straightchlorine/quantum-pipeline.git
+
 cd quantum-pipeline
 
 # Install with PDM
 pdm install
 
-# Or install with pip
+# Or with pip
 pip install -e .
 ```
 
----
+## Docker
 
-### Method 3: Docker
+Pre-built images are available on Docker Hub:
 
-Pull pre-built images from Docker Hub:
-
-=== "CPU Version"
+=== "CPU"
     ```bash
-    # Latest stable release
-    docker pull straightchlorine/quantum-pipeline:latest
+    docker pull straightchlorine/quantum-pipeline:cpu
 
-    # Run a simple simulation
-    docker run --rm straightchlorine/quantum-pipeline:latest \
+    docker run --rm straightchlorine/quantum-pipeline:cpu \
         --file /app/data/molecules.json \
         --basis sto3g \
         --max-iterations 100
     ```
 
-=== "GPU Version"
+=== "GPU"
     ```bash
-    # GPU-enabled version (requires NVIDIA Docker)
-    docker pull straightchlorine/quantum-pipeline:latest-gpu
+    docker pull straightchlorine/quantum-pipeline:gpu
 
-    # Run with GPU acceleration
     docker run --rm --gpus all \
-        straightchlorine/quantum-pipeline:latest-gpu \
+        straightchlorine/quantum-pipeline:gpu \
         --file /app/data/molecules.json \
         --basis sto3g \
         --gpu \
         --max-iterations 100
     ```
 
-!!! warning "GPU Prerequisites"
-    For GPU support, you need:
+GPU images require the NVIDIA Container Toolkit and Docker configured with the nvidia runtime. See the [GPU Acceleration Guide](../deployment/gpu-acceleration.md) for setup.
 
-    - NVIDIA GPU with CUDA support
-    - NVIDIA Container Toolkit installed
-    - Docker configured with nvidia runtime
-
-    See [GPU Acceleration Guide](../deployment/gpu-acceleration.md) for setup instructions.
-
----
-
-### Method 4: Full Platform with Docker Compose
-
-Deploy the complete data engineering platform:
+To build images locally:
 
 ```bash
-# Clone repository
-git clone https://github.com/straightchlorine/quantum-pipeline.git
+just docker-build {all, cpu, gpu}
+```
+
+## Full platform with Docker Compose
+
+This deploys the VQE runner alongside Kafka, Spark, Airflow, Garage, and
+monitoring. The stack is defined in
+[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml).
+
+The fastest way to get started is the setup script, which generates `.env` with
+random secrets, configures Garage (S3 storage), creates buckets, and sets up
+access keys - all in one step:
+
+```bash
+# git clone https://github.com/straightchlorine/quantum-pipeline.git
+git clone https://codeberg.org/piotrkrzysztof/quantum-pipeline.git
+
 cd quantum-pipeline
 
-# Copy environment file
-cp .env.thesis.example .env
-# Edit .env with your configuration
+# Automated first-time setup (generates .env, configures Garage)
+just ml-setup
+# Or without just: bash scripts/ml-setup.sh
 
-# Start all services
-docker compose up -d
+# Start the stack
+just ml-up
+# Or: docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d
+
+# Stop the stack
+just ml-down
 ```
 
-This launches:
+The
+[`ml-setup.sh`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/scripts/ml-setup.sh)
+script handles everything you would otherwise have to fill in manually:
+Garage RPC and admin secrets, Airflow passwords, Fernet key, JWT secret,
+S3 access keys, and bucket creation. If `.env` already exists, it skips
+what is already configured.
 
-- Quantum Pipeline (CPU/GPU)
-- Apache Kafka with Schema Registry
-- Apache Spark cluster (master + workers)
-- Apache Airflow (webserver, scheduler, triggerer)
-- MinIO object storage
-- PostgreSQL database
-- Prometheus & Grafana monitoring (optional)
+If you prefer manual setup (or have existing deployments you'd like to use),
+copy `.env.ml.example` to `.env` and fill in the values yourself before
+running `just ml-up`.
 
-!!! info "Service URLs"
-    After starting, access web interfaces at:
+Services started:
 
-    - **Airflow**: http://localhost:8084
-    - **Spark Master**: http://localhost:8080
-    - **MinIO Console**: http://localhost:9001
-    - **Grafana**: http://localhost:3000 (if monitoring enabled)
+| Service | URL |
+|---------|-----|
+| Airflow | `http://localhost:8084` |
+| Spark Master | `http://localhost:8080` |
+| Grafana | `http://localhost:3000` |
+| Garage S3 API | `http://localhost:3901` |
+| Schema Registry | `http://localhost:8081` |
+| MLflow | `http://localhost:5000` |
 
-See [Docker Compose Guide](../deployment/docker-compose.md) for detailed configuration.
+See [Docker Compose Guide](../deployment/docker-compose.md) for details.
 
----
-
-## Verify Installation
-
-After installation, verify everything works:
-
-```python
-from quantum_pipeline.runners.vqe_runner import VQERunner
-
-# Create runner instance
-runner = VQERunner(
-    filepath='data/molecules.json',
-    basis_set='sto3g',
-    max_iterations=10,
-    optimizer='COBYLA'
-)
-
-print("Quantum Pipeline installed successfully.")
-```
-
----
-
-## Optional Dependencies
-
-### Development Tools
-
-For contributing or development:
+## Verify installation
 
 ```bash
-pdm install -G dev
-
-# Or with pip
-pip install -e ".[dev]"
+quantum-pipeline --file data/molecules.json --basis sto3g --max-iterations 10
 ```
 
-This includes:
+If this completes without errors, the installation is working.
 
-- `pytest` - Testing framework
-- `debugpy` - Python debugger
-- `ruff` - Fast Python linter
+## Optional dependency groups
 
-### Documentation Tools
+Install extra groups with PDM or pip:
 
-To build documentation locally:
+| Group | Command | What it adds |
+|-------|---------|--------------|
+| `dev` | `pdm install -G dev` | pytest, ruff, mypy, debugpy, testcontainers |
+| `docs` | `pdm install -G docs` | mkdocs, mkdocs-material, pymdown-extensions |
+| `ml` | `pdm install -G ml` | scikit-learn, xgboost, mlflow, jupyterlab, seaborn |
 
-```bash
-pdm install -G docs
+With pip, use `pip install -e ".[dev]"`, `pip install -e ".[docs]"`, or `pip install -e ".[ml]"`.
 
-# Or with pip
-pip install -e ".[docs]"
-
-mkdocs serve
-```
-
-View documentation at http://127.0.0.1:8000
-
-### Airflow Integration
-
-For running data processing workflows:
-
-```bash
-pdm install -G airflow
-
-# Or with pip
-pip install -e ".[airflow]"
-```
-
----
-
-## Platform-Specific Notes
-
-### Linux
-
-Quantum Pipeline is primarily developed and tested on Linux. All features are fully supported.
-
-### macOS
-
-**Not tested.** Basic functionality should work in theory, but:
-
-- GPU acceleration is not available (CUDA requires Linux/Windows)
-
-### Windows
-
-**Not tested.** Support via WSL2 should work in theory:
-
-1. Install WSL2 with Ubuntu
-2. Install Docker Desktop with WSL2 backend
-3. Follow Linux installation instructions
-
----
+After installing `docs`, run `mkdocs serve` and open `http://127.0.0.1:8000`.
 
 ## Troubleshooting
 
-### Import Errors
+If you get import errors after installing, make sure you installed in editable mode (`pip install -e .`) or with PDM (`pdm install`). Setting `PYTHONPATH` manually is not necessary when installed properly.
 
-If you encounter import errors:
+For Docker issues, check that the daemon is running (`docker ps`) and inspect logs with `docker compose logs quantum-pipeline`.
 
-```bash
-# Ensure quantum_pipeline is in your Python path
-export PYTHONPATH="${PYTHONPATH}:/path/to/quantum-pipeline"
+See the [Troubleshooting Guide](../reference/troubleshooting.md) for more.
 
-# Or install in development mode
-pip install -e .
-```
+## Next steps
 
-### Docker Issues
-
-If Docker containers fail to start:
-
-```bash
-# Check Docker daemon is running
-docker ps
-
-# View logs for specific service
-docker compose logs quantum-pipeline
-
-# Restart all services
-docker compose restart
-```
-
-See [Troubleshooting Guide](../reference/troubleshooting.md) for more solutions.
-
----
-
-## Next Steps
-
-- **[Quick Start Guide](quick-start.md)** - Run your first VQE simulation
-- **[Configuration Options](../usage/configuration.md)** - Customize your setup
-- **[Docker Deployment](../deployment/docker-compose.md)** - Deploy full platform
+- [Quick Start](quick-start.md) - run your first VQE simulation
+- [Configuration](../usage/configuration.md) - all available parameters
+- [Docker Compose](../deployment/docker-compose.md) - deploy the full platform
