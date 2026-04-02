@@ -2,8 +2,6 @@
 
 This page provides solutions to common issues encountered when installing, configuring, and running the Quantum Pipeline. Problems are organized by category, each following a consistent **Symptom / Cause / Solution** format.
 
----
-
 ## Installation Issues
 
 ## Simulation Issues
@@ -18,13 +16,16 @@ This page provides solutions to common issues encountered when installing, confi
 
 ```bash
 # Increase the maximum number of iterations
-python quantum_pipeline.py -f molecules.json --max-iterations 500
+quantum-pipeline -f molecules.json --max-iterations 500
+
+# Try Hartree-Fock initialization to avoid barren plateaus
+quantum-pipeline -f molecules.json --init-strategy hf
 
 # Try a different optimizer
-python quantum_pipeline.py -f molecules.json --optimizer COBYLA
+quantum-pipeline -f molecules.json --optimizer COBYLA
 
 # Reduce convergence tolerance for faster (less precise) convergence
-python quantum_pipeline.py -f molecules.json --convergence --threshold 1e-4
+quantum-pipeline -f molecules.json --convergence --threshold 1e-4
 ```
 
 ### Out of Memory During Simulation
@@ -40,10 +41,10 @@ python quantum_pipeline.py -f molecules.json --convergence --threshold 1e-4
 docker run --memory=16g straightchlorine/quantum-pipeline:latest ...
 
 # Use a simpler basis set to reduce qubit count
-python quantum_pipeline.py -f molecules.json --basis sto3g
+quantum-pipeline -f molecules.json --basis sto3g
 
-# Reduce ansatz repetitions (default is 2)
-python quantum_pipeline.py -f molecules.json --ansatz-reps 2
+# Reduce ansatz repetitions (default is 2, lowering to 1 cuts parameter count)
+quantum-pipeline -f molecules.json --ansatz-reps 1
 ```
 
 ### Slow Simulation Performance
@@ -56,7 +57,7 @@ python quantum_pipeline.py -f molecules.json --ansatz-reps 2
 
 ```bash
 # Verify GPU is being used (check logs for "Using GPU backend")
-python quantum_pipeline.py -f molecules.json --log-level DEBUG
+quantum-pipeline -f molecules.json --log-level DEBUG
 
 # Ensure no other heavy processes are running
 top
@@ -73,11 +74,30 @@ nvidia-smi
 
 **Solution:**
 
-Run multiple simulations to increase the chance of finding a good minimum. The GPU-accelerated configuration allows more iterations in the same time budget, improving exploration of the parameter space.
-
----
+Run multiple simulations with different seeds, or use `--init-strategy hf` to start from the Hartree-Fock state. The HF strategy avoids the worst barren plateaus - for example, L-BFGS-B with random init on 6-31g can spend 1000+ iterations arriving at a positive energy for H2, while HF init reaches a good result in 50 iterations.
 
 ## Docker Issues
+
+### Docker Socket Permission Denied (GID Mismatch)
+
+**Symptom:** Airflow or batch generation containers fail with `permission denied` when trying to access `/var/run/docker.sock`.
+
+**Cause:** The `DOCKER_GID` build argument does not match the Docker group ID on the host. The Airflow container needs this GID to access the Docker daemon for launching simulation containers.
+
+**Solution:**
+
+```bash
+# Find the Docker group ID on your host
+getent group docker | cut -d: -f3
+
+# Rebuild with the correct GID (e.g., if your Docker GID is 999)
+DOCKER_GID=999 docker compose build airflow-worker
+
+# Or set it in your .env file
+echo "DOCKER_GID=999" >> .env
+```
+
+The default `DOCKER_GID` is `970`. If your host uses a different value, the container's `airflow` user will not be in the right group and Docker socket access will fail.
 
 ### Volume Mount Permissions
 
@@ -93,7 +113,53 @@ Run multiple simulations to increase the chance of finding a good minimum. The G
 
 **Solution:** Rebuild without cache (`docker compose build --no-cache`) and restart with `docker compose down -v && docker compose up -d`.
 
----
+## GPU Issues
+
+### Wrong CUDA_ARCH for Your GPU
+
+**Symptom:** The GPU image builds successfully but simulations crash with CUDA errors, produce incorrect results, or fall back to CPU silently.
+
+**Cause:** The `CUDA_ARCH` build argument does not match your GPU's compute capability. The qiskit-aer GPU build compiles CUDA kernels for a specific architecture, and a mismatch means those kernels cannot run on your hardware.
+
+**Solution:**
+
+```bash
+# Check your GPU's compute capability
+nvidia-smi --query-gpu=compute_cap --format=csv,noheader
+
+# Rebuild with the correct architecture
+# Common values:
+#   6.1 = GTX 10xx (Pascal)
+#   7.5 = RTX 20xx (Turing)
+#   8.6 = RTX 30xx (Ampere)
+#   8.9 = RTX 40xx (Ada Lovelace)
+CUDA_ARCH=7.5 just docker-build gpu
+```
+
+If you are unsure, check the [NVIDIA CUDA GPUs page](https://developer.nvidia.com/cuda-gpus) for your card's compute capability.
+
+### CUDA Not Available
+
+For CUDA setup issues (`RuntimeError: CUDA is not available`) or driver version mismatches (`CUDA driver version is insufficient`), see [GPU Acceleration](../deployment/gpu-acceleration.md) for complete setup and troubleshooting instructions. The GPU image requires a host driver compatible with CUDA 12.6.
+
+### GPU Out of Memory
+
+**Symptom:** `CUDA out of memory. Tried to allocate X MiB` error during simulation.
+
+**Cause:** The molecule requires more GPU memory than is available on the device.
+
+**Solution:**
+
+```bash
+# Check GPU memory usage
+nvidia-smi
+
+# Use a simpler basis set to reduce memory requirements
+quantum-pipeline -f molecules.json --basis sto3g
+
+# Fall back to CPU for very large molecules (omit --gpu to use CPU)
+quantum-pipeline -f molecules.json
+```
 
 ## Kafka Issues
 
@@ -111,9 +177,9 @@ curl -X PUT http://localhost:8081/config \
 
 ### Message Delivery Failures
 
-**Symptom:** Messages produced but never appear in MinIO.
+**Symptom:** Messages produced but never appear in object storage.
 
-**Solution:** Check connector status with `curl http://localhost:8083/connectors/minio-sink/status | python -m json.tool` (see [`minio-sink-config.json`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/connectors/minio-sink-config.json)). Restart with `curl -X POST http://localhost:8083/connectors/minio-sink/restart`. Check logs with `docker compose logs kafka-connect | tail -50`.
+**Solution:** Check Redpanda Connect health with `curl http://localhost:4195/ping`. Check Garage admin status on port 3903. Review logs with `docker compose logs redpanda-connect | tail -50`.
 
 ### Topic Not Created
 
@@ -133,8 +199,6 @@ docker compose exec kafka kafka-topics --create \
     --replication-factor 1
 ```
 
----
-
 ## Spark Issues
 
 ### Spark Job Out of Memory
@@ -146,8 +210,7 @@ docker compose exec kafka kafka-topics --create \
 **Solution:**
 
 ```bash
-# Increase Spark executor memory (see docker-compose.thesis.yaml for thesis defaults)
-# https://github.com/straightchlorine/quantum-pipeline/src/branch/master/docker-compose.thesis.yaml
+# Increase Spark executor memory in docker-compose
 environment:
   SPARK_WORKER_MEMORY: 8g
 
@@ -164,39 +227,34 @@ spark.driver.memory=2g
 
 ### S3A Connection Errors
 
-**Symptom:** Spark fails with `com.amazonaws.SdkClientException: Unable to execute HTTP request` when reading from or writing to MinIO.
+**Symptom:** Spark fails with `com.amazonaws.SdkClientException: Unable to execute HTTP request` when reading from or writing to object storage.
 
-**Cause:** MinIO endpoint configuration is incorrect, or credentials are missing.
+**Cause:** The S3 endpoint configuration is incorrect, or credentials are missing.
 
 **Solution:**
 
-Verify that the following Spark configuration values are correct (these are set in [`docker-compose.thesis.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml)):
+Verify that the following Spark configuration values match your Garage setup:
 
 ```python
-spark.hadoop.fs.s3a.endpoint = http://minio:9000
+spark.hadoop.fs.s3a.endpoint = http://garage:3901
 spark.hadoop.fs.s3a.access.key = <your-access-key>
 spark.hadoop.fs.s3a.secret.key = <your-secret-key>
 spark.hadoop.fs.s3a.path.style.access = true
 spark.hadoop.fs.s3a.connection.ssl.enabled = false
 ```
 
-Also verify that MinIO is running and the target bucket exists:
+Also verify that Garage is running:
 
 ```bash
-# Check MinIO health
-curl http://minio:9000/minio/health/live
-
-# List buckets (using mc client)
-docker compose exec minio mc ls local/
+# Check Garage container status
+docker compose ps ml-garage
 ```
-
----
 
 ## Airflow Issues
 
 ### DAG Not Visible in Web UI
 
-**Symptom:** The [`quantum_feature_processing`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/quantum_processing_dag.py#L72) DAG does not appear in the Airflow web interface.
+**Symptom:** The [`quantum_feature_processing`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py#L44) DAG does not appear in the Airflow web interface.
 
 **Solution:** Verify the DAG file exists (`docker compose exec airflow-webserver ls /opt/airflow/dags/`), check for import errors in **Admin > DAG Import Errors**, and force a rescan with `docker compose exec airflow-scheduler airflow dags reserialize`.
 
@@ -218,34 +276,31 @@ docker compose exec airflow-webserver airflow tasks clear \
 
 **Solution:** Check PostgreSQL status (`docker compose ps postgres`), then initialize with `docker compose exec airflow-webserver airflow db init`.
 
----
+## Monitoring Issues
 
-## GPU Issues
+### PushGateway Not Reachable
 
-For CUDA setup issues (`RuntimeError: CUDA is not available`) or driver version mismatches (`CUDA driver version is insufficient`), see [GPU Acceleration](../deployment/gpu-acceleration.md) for complete setup and troubleshooting instructions. The GPU image requires host driver version 520+.
+**Symptom:** `ConnectionError: HTTPConnectionPool host='pushgateway' port=9091` in simulation logs, or metrics silently not appearing.
 
-### GPU Out of Memory
-
-**Symptom:** `CUDA out of memory. Tried to allocate X MiB` error during simulation.
-
-**Cause:** The molecule requires more GPU memory than is available on the device.
+**Cause:** The PushGateway container is not running, the `PUSHGATEWAY_URL` environment variable points to the wrong address, or there is a network mismatch between the simulation container and the monitoring stack.
 
 **Solution:**
 
 ```bash
-# Check GPU memory usage
-nvidia-smi
+# Check PushGateway is running
+docker compose ps pushgateway
 
-# Use a simpler basis set to reduce memory requirements
-python quantum_pipeline.py -f molecules.json --basis sto3g
+# Verify the URL from inside the simulation container
+docker compose exec quantum-pipeline curl -s http://pushgateway:9091/metrics | head -5
 
-# Fall back to CPU for very large molecules (omit --gpu to use CPU)
-python quantum_pipeline.py -f molecules.json
+# Check the configured URL
+docker compose exec quantum-pipeline env | grep PUSHGATEWAY
+
+# Common fixes:
+# - From Docker containers, use http://pushgateway:9091 (service name)
+# - From the host, use http://localhost:9091
+# - Make sure MONITORING_ENABLED is set to true
 ```
-
----
-
-## Monitoring Issues
 
 ### Metrics Not Appearing in Prometheus
 
@@ -264,7 +319,11 @@ curl http://localhost:9091/metrics | head -50
 # Verify pushgateway target shows "UP"
 
 # Verify the simulation was started with monitoring enabled
-python quantum_pipeline.py -f molecules.json --enable-performance-monitoring
+# Either set the environment variable:
+export MONITORING_ENABLED=true
+
+# Or pass the CLI flag:
+quantum-pipeline -f molecules.json --enable-performance-monitoring
 ```
 
 ### Grafana Cannot Connect to Prometheus
@@ -273,18 +332,57 @@ python quantum_pipeline.py -f molecules.json --enable-performance-monitoring
 
 **Solution:** Use `http://prometheus:9090` from within Docker, or `http://localhost:9090` from the host. Verify via **Configuration > Data Sources > Prometheus > Save & Test**.
 
-### PushGateway Errors
-
-**Symptom:** `ConnectionError: HTTPConnectionPool host='pushgateway' port=9091` in simulation logs.
-
-**Solution:** Verify the PushGateway is running (`docker compose ps pushgateway`) and reachable from the simulation container (`docker compose exec quantum-pipeline curl http://pushgateway:9091/metrics`).
-
 ### Dashboard Import Fails
 
 **Symptom:** Importing the thesis dashboard JSON fails with a validation error.
 
 **Solution:** The dashboard was created with Grafana 10.x. Ensure the Prometheus data source is named `Prometheus` (the default) or update the `DS_PROMETHEUS` variable in the dashboard JSON to match your data source name.
 
----
+## Batch Generation Issues
 
-If your issue is not covered here, check the [FAQ](faq.md) or open an issue on the [GitHub repository](https://github.com/straightchlorine/quantum-pipeline/issues).
+### Container Exits with rc=125
+
+**Symptom:** Batch generation reports a container failure with return code 125.
+
+**Cause:** The Docker image was not found. This usually means the image has not been built locally or the image name in the batch configuration does not match.
+
+**Solution:**
+
+```bash
+# Build the required images
+just docker-build cpu
+just docker-build gpu
+
+# Verify images exist
+docker images | grep quantum-pipeline
+```
+
+### Container Exits with rc=1
+
+**Symptom:** Batch generation reports a container failure with return code 1.
+
+**Cause:** The simulation application itself encountered an error. This could be an invalid molecule/optimizer/basis combination, out-of-memory, or a bug.
+
+**Solution:**
+
+```bash
+# Check the container logs for the failed run
+docker logs <container-id>
+
+# Look at the batch state file for details
+cat gen/ml_batch_state.json | python -m json.tool
+```
+
+The batch system is idempotent - rerunning `just ml-generate` will skip completed configurations and retry failed ones.
+
+### Batch Progress Not Visible
+
+**Symptom:** Batch generation is running but `qp_batch_*` metrics do not appear in Grafana.
+
+**Cause:** The batch script pushes progress metrics to the PushGateway. If the PushGateway is not reachable from the host (where the batch script runs), metrics will not be recorded.
+
+**Solution:**
+
+Make sure the PushGateway is running and accessible from the host at `http://localhost:9091`. The batch script runs on the host, not inside a container, so it needs host-level access to the PushGateway.
+
+If your issue is not covered here, check the [FAQ](faq.md) or open an issue on the [Codeberg repository](https://codeberg.org/piotrkrzysztof/quantum-pipeline/issues).
