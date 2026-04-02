@@ -75,7 +75,9 @@
             "minVizWidth": 75,
             "orientation": "auto",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -95,7 +97,8 @@
             }
           ],
           "title": "VQE Efficiency",
-          "type": "gauge"
+          "type": "gauge",
+          "description": "Ratio of VQE optimization time to total run time. Higher means less overhead from setup (Hamiltonian generation, qubit mapping)."
         },
         {
           "datasource": {
@@ -137,7 +140,9 @@
             "minVizWidth": 75,
             "orientation": "auto",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -157,7 +162,8 @@
             }
           ],
           "title": "Overhead Ratio",
-          "type": "gauge"
+          "type": "gauge",
+          "description": "Non-VQE time (Hamiltonian + mapping) divided by VQE optimization time. Lower is better - values above 1.0 mean setup dominates compute."
         },
         {
           "datasource": {
@@ -252,7 +258,8 @@
             }
           ],
           "title": "Iterations per Second",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "VQE optimizer iterations completed per second. Depends on qubit count, backend (CPU/GPU), and optimizer type. Useful for comparing hardware lanes."
         },
         {
           "datasource": {
@@ -348,7 +355,8 @@
             }
           ],
           "title": "Setup Ratio",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Fraction of total time spent on setup (Hamiltonian generation + qubit mapping) vs actual VQE optimization."
         },
         {
           "datasource": {
@@ -444,7 +452,8 @@
             }
           ],
           "title": "VQE Total Time",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Wall-clock time for the entire VQE pipeline: Hamiltonian generation, qubit mapping, and optimization loop."
         },
         {
           "datasource": {
@@ -540,7 +549,8 @@
             }
           ],
           "title": "Time per Iteration",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Average time per optimizer iteration. Scales with qubit count due to larger statevector simulation. Compare across backends to measure GPU speedup."
         },
         {
           "datasource": {
@@ -635,7 +645,8 @@
             }
           ],
           "title": "Iteration Count",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Total optimizer iterations before convergence or max limit. Random init typically needs more iterations than HF init. L-BFGS-B uses extra evaluations for gradient computation."
         }
       ],
       "title": "VQE Performance",
@@ -685,7 +696,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -706,7 +719,8 @@
             }
           ],
           "title": "Pending",
-          "type": "stat"
+          "type": "stat",
+          "description": "Number of experiment runs waiting to be processed across all lanes."
         },
         {
           "datasource": {
@@ -751,7 +765,9 @@
             "minVizWidth": 75,
             "orientation": "auto",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -772,7 +788,8 @@
             }
           ],
           "title": "Progress",
-          "type": "gauge"
+          "type": "gauge",
+          "description": "Percentage of total experiment runs completed for the selected tier."
         },
         {
           "datasource": {
@@ -867,7 +884,8 @@
             }
           ],
           "title": "Throughput (runs/hour)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of completed experiment runs per hour, per lane. Extrapolated from the last 10 minutes."
         },
         {
           "datasource": {
@@ -963,7 +981,8 @@
             }
           ],
           "title": "Failed Over Time",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Cumulative count of failed runs per lane. Includes timeouts and non-zero exit codes."
         },
         {
           "datasource": {
@@ -999,7 +1018,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -1020,7 +1041,8 @@
             }
           ],
           "title": "Done",
-          "type": "stat"
+          "type": "stat",
+          "description": "Total number of successfully completed experiment runs for the selected tier."
         },
         {
           "datasource": {
@@ -1064,7 +1086,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -1085,7 +1109,8 @@
             }
           ],
           "title": "Failed",
-          "type": "stat"
+          "type": "stat",
+          "description": "Total number of failed experiment runs (timeouts + errors) for the selected tier."
         },
         {
           "datasource": {
@@ -1128,7 +1153,9 @@
             "namePlacement": "auto",
             "orientation": "horizontal",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -1149,7 +1176,8 @@
             }
           ],
           "title": "Per-Lane Progress",
-          "type": "bargauge"
+          "type": "bargauge",
+          "description": "Completed runs per hardware lane (GPU1, GPU2, CPU). Each lane processes molecules sequentially, one per invocation."
         }
       ],
       "title": "Batch Generation",
@@ -1219,7 +1247,9 @@
         "namePlacement": "auto",
         "orientation": "horizontal",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -1240,7 +1270,8 @@
         }
       ],
       "title": "Accuracy Score",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "Log-scale score (0-100) measuring VQE energy vs Hartree-Fock baseline. Higher = closer to HF. Useful for comparing optimizers and init strategies on the same molecule. Score of ~94 means 1 mHa difference from HF."
     },
     {
       "datasource": {
@@ -1335,7 +1366,8 @@
         }
       ],
       "title": "Reference Energy",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Hartree-Fock (HF) energy computed by PySCF for the same molecule and basis set. This is the mean-field baseline that VQE aims to improve upon by capturing electron correlation."
     },
     {
       "datasource": {
@@ -1431,7 +1463,8 @@
         }
       ],
       "title": "Ground State Energy",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "VQE-computed ground state energy (electronic + nuclear repulsion). Should be at or below the HF reference for a well-converged run."
     },
     {
       "datasource": {
@@ -1526,7 +1559,8 @@
         }
       ],
       "title": "Energy Error (mHa)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Difference between VQE energy and HF reference in millihartree. Negative values mean VQE found lower energy than HF (good - correlation energy captured). Large positive values indicate poor convergence."
     },
     {
       "collapsed": false,
@@ -1637,7 +1671,8 @@
         }
       ],
       "title": "GPU Utilization",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "GPU compute core utilization. VQE shows spiky patterns (bursts during circuit simulation, idle during optimizer steps). Higher sustained utilization expected with larger qubit counts."
     },
     {
       "datasource": {
@@ -1733,7 +1768,8 @@
         }
       ],
       "title": "GPU Power Draw",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "GPU power consumption in watts. Correlates with compute load. Baseline idle power ~10-15W for Pascal GPUs."
     },
     {
       "datasource": {
@@ -1831,7 +1867,8 @@
         }
       ],
       "title": "Fan Speed",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "GPU fan speed as percentage of maximum. Increases with temperature to maintain thermal limits."
     },
     {
       "datasource": {
@@ -1871,7 +1908,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -1892,7 +1931,8 @@
         }
       ],
       "title": "Power State",
-      "type": "stat"
+      "type": "stat",
+      "description": "NVIDIA P-state (0 = max performance, 8 = idle). Lower values indicate active GPU compute."
     },
     {
       "datasource": {
@@ -1988,7 +2028,8 @@
         }
       ],
       "title": "Graphics Clock (MHz)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "GPU core clock frequency. Boost clocks activate under load. Drops during idle periods between VQE iterations."
     },
     {
       "datasource": {
@@ -2029,7 +2070,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -2050,7 +2093,8 @@
         }
       ],
       "title": "Memory Free",
-      "type": "stat"
+      "type": "stat",
+      "description": "Available GPU VRAM. Statevector simulation memory scales as 2^(qubits+4) bytes. 18-qubit molecule needs ~4 MB."
     },
     {
       "datasource": {
@@ -2150,7 +2194,8 @@
         }
       ],
       "title": "GPU Temperature",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "GPU die temperature. Pascal GPUs throttle around 83-94C. Normal VQE workloads stay well below this."
     },
     {
       "datasource": {
@@ -2204,7 +2249,9 @@
         "namePlacement": "auto",
         "orientation": "horizontal",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -2225,7 +2272,8 @@
         }
       ],
       "title": "GPU Memory Usage",
-      "type": "bargauge"
+      "type": "bargauge",
+      "description": "Percentage of GPU VRAM in use. Low values (1-5%) are expected for small molecules. Increases significantly at 20+ qubits."
     },
     {
       "collapsed": true,
@@ -2337,7 +2385,8 @@
             }
           ],
           "title": "CPU Usage",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Host CPU utilization per container type. Classical optimizers (L-BFGS-B, COBYLA) run entirely on CPU between GPU circuit evaluations."
         },
         {
           "datasource": {
@@ -2439,7 +2488,8 @@
             }
           ],
           "title": "Memory Usage",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Host RAM usage per container type. Includes Python runtime, Qiskit data structures, and statevector copies."
         },
         {
           "datasource": {
@@ -2480,7 +2530,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -2501,7 +2553,8 @@
             }
           ],
           "title": "Uptime",
-          "type": "stat"
+          "type": "stat",
+          "description": "Time since the monitoring process started for each container type."
         },
         {
           "datasource": {
@@ -2541,7 +2594,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -2562,7 +2617,8 @@
             }
           ],
           "title": "Load Average (1m)",
-          "type": "stat"
+          "type": "stat",
+          "description": "1-minute system load average. Values above CPU core count indicate saturation. With 3 parallel lanes on a 6-core CPU, expect values near 6."
         }
       ],
       "title": "System Resources",
@@ -2672,7 +2728,8 @@
             }
           ],
           "title": "Redpanda Input Latency (ms)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Average time for Redpanda Connect to read messages from the Kafka source topic."
         },
         {
           "datasource": {
@@ -2776,7 +2833,8 @@
             }
           ],
           "title": "Redpanda Batch Throughput",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of message batches received and sent by Redpanda Connect. Sent/received should track closely."
         },
         {
           "datasource": {
@@ -2872,7 +2930,8 @@
             }
           ],
           "title": "Redpanda Output Latency (ms)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Average time for Redpanda Connect to write processed messages to the sink (Iceberg/MinIO)."
         },
         {
           "datasource": {
@@ -2912,7 +2971,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -2933,7 +2994,8 @@
             }
           ],
           "title": "Redpanda Errors/sec",
-          "type": "stat"
+          "type": "stat",
+          "description": "Rate of output errors in Redpanda Connect. Non-zero indicates connectivity or serialization issues."
         },
         {
           "datasource": {
@@ -2987,7 +3049,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -3008,7 +3072,8 @@
             }
           ],
           "title": "Redpanda Output Connection",
-          "type": "stat"
+          "type": "stat",
+          "description": "Output sink connection status (1 = connected, 0 = disconnected)."
         },
         {
           "datasource": {
@@ -3062,7 +3127,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -3083,7 +3150,8 @@
             }
           ],
           "title": "Redpanda Input Connection",
-          "type": "stat"
+          "type": "stat",
+          "description": "Input source connection status (1 = connected, 0 = disconnected)."
         },
         {
           "datasource": {
@@ -3178,7 +3246,8 @@
             }
           ],
           "title": "Redpanda Messages In/sec",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of individual messages consumed from the Kafka source topic."
         },
         {
           "datasource": {
@@ -3273,7 +3342,8 @@
             }
           ],
           "title": "Redpanda Messages Out/sec",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of individual messages written to the output sink."
         }
       ],
       "title": "Data Platform",
@@ -3341,7 +3411,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -3362,7 +3434,8 @@
             }
           ],
           "title": "Redis Exporter Up",
-          "type": "stat"
+          "type": "stat",
+          "description": "Redis exporter health (1 = scraping successfully)."
         },
         {
           "datasource": {
@@ -3416,7 +3489,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -3437,7 +3512,8 @@
             }
           ],
           "title": "Postgres Exporter Up",
-          "type": "stat"
+          "type": "stat",
+          "description": "Postgres exporter health (1 = scraping successfully)."
         },
         {
           "datasource": {
@@ -3477,7 +3553,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -3498,7 +3576,8 @@
             }
           ],
           "title": "Redis Keys",
-          "type": "stat"
+          "type": "stat",
+          "description": "Total number of keys stored in Redis db0. Tracks cached state size."
         },
         {
           "datasource": {
@@ -3538,7 +3617,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -3559,7 +3640,8 @@
             }
           ],
           "title": "Redis Evicted Keys",
-          "type": "stat"
+          "type": "stat",
+          "description": "Total keys evicted due to memory pressure. Non-zero may indicate Redis needs more memory."
         },
         {
           "datasource": {
@@ -3654,7 +3736,8 @@
             }
           ],
           "title": "Postgres Connections",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Active backend connections per database (Airflow, MLflow). Watch for connection pool exhaustion."
         },
         {
           "datasource": {
@@ -3759,7 +3842,8 @@
             }
           ],
           "title": "Redis Network I/O",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Redis network throughput (bytes/sec). Spikes correlate with cache reads/writes during pipeline runs."
         },
         {
           "datasource": {
@@ -3799,7 +3883,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -3820,7 +3906,8 @@
             }
           ],
           "title": "Postgres Deadlocks",
-          "type": "stat"
+          "type": "stat",
+          "description": "Cumulative deadlock count per database. Should be zero in normal operation."
         },
         {
           "datasource": {
@@ -3861,7 +3948,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -3882,7 +3971,8 @@
             }
           ],
           "title": "Redis Uptime",
-          "type": "stat"
+          "type": "stat",
+          "description": "Seconds since Redis server started. Resets indicate restarts."
         },
         {
           "datasource": {
@@ -3927,7 +4017,9 @@
             "minVizWidth": 75,
             "orientation": "auto",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -3948,7 +4040,8 @@
             }
           ],
           "title": "Postgres Cache Hit Ratio",
-          "type": "gauge"
+          "type": "gauge",
+          "description": "Buffer cache hit ratio. Values above 0.95 are healthy. Low ratios mean excessive disk reads."
         },
         {
           "datasource": {
@@ -3988,7 +4081,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -4009,7 +4104,8 @@
             }
           ],
           "title": "Postgres Active Queries",
-          "type": "stat"
+          "type": "stat",
+          "description": "Currently executing queries across all databases."
         },
         {
           "datasource": {
@@ -4053,7 +4149,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -4074,7 +4172,8 @@
             }
           ],
           "title": "Postgres Locks",
-          "type": "stat"
+          "type": "stat",
+          "description": "Total active locks. High counts during batch generation are normal (Airflow state updates)."
         },
         {
           "datasource": {
@@ -4187,7 +4286,8 @@
             }
           ],
           "title": "Postgres Tuple Operations/sec",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of row inserts, updates, and deletes per database. Shows write activity patterns."
         },
         {
           "datasource": {
@@ -4223,7 +4323,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -4253,7 +4355,8 @@
             }
           ],
           "title": "Redis Clients",
-          "type": "stat"
+          "type": "stat",
+          "description": "Connected and blocked Redis clients. Blocked clients may indicate contention."
         },
         {
           "datasource": {
@@ -4357,7 +4460,8 @@
             }
           ],
           "title": "Postgres Transactions/sec",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of committed and rolled-back transactions. Rollbacks indicate failed operations."
         },
         {
           "datasource": {
@@ -4402,7 +4506,9 @@
             "minVizWidth": 75,
             "orientation": "auto",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -4423,7 +4529,8 @@
             }
           ],
           "title": "Redis Hit Rate",
-          "type": "gauge"
+          "type": "gauge",
+          "description": "Cache hit ratio (hits / (hits + misses)). Low values suggest cache is not effective for the workload."
         },
         {
           "datasource": {
@@ -4518,7 +4625,8 @@
             }
           ],
           "title": "Redis Ops/sec",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Total Redis commands processed per second."
         },
         {
           "datasource": {
@@ -4562,7 +4670,9 @@
             "namePlacement": "auto",
             "orientation": "horizontal",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -4583,7 +4693,8 @@
             }
           ],
           "title": "Postgres DB Size",
-          "type": "bargauge"
+          "type": "bargauge",
+          "description": "On-disk size of each database. Grows with Airflow metadata and MLflow experiment tracking."
         },
         {
           "datasource": {
@@ -4697,7 +4808,8 @@
             }
           ],
           "title": "Redis Memory",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Redis memory usage: current, RSS (OS-reported), and peak. RSS exceeding allocated memory indicates fragmentation."
         }
       ],
       "title": "Databases",
@@ -4759,7 +4871,9 @@
         "minVizWidth": 75,
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -4780,7 +4894,8 @@
         }
       ],
       "title": "Garage Disk Usage",
-      "type": "gauge"
+      "type": "gauge",
+      "description": "Percentage of local disk used by the Garage S3-compatible object store (MinIO alternative)."
     },
     {
       "datasource": {
@@ -4820,7 +4935,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -4841,7 +4958,8 @@
         }
       ],
       "title": "Garage Stored Blocks",
-      "type": "stat"
+      "type": "stat",
+      "description": "Total data blocks stored in Garage. Grows as VQE results and Iceberg data files are written."
     },
     {
       "datasource": {
@@ -4895,7 +5013,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -4916,7 +5036,8 @@
         }
       ],
       "title": "Garage Cluster Health",
-      "type": "stat"
+      "type": "stat",
+      "description": "Overall cluster health status (1 = healthy). Unhealthy indicates node or replication issues."
     },
     {
       "datasource": {
@@ -4956,7 +5077,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -4977,7 +5100,8 @@
         }
       ],
       "title": "Garage Connected Nodes",
-      "type": "stat"
+      "type": "stat",
+      "description": "Number of Garage nodes currently reachable in the cluster."
     },
     {
       "datasource": {
@@ -5017,7 +5141,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -5038,7 +5164,8 @@
         }
       ],
       "title": "Garage Storage Nodes",
-      "type": "stat"
+      "type": "stat",
+      "description": "Number of storage nodes reporting OK status."
     },
     {
       "datasource": {
@@ -5078,7 +5205,9 @@
         "orientation": "auto",
         "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -5099,7 +5228,8 @@
         }
       ],
       "title": "Garage Partitions OK",
-      "type": "stat"
+      "type": "stat",
+      "description": "Number of data partitions with all replicas available. Should equal total partitions."
     },
     {
       "datasource": {
@@ -5203,7 +5333,8 @@
         }
       ],
       "title": "Garage Resync Queue",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Pending block resyncs and errored blocks. Non-zero queue is normal after writes; persistent errors need investigation."
     },
     {
       "datasource": {
@@ -5298,7 +5429,8 @@
         }
       ],
       "title": "Garage Admin Request Rate",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Rate of admin API requests to Garage. Spikes during bucket operations or health checks."
     },
     {
       "collapsed": true,
@@ -5344,7 +5476,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -5365,7 +5499,8 @@
             }
           ],
           "title": "DAGBag Size",
-          "type": "stat"
+          "type": "stat",
+          "description": "Number of DAGs loaded by the Airflow scheduler. Includes VQE batch generation, feature extraction, and sync DAGs."
         },
         {
           "datasource": {
@@ -5469,7 +5604,8 @@
             }
           ],
           "title": "Airflow Task Instances",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Currently running task instances and creation rate. Shows pipeline execution activity."
         },
         {
           "datasource": {
@@ -5565,7 +5701,8 @@
             }
           ],
           "title": "Airflow DAG Parse Time",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Total time for the scheduler to parse all DAG files. High values slow down scheduling."
         },
         {
           "datasource": {
@@ -5605,7 +5742,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -5626,7 +5765,8 @@
             }
           ],
           "title": "Scheduler Executable Tasks",
-          "type": "stat"
+          "type": "stat",
+          "description": "Tasks ready to be scheduled. Persistent non-zero values indicate executor bottleneck."
         },
         {
           "datasource": {
@@ -5666,7 +5806,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -5696,7 +5838,8 @@
             }
           ],
           "title": "Triggerer Capacity",
-          "type": "stat"
+          "type": "stat",
+          "description": "Available triggerer slots and currently running triggers. Used for deferred/async task execution."
         },
         {
           "datasource": {
@@ -5809,7 +5952,8 @@
             }
           ],
           "title": "Airflow Executor Tasks",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Running, queued, and available executor slots. Shows scheduler capacity and utilization."
         },
         {
           "datasource": {
@@ -5913,7 +6057,8 @@
             }
           ],
           "title": "Airflow Scheduler Heartbeat",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Scheduler and DAG processor heartbeat rates. Drops indicate scheduler health issues."
         },
         {
           "datasource": {
@@ -5953,7 +6098,9 @@
             "orientation": "auto",
             "percentChangeColorMode": "standard",
             "reduceOptions": {
-              "calcs": ["lastNotNull"],
+              "calcs": [
+                "lastNotNull"
+              ],
               "fields": "",
               "values": false
             },
@@ -5974,7 +6121,8 @@
             }
           ],
           "title": "DAG Import Errors",
-          "type": "stat"
+          "type": "stat",
+          "description": "Number of DAG files that failed to parse. Non-zero means broken DAG definitions."
         },
         {
           "datasource": {
@@ -6087,7 +6235,8 @@
             }
           ],
           "title": "Airflow Pool Slots (default_pool)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Default pool slot allocation: running, queued, and open. Controls max parallel task execution."
         }
       ],
       "title": "Orchestration",
@@ -6097,7 +6246,12 @@
   "preload": false,
   "refresh": "",
   "schemaVersion": 41,
-  "tags": ["quantum", "ML", "VQE", "observability"],
+  "tags": [
+    "quantum",
+    "ML",
+    "VQE",
+    "observability"
+  ],
   "templating": {
     "list": [
       {
