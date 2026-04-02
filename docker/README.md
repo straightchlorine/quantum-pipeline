@@ -46,14 +46,14 @@ docker build -f docker/airflow/Dockerfile -t quantum-pipeline-airflow .
 
 The compose files live in `compose/`:
 
-- **`docker-compose.ml.yaml`** — Full ML data platform: Kafka,
-  Schema Registry, Redpanda Connect, Spark (master + worker),
-  Airflow (apiserver, scheduler, dag-processor, worker, triggerer),
-  MLflow, Garage (S3-compatible storage), Postgres, Redis, and VQE
-  simulation containers (CPU + 2x GPU). Includes monitoring exporters
-  (statsd, postgres, redis, nvidia-gpu).
-- **`docker-compose.ml.kafka-connect.yaml`** — Redpanda Connect
-  configuration for routing Kafka topics to S3/Garage.
+- **`docker-compose.ml.yaml`** - Full ML data platform: Kafka,
+    Schema Registry, Redpanda Connect, Spark (master + worker),
+    Airflow (apiserver, scheduler, dag-processor, worker, triggerer),
+    MLflow, Garage (S3-compatible storage), Postgres, Redis, and VQE
+    simulation containers (CPU + 2x GPU). Includes monitoring exporters
+    (statsd, postgres, redis, nvidia-gpu).
+- **`docker-compose.ml.kafka-connect.yaml`** - The same platform as above,
+    with kafka connect replacing Redpanda Connect.
 
 See the [deployment docs](https://docs.qp.piotrkrzysztof.dev/deployment/)
 for setup instructions.
