@@ -147,7 +147,7 @@ nav:
       - Overview: architecture/index.md
       - System Design: architecture/system-design.md
       - Data Flow: architecture/data-flow.md
-      - Avro Serialization: architecture/avro-serialization.md
+      - Serialization: architecture/serialization.md
 
   - Data Platform:
       - Overview: data-platform/index.md
@@ -174,7 +174,8 @@ nav:
       - Basis Sets: scientific/basis-sets.md
       - Benchmarking: scientific/benchmarking.md
 
+  - Changelog: changelog.md
+
   - Reference:
       - Troubleshooting: reference/troubleshooting.md
       - FAQ: reference/faq.md
-      - Changelog: changelog.md
