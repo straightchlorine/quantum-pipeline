@@ -1,18 +1,15 @@
 # Iceberg Storage
 
-## Overview
+Apache Iceberg provides the table format for feature tables, with Garage
+(v2.2.0) as the S3-compatible storage backend. Together they deliver ACID
+transactions, time-travel queries, schema evolution, and snapshot management.
 
-**Apache Iceberg** provides the table format for feature tables, with **MinIO** as the S3-compatible storage backend. Together they deliver ACID transactions, time-travel queries, schema evolution, and snapshot management.
+For how Iceberg and Garage fit into the overall architecture, see
+[System Design](../architecture/system-design.md#garage-storage).
 
-[:octicons-arrow-right-24: System Design](../architecture/system-design.md) | [:octicons-arrow-right-24: Spark Processing](spark-processing.md)
+## Catalog Structure
 
----
-
-## Table Organization
-
-### Catalog Structure
-
-All feature tables are organized under a single Iceberg catalog using a Hadoop-compatible backend:
+All feature tables are organized under a single Iceberg catalog:
 
 ```
 quantum_catalog                         -- Iceberg catalog
@@ -26,33 +23,45 @@ quantum_catalog                         -- Iceberg catalog
         ├── vqe_iterations              -- Table
         ├── iteration_parameters        -- Table
         ├── hamiltonian_terms           -- Table
-        └── processing_metadata         -- Table
+        ├── ml_iteration_features       -- ML feature table
+        ├── ml_run_summary              -- ML feature table
+        └── processing_metadata         -- Audit table
 ```
 
-### Catalog Configuration
+## Catalog Configuration
 
-The Iceberg catalog is configured during Spark session creation:
-
-```python
-.config('spark.sql.catalog.quantum_catalog',
-        'org.apache.iceberg.spark.SparkCatalog')
-.config('spark.sql.catalog.quantum_catalog.type', 'hadoop')
-.config('spark.sql.catalog.quantum_catalog.warehouse',
-        's3a://local-features/warehouse/')
-```
+Configured via
+[`compose/spark-defaults.conf`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/spark-defaults.conf),
+mounted into Spark containers:
 
 | Configuration | Value | Description |
 |---------------|-------|-------------|
 | Catalog name | `quantum_catalog` | Identifier used in SQL queries |
-| Catalog type | `hadoop` | Hadoop-compatible catalog (metadata stored in the warehouse path) |
-| Warehouse | `s3a://local-features/warehouse/` | Root location for all table data and metadata in MinIO |
+| Catalog type | `hadoop` | Metadata stored in the warehouse path |
+| Warehouse | `s3a://features/warehouse/` | Root location for table data and metadata in Garage |
+| IO implementation | `HadoopFileIO` | File I/O layer for reading/writing through S3A |
 
-### Physical Storage Layout
+## S3A Configuration
 
-On MinIO, the warehouse directory contains both metadata and data files:
+Spark reaches Garage through the Hadoop S3A filesystem driver, also in
+`spark-defaults.conf`:
+
+| Setting | Value |
+|---------|-------|
+| Endpoint | `http://garage:3901` |
+| Region | `garage` |
+| Path-style access | `true` |
+| SSL | `false` |
+| Fast upload | `true` |
+
+Credentials are provided via `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+environment variables. In `docker-compose.ml.yaml`, these map from the
+project-level `S3_ACCESS_KEY` and `S3_SECRET_KEY`.
+
+## Physical Storage Layout
 
 ```
-s3a://local-features/warehouse/
+s3a://features/warehouse/
 └── quantum_features/
     ├── vqe_results/
     │   ├── metadata/
@@ -66,211 +75,132 @@ s3a://local-features/warehouse/
     │       │   └── part-00001.parquet
     │       └── processing_date=2025-01-11/
     │           └── part-00000.parquet
-    ├── vqe_iterations/
+    ├── molecules/
     │   ├── metadata/
     │   └── data/
-    └── molecules/
+    ├── ml_iteration_features/
+    │   ├── metadata/
+    │   └── data/
+    └── ml_run_summary/
         ├── metadata/
         └── data/
 ```
-
-<figure>
-  <img src="https://qp-docs.codextechnologies.org/mkdocs/feature_parquet_preview.png"
-       alt="Preview of Parquet feature data stored in Iceberg tables, showing structured columns and values">
-  <figcaption>Figure 1. Processed feature data stored as Parquet files within the Iceberg table structure.</figcaption>
-</figure>
 
 ### Metadata Files
 
 | File Type | Description |
 |-----------|-------------|
-| `v*.metadata.json` | Table schema, partition spec, current snapshot pointer, and table properties |
-| `snap-*.avro` | Snapshot metadata containing manifest list references |
+| `v*.metadata.json` | Table schema, partition spec, snapshot pointer, table properties |
+| `snap-*.avro` | Snapshot metadata with manifest list references |
 | Manifest lists | Lists of manifest files for a given snapshot |
-| Manifest files | Lists of data files, their partition values, and file-level statistics |
+| Manifest files | Lists of data files, partition values, file-level statistics |
 
----
+## Snapshot Tagging
 
-## Iceberg Table Features
+Each Spark write creates a new snapshot, tagged with a version identifier from
+the processing batch ID. This enables reproducible ML training by referencing
+a specific snapshot tag.
 
-Iceberg provides ACID transactions, time-travel queries, schema evolution, and snapshot management without requiring data rewrites. For full details on these capabilities, see the [Apache Iceberg documentation](https://iceberg.apache.org/docs/latest/).
+Tagging is done in
+[`process_incremental_data()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py#L190).
+Initial writes use `v_{batch_id}` tags; incremental appends use
+`v_incr_{batch_id}`.
 
-### Snapshot Tagging
+## Garage Integration
 
-Each Spark write creates a new snapshot, tagged with a version identifier from the processing batch ID:
+Garage (v2.2.0) provides S3-compatible storage for raw JSON data and processed
+Parquet feature tables. It replaced MinIO from v1.x..
 
-```python
-snapshot_id = spark.sql(
-    f'SELECT snapshot_id '
-    f'FROM quantum_catalog.quantum_features.{table_name}.snapshots '
-    f'ORDER BY committed_at DESC LIMIT 1'
-).collect()[0][0]
+The Garage service is defined in
+[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml#L191)
+and configured via
+[`compose/garage.toml.template`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/garage.toml.template)
+(uses env var substitution for secrets).
 
-version_tag = f'v_{processing_batch_id}'
-spark.sql(f"""
-    ALTER TABLE quantum_catalog.quantum_features.{table_name}
-    CREATE TAG {version_tag} AS OF VERSION {snapshot_id}
-""")
-```
-
-!!! tip "Reproducible ML Training"
-    Reference a snapshot tag from a specific processing run to reproduce exact training datasets.
-
----
-
-## MinIO Integration
-
-**MinIO** provides S3-compatible storage for raw Avro data and processed Parquet feature tables.
-
-### Bucket Structure
-
-The system uses two MinIO buckets:
+### Buckets
 
 | Bucket | Purpose | Writer |
 |--------|---------|--------|
-| `local-vqe-results` | Raw Avro files from Kafka Connect | Kafka Connect S3 Sink |
-| `local-features` | Processed Parquet files and Iceberg metadata | Apache Spark |
+| `raw-results` | JSON files from Redpanda Connect | Redpanda Connect S3 output |
+| `features` | Processed Parquet files and Iceberg metadata | Apache Spark |
+| `mlflow-artifacts` | MLflow experiment artifacts | MLflow tracking server |
 
-### Kafka Connect S3 Sink
+### Ports
 
-**Kafka Connect** writes raw Avro files to MinIO via the S3 Sink Connector:
+| Port | Service |
+|------|---------|
+| `3901` | S3 API (used by Redpanda Connect, Spark, rclone) |
+| `3903` | Admin API (bucket creation, key management) |
 
-```json
-{
-  "connector.class": "io.confluent.connect.s3.S3SinkConnector",
-  "tasks.max": "1",
-  "topics.regex": "vqe_decorated_result_.*",
-  "topics.dir": "experiments",
-  "s3.bucket.name": "local-vqe-results",
-  "store.url": "http://minio:9000",
-  "s3.region": "us-east-1",
-  "s3.path.style.access": "true",
-  "flush.size": "1",
-  "schema.compatibility": "NONE",
-  "storage.class": "io.confluent.connect.s3.storage.S3Storage",
-  "format.class": "io.confluent.connect.s3.format.avro.AvroFormat"
-}
-```
+### Raw Data Layout
 
-Full configuration: [`docker/connectors/minio-sink-config.json`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/connectors/minio-sink-config.json)
-
-### Raw Data Directory Layout
+Written by Redpanda Connect (see [Kafka Streaming](kafka-streaming.md)):
 
 ```
-s3://local-vqe-results/
+s3://raw-results/
 └── experiments/
-    ├── vqe_decorated_result_v1/
-    │   ├── partition=0/
-    │   │   ├── vqe_decorated_result_v1+0+0000000000.avro
-    │   │   ├── vqe_decorated_result_v1+0+0000000001.avro
-    │   │   └── vqe_decorated_result_v1+0+0000000002.avro
-    │   └── partition=1/
-    │       └── vqe_decorated_result_v1+1+0000000000.avro
-    └── vqe_decorated_result_v2/
-        └── partition=0/
-            └── vqe_decorated_result_v2+0+0000000000.avro
+    └── experiment.vqe/
+        ├── 1-1711900800000000000.json
+        ├── 2-1711900801000000000.json
+        └── ...
 ```
 
-**File naming convention:** `{topic_name}+{partition}+{start_offset}.avro`
+File naming: `{counter}-{unix_nano_timestamp}.json`.
 
-<figure>
-  <img src="https://qp-docs.codextechnologies.org/mkdocs/minio_LiH.png"
-       alt="MinIO web console showing the bucket structure with LiH molecule experiment data">
-  <figcaption>Figure 2. MinIO web console displaying the bucket structure for VQE experiment data, including LiH molecule results.</figcaption>
-</figure>
-
-### MinIO Configuration
-
-```yaml
-minio:
-  image: minio/minio:${MINIO_VERSION:-latest}
-  command: minio server /data --console-address ":${MINIO_CONSOLE_PORT}"
-  ports:
-    - "${MINIO_API_PORT}:9000"       # S3 API
-    - "${MINIO_CONSOLE_PORT}:9001"   # Web Console
-  environment:
-    MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    MINIO_REGION_NAME: ${MINIO_REGION}
-  volumes:
-    - minio-data:/data
-```
-
-| Port | Service | Description |
-|------|---------|-------------|
-| `${MINIO_API_PORT}` | S3 API | Used by Kafka Connect and Spark for data access |
-| `${MINIO_CONSOLE_PORT}` | Web Console | Browser-based management interface |
-
----
+!!! tip
+    Garage is S3 compatible. Use `aws configure --profile garage` with your
+    `S3_ACCESS_KEY` / `S3_SECRET_KEY` from `.env` to browse files with
+    `aws s3`.
 
 ## Partitioning Strategy
 
-Partitioning is optimized for expected query patterns:
+Partitioning is set for expected query patterns:
 
 | Table | Partition Columns | Rationale |
 |-------|-------------------|-----------|
 | `molecules` | `processing_date` | Time-based filtering for incremental loads |
-| `ansatz_info` | `processing_date`, `basis_set` | Filter by date and basis set for circuit analysis |
+| `ansatz_info` | `processing_date`, `basis_set` | Filter by date and basis set |
 | `performance_metrics` | `processing_date`, `basis_set` | Performance comparisons across basis sets |
-| `vqe_results` | `processing_date`, `basis_set`, `backend` | Query by date, basis set, and simulation backend |
+| `vqe_results` | `processing_date`, `basis_set`, `backend` | Query by date, basis set, and backend |
 | `initial_parameters` | `processing_date`, `basis_set` | Parameter analysis by date and basis set |
 | `optimal_parameters` | `processing_date`, `basis_set` | Optimized parameter lookup |
 | `vqe_iterations` | `processing_date`, `basis_set`, `backend` | Iteration analysis with backend filtering |
 | `iteration_parameters` | `processing_date`, `basis_set` | Per-iteration parameter tracking |
 | `hamiltonian_terms` | `processing_date`, `basis_set`, `backend` | Hamiltonian structure analysis |
 
-### Partition Pruning
-
-Iceberg uses partition metadata to skip irrelevant data files at query time:
-
-```sql
--- Only scans partitions for sto3g basis set on a specific date
-SELECT * FROM quantum_catalog.quantum_features.vqe_results
-WHERE processing_date = DATE '2025-01-12'
-  AND basis_set = 'sto3g';
-```
-
-Iceberg reads only files in matching partitions, reducing I/O for partition-filtered queries.
-
----
-
-## Table Maintenance
-
-Iceberg tables require periodic maintenance including snapshot expiration, data file compaction, and orphan file cleanup. For procedures and recommended schedules, see the [Iceberg Maintenance documentation](https://iceberg.apache.org/docs/latest/maintenance/).
-
----
+Iceberg uses partition metadata to skip irrelevant data files at query time,
+reducing I/O for partition-filtered queries.
 
 ## Processing Metadata Table
 
-A metadata table tracks all processing runs:
+An audit table tracks all processing runs:
 
-```sql
-CREATE TABLE IF NOT EXISTS quantum_catalog.quantum_features.processing_metadata (
-    processing_batch_id STRING,
-    processing_name STRING,
-    processing_timestamp TIMESTAMP,
-    processing_date DATE,
-    table_names ARRAY<STRING>,
-    table_versions ARRAY<STRING>,
-    record_counts ARRAY<BIGINT>,
-    source_data_info STRING
-) USING iceberg
-```
+| Column | Type | Description |
+|--------|------|-------------|
+| `processing_batch_id` | string | Batch identifier |
+| `processing_name` | string | Processing job name |
+| `processing_timestamp` | timestamp | When the batch was processed |
+| `processing_date` | date | Processing date |
+| `table_names` | array&lt;string&gt; | Tables written in this batch |
+| `table_versions` | array&lt;string&gt; | Snapshot tags for each table |
+| `record_counts` | array&lt;bigint&gt; | Records written per table |
+| `source_data_info` | string | Source data description |
 
-This provides an audit trail for tracing which data was processed and when.
+## Table Maintenance
 
----
+Iceberg tables require periodic maintenance including snapshot expiration, data
+file compaction, and orphan file cleanup. See the
+[Iceberg Maintenance documentation](https://iceberg.apache.org/docs/latest/maintenance/).
 
 ## Related Documentation
 
 - [System Design](../architecture/system-design.md) - Full architecture overview
-- [Spark Processing](spark-processing.md) - Feature engineering pipeline that writes to Iceberg
-- [Kafka Streaming](kafka-streaming.md) - How raw data arrives in MinIO via Kafka Connect
-- [Airflow Orchestration](airflow-orchestration.md) - Scheduling of the processing pipeline
+- [Spark Processing](spark-processing.md) - Feature engineering pipeline
+- [Kafka Streaming](kafka-streaming.md) - How raw data arrives via Redpanda Connect
+- [Airflow Orchestration](airflow-orchestration.md) - Pipeline scheduling
 
 ## References
 
 - [Apache Iceberg Documentation](https://iceberg.apache.org/docs/latest/)
 - [Iceberg Table Maintenance](https://iceberg.apache.org/docs/latest/maintenance/)
-- [MinIO Documentation](https://min.io/docs/minio/linux/index.html)
-- [Confluent S3 Sink Connector](https://docs.confluent.io/kafka-connectors/s3-sink/current/overview.html)
+- [Garage Documentation](https://garagehq.deuxfleurs.fr/documentation/quick-start/)
