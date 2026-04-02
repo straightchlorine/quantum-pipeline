@@ -1,46 +1,64 @@
 # Avro Serialization and Schema Management
 
-This page covers the Avro serialization pattern used throughout the Quantum Pipeline,
-including schema registry integration, versioning strategies, and the nested schema architecture.
-
----
+This page covers the Avro serialization pattern used throughout the project,
+including schema registry integration, versioning strategies, and the nested
+schema architecture.
 
 ## Overview
 
-Apache Avro was chosen for all data interchange between pipeline services for its compact binary format, native Kafka/Schema Registry integration, and schema evolution support. Avro provides a compact binary format, smaller than JSON, while enforcing strict type safety and supporting the nested data structures required by quantum simulation output.
+Quantum Pipeline uses Apache Avro for **wire serialization** between the
+Python producer and Kafka. This is an important distinction from v1.x, where
+Avro was treated as the end-to-end data format. In the current architecture:
+
+- **On the wire** (Python producer -> Kafka): Avro, using the Confluent wire
+  format with Schema Registry for serialization and deserialization.
+- **At rest** (Garage S3): depends on which connector writes the data.
+  Redpanda Connect (default) decodes Avro via `schema_registry_decode` and
+  writes JSON. Kafka Connect with `AvroConverter` writes Avro directly.
+- **Spark reads**: both formats. `read_experiments_by_topic()` in the
+  incremental processing script tries Avro first (`*.avro` glob), then falls
+  back to JSON (`*.json`), so it works regardless of which connector produced
+  the files.
+
+The default setup uses Redpanda Connect, which decodes to JSON at rest. If you
+need Avro end-to-end (for example, to take advantage of schema evolution on the
+storage layer), swap in the Kafka Connect alternative by running the compose
+stack with `docker-compose.ml.kafka-connect.yaml` and `--scale redpanda-connect=0`.
+That config uses the Confluent S3 sink with `AvroConverter`. The Spark processing
+scripts handle both formats, so no downstream changes are needed.
 
 For general Avro concepts, see the [Apache Avro specification](https://avro.apache.org/docs/current/specification/).
 
----
-
 ## Schema Registry Architecture
 
-The Schema Registry implements a caching strategy to minimize network calls:
+The Schema Registry implements a two-tier lookup with runtime generation as a fallback:
 
 ```mermaid
 graph TD
-    APP[Quantum Pipeline] -->| Check cache | CACHE[Local Schema Cache]
+    APP[Quantum Pipeline] -->| Check cache | CACHE[In-Memory Schema Cache]
     CACHE -->|Hit| USE[Use Schema]
     CACHE -->|Miss| SR[Schema Registry]
     SR -->|Found| USE
-    SR -->|Not Found| DISK[Disk Cache]
-    DISK -->|Found| USE
-    DISK -->|Not Found| GEN[Generate Schema]
+    SR -->|Not Found| GEN[Generate & Register Schema]
     GEN -->|Register| SR
+    GEN --> USE
 
     style CACHE fill:#a5d6a7,color:#1b5e20
     style SR fill:#ffe082,color:#000
-    style DISK fill:#90caf9,color:#0d47a1
     style USE fill:#e8f5e9,color:#1b5e20
 ```
 
-Schemas are resolved through a three-tier lookup: in-memory cache, Confluent Schema Registry, and local disk fallback. If no schema is found, a new one is generated and registered. See the [Confluent Schema Registry documentation](https://docs.confluent.io/platform/current/schema-registry/) for details on the registry API.
+Schemas are resolved through a two-tier lookup: in-memory cache and Confluent
+Schema Registry. If no schema is found in either location, the interface classes
+generate a new schema at runtime and register it with the registry via
+`SchemaRegistry.register_schema()`.
 
----
+See the [Confluent Schema Registry documentation](https://docs.confluent.io/platform/current/schema-registry/) for details on the registry API.
 
 ## Nested Schema Architecture
 
-The Quantum Pipeline uses a **compositional schema design** where complex types are built from simpler nested schemas.
+The project uses a compositional schema design. More complex types are built
+from simpler nested schemas.
 
 ### Schema Hierarchy
 
@@ -71,34 +89,26 @@ graph LR
 
 ### Schema Composition Pattern
 
-Instead of defining everything in one massive schema, smaller, reusable schemas are composed:
-
 ```python
 class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
     """Top-level schema composed from nested interfaces."""
 
+    SCHEMA_NAME = 'experiment.vqe'
+
     def __init__(self, registry):
         super().__init__(registry)
-        # Compose from nested schemas
         self.result_interface = VQEResultInterface(self.registry)
         self.molecule_interface = MoleculeInfoInterface(self.registry)
-        self.schema_name = 'vqe_decorated_result'
 
     @property
     def schema(self) -> dict:
         """Build schema by composing nested schemas."""
-        return {
+        schema = {
             'type': 'record',
             'name': 'VQEDecoratedResult',
             'fields': [
-                {
-                    'name': 'vqe_result',
-                    'type': self.result_interface.schema  # Nested schema
-                },
-                {
-                    'name': 'molecule',
-                    'type': self.molecule_interface.schema  # Nested schema
-                },
+                {'name': 'vqe_result', 'type': self.result_interface.schema},
+                {'name': 'molecule', 'type': self.molecule_interface.schema},
                 {'name': 'basis_set', 'type': 'string'},
                 {'name': 'hamiltonian_time', 'type': 'double'},
                 {'name': 'mapping_time', 'type': 'double'},
@@ -109,16 +119,13 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
                 {'name': 'performance_end', 'type': ['null', 'string'], 'default': None},
             ],
         }
+        self._register_schema(self.SCHEMA_NAME, deepcopy(schema))
+        return schema
 ```
 
-**Benefits of Composition:**
-
-- **Modularity** - Each schema can evolve independently
-- **Reusability** - Schemas like `MoleculeInfo` used in multiple contexts
-- **Testability** - Test each schema component in isolation
-- **Maintainability** - Changes localized to specific interfaces
-
----
+Each interface class defines its own `SCHEMA_NAME` class attribute and calls
+`_register_schema()` at the end of the `schema` property. This registers (or updates)
+the schema in the Schema Registry whenever the schema is accessed.
 
 ## Complete Schema Definitions
 
@@ -128,14 +135,13 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
 {
   "type": "record",
   "name": "VQEDecoratedResult",
-  "namespace": "quantum_pipeline.schemas",
   "fields": [
     {
       "name": "vqe_result",
       "type": {
         "type": "record",
         "name": "VQEResult",
-        "fields": [...]
+        "fields": ["..."]
       }
     },
     {
@@ -143,7 +149,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
       "type": {
         "type": "record",
         "name": "MoleculeInfo",
-        "fields": [...]
+        "fields": ["..."]
       }
     },
     {"name": "basis_set", "type": "string"},
@@ -201,9 +207,12 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
           {"name": "initial_parameters", "type": {"type": "array", "items": "double"}},
           {"name": "optimizer", "type": "string"},
           {"name": "ansatz", "type": "string"},
+          {"name": "noise_backend", "type": "string"},
+          {"name": "default_shots", "type": "int"},
           {"name": "ansatz_reps", "type": "int"},
-          {"name": "noise_backend", "type": ["null", "string"], "default": null},
-          {"name": "default_shots", "type": "int"}
+          {"name": "init_strategy", "type": ["string", "null"], "default": "random"},
+          {"name": "seed", "type": ["null", "int"], "default": null},
+          {"name": "ansatz_name", "type": ["null", "string"], "default": null}
         ]
       }
     },
@@ -218,7 +227,10 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
             {"name": "iteration", "type": "int"},
             {"name": "parameters", "type": {"type": "array", "items": "double"}},
             {"name": "result", "type": "double"},
-            {"name": "std", "type": "double"}
+            {"name": "std", "type": "double"},
+            {"name": "energy_delta", "type": ["null", "double"], "default": null},
+            {"name": "parameter_delta_norm", "type": ["null", "double"], "default": null},
+            {"name": "cumulative_min_energy", "type": ["null", "double"], "default": null}
           ]
         }
       }
@@ -226,7 +238,11 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
     {"name": "minimum", "type": "double"},
     {"name": "optimal_parameters", "type": {"type": "array", "items": "double"}},
     {"name": "maxcv", "type": ["null", "double"], "default": null},
-    {"name": "minimization_time", "type": "double"}
+    {"name": "minimization_time", "type": "double"},
+    {"name": "nuclear_repulsion_energy", "type": ["null", "double"], "default": null},
+    {"name": "success", "type": ["null", "boolean"], "default": null},
+    {"name": "nfev", "type": ["null", "int"], "default": null},
+    {"name": "nit", "type": ["null", "int"], "default": null}
   ]
 }
 ```
@@ -268,11 +284,9 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
 }
 ```
 
----
-
 ## Schema Evolution
 
-The project uses **NONE** compatibility mode during development in the Kafka Connect [sink config](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/connectors/minio-sink-config.json#L23):
+The Schema Registry is set to **NONE** compatibility mode:
 
 ```json
 {
@@ -280,146 +294,133 @@ The project uses **NONE** compatibility mode during development in the Kafka Con
 }
 ```
 
-This allows unrestricted schema changes but requires:
+This allows unrestricted schema changes. On the wire, each message carries its
+schema ID in the Confluent header, so consumers always know which version to
+use for decoding.
 
-1. New topic for each incompatible change
-2. Kafka Connect `topics.regex` pattern to consume all versions
-3. Spark jobs handle multiple schema versions
+When a field is added to a dataclass (e.g., `energy_delta` was added to
+`VQEProcess`), the corresponding interface's `schema` property is updated with
+a nullable default. This keeps older and newer messages decodable by the same
+consumer.
 
-**Production Recommendation:** Use `BACKWARD` or `FULL` compatibility. For details on schema evolution strategies (backward, forward, and full compatibility), see the [Confluent Schema Evolution documentation](https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html).
+!!! info "Kafka Connect"
 
----
+    If you switch to the Kafka Connect path with Avro at rest, consider tightening
+    compatibility to `BACKWARD` or `FULL` so that Spark can read files written with
+    different schema versions without issues. With the default Redpanda Connect
+    path (JSON at rest), `NONE` is sufficient. See the
+    [Confluent Schema Evolution documentation](https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html)
+    for details on compatibility modes.
 
-## Schema Versioning and Topic Naming
+## Topic and Schema Naming
 
-### Automatic Topic Suffix Generation
+All VQE results go to a single Kafka topic: `experiment.vqe`. The schema is
+registered under the subject `experiment.vqe-value` (the default
+TopicNameStrategy).
 
-```python
-def get_schema_suffix(self) -> str:
-    """Generate unique schema suffix encoding simulation parameters."""
-    mol_str = ''.join(self.molecule.symbols)
-    basis_set_formatted = self.basis_set.replace('-', '')
-    backend_formatted = self.backend.replace('-', '_')
-
-    return (
-        f'_mol{self.molecule_id}'
-        f'_{mol_str}'
-        f'_it{len(self.vqe_result.iteration_list)}'
-        f'_bs_{basis_set_formatted}'
-        f'_bk_{backend_formatted}'
-    )
-
-# Example usage
-suffix = result.get_schema_suffix()
-# Returns: "_mol0_HH_it150_bs_sto3g_bk_aer_simulator_statevector_gpu"
-
-topic_name = f"vqe_decorated_result{suffix}"
-# Returns: "vqe_decorated_result_mol0_HH_it150_bs_sto3g_bk_aer_simulator_statevector_gpu"
-```
-
-### Topic Naming Benefits
-
-```mermaid
-graph LR
-    P1[Producer v1<br/>H2, STO-3G, CPU] -->|topic_v1| K[Kafka]
-    P2[Producer v2<br/>H2, cc-pVDZ, GPU] -->|topic_v2| K
-    P3[Producer v3<br/>LiH, STO-3G, GPU] -->|topic_v3| K
-
-    K -->|topics.regex| C[Kafka Connect<br/>vqe_decorated_result_.*]
-
-    C -->|Write All| M[MinIO]
-
-    style P1 fill:#e1f5ff,color:#1a237e
-    style P2 fill:#e1f5ff,color:#1a237e
-    style P3 fill:#e1f5ff,color:#1a237e
-    style K fill:#ffe082,color:#000
-    style C fill:#ffe082,color:#000
-    style M fill:#b39ddb,color:#311b92
-```
-
-**Benefits:**
-
-1. **Self-Documenting** - Topic name reveals simulation configuration
-2. **Schema Isolation** - Different configurations -> different topics
-3. **Parallel Processing** - Multiple versions coexist without conflicts
-4. **Easy Debugging** - Identify problematic configurations from topic name
-5. **Zero Downtime** - Deploy new schemas without stopping old producers
-
----
+Versions 1.x generated a separate topic per configuration, encoding molecule ID, basis
+set, backend, and iteration count into the topic name. That made consumer setup
+and topic management increasingly difficult as configurations grew. The current
+single-topic approach keeps all results in one place. Downstream filtering (by
+molecule, basis set, optimizer, etc.) happens in Spark during feature extraction,
+not at the Kafka topic level.
 
 ## Serialization Process
 
-Avro data in Kafka follows the [Confluent Wire Format](https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format): a magic byte (`0x00`), a 4-byte schema ID, followed by the Avro binary payload. The pipeline serializes `VQEDecoratedResult` objects into this format for Kafka production and deserializes them on consumption by looking up the schema ID from the registry.
+Messages on the wire use the
+[Confluent Wire Format](https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format):
+a magic byte (`0x00`), a 4-byte schema ID, then the Avro binary payload.
 
----
+**Producer side** - `to_avro_bytes()` on `AvroInterfaceBase`:
 
-## Type Conversion for Quantum Data
+1. Parses the schema dict into an Avro schema object
+2. Writes the Confluent header (magic byte + 4-byte schema ID from the
+   registry's `id_cache`)
+3. Serializes the object using `DatumWriter` and `BinaryEncoder`
+
+**Consumer side** - depends on the connector:
+
+- **Redpanda Connect** (default): the `schema_registry_decode` processor reads
+  the schema ID from each message, fetches the schema from the registry,
+  decodes the Avro payload, and writes JSON to Garage.
+- **Kafka Connect**: the `AvroConverter` handles decoding internally and the S3
+  sink writes Avro files directly.
+
+
+## Type Conversion for Data
 
 ### Python/NumPy to Avro
 
+The base class provides `_convert_to_primitives` for converting NumPy types to Avro-compatible Python primitives:
+
 ```python
 def _convert_to_primitives(self, obj: Any) -> Any:
-    """Convert Python/NumPy types to Avro-compatible primitives."""
+    """Convert numpy types to Python native types."""
     if isinstance(obj, np.ndarray):
-        return obj.tolist()  # ndarray -> list
-    elif isinstance(obj, (np.int8, np.int16, np.int32, np.int64)):
-        return int(obj)  # numpy int -> Python int
-    elif isinstance(obj, (np.float16, np.float32, np.float64)):
-        return float(obj)  # numpy float -> Python float
-    elif isinstance(obj, complex):
-        return {'real': obj.real, 'imaginary': obj.imag}  # complex -> record
-    elif isinstance(obj, dict):
+        return obj.tolist()
+    if self._is_numpy_int(obj):
+        return int(obj)
+    if self._is_numpy_float(obj):
+        return float(obj)
+    if isinstance(obj, dict):
         return {k: self._convert_to_primitives(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
+    if isinstance(obj, list):
         return [self._convert_to_primitives(item) for item in obj]
-    else:
-        return obj
+    return obj
 ```
 
 ### Avro to Python/NumPy
 
+The reverse conversion uses `_convert_to_numpy`:
+
 ```python
-def _convert_from_primitives(self, obj: Any, target_type: type) -> Any:
-    """Convert Avro primitives back to Python/NumPy types."""
-    if target_type == np.ndarray and isinstance(obj, list):
-        return np.array(obj)
-    elif target_type == complex and isinstance(obj, dict):
-        return complex(obj['real'], obj['imag'])
-    elif hasattr(target_type, '__origin__'):  # Generic type (List, Dict, etc.)
-        return self._handle_generic_type(obj, target_type)
-    else:
-        return target_type(obj)
+def _convert_to_numpy(self, obj: Any) -> Any:
+    """Convert Python native types to numpy types."""
+    if isinstance(obj, list):
+        return np.array([self._convert_to_primitives(item) for item in obj])
+    if hasattr(obj, 'tolist'):
+        return obj.tolist()
+    return obj
 ```
 
 ### Complex Number Handling
 
+Complex numbers (used in Hamiltonian coefficients) are represented as Avro records with `real` and `imaginary` fields. The `VQEInitialDataInterface` handles serialization and deserialization of these values directly:
+
 ```python
-# Avro schema for complex numbers
-{
-  "type": "record",
-  "name": "ComplexNumber",
-  "fields": [
-    {"name": "real", "type": "double"},
-    {"name": "imaginary", "type": "double"}
-  ]
-}
+def _serialize_hamiltonian(self, data: ndarray):
+    serialized_data = []
+    for label, complex_number in data:
+        if isinstance(complex_number, (str, np.str_)):
+            complex_number = complex(
+                complex_number.replace('(', '').replace(')', ''),
+            )
+        real_part = np.float64(complex_number.real)
+        imaginary_part = np.float64(complex_number.imag)
+        serialized_data.append(
+            {'label': label, 'coefficients': {'real': real_part, 'imaginary': imaginary_part}}
+        )
+    return serialized_data
 
-# Python serialization
-def serialize_complex(c: complex) -> dict:
-    return {'real': c.real, 'imaginary': c.imag}
-
-# Python deserialization
-def deserialize_complex(data: dict) -> complex:
-    return complex(data['real'], data['imaginary'])
+def _deserialize_hamiltonian(self, data: list):
+    return np.array(
+        [
+            (
+                term['label'],
+                complex(term['coefficients']['real'], term['coefficients']['imaginary']),
+            )
+            for term in data
+        ],
+        dtype=object,
+    )
 ```
 
----
+The serializer handles the case where complex numbers may arrive as string representations (e.g., from earlier processing stages) by stripping parentheses and parsing them.
 
 ## Next Steps
 
 - **[Data Flow](data-flow.md)** - See how Avro data flows through the pipeline
 - **[System Design](system-design.md)** - Understand component integration
-- **[Kafka Streaming](../data-platform/kafka-streaming.md)** - Kafka + Avro details
 
 ## References
 
