@@ -1,7 +1,7 @@
 # Docker Basics
 
-Quantum Pipeline provides pre-built Docker images for CPU and GPU workloads, as well
-as specialized images for Spark and Airflow services. This page covers the available
+Quantum Pipeline provides Docker images for CPU and GPU workloads, as well
+as images for Spark and Airflow services. This page covers the available
 images, building from source, and running containers.
 
 ## Available Images
@@ -12,46 +12,94 @@ repository.
 
 | Image Tag | Base Image | Purpose |
 |---|---|---|
-| [`straightchlorine/quantum-pipeline:latest`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/Dockerfile.cpu) | `python:3.12-slim-bullseye` | CPU-only simulations |
-| [`straightchlorine/quantum-pipeline:latest-gpu`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/Dockerfile.gpu) | `nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04` | GPU-accelerated simulations |
-| [`straightchlorine/quantum-pipeline:spark`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/Dockerfile.spark) | `bitnamilegacy/spark` | Spark master and worker nodes |
-| [`straightchlorine/quantum-pipeline:airflow`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/Dockerfile.airflow) | `apache/airflow:2.10.5` | Airflow scheduler, webserver, triggerer |
+| [`straightchlorine/quantum-pipeline:cpu`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.cpu) | `python:3.12-slim-bookworm` | CPU-only simulations |
+| [`straightchlorine/quantum-pipeline:gpu`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.gpu) | `nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04` | GPU-accelerated simulations |
+| [`quantum-pipeline-spark`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.spark) | `apache/spark:4.0.2-python3` | Spark master and worker nodes |
+| [`airflow` (custom)](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/Dockerfile) | `apache/airflow:3.1.8` | Airflow API server, scheduler, workers, triggerer |
 
 ### CPU Image
 
-The CPU image is a lightweight container based on Python 3.12. It installs the
-Quantum Pipeline package and its dependencies directly from the project source.
+The CPU image is a lightweight container based on Python 3.12 (Bookworm). It installs
+the Quantum Pipeline package and its dependencies directly from the project source.
 
 ### GPU Image
 
-The GPU image is built on the official NVIDIA CUDA 11.8.0 base with cuDNN 8. It
-includes a custom compilation of Qiskit Aer from source with CUDA Thrust backend
-support, providing hardware-accelerated quantum circuit simulation.
+The GPU image is built on NVIDIA CUDA 12.6.3 with cuDNN. It includes a custom
+compilation of Qiskit Aer from source with CUDA Thrust backend support, providing
+hardware-accelerated quantum circuit simulation.
+
+The `CUDA_ARCH` build argument controls which GPU architecture the Aer binary targets:
+
+| `CUDA_ARCH` | Architecture | Example GPUs |
+|---|---|---|
+| `6.1` | Pascal | GTX 1060, GTX 1050 Ti |
+| `7.5` | Turing | RTX 2070, RTX 2080 |
+| `8.6` | Ampere (default) | RTX 3060, RTX 3080 |
+| `8.9` | Ada Lovelace | RTX 4070, RTX 4090 |
 
 ### Spark Image
 
-The Spark image extends the Bitnami Spark base with pre-downloaded JAR dependencies
-for Avro processing, Hadoop AWS (S3A connector), and Apache Iceberg table support.
+The Spark image extends the Apache Spark 4.0.2 base by replacing Python 3.10 with
+3.12 so it matches the Airflow driver environment. The image
+itself contains no application code or JARs - those are resolved at runtime via
+`spark.jars.packages` in `spark-defaults.conf` and cached in a named Ivy volume.
 
 ### Airflow Image
 
-The Airflow image adds Java 17 (required for Spark job submission) and additional
-Python dependencies to the official Apache Airflow base image.
+The Airflow image adds Java 17 (required for Spark job submission), Docker CE CLI
+with buildx and compose plugins (for batch generation DAGs that spawn simulation
+containers), rclone (for R2 sync), and Python dependencies (`apache-airflow-providers-apache-spark`,
+`pyspark`) to the Apache Airflow 3.1.8 base image.
+
+The `DOCKER_GID` build argument sets the GID of the `docker` group inside the
+container so the Airflow user can access the host Docker socket. Check your host
+GID with `stat -c '%g' /var/run/docker.sock` and pass it at build time if it
+differs from the default (`970`).
 
 ## Building from Source
 
-Build instructions are provided in the repository Dockerfiles under [`docker/`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker) — see [`Dockerfile.cpu`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/Dockerfile.cpu), [`Dockerfile.gpu`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/Dockerfile.gpu), [`Dockerfile.spark`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/Dockerfile.spark), and [`Dockerfile.airflow`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/Dockerfile.airflow). Each image can be built with:
+### Using the justfile (recommended)
+
+The simplest way to build images:
 
 ```bash
-docker build -t quantum-pipeline:<variant> -f docker/Dockerfile.<variant> .
+# Build CPU image
+just docker-build cpu
+
+# Build GPU image (default CUDA_ARCH=8.6/Ampere)
+just docker-build gpu
+
+# Build GPU image for Pascal GPUs
+CUDA_ARCH=6.1 just docker-build gpu
+
+# Build both CPU and GPU images
+just docker-build all
 ```
 
-where `<variant>` is `cpu`, `gpu`, `spark`, or `airflow`.
+### Manual builds
+
+Each image can be built directly with Docker:
+
+```bash
+# CPU
+docker build -t quantum-pipeline:cpu -f docker/Dockerfile.cpu .
+
+# GPU (default Ampere)
+docker build -t quantum-pipeline:gpu -f docker/Dockerfile.gpu .
+
+# GPU targeting Pascal
+docker build -t quantum-pipeline:gpu -f docker/Dockerfile.gpu \
+  --build-arg CUDA_ARCH="6.1" .
+
+# Airflow (with custom Docker GID)
+docker build -t quantum-pipeline-airflow -f docker/airflow/Dockerfile \
+  --build-arg DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)" \
+  docker/airflow/
+```
 
 !!! warning "GPU Build Time"
-    Building the GPU image compiles Qiskit Aer from source with CUDA Thrust backend support. To target a different GPU architecture, set `AER_CUDA_ARCH` in the Dockerfile (e.g., `7.5` for Turing, `8.0` for Ampere).
-
-See the [Dockerfiles in the repository](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker) for full build details and configuration options.
+    Building the GPU image compiles Qiskit Aer from source with CUDA Thrust backend
+    support. This takes a while. Make sure `CUDA_ARCH` matches your target GPU!
 
 ## Running Containers
 
@@ -62,8 +110,8 @@ Run a basic CPU simulation with:
 ```bash
 docker run --rm \
   -v $(pwd)/data:/usr/src/quantum_pipeline/data \
-  -v $(pwd)/gen:/usr/src/quantum-pipeline/gen \
-  straightchlorine/quantum-pipeline:latest \
+  -v $(pwd)/gen:/usr/src/quantum_pipeline/gen \
+  quantum-pipeline:cpu \
   --file ./data/molecules.json \
   --simulation-method statevector \
   --max-iterations 150 \
@@ -77,8 +125,8 @@ For GPU-accelerated simulation, pass the `--gpus` flag and add the `--gpu` argum
 ```bash
 docker run --rm --gpus all \
   -v $(pwd)/data:/usr/src/quantum_pipeline/data \
-  -v $(pwd)/gen:/usr/src/quantum-pipeline/gen \
-  straightchlorine/quantum-pipeline:latest-gpu \
+  -v $(pwd)/gen:/usr/src/quantum_pipeline/gen \
+  quantum-pipeline:gpu \
   --file ./data/molecules.json \
   --gpu \
   --simulation-method statevector \
@@ -93,10 +141,10 @@ To send results to a Kafka broker, add the `--kafka` flag and set the
 
 ```bash
 docker run --rm --gpus all \
-  --network quantum-pipeline-network \
+  --network quantum-ml-network \
   -e KAFKA_SERVERS=kafka:9092 \
   -v $(pwd)/data:/usr/src/quantum_pipeline/data \
-  straightchlorine/quantum-pipeline:latest-gpu \
+  quantum-pipeline:gpu \
   --file ./data/molecules.json \
   --gpu \
   --kafka \
@@ -119,7 +167,9 @@ docker run --rm --gpus all \
 | `--threshold <value>` | Convergence threshold value (default: `1e-6`) |
 | `--optimizer <name>` | Optimizer algorithm (e.g., `L-BFGS-B`, `COBYLA`) |
 | `--basis <set>` | Basis set (e.g., `sto3g`, `cc-pvdz`) |
+| `--ansatz <type>` | Ansatz type (`EfficientSU2`, `RealAmplitudes`, `ExcitationPreserving`) |
+| `--seed <n>` | Random seed for reproducible parameter initialization |
+| `--init-strategy <strategy>` | Parameter initialization (`random`, `hf`) |
 | `--log-level <level>` | Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `--report` | Generate a report after simulation |
 | `--enable-performance-monitoring` | Enable resource monitoring |
-| `--performance-pushgateway <url>` | Prometheus PushGateway URL |

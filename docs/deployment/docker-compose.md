@@ -1,24 +1,28 @@
 # Docker Compose Deployment
 
-The full Quantum Pipeline platform runs as a set of interconnected Docker containers
-managed by Docker Compose. This deployment includes the quantum simulation engine,
-Apache Kafka for data streaming, Apache Spark for data processing, Apache Airflow
-for workflow orchestration, MinIO for object storage, and monitoring agents.
+The full platform runs as a set of Docker containers managed by Docker Compose.
+This deployment includes the simulation engine, Apache Kafka for data streaming,
+Redpanda Connect for S3 sink streaming, Apache Spark for data processing,
+Apache Airflow for workflow orchestration, Garage for S3-compatible object storage,
+MLflow for experiment tracking, and monitoring exporters.
+
+As for now MLflow wasn't yet integrated into the actual workflow. Ensuring stability
+of other components, including simulation module takes precedence.
 
 ## Overview
 
-The platform follows a microservices architecture where each component runs in its
-own container, communicating over a shared Docker bridge network. Services can be
-scaled, replaced, or upgraded independently without affecting the rest of the system.
+Each component runs in its own container on a shared Docker bridge network.
+The compose file is at
+[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml).
+It defines:
 
-The Docker Compose configuration defines:
-
-- **Simulation containers** - Quantum Pipeline (single GPU instance in default config; CPU + multi-GPU in thesis config)
-- **Streaming layer** - Kafka broker, Schema Registry, Kafka Connect
-- **Processing layer** - Spark master and workers
-- **Orchestration** - Airflow webserver, scheduler, and triggerer with PostgreSQL
-- **Storage** - MinIO object storage with automatic bucket initialization
-- **Monitoring** - [Dozzle](https://github.com/amir20/dozzle) and [Portainer](https://github.com/portainer/portainer) agents for container management (thesis config only)
+- **Simulation containers** - Quantum Pipeline GPU and CPU containers (in the `batch` profile, started by Airflow DAGs)
+- **Streaming layer** - Apache Kafka (KRaft mode), Schema Registry, Redpanda Connect (S3 sink to Garage)
+- **Processing layer** - Spark master and worker
+- **Orchestration** - Airflow 3.x with CeleryExecutor: API server, scheduler, DAG processor, Celery worker, triggerer, with PostgreSQL and Redis
+- **Storage** - Garage v2.2.0 S3-compatible object storage
+- **ML tracking** - MLflow experiment tracking server (backed by PostgreSQL + Garage)
+- **Monitoring exporters** - StatsD exporter, PostgreSQL exporter, Redis exporter, NVIDIA GPU exporter
 
 Port mappings and dependencies are listed in the service tables below.
 
@@ -29,103 +33,69 @@ Port mappings and dependencies are listed in the service tables below.
 - Docker Engine 24.0 or later
 - Docker Compose v2.20 or later
 - NVIDIA Container Toolkit (for GPU containers)
+- [just](https://github.com/casey/just) command runner (recommended)
 
 ### Step 1: Clone the Repository
 
 ```bash
+# codeberg mirror
+git clone https://codeberg.org/piotrkrzysztof/quantum-pipeline.git
+
+# or github
 git clone https://github.com/straightchlorine/quantum-pipeline.git
+
 cd quantum-pipeline
 ```
 
 ### Step 2: Configure Environment
 
-Copy the example environment file and customize it:
+Run the first-time setup script, which generates secrets and Garage configuration:
 
 ```bash
-cp .env.thesis.example .env
+just ml-setup
+```
+
+This creates a `.env` file from `.env.ml.example` and generates the required secrets.
+You can also do it manually:
+
+```bash
+cp .env.ml.example .env
+chmod 600 .env
 ```
 
 Edit `.env` to set credentials, resource limits, and service ports. See the
 [Environment Variables](environment-variables.md) reference for all options.
 
-### Step 3: Deploy
+### Step 3: Build Images
 
-For the full thesis experiment setup ([`docker-compose.thesis.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml)):
-
-```bash
-docker compose -f docker-compose.thesis.yaml up -d
-```
-
-For a single-GPU deployment without monitoring agents ([`docker-compose.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.yaml)):
+Build the simulation container images:
 
 ```bash
-docker compose up -d
+# CPU only
+just docker-build cpu
+
+# GPU (set CUDA_ARCH for your GPU, default 8.6/Ampere)
+CUDA_ARCH=6.1 just docker-build gpu
+
+# Both
+just docker-build all
 ```
 
-### Step 4: Verify
+### Step 4: Deploy
+
+```bash
+just ml-up
+```
+
+This runs `docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d`.
+
+### Step 5: Verify
 
 Check that all services are running:
 
 ```bash
-docker compose -f docker-compose.thesis.yaml ps
+docker compose --env-file .env -f compose/docker-compose.ml.yaml ps
 ```
-
-## Example: Thesis Experiment Setup
-
-The [`docker-compose.thesis.yaml`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml) file
-serves as an example of a multi-container deployment for hardware benchmarking. It
-defines a three-way comparison of CPU and GPU performance across different hardware
-configurations, running three Quantum Pipeline containers simultaneously alongside
-monitoring agents ([Dozzle](https://github.com/amir20/dozzle) and
-[Portainer](https://github.com/portainer/portainer)). Use this as a reference for
-building your own multi-instance deployments.
-
-### Container Configuration
-
-**1. CPU Pipeline ([`quantum-pipeline-cpu`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml#L21))**
-
-- Built from `docker/Dockerfile.cpu`
-- Resource limits: 2 CPUs, 10 GB RAM
-- Simulation method: `statevector`
-- Optimizer: `L-BFGS-B` with 300 max iterations
-- Convergence threshold: `1e-6`
-- Publishes results to Kafka topic `vqe_results_cpu`
-
-**2. GPU Pipeline - GTX 1060 ([`quantum-pipeline-gpu1`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml#L82))**
-
-- Built from `docker/Dockerfile.gpu`
-- Resource limits: 2 CPUs, 10 GB RAM + GTX 1060 6GB (device 0)
-- Same simulation parameters as CPU
-- Publishes results to Kafka topic `vqe_results_gpu1`
-- Environment: `CUDA_VISIBLE_DEVICES=0`
-
-**3. GPU Pipeline - GTX 1050 Ti ([`quantum-pipeline-gpu2`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml#L149))**
-
-- Built from `docker/Dockerfile.gpu`
-- Resource limits: 2 CPUs, 10 GB RAM + GTX 1050 Ti 4GB (device 1)
-- Same simulation parameters as CPU
-- Publishes results to Kafka topic `vqe_results_gpu2`
-- Environment: `CUDA_VISIBLE_DEVICES=0` (mapped as device 0 inside container)
-
-All three containers use the same molecule dataset (`molecules.thesis.json`), basis
-set (`sto3g`), and optimization parameters, ensuring a fair comparison.
-
-### GPU Resource Allocation
-
-Each GPU container reserves a specific GPU using Docker's device reservation:
-
-```yaml
-deploy:
-  resources:
-    reservations:
-      devices:
-        - driver: nvidia
-          device_ids: ['0']  # Specific GPU device
-          capabilities: [gpu]
-```
-
-This ensures each container has exclusive access to its assigned GPU, preventing
-resource contention during benchmarks.
 
 ## Service Configuration
 
@@ -133,46 +103,110 @@ resource contention during benchmarks.
 
 | Service | Image | Port(s) | Description |
 |---|---|---|---|
-| `kafka` | `bitnami/kafka` | 9092 (internal), 9094 (external) | Message broker with KRaft mode |
-| `schema-registry` | `confluentinc/cp-schema-registry` | 8081 | Avro schema management |
-| `kafka-connect` | `confluentinc/cp-kafka-connect` | 8083 | S3 Sink connector to MinIO ([`minio-sink-config.json`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/connectors/minio-sink-config.json)) |
-| `kafka-connect-init` | `curlimages/curl` | - | Registers the MinIO Sink connector |
+| `kafka` | `apache/kafka:4.2.0` | 9092 (internal), 9094 (external) | Message broker with KRaft mode |
+| `schema-registry` | `confluentinc/cp-schema-registry:8.2.0` | 8081 | Avro schema management |
+| `redpanda-connect` | `docker.redpanda.com/redpandadata/connect` | 4195 (metrics) | S3 sink streaming from Kafka to Garage |
 
-Kafka runs in KRaft mode. Schema Registry manages Avro schemas. Kafka Connect runs the S3 Sink connector to stream data to MinIO.
+Kafka runs in KRaft mode (no ZooKeeper). Schema Registry manages Avro schemas.
+Redpanda Connect replaces the older Kafka Connect + S3 Sink connector setup, streaming
+data from Kafka topics directly to Garage (S3).
+
+#### Alternative: Confluent Kafka Connect
+
+An override file at `compose/docker-compose.ml.kafka-connect.yaml` provides a
+Confluent Kafka Connect worker with the S3 Sink connector (v12.1.0) as an alternative
+to Redpanda Connect. To use it, pass both compose files and scale Redpanda Connect
+to zero:
+
+```bash
+docker compose --env-file .env \
+  -f compose/docker-compose.ml.yaml \
+  -f compose/docker-compose.ml.kafka-connect.yaml \
+  up -d --scale redpanda-connect=0
+```
+
+The override adds two services: `kafka-connect` (port 8083) which installs the S3
+connector plugin on startup, and `kafka-connect-init` which registers the
+`garage-sink` connector pointing at the `raw-results` bucket. Both depend on Kafka,
+Schema Registry, and Garage being healthy.
 
 ### Processing Services
 
 | Service | Image | Port(s) | Description |
 |---|---|---|---|
-| `spark-master` | Custom (Dockerfile.spark) | 8080 (UI), 7077 (RPC) | Spark cluster master |
-| `spark-worker` | Custom (Dockerfile.spark) | - | Spark executor node — thesis config: [4 GB, 2 cores](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.thesis.yaml#L431); default: [1 GB, 1 core](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker-compose.yaml#L275) |
+| `spark-master` | `quantum-pipeline-spark:4.0.2-python3.12` | 8080 (UI), 7077 (RPC) | Spark cluster master |
+| `spark-worker` | `quantum-pipeline-spark:4.0.2-python3.12` | - | Spark executor node (default: 2 GB memory, 2 cores) |
 
 ### Orchestration Services
 
 | Service | Image | Port(s) | Description |
 |---|---|---|---|
-| `airflow-webserver` | Custom (Dockerfile.airflow) | 8084 | Airflow web interface |
-| `airflow-scheduler` | Custom (Dockerfile.airflow) | - | DAG scheduling |
-| `airflow-triggerer` | Custom (Dockerfile.airflow) | - | Deferred task execution |
-| `airflow-init` | Custom (Dockerfile.airflow) | - | Database migration, user creation |
-| `postgres` | `postgres:13` | - (internal only) | Airflow metadata database |
+| `airflow-apiserver` | Custom (docker/airflow) | 8084 | Airflow API server and web UI |
+| `airflow-scheduler` | Custom (docker/airflow) | - | DAG scheduling |
+| `airflow-dag-processor` | Custom (docker/airflow) | - | DAG parsing and processing |
+| `airflow-worker` | Custom (docker/airflow) | - | Celery task execution |
+| `airflow-triggerer` | Custom (docker/airflow) | - | Deferred task execution |
+| `airflow-init` | Custom (docker/airflow) | - | Database migration, user creation, Spark connection |
+| `postgres` | `postgres:16-alpine` | - (internal only) | Airflow + MLflow metadata database (see note below) |
+| `redis` | `redis:7.2-bookworm` | 6379 (internal only) | Celery broker |
 
-Airflow uses the LocalExecutor with PostgreSQL. The init container runs migrations, creates the admin user, and registers the Spark connection.
 
-### Storage and Monitoring Services
+The Airflow common environment also configures rclone remotes for Garage and
+Cloudflare R2 via `RCLONE_CONFIG_*` environment variables. This allows the R2 sync
+DAG to copy data between Garage (local S3) and Cloudflare R2 (remote S3) without a
+separate rclone configuration file.
+
+### Storage Services
 
 | Service | Image | Port(s) | Description |
 |---|---|---|---|
-| `minio` | `minio/minio` | `$MINIO_API_PORT` (API), `$MINIO_CONSOLE_PORT` (Console) | S3-compatible object storage |
-| `mc-setup` | `minio/mc` | - | Creates buckets and sets policies |
-| `dozzle` | `amir20/dozzle` | 7007 | Real-time container log viewer ([Dozzle](https://github.com/amir20/dozzle)) — thesis config only |
-| `portainer` | `portainer/agent` | 9002 | Container management agent ([Portainer](https://github.com/portainer/portainer)) — thesis config only |
+| `garage` | `dxflrs/garage:v2.2.0` | 3901 (S3 API), 3903 (admin) | S3-compatible object storage |
 
-The `mc-setup` container automatically creates required buckets on first run. The default bucket name is configurable via the `MINIO_BUCKET` environment variable (default: `quantum-data`).
+Garage stores raw VQE results, feature datasets, and Iceberg warehouse data. Buckets
+are configured during `just ml-setup`. The S3 endpoint is `http://garage:3901` from
+within the Docker network. The admin API on port 3903 exposes cluster status and
+metrics that can be scraped by Prometheus.
+
+### ML Tracking
+
+| Service | Image | Port(s) | Description |
+|---|---|---|---|
+| `mlflow` | `ghcr.io/mlflow/mlflow:v3.10.1-full` | 5000 | Experiment tracking and artifact storage |
+
+MLflow uses PostgreSQL for the backend store and Garage (S3) for artifact storage
+(`s3://mlflow-artifacts/`).
+
+### Monitoring Exporters
+
+These services expose Prometheus metrics for scraping by an external monitoring server:
+
+| Service | Image | Port(s) | Description |
+|---|---|---|---|
+| `airflow-statsd-exporter` | `prom/statsd-exporter` | 9102 (metrics), 9125/udp (StatsD) | Converts Airflow StatsD metrics to Prometheus format |
+| `postgres-exporter` | `prometheuscommunity/postgres-exporter` | 9187 | PostgreSQL metrics |
+| `redis-exporter` | `oliver006/redis_exporter` | 9121 | Redis metrics |
+| `nvidia-gpu-exporter` | `utkuozdemir/nvidia_gpu_exporter:1.2.0` | 9835 | NVIDIA GPU utilization, memory, temperature |
+
+### Batch Simulation Containers
+
+These containers are defined in the `batch` profile and are not started by `just ml-up`.
+They are launched on-demand by Airflow DAGs via `docker compose run`:
+
+| Service | Image | Description |
+|---|---|---|
+| `quantum-pipeline-gpu1` | `quantum-pipeline:gpu` | GPU simulation (device 0, GTX 1060 6GB) |
+| `quantum-pipeline-gpu2` | `quantum-pipeline:gpu` | GPU simulation (device 1, GTX 1050 Ti) |
+| `quantum-pipeline-cpu` | `quantum-pipeline:cpu` | CPU simulation |
+
+Each batch container connects to Kafka and Schema Registry, and exports monitoring
+metrics via the `MONITORING_ENABLED`, `PUSHGATEWAY_URL`, and `MONITORING_EXPORT_FORMAT`
+environment variables.
 
 ## Networking
 
-All services share a single Docker bridge network (`quantum-pipeline-network`). Services communicate using container names as hostnames (e.g., `kafka:9092`, `minio:9000`). The Kafka external listener on port 9094 allows access from outside the Docker network.
+All services share a single Docker bridge network (`quantum-ml-network`). Services
+communicate using container names as hostnames (e.g., `kafka:9092`, `garage:3901`).
+The Kafka external listener on port 9094 allows access from outside the Docker network.
 
 ## Volumes
 
@@ -180,34 +214,53 @@ The deployment uses named Docker volumes for persistent data:
 
 | Volume | Service | Purpose |
 |---|---|---|
-| `quantum-minio-data` | MinIO | Object storage data |
-| `quantum-spark-warehouse` | Spark | Spark SQL warehouse |
-| `quantum-airflow-postgres` | PostgreSQL | Airflow metadata |
-| `quantum-airflow-logs` | Airflow | Task execution logs |
-| `quantum-kafka-data` | Kafka | Kafka log segments |
+| `quantum-garage-data` | Garage | Object storage data |
+| `quantum-garage-meta` | Garage | Object storage metadata |
+| `quantum-ml-spark-warehouse` | Spark | Spark SQL warehouse |
+| `quantum-ml-spark-ivy-cache` | Spark | Cached JAR dependencies |
+| `quantum-ml-airflow-postgres` | PostgreSQL | Airflow + MLflow metadata |
+| `quantum-ml-airflow-logs` | Airflow | Task execution logs |
+| `quantum-ml-airflow-ivy-cache` | Airflow | Cached JARs for SparkSubmit |
+| `quantum-ml-redis-data` | Redis | Celery broker data |
+| `quantum-ml-kafka-data` | Kafka | Kafka log segments |
 
-Bind mounts provide access to project files: `./gen/` (simulation output), `./data/` (molecule definitions), `./docker/airflow/` (DAG definitions), and `./docker/connectors/` (Kafka Connect configs).
+Bind mounts provide access to project files: DAG definitions (`docker/airflow/`),
+Spark configuration (`compose/spark-defaults.conf`), Garage configuration
+(`compose/garage.toml`), Redpanda Connect config (`compose/redpanda-connect.yaml`),
+simulation data (`data/`), and output (`gen/`).
 
-## Health Checks
+## Justfile Commands
 
-Services include health checks for proper startup ordering via `depends_on` conditions. The Quantum Pipeline containers wait for `kafka-connect-init` to complete before starting. See the `docker-compose.thesis.yaml` file for the full health check configuration.
+| Command | Description |
+|---|---|
+| `just ml-setup` | First-time setup: generates secrets, Garage config, `.env` file |
+| `just ml-up` | Start the ML pipeline stack |
+| `just ml-down` | Force-remove running batch containers, then stop the ML stack (includes `--profile batch`) |
+| `just docker-build cpu` | Build CPU simulation image |
+| `just docker-build gpu` | Build GPU simulation image |
+| `just docker-build all` | Build both CPU and GPU images |
+| `just docker-up` | Start the base compose stack (`compose/docker-compose.yaml`) |
+| `just docker-down` | Stop the base compose stack |
+| `just docker-logs [service]` | Tail logs from the base compose stack |
 
 ## Scaling
 
 Scale Spark workers with:
 
 ```bash
-docker compose -f docker-compose.thesis.yaml up -d --scale spark-worker=3
+docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d --scale spark-worker=3
 ```
 
-For additional simulation instances, add new service definitions with a unique `container_name`, distinct `--topic`, appropriate GPU device assignment, and separate output volume mounts. Each Spark worker reserves 2 cores and 4 GB RAM; each GPU container requires exclusive GPU access.
+For additional simulation instances, add new service definitions with a unique
+`container_name`, distinct Kafka topic, appropriate GPU device assignment, and
+separate output volume mounts.
 
 ## Stopping the Deployment
 
 ```bash
-# Stop services, preserve data
-docker compose -f docker-compose.thesis.yaml down
+# Stop services, preserve data (also force-removes any running batch containers)
+just ml-down
 
-# Stop and remove all data volumes
-docker compose -f docker-compose.thesis.yaml down -v
+# Or manually, including volume cleanup
+docker compose --env-file .env -f compose/docker-compose.ml.yaml --profile batch down -v
 ```
