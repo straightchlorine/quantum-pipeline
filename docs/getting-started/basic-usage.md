@@ -173,7 +173,7 @@ Or via environment variables:
 ```bash
 export MONITORING_ENABLED=true
 export PUSHGATEWAY_URL=http://localhost:9091
-export MONITORING_INTERVAL=30
+export MONITORING_INTERVAL=10
 export MONITORING_EXPORT_FORMAT=both
 quantum-pipeline --file data/molecules.json
 ```

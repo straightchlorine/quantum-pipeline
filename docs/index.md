@@ -34,15 +34,16 @@
 
 ## Overview
 
-The Quantum Pipeline project is a **framework** for running
-quantum algorithms. Currently, only **Variational Quantum Eigensolver (VQE)** is
-implemented. It combines quantum and classical computing to estimate the
-ground-state energy of molecular systems.
+Quantum Pipeline is a framework for running quantum algorithms. Currently, only
+the **Variational Quantum Eigensolver (VQE)** is implemented. It combines quantum
+and classical computing to estimate the ground-state energy of molecular systems.
 
-The framework provides modules to handle algorithm orchestration, parametrization,
-monitoring, and data visualization. Data can be streamed via **Apache Kafka** for
-real-time processing, transformed into ML features using **Apache Spark**,
-and stored in **Apache Iceberg** tables for analytics.
+The framework handles algorithm orchestration, parametrization, monitoring, and
+data visualization. Simulation results can be streamed via **Apache Kafka** for
+real-time processing and transformed into ML features using **Apache Spark**.
+
+This started as an engineering thesis project at DSW University of Lower Silesia,
+and it is still a work in progress.
 
 ---
 
@@ -50,33 +51,43 @@ and stored in **Apache Iceberg** tables for analytics.
 
 ### Core Quantum Computing
 
-- **Molecule Loading** - Load and validate molecular data from files
+- **Molecule Loading** - Load and validate molecular data from JSON files
 - **Hamiltonian Preparation** - Generate second-quantized Hamiltonians for molecular systems
-- **Quantum Circuit Construction** - Create parameterized ansatz circuits with customizable repetitions
-- **VQE Execution** - Solve Hamiltonians using the VQE algorithm with support for various optimizers
-- **Backend Options** - Customize simulation parameters such as qubit count, shot count, and optimization levels
+- **Quantum Circuit Construction** - Parameterized ansatz circuits (EfficientSU2, RealAmplitudes, ExcitationPreserving)
+- **VQE Execution** - Multiple optimizers (L-BFGS-B, COBYLA, SLSQP, Nelder-Mead, Powell, BFGS, CG, TNC, and others)
+- **Initialization Strategies** - Random uniform or Hartree-Fock based parameter initialization
+- **Backend Options** - Configurable simulation method, shot count, optimization level, GPU acceleration
 
 ### Data Engineering Pipeline
 
 - **Real-time Streaming** - Stream simulation results to Apache Kafka with Avro serialization
 - **ML Feature Engineering** - Transform quantum experiment data into ML features using Apache Spark
-- **Data Lake Storage** - Store processed data in Apache Iceberg tables with versioning and time-travel
-- **Object Storage** - Persist data using MinIO S3-compatible storage with automated backup
 - **Workflow Orchestration** - Automate data processing workflows using Apache Airflow
+
+### ML Pipeline
+
+- **Convergence Prediction** - Predict VQE convergence behavior from experiment metadata
+- **Energy Estimation** - Estimate ground-state energies from molecular and circuit parameters
+- **Experiment Tracking** - Log and compare ML training runs via MLflow
+- **Dedicated Stack** - Separate Docker Compose stack (`just ml-up` / `just ml-down`)
+
+### Monitoring and Observability
+
+- **Prometheus Metrics** - Export performance and resource metrics to Prometheus via PushGateway
+- **Grafana Dashboards** - Visualize simulation performance, convergence, and system resources
+- **Environment Configuration** - Toggle monitoring via `MONITORING_ENABLED`, `PUSHGATEWAY_URL`, `MONITORING_INTERVAL`, `MONITORING_EXPORT_FORMAT`
 
 ### Analytics and Visualization
 
 - **Visualization Tools** - Plot molecular structures, energy convergence, and operator coefficients
-- **Report Generation** - Automatically generate detailed reports for each processed molecule
-- **Scientific Reference Validation** - Compare VQE results against experimentally verified ground state energies
-- **Feature Tables** - Access structured data through 9 ML feature tables
-- **Processing Metadata** - Track data lineage and processing history
+- **Report Generation** - Automatically generate PDF reports for each processed molecule
+- **Feature Tables** - Access structured data through ML feature tables
 
 ### Deployment
 
-- **Containerized Execution** - Deploy as multi-service Docker containers with GPU support
-- **Distributed Processing** - Spark-based parallel data processing
-- **Security** - Docker secrets and TLS configuration
+- **Docker Images** - CPU (`quantum-pipeline:cpu`) and GPU (`quantum-pipeline:gpu`) images
+- **Docker Compose** - Multi-service stack for the full data platform
+- **GPU Acceleration** - CUDA-based simulation via Qiskit Aer
 
 ---
 
@@ -96,7 +107,7 @@ and stored in **Apache Iceberg** tables for analytics.
 
     ---
 
-    Learn about optimizers, simulation methods, and parameter tuning
+    Learn about optimizers, ansatz types, initialization strategies, and parameter tuning
 
     [Usage Guide →](usage/index.md)
 
@@ -104,7 +115,7 @@ and stored in **Apache Iceberg** tables for analytics.
 
     ---
 
-    Understand the system design, data flow, and Avro serialization
+    Understand the system design and data flow
 
     [Architecture Docs →](architecture/index.md)
 
@@ -128,11 +139,10 @@ and stored in **Apache Iceberg** tables for analytics.
   <figcaption>Figure 1. Overview of the GPU-accelerated quantum pipeline service architecture.</figcaption>
 </figure>
 
-### Thesis Experiment Architecture
+### Data Platform Architecture
 
-The following diagram presents the architecture as deployed for the engineering thesis experiments.
-Kafka Connect writes raw Avro files to MinIO, and Spark (triggered by Airflow) reads from MinIO to
-produce ML features, while utilising Iceberg for incremental processing.
+The following diagram presents the general data platform architecture. Kafka streams
+VQE results to Spark for feature engineering, with Airflow orchestrating the workflows.
 
 ```mermaid
 graph TB
@@ -143,12 +153,6 @@ graph TB
     subgraph "Streaming Layer"
         KAFKA[Apache Kafka<br/>Message Broker]
         SR[Schema Registry<br/>Avro Schemas]
-        KC[Kafka Connect<br/>S3 Sink]
-    end
-
-    subgraph "Storage Layer"
-        MINIO[MinIO<br/>Object Storage]
-        ICEBERG[Apache Iceberg<br/>Feature Tables]
     end
 
     subgraph "Processing Layer"
@@ -156,66 +160,25 @@ graph TB
         SPARK[Apache Spark<br/>Feature Engineering]
     end
 
-    QP -->|Publish Results| KAFKA
+    subgraph "Monitoring"
+        PROM[Prometheus<br/>Metrics]
+        GRAF[Grafana<br/>Dashboards]
+    end
+
+    QP -->|Stream Results| KAFKA
     KAFKA <-->|Schema Validation| SR
-    KAFKA -->|Consume Topics| KC
-    KC -->|Write Avro Files| MINIO
-    AIRFLOW -->|Trigger| SPARK
-    SPARK -->|Read Raw Data| MINIO
-    SPARK -->|Write Features| ICEBERG
-    ICEBERG -->|Store Parquet| MINIO
+    KAFKA -->|Consume| SPARK
+    AIRFLOW -->|Schedule| SPARK
+    QP -->|Export Metrics| PROM
+    PROM -->|Visualize| GRAF
 
     style QP fill:#c5cae9,color:#1a237e
     style KAFKA fill:#ffe082,color:#000
     style SR fill:#ffe082,color:#000
-    style KC fill:#ffe082,color:#000
     style SPARK fill:#a5d6a7,color:#1b5e20
     style AIRFLOW fill:#90caf9,color:#0d47a1
-    style ICEBERG fill:#b39ddb,color:#311b92
-    style MINIO fill:#b39ddb,color:#311b92
-```
-
-### General Architecture
-
-The project is configurable - Kafka can stream directly to Spark consumers, bypassing the MinIO
-intermediate storage. This is useful for real-time processing scenarios.
-
-```mermaid
-graph TB
-    subgraph "Quantum Simulation"
-        QP2[Quantum Pipeline<br/>VQE Runner]
-    end
-
-    subgraph "Streaming Layer"
-        KAFKA2[Apache Kafka<br/>Message Broker]
-        SR2[Schema Registry<br/>Avro Schemas]
-    end
-
-    subgraph "Processing Layer"
-        SPARK2[Apache Spark<br/>Feature Engineering]
-        AIRFLOW2[Apache Airflow<br/>Orchestration]
-    end
-
-    subgraph "Storage Layer"
-        ICEBERG2[Apache Iceberg<br/>Data Lake]
-        MINIO2[MinIO<br/>Object Storage]
-    end
-
-    QP2 -->|Stream Results| KAFKA2
-    KAFKA2 <-->|Schema Validation| SR2
-    KAFKA2 -->|Consume| SPARK2
-    AIRFLOW2 -->|Schedule| SPARK2
-    SPARK2 -->|Write Features| ICEBERG2
-    ICEBERG2 -->|Store| MINIO2
-    SPARK2 -->|Store Raw| MINIO2
-
-    style QP2 fill:#c5cae9,color:#1a237e
-    style KAFKA2 fill:#ffe082,color:#000
-    style SR2 fill:#ffe082,color:#000
-    style SPARK2 fill:#a5d6a7,color:#1b5e20
-    style AIRFLOW2 fill:#90caf9,color:#0d47a1
-    style ICEBERG2 fill:#b39ddb,color:#311b92
-    style MINIO2 fill:#b39ddb,color:#311b92
+    style PROM fill:#ffab91,color:#bf360c
+    style GRAF fill:#ffab91,color:#bf360c
 ```
 
 ---
@@ -234,13 +197,16 @@ graph TB
     - **Apache Kafka** - Distributed event streaming platform
     - **Apache Spark** - Unified analytics engine for big data
     - **Apache Airflow** - Workflow orchestration platform
-    - **Apache Iceberg** - Open table format for data lakes
-    - **MinIO** - S3-compatible object storage
+
+=== "ML Pipeline"
+
+    - **scikit-learn / XGBoost** - Model training
+    - **MLflow** - Experiment tracking and training run comparison
 
 === "Infrastructure"
 
     - **Docker** - Container platform
-    - **Prometheus** - Monitoring and alerting toolkit
+    - **Prometheus** - Monitoring and metrics collection
     - **Grafana** - Metrics visualization and dashboards
     - **PostgreSQL** - Relational database for metadata
 
@@ -248,29 +214,28 @@ graph TB
 
 ## Use Cases
 
-!!! example "Research & Development"
+!!! example "Research and Development"
 
     - Explore VQE convergence behavior across different molecules
     - Benchmark CPU vs GPU acceleration for quantum simulations
-    - Compare optimizer performance
+    - Compare optimizer and initialization strategy performance
 
-!!! example "Data Science & ML"
+!!! example "Data Science and ML"
 
     - Analyze quantum experiment metadata at scale
-    - Create time-series predictions for molecular properties
+    - Train predictive models on VQE convergence data
 
 !!! example "Deployment"
 
     - Run automated quantum simulations
-    - Monitor system performance and scientific accuracy
-    - Process data with Spark
+    - Monitor system performance and resource usage
 
 ---
 
 ## Next Steps
 
 1. **[Install Quantum Pipeline](getting-started/installation.md)** - Get up and running
-2. **[First Simulation](getting-started/quick-start.md)** - H₂ molecule example
+2. **[First Simulation](getting-started/quick-start.md)** - H\(_2\) molecule example
 3. **[Configuration Options](usage/configuration.md)** - Customize your setup
 4. **[Full Platform Deployment](deployment/docker-compose.md)** - Launch all services
 

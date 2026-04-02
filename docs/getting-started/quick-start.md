@@ -123,7 +123,7 @@ quantum-pipeline \
     --optimizer L-BFGS-B
 ```
 
-Do not combine `--max-iterations` with `--convergence`. If you set `--convergence`, the default iteration limit is removed. If you explicitly set both, the iteration cap still applies but convergence is checked at each step.
+`--convergence` and an explicit `--max-iterations` are mutually exclusive. If you enable `--convergence` without setting `--max-iterations`, the default iteration limit (100) is dropped and the optimizer runs until the threshold is met. Passing both an explicit `--max-iterations` and `--convergence` raises an error.
 
 ## GPU acceleration
 

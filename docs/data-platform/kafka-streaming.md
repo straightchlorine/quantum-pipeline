@@ -149,14 +149,16 @@ builds the security dictionary passed to `KafkaProducer`. It supports two
 modes, controlled by
 [`SecurityConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/security.py):
 
-| Mode | Protocol | Authentication |
-|------|----------|----------------|
-| SSL | `security_protocol: SSL` | Certificate-based (paths from `CertConfig`, resolved relative to `ssl_dir`, default `./secrets/`) |
-| SASL_SSL | `security_protocol: SASL_SSL` | Username/password (PLAIN, SCRAM-SHA-256/512) or Kerberos (GSSAPI) |
+| Mode | Protocol | Authentication | Status |
+|------|----------|----------------|--------|
+| SSL | `security_protocol: SSL` | Certificate-based (paths from `CertConfig`, resolved relative to `ssl_dir`, default `./secrets/`) | Tested |
+| SASL_SSL | `security_protocol: SASL_SSL` | Username/password (PLAIN, SCRAM-SHA-256/512) | Tested |
+| SASL_SSL | `security_protocol: SASL_SSL` | Kerberos (GSSAPI) | Untested - options are exposed but no Kerberos setup has been done |
 
-Both modes are disabled by default. When neither is enabled,
+All modes are disabled by default. When neither is enabled,
 `build_security_config()` returns an empty dictionary and the producer connects
-without authentication.
+over PLAINTEXT. The Docker Compose stack uses PLAINTEXT within the container
+network.
 
 For the full configuration reference, see
 [Configuration](../usage/configuration.md).
