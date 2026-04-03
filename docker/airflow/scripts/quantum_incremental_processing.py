@@ -6,17 +6,34 @@ transforming raw data into feature tables stored in Iceberg format.
 """
 
 import logging
-import os
+import sys
 import uuid
 
-from pyspark.sql import SparkSession
+sys.path.insert(0, '/opt/airflow/dags')
+
+try:
+    from common.pipeline_config import CATALOG_FQN, S3_BUCKET_URL
+    from common.spark_factory import create_spark_session
+except ModuleNotFoundError:
+    # Fallback for running outside the Airflow container (e.g. tests)
+    import os
+
+    CATALOG_FQN = 'quantum_catalog.quantum_features'
+    S3_BUCKET_URL = os.getenv('S3_BUCKET_URL', 's3a://raw-results/experiments/')
+
+    def create_spark_session(app_name):
+        from pyspark.sql import SparkSession
+        return SparkSession.builder.appName(app_name).getOrCreate()
 from pyspark.sql.functions import (
+    array_join,
+    coalesce,
     col,
     current_date,
     current_timestamp,
     explode,
     expr,
     lit,
+    posexplode,
     size,
     udf,
 )
@@ -24,86 +41,7 @@ from pyspark.sql.types import StringType
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG = {
-    'S3_ENDPOINT': os.getenv('S3_ENDPOINT', 'http://minio:9000'),
-    'SPARK_MASTER': os.getenv('SPARK_ENDPOINT', 'spark://spark-master:7077'),
-    'S3_BUCKET': os.getenv('S3_BUCKET_URL', 's3a://local-vqe-results/experiments/'),
-    'S3_WAREHOUSE': os.getenv('S3_WAREHOUSE_URL', 's3a://local-features/warehouse/'),
-    'APP_NAME': 'Quantum Pipeline Feature Processing',
-}
-
-
-def validate_environment():
-    """Validate that required environment variables are set."""
-    required_vars = ['MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY']
-    missing = [var for var in required_vars if not os.environ.get(var)]
-
-    if missing:
-        raise ValueError(f'Missing required environment variables: {", ".join(missing)}')
-
-
-def create_spark_session(config=None):
-    """
-    Create and configure a Spark session with Iceberg and S3 support.
-
-    Args:
-        config: Dictionary with configuration values (defaults used if None)
-
-    Returns:
-        SparkSession: Configured Spark session
-    """
-    if config is None:
-        config = DEFAULT_CONFIG
-
-    validate_environment()
-
-    # access keys
-    access_key = os.environ.get('MINIO_ACCESS_KEY')
-    secret_key = os.environ.get('MINIO_SECRET_KEY')
-
-    return (
-        SparkSession.builder.appName(config.get('APP_NAME', DEFAULT_CONFIG['APP_NAME']))
-        .master(config.get('SPARK_MASTER', DEFAULT_CONFIG['SPARK_MASTER']))
-        # TODO: check if its required if jars are already in the image
-        .config(
-            'spark.jars.packages',
-            (
-                'org.slf4j:slf4j-api:2.0.17,'
-                'commons-codec:commons-codec:1.18.0,'
-                'com.google.j2objc:j2objc-annotations:3.0.0,'
-                'org.apache.spark:spark-avro_2.12:3.5.5,'
-                'org.apache.hadoop:hadoop-aws:3.3.1,'
-                'org.apache.hadoop:hadoop-common:3.3.1,'
-                'org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.2'
-            ),
-        )
-        .config(
-            'spark.sql.extensions',
-            'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
-        )
-        .config('spark.sql.catalog.quantum_catalog', 'org.apache.iceberg.spark.SparkCatalog')
-        .config('spark.sql.catalog.quantum_catalog.type', 'hadoop')
-        .config(
-            'spark.sql.catalog.quantum_catalog.warehouse',
-            config.get('S3_WAREHOUSE', DEFAULT_CONFIG['S3_WAREHOUSE']),
-        )
-        .config('spark.hadoop.fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem')
-        .config('spark.hadoop.fs.s3a.access.key', access_key)
-        .config('spark.hadoop.fs.s3a.secret.key', secret_key)
-        .config(
-            'spark.hadoop.fs.s3a.endpoint',
-            config.get('S3_ENDPOINT', DEFAULT_CONFIG['S3_ENDPOINT']),
-        )
-        .config('spark.hadoop.fs.s3a.path.style.access', 'true')
-        .config('spark.hadoop.fs.s3a.connection.ssl.enabled', 'false')
-        .config(
-            'spark.hadoop.fs.s3a.aws.credentials.provider',
-            'org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider',
-        )
-        .config('spark.sql.adaptive.enabled', 'true')
-        .config('spark.sql.shuffle.partitions', '200')
-        .getOrCreate()
-    )
+_APP_NAME = 'Quantum Pipeline Feature Processing'
 
 
 def list_available_topics(spark, bucket_path):
@@ -118,16 +56,8 @@ def list_available_topics(spark, bucket_path):
         list: List of available topics
     """
     try:
-        # configure hadoop to use appropriate filesystem
-        spark._jsc.hadoopConfiguration().set(
-            'fs.s3a.impl', 'org.apache.hadoop.fs.s3a.S3AFileSystem'
-        )
-        spark._jsc.hadoopConfiguration().set(
-            'fs.s3a.aws.credentials.provider',
-            'org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider',
-        )
-
-        # create a configured filesystem
+        # S3A filesystem and credentials provider are configured in spark-defaults.conf
+        # (EnvironmentVariableCredentialsProvider reads AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
         fs = spark._jvm.org.apache.hadoop.fs.FileSystem.get(
             spark._jvm.java.net.URI.create(bucket_path), spark._jsc.hadoopConfiguration()
         )
@@ -155,8 +85,21 @@ def read_experiments_by_topic(spark, bucket_path, topic_name, num_partitions=Non
     Returns:
         DataFrame: Spark DataFrame with the topic data
     """
-    topic_path = f'{bucket_path}{topic_name}/partition=*/*.avro'
-    df = spark.read.format('avro').load(topic_path)
+    # support both Avro (Kafka Connect) and JSON (Redpanda Connect) output
+    # Use recursiveFileLookup to handle both flat and time-partitioned layouts
+    # (S3A does not reliably support ** recursive globs)
+    topic_dir = f'{bucket_path}{topic_name}'
+
+    try:
+        df = (spark.read.format('avro')
+              .option('recursiveFileLookup', 'true')
+              .option('pathGlobFilter', '*.avro')
+              .load(topic_dir))
+    except Exception:
+        df = (spark.read
+              .option('recursiveFileLookup', 'true')
+              .option('pathGlobFilter', '*.json')
+              .json(topic_dir))
 
     if num_partitions:
         df = df.repartition(num_partitions)
@@ -207,12 +150,12 @@ def identify_new_records(spark, new_data_df, table_name, key_columns):
             return new_data_df
 
         # if table does not exist, every record is new
-        if not spark.catalog.tableExists(f'quantum_catalog.quantum_features.{table_name}'):
+        if not spark.catalog.tableExists(f'{CATALOG_FQN}.{table_name}'):
             return new_data_df
 
         # retrieve existing keys
         existing_keys = spark.sql(
-            f'SELECT DISTINCT {", ".join(key_columns)} FROM quantum_catalog.quantum_features.{table_name}'  # noqa: S608
+            f'SELECT DISTINCT {", ".join(key_columns)} FROM {CATALOG_FQN}.{table_name}'  # noqa: S608
         )
 
         # if table exists, but has no records - return all records
@@ -263,7 +206,7 @@ def process_incremental_data(
     """
     # check if table exists
     table_exists = spark.catalog._jcatalog.tableExists(
-        f'quantum_catalog.quantum_features.{table_name}'
+        f'{CATALOG_FQN}.{table_name}'
     )
 
     # if the table doesn't exist, create it
@@ -279,13 +222,13 @@ def process_incremental_data(
             writer = writer.option('comment', comment)
 
         # create the table for the feature
-        writer.mode('overwrite').saveAsTable(f'quantum_catalog.quantum_features.{table_name}')
+        writer.mode('overwrite').saveAsTable(f'{CATALOG_FQN}.{table_name}')
 
-        logger.info(f'Created table: quantum_catalog.quantum_features.{table_name}')
+        logger.info(f'Created table: {CATALOG_FQN}.{table_name}')
 
         # create a tag for this version of the table
         snapshot_id = spark.sql(
-            f'SELECT snapshot_id FROM quantum_catalog.quantum_features.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'  # noqa: S608
+            f'SELECT snapshot_id FROM {CATALOG_FQN}.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'  # noqa: S608
         ).collect()[0][0]
 
         # Get processing_batch_id before we lose reference to the DataFrame
@@ -294,7 +237,7 @@ def process_incremental_data(
         version_tag = f'v_{processing_batch_id}'
 
         spark.sql(f"""
-        ALTER TABLE quantum_catalog.quantum_features.{table_name}
+        ALTER TABLE {CATALOG_FQN}.{table_name}
         CREATE TAG {version_tag} AS OF VERSION {snapshot_id}
         """)
 
@@ -327,19 +270,19 @@ def process_incremental_data(
         writer = writer.partitionBy(*partition_columns)
 
     # append to the existing table
-    writer.mode('append').saveAsTable(f'quantum_catalog.quantum_features.{table_name}')
+    writer.mode('append').saveAsTable(f'{CATALOG_FQN}.{table_name}')
 
     logger.info(f'Appended {new_record_count} new records to table {table_name}')
 
     # create a tag for the incremental update
     snapshot_id = spark.sql(
-        f'SELECT snapshot_id FROM quantum_catalog.quantum_features.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'  # noqa: S608
+        f'SELECT snapshot_id FROM {CATALOG_FQN}.{table_name}.snapshots ORDER BY committed_at DESC LIMIT 1'  # noqa: S608
     ).collect()[0][0]
 
     version_tag = f'v_incr_{processing_batch_id}'
 
     spark.sql(f"""
-        ALTER TABLE quantum_catalog.quantum_features.{table_name}
+        ALTER TABLE {CATALOG_FQN}.{table_name}
         CREATE TAG {version_tag} AS OF VERSION {snapshot_id}
     """)
 
@@ -371,6 +314,10 @@ def transform_quantum_data(df):
         col('vqe_result.optimal_parameters').alias('optimal_parameters'),
         col('vqe_result.maxcv').alias('maxcv'),
         col('vqe_result.minimization_time').alias('minimization_time'),
+        col('vqe_result.nuclear_repulsion_energy').alias('nuclear_repulsion_energy'),
+        col('vqe_result.success').alias('success'),
+        col('vqe_result.nfev').alias('nfev'),
+        col('vqe_result.nit').alias('nit'),
         col('hamiltonian_time'),
         col('mapping_time'),
         col('vqe_time'),
@@ -387,6 +334,7 @@ def transform_quantum_data(df):
         col('experiment_id'),
         col('molecule_id'),
         col('molecule_data.symbols').alias('atom_symbols'),
+        array_join(col('molecule_data.symbols'), '').alias('molecule_name'),
         col('molecule_data.coords').alias('coordinates'),
         col('molecule_data.multiplicity').alias('multiplicity'),
         col('molecule_data.charge').alias('charge'),
@@ -405,6 +353,8 @@ def transform_quantum_data(df):
         col('basis_set'),
         col('initial_data.ansatz').alias('ansatz'),
         col('initial_data.ansatz_reps').alias('ansatz_reps'),
+        coalesce(col('initial_data.ansatz_name'), lit('EfficientSU2')).alias('ansatz_name'),
+        coalesce(col('initial_data.init_strategy'), lit('random')).alias('init_strategy'),
         col('processing_timestamp'),
         col('processing_date'),
         col('processing_batch_id'),
@@ -441,8 +391,15 @@ def transform_quantum_data(df):
         col('initial_data.noise_backend').alias('noise_backend'),
         col('initial_data.default_shots').alias('default_shots'),
         col('initial_data.ansatz_reps').alias('ansatz_reps'),
+        coalesce(col('initial_data.ansatz_name'), lit('EfficientSU2')).alias('ansatz_name'),
+        coalesce(col('initial_data.init_strategy'), lit('random')).alias('init_strategy'),
+        col('initial_data.seed').alias('seed'),
         col('minimum_energy'),
         col('maxcv'),
+        col('nuclear_repulsion_energy'),
+        col('success'),
+        col('nfev'),
+        col('nit'),
         size(col('iteration_list')).alias('total_iterations'),
         col('processing_timestamp'),
         col('processing_date'),
@@ -534,6 +491,7 @@ def transform_quantum_data(df):
                 "concat(experiment_id, '_iter_', cast(hash(concat(experiment_id, cast(iteration_step as string))) % 1000000 as string))"
             ),
         )
+        .dropDuplicates(['experiment_id', 'iteration_step'])
     )
 
     # iteration parameters
@@ -557,17 +515,11 @@ def transform_quantum_data(df):
             col('backend'),
             col('num_qubits'),
             col('iteration.iteration').alias('iteration_step'),
-            explode(col('iteration.parameters')).alias('parameter_value'),
+            posexplode(col('iteration.parameters')).alias('parameter_index', 'parameter_value'),
             col('processing_timestamp'),
             col('processing_date'),
             col('processing_batch_id'),
             col('processing_name'),
-        )
-        .withColumn(
-            'parameter_index',
-            expr(
-                'hash(concat(experiment_id, cast(iteration_step as string), parameter_value)) % 1000000'
-            ),
         )
         .withColumn(
             'iteration_id',
@@ -628,8 +580,8 @@ def transform_quantum_data(df):
 
 def create_metadata_table_if_not_exists(spark):
     """Create the metadata tracking table if it doesn't exist."""
-    spark.sql("""
-    CREATE TABLE IF NOT EXISTS quantum_catalog.quantum_features.processing_metadata (
+    spark.sql(f"""
+    CREATE TABLE IF NOT EXISTS {CATALOG_FQN}.processing_metadata (
         processing_batch_id STRING,
         processing_name STRING,
         processing_timestamp TIMESTAMP,
@@ -662,7 +614,7 @@ def update_metadata_table(spark, dfs, table_names, table_versions, record_counts
     )
 
     processing_info.write.format('iceberg').mode('append').saveAsTable(
-        'quantum_catalog.quantum_features.processing_metadata'
+        f'{CATALOG_FQN}.processing_metadata'
     )
 
     logger.info(
@@ -770,6 +722,26 @@ def process_experiments_incrementally(spark, df, topic_name=None):
 
     logger.info('Incremental processing completed!')
 
+    # --- Volume validation ---
+    processed_count = sum(1 for c in record_counts if c > 0)
+    logger.info(
+        'Volume check: %d/%d tables received new records this batch',
+        processed_count, len(table_names),
+    )
+
+    summary_parts = [f'{t}={c}' for t, c in zip(table_names, record_counts, strict=True)]
+    logger.info('Table row counts this batch: %s', ', '.join(summary_parts))
+
+    if 'vqe_iterations' in table_names and 'vqe_results' in table_names:
+        iter_count = record_counts[table_names.index('vqe_iterations')]
+        results_count = record_counts[table_names.index('vqe_results')]
+        if results_count > 0 and iter_count < results_count:
+            logger.warning(
+                'Volume mismatch: vqe_iterations (%d) < vqe_results (%d) — '
+                'possible truncated Kafka events for this batch',
+                iter_count, results_count,
+            )
+
     # release cached dataframes
     for df_name, dataframe in dfs.items():
         if df_name != 'base_df':  # Keep base_df for metadata
@@ -779,21 +751,20 @@ def process_experiments_incrementally(spark, df, topic_name=None):
     return dict(zip(table_names, record_counts, strict=False))
 
 
-def check_for_new_data(spark, topic, config=None):
+def check_for_new_data(spark, topic, bucket_path=None):
     """
     Check for new data in the S3 bucket.
 
     Args:
         spark: SparkSession
-        config: Optional configuration dictionary
+        topic: Topic name to read
+        bucket_path: Optional S3 bucket path override (defaults to S3_BUCKET_URL)
 
     Returns:
         tuple: (topic_name, dataframe) or (None, None) if no new data
     """
-    if config is None:
-        config = DEFAULT_CONFIG
-
-    bucket_path = config.get('S3_BUCKET', DEFAULT_CONFIG['S3_BUCKET'])
+    if bucket_path is None:
+        bucket_path = S3_BUCKET_URL
 
     logger.info(f'Processing topic: {topic}')
 
@@ -808,28 +779,20 @@ def check_for_new_data(spark, topic, config=None):
     return topic, df
 
 
-def main(config=None):
-    """
-    Main entry point for the quantum feature processing script.
-
-    Args:
-        config: Optional configuration dictionary
-    """
+def main():
+    """Main entry point for the quantum feature processing script."""
     # create spark session
-    spark = create_spark_session(config)
+    spark = create_spark_session(_APP_NAME)
 
     try:
-        if config is None:
-            config = DEFAULT_CONFIG
-
-        bucket_path = config.get('S3_BUCKET', DEFAULT_CONFIG['S3_BUCKET'])
+        bucket_path = S3_BUCKET_URL
         available_topics = list_available_topics(spark, bucket_path)
 
         for topic in available_topics:
             logger.info(f'Found topic: {topic}')
 
             # check for new data
-            topic_name, df = check_for_new_data(spark, topic, config)
+            topic_name, df = check_for_new_data(spark, topic)
 
             if df is None:
                 logger.info('No new data to process.')

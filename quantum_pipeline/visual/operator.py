@@ -160,9 +160,6 @@ class OperatorViewer:
         filtered_operators = [operators[i] for i in significant_indices]
 
         # group up the insignificant terms
-        other_magnitude = sum(
-            magnitudes[i] for i in range(len(magnitudes)) if i not in significant_indices
-        )
         insignificant_phases = [
             phases[i] for i in range(len(phases)) if i not in significant_indices
         ]

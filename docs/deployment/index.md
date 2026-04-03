@@ -1,73 +1,43 @@
 # Deployment
 
-Quantum Pipeline supports multiple deployment strategies, ranging from a lightweight
-PyPI installation for development to a full Docker Compose deployment that includes
-the entire data platform. This section covers each approach in detail, along with
-GPU acceleration configuration and environment variable reference.
-
-## Deployment Options
-
-| Deployment | Services | Use Case |
-|---|---|---|
-| **PyPI Package** | Quantum Pipeline only | Development, quick experiments |
-| **Docker (single container)** | Quantum Pipeline (CPU or GPU) | Isolated simulations |
-| **Docker Compose** | Full platform (all services) | Production, thesis experiments |
-
-The **PyPI package** is the simplest option. Install with `pip install quantum-pipeline`
-and run simulations directly. This does however require the user to set up other services
-as well as ensure connectivity.
-
-A **single Docker container** provides an isolated environment with all Python
-dependencies pre-installed. The GPU variant includes CUDA libraries and a custom-built
-Qiskit Aer with GPU support. This is suitable for running simulations without the
-full data pipeline.
-
-The **Docker Compose deployment** brings up the complete platform: Quantum Pipeline
-containers (CPU and GPU), Apache Kafka with Schema Registry, Spark cluster, Airflow
-orchestrator, MinIO object storage, and monitoring services. This is the configuration
-used for thesis experiments.
-
-## Resource Allocation
-
-The thesis experiments used a system with an Intel Core i5-8500 (6 cores), 56 GB RAM,
-and two NVIDIA GPUs (GTX 1060 6GB + GTX 1050 Ti 4GB).
-
-It was stable and functioned well for extended periods of time. I'd imagine minimal
-requirements are much lower - naturally, while accepting longer times of iteration.
-
-## Guides
+Three ways to run Quantum Pipeline: install the PyPI package directly, run a
+single Docker container, or bring up the full platform with Docker Compose.
 
 <div class="grid cards" markdown>
 
--   **Docker Basics**
+-   :material-docker:{ .lg .middle } **Docker Basics**
 
     ---
 
-    Container images, building from source, and running individual containers.
+    Container images (CPU, GPU, Spark, Airflow), building from source,
+    and running individual containers.
 
     [:octicons-arrow-right-24: Docker Basics](docker-basics.md)
 
--   **Docker Compose Deployment**
+-   :material-layers-triple:{ .lg .middle } **Docker Compose**
 
     ---
 
-    Full platform deployment with all services, networking, and health checks.
+    Full platform deployment with Kafka, Spark, Airflow, Garage, MLflow,
+    and monitoring exporters.
 
     [:octicons-arrow-right-24: Docker Compose](docker-compose.md)
 
--   **GPU Acceleration**
+-   :material-expansion-card:{ .lg .middle } **GPU Acceleration**
 
     ---
 
-    NVIDIA driver setup, CUDA configuration, and performance benchmarks.
+    NVIDIA setup, CUDA build args, Qiskit Aer GPU backend, and
+    performance benchmarks from the thesis experiments.
 
     [:octicons-arrow-right-24: GPU Acceleration](gpu-acceleration.md)
 
--   **Environment Variables**
+-   :material-variable:{ .lg .middle } **Environment Variables**
 
     ---
 
-    Complete reference for all configuration variables used across services.
+    Reference for all `.env` variables used across services in the
+    Docker Compose deployment.
 
     [:octicons-arrow-right-24: Environment Variables](environment-variables.md)
 

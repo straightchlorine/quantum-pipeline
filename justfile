@@ -1,538 +1,279 @@
-# Quantum Pipeline Universal Justfile
-# Development, testing, and deployment automation
-# Run 'just' or 'just --list' to see all available commands
+set shell := ["bash", "-euo", "pipefail", "-c"]
 
 default:
     @just --list
 
-# ============================================================================
-# SETUP AND INSTALLATION
-# ============================================================================
+# --- setup ---
 
-# Install all dependencies (core + dev + docs + airflow)
+# Install all dev dependencies (dev + docs)
 install:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Installing quantum-pipeline with all optional dependencies..."
-    echo "Using PDM package manager"
-    pdm install -G dev -G docs -G airflow
-    echo ""
-    echo "[SUCCESS] All dependencies installed successfully"
-    pdm --version
-    python --version
-
-# Install only core dependencies (production)
-install-core:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Installing core production dependencies only..."
-    pdm install --no-dev
-    echo "[SUCCESS] Core dependencies installed"
-
-# Install with development tools
-install-dev:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Installing with development tools..."
-    pdm install -G dev
-    echo "[SUCCESS] Development dependencies installed"
-
-# Install with documentation tools
-install-docs:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Installing documentation generation tools..."
-    pdm install -G docs
-    echo "[SUCCESS] Documentation dependencies installed"
-
-# Install with Apache Airflow orchestration
-install-airflow:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Installing with Apache Airflow orchestration..."
-    pdm install -G airflow
-    echo "[SUCCESS] Airflow dependencies installed"
-
-# Install development + documentation (for CI/CD)
-install-full-dev:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Installing with all development and documentation tools..."
     pdm install -G dev -G docs
-    echo "[SUCCESS] Full development environment installed"
+    echo "[  OK  ] Installed ($(pdm --version), $(python --version 2>&1))"
 
-# ============================================================================
-# DEVELOPMENT COMMANDS
-# ============================================================================
+# Install core dependencies only (no dev tools)
+install-core:
+    pdm install -G core
+    echo "[  OK  ] Core dependencies installed"
 
-# Run the quantum pipeline simulation (main entry point)
+# --- development ---
+
+# Run the quantum pipeline simulation
 run *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running quantum pipeline simulation..."
     pdm run python quantum_pipeline.py {{ARGS}}
 
-# Start interactive Python shell with quantum_pipeline imported
+# Start IPython shell with quantum_pipeline imported
 shell:
-    #!/usr/bin/env bash
-    set -euo pipefail
     pdm run python -c "from quantum_pipeline import *; import IPython; IPython.embed()"
 
-# ============================================================================
-# TESTING AND COVERAGE
-# ============================================================================
+# --- testing ---
 
-# Run all tests with pytest
+# Run tests: just test | just test ml | just test integration | just test cov
+#             just test quick | just test debug [path] | just test <path>
 test *ARGS:
     #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running pytest test suite..."
-    pdm run pytest tests/ {{ARGS}} -v
-    echo ""
-    echo "✓ Tests completed"
+    set -- {{ARGS}}
+    case "${1:-}" in
+        ml)
+            shift
+            echo "[ INFO ] ML tests (sequential)..."
+            pdm run pytest tests/ml/ "$@" -v --timeout=300
+            ;;
+        integration)
+            shift
+            echo "[ INFO ] Integration tests (sequential, requires Docker)..."
+            pdm run pytest tests/integration/ "$@" -v -m integration --timeout=300
+            ;;
+        cov)
+            shift
+            echo "[ INFO ] Unit tests with coverage..."
+            pdm run coverage erase
+            pdm run pytest tests/ "$@" -n auto -m "not integration and not slow" --cov=quantum_pipeline --cov-report= -v
+            pdm run coverage combine 2>/dev/null || true
+            pdm run coverage report --show-missing
+            pdm run coverage html -d htmlcov
+            echo "[  OK  ] Coverage report: htmlcov/index.html"
+            ;;
+        quick)
+            shift
+            pdm run pytest tests/ "$@" -x --tb=short -q -n auto -m "not integration and not slow"
+            ;;
+        debug)
+            shift
+            if [ $# -eq 0 ] || [[ "$1" == -* ]]; then
+                pdm run pytest tests/ "$@" -vv -s --tb=long --timeout=0
+            else
+                pdm run pytest "$@" -vv -s --tb=long --timeout=0
+            fi
+            ;;
+        ""|-*)
+            pdm run pytest tests/ "$@" -v -n auto -m "not integration and not slow"
+            ;;
+        *)
+            pdm run pytest "$@" -v -n auto
+            ;;
+    esac
+    echo "[  OK  ] Tests passed"
 
-# Run tests with coverage report
-test-coverage *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running tests with coverage analysis..."
-    pdm run pytest tests/ {{ARGS}} \
-        --cov=quantum_pipeline \
-        --cov-report=term-missing \
-        --cov-report=html:htmlcov \
-        -v
-    echo ""
-    echo "✓ Coverage report generated in htmlcov/index.html"
-
-# Run tests matching a pattern
-test-match PATTERN *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running tests matching pattern: {{PATTERN}}"
-    pdm run pytest tests/ -k "{{PATTERN}}" {{ARGS}} -v
-
-# Run specific test file
-test-file FILE *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running test file: {{FILE}}"
-    pdm run pytest "tests/{{FILE}}" {{ARGS}} -v
-
-# Run tests in specific module
-test-module MODULE *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running tests for module: {{MODULE}}"
-    pdm run pytest "tests/{{MODULE}}/" {{ARGS}} -v
-
-# Run tests with detailed output and debugging
-test-debug *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running tests in debug mode..."
-    pdm run pytest tests/ {{ARGS}} -vv -s --tb=long
-
-# Run integration tests only
-test-integration *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running integration tests..."
-    pdm run pytest tests/integration/ {{ARGS}} -v
-
-# Run unit tests only
-test-unit *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running unit tests..."
-    pdm run pytest tests/ {{ARGS}} \
-        --ignore=tests/integration/ \
-        -v
-
-# Run a quick test smoke-check (fail-fast)
-test-quick *ARGS:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running quick smoke-check tests..."
-    pdm run pytest tests/ {{ARGS}} \
-        -x \
-        --tb=short \
-        -q
-
-# Watch tests and rerun on file changes (requires pytest-watch)
+# Watch tests and rerun on changes
 test-watch:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Starting test watcher..."
-    echo "Tests will rerun automatically when files change"
-    pdm run ptw tests/ -- -v
+    pdm run ptw tests/ -- -v -n auto -m "not integration and not slow"
 
-# ============================================================================
-# CODE QUALITY AND FORMATTING
-# ============================================================================
+# --- code quality ---
 
-# Format code with ruff
-format:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Formatting code..."
-    pdm run ruff format quantum_pipeline/ tests/
-    echo ""
-    echo "✓ Code formatted successfully"
+# Format and fix lint (ruff format + check --fix)
+fmt:
+    pdm run ruff format .
+    pdm run ruff check . --fix
+    echo "[  OK  ] Formatted and lint-fixed"
 
-# Run linting checks with ruff
-lint:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running linting checks..."
-    pdm run ruff check quantum_pipeline/ tests/ --show-fixes
-    echo ""
-    echo "✓ Linting checks complete"
-
-# Run type checking with mypy
-type-check:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running type checking with mypy..."
-    pdm run mypy quantum_pipeline/
-    echo ""
-    echo "✓ Type checking complete"
-
-# Run all quality checks (lint, type-check, format-check)
+# Run all quality checks (lint + type-check + format-check)
 quality:
     #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running comprehensive quality checks..."
-    echo ""
-
-    echo "1. Ruff linting..."
-    pdm run ruff check quantum_pipeline/ tests/
-
-    echo ""
-    echo "2. Type checking with mypy..."
+    echo "[ INFO ] Ruff lint..."
+    pdm run ruff check .
+    echo "[ INFO ] Mypy type-check..."
     pdm run mypy quantum_pipeline/
+    echo "[ INFO ] Ruff format check..."
+    pdm run ruff format --check .
+    echo "[  OK  ] All quality checks passed"
 
-    echo ""
-    echo "3. Checking code formatting with ruff..."
-    pdm run ruff format --check quantum_pipeline/ tests/
+# --- documentation ---
 
-    echo ""
-    echo "✓ All quality checks passed!"
-
-# ============================================================================
-# TESTING + QUALITY COMBO
-# ============================================================================
-
-# Run all tests with coverage + quality checks
-check:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running comprehensive checks: tests + quality"
-    echo ""
-
-    echo "1. Running tests with coverage..."
-    pdm run pytest tests/ \
-        --cov=quantum_pipeline \
-        --cov-report=term-missing \
-        -v
-
-    echo ""
-    echo "2. Running linting checks..."
-    pdm run ruff check quantum_pipeline/ tests/
-
-    echo ""
-    echo "3. Running type checks..."
-    pdm run mypy quantum_pipeline/
-
-    echo ""
-    echo "✓ All checks passed!"
-
-# Quick check (fast quality + tests)
-check-quick:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running quick checks..."
-    pdm run pytest tests/ -q --tb=short
-    pdm run ruff check quantum_pipeline/ tests/ --quiet
-    echo "✓ Quick checks passed!"
-
-# ============================================================================
-# DOCUMENTATION
-# ============================================================================
-
-# Build documentation with mkdocs
+# Build documentation
 docs-build:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Building documentation..."
     pdm run mkdocs build
-    echo ""
-    echo "✓ Documentation built to ./site/"
+    echo "[  OK  ] Docs built to ./site/"
 
-# Serve documentation locally with live reload
+# Serve documentation with live reload
 docs-serve:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Serving documentation on http://localhost:8000"
-    echo "Press Ctrl+C to stop"
+    @echo "[ INFO ] Serving docs on http://localhost:8000"
     pdm run mkdocs serve
 
-# Deploy documentation to GitHub Pages
-docs-deploy:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Deploying documentation to GitHub Pages..."
-    pdm run mkdocs gh-deploy --force
-    echo "✓ Documentation deployed"
+# --- docker ---
 
-# ============================================================================
-# DOCKER AND CONTAINERIZATION
-# ============================================================================
-
-# Build CPU-only Docker image
-docker-build-cpu:
+# Build Docker image (target: cpu, gpu)
+# For GPU: set CUDA_ARCH env var to match your GPU (default: 8.6/Ampere)
+#   CUDA_ARCH=6.1 just docker-build gpu   # Pascal (GTX 10xx)
+#   CUDA_ARCH=7.5 just docker-build gpu   # Turing (RTX 20xx)
+#   CUDA_ARCH=8.9 just docker-build gpu   # Ada Lovelace (RTX 40xx)
+docker-build TARGET="cpu":
     #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Building CPU-only Docker image..."
-    docker build -f docker/Dockerfile.cpu -t quantum-pipeline:latest .
-    echo "✓ CPU image built: quantum-pipeline:latest"
-
-# Build GPU Docker image
-docker-build-gpu:
-    #!/usr/bin/env bash
-    set -euo pipefail
     VERSION=$(python -c "import quantum_pipeline; print(quantum_pipeline.__version__)")
-    echo "Building GPU Docker image (v${VERSION})..."
-    docker build -f docker/Dockerfile.gpu \
-        -t quantum-pipeline:gpu \
-        -t straightchlorine/quantum-pipeline:gpu \
-        -t straightchlorine/quantum-pipeline:gpu-${VERSION} \
-        .
-    echo "✓ GPU image built and tagged:"
-    echo "  quantum-pipeline:gpu"
-    echo "  straightchlorine/quantum-pipeline:gpu"
-    echo "  straightchlorine/quantum-pipeline:gpu-${VERSION}"
+    case "{{TARGET}}" in
+        cpu)
+            echo "[ INFO ] Building CPU image..."
+            docker build -f docker/Dockerfile.cpu \
+                -t quantum-pipeline:cpu \
+                -t straightchlorine/quantum-pipeline:cpu \
+                -t straightchlorine/quantum-pipeline:cpu-${VERSION} \
+                .
+            echo "[  OK  ] CPU image built (v${VERSION})"
+            ;;
+        gpu)
+            ARCH="${CUDA_ARCH:-8.6}"
+            echo "[ INFO ] Building GPU image (CUDA_ARCH=${ARCH})..."
+            docker build -f docker/Dockerfile.gpu \
+                --build-arg CUDA_ARCH="${ARCH}" \
+                -t quantum-pipeline:gpu \
+                -t straightchlorine/quantum-pipeline:gpu \
+                -t straightchlorine/quantum-pipeline:gpu-${VERSION} \
+                .
+            echo "[  OK  ] GPU image built (v${VERSION}, CUDA_ARCH=${ARCH})"
+            ;;
+        all)
+            just docker-build cpu
+            just docker-build gpu
+            ;;
+        *)
+            echo "[ FAIL ] Unknown target: {{TARGET}} (expected: cpu, gpu, all)"
+            exit 1
+            ;;
+    esac
 
-# Build Spark integration Docker image
-docker-build-spark:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Building Spark integration Docker image..."
-    docker build -f docker/Dockerfile.spark -t quantum-pipeline:spark .
-    echo "✓ Spark image built: quantum-pipeline:spark"
+# Start docker compose stack
+docker-up *ARGS:
+    docker compose -f compose/docker-compose.yaml up -d {{ARGS}}
+    echo "[  OK  ] Stack started"
+    docker compose -f compose/docker-compose.yaml ps
 
-# Build Airflow integration Docker image
-docker-build-airflow:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Building Airflow integration Docker image..."
-    docker build -f docker/Dockerfile.airflow -t quantum-pipeline:airflow .
-    echo "✓ Airflow image built: quantum-pipeline:airflow"
-
-# Build all Docker images
-docker-build-all: docker-build-cpu docker-build-gpu docker-build-spark docker-build-airflow
-    #!/usr/bin/env bash
-    echo "✓ All Docker images built successfully"
-
-# Run full Docker Compose stack (development)
-docker-up:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Starting Docker Compose services..."
-    echo "Services: Quantum Pipeline, Kafka, MinIO, Spark, Prometheus, Grafana"
-    echo ""
-    docker compose up -d
-    echo ""
-    echo "✓ Services started"
-    echo ""
-    docker compose ps
-
-# Run Docker Compose with build
+# Build and start docker compose stack
 docker-up-build:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Building and starting Docker Compose services..."
-    docker compose up -d --build
-    echo "✓ Services built and started"
-    docker compose ps
+    docker compose -f compose/docker-compose.yaml up -d --build
+    echo "[  OK  ] Stack built and started"
+    docker compose -f compose/docker-compose.yaml ps
 
-# Stop Docker Compose services
+# Stop docker compose stack
 docker-down:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Stopping Docker Compose services..."
-    docker compose down
-    echo "✓ Services stopped"
+    docker compose -f compose/docker-compose.yaml down
+    echo "[  OK  ] Stack stopped"
 
-# Stop and remove volumes (WARNING: deletes data)
-docker-clean:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "⚠ Removing Docker Compose services and volumes..."
-    docker compose down -v
-    echo "✓ Cleanup complete"
-
-# View Docker Compose logs
+# Tail docker compose logs (optional: service name)
 docker-logs SERVICE="":
     #!/usr/bin/env bash
     if [ -z "{{SERVICE}}" ]; then
-        docker compose logs -f
+        docker compose -f compose/docker-compose.yaml logs -f
     else
-        docker compose logs -f {{SERVICE}}
+        docker compose -f compose/docker-compose.yaml logs -f {{SERVICE}}
     fi
 
-# Show Docker Compose service status
-docker-status:
-    #!/usr/bin/env bash
-    docker compose ps
+# --- ml pipeline ---
 
-# ============================================================================
-# BUILD AND DISTRIBUTION
-# ============================================================================
+# First-time setup (secrets, Garage config) - run once
+ml-setup:
+    bash scripts/ml-setup.sh
+
+# Start the ML pipeline stack
+ml-up:
+    #!/usr/bin/env bash
+    [ ! -f .env ] && echo "[ FAIL ] .env not found - run 'just ml-setup' first" && exit 1
+    docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d
+    echo "[  OK  ] ML stack started"
+    docker compose --env-file .env -f compose/docker-compose.ml.yaml ps
+
+# Stop the ML pipeline stack (including batch containers and state)
+ml-down:
+    #!/usr/bin/env bash
+    docker rm -f $(docker ps -q --filter "name=ml-quantum-pipeline" 2>/dev/null) 2>/dev/null || true
+    docker compose --env-file .env -f compose/docker-compose.ml.yaml --profile batch down
+    rm -f gen/ml_batch_state.json
+    echo "[  OK  ] ML stack stopped, batch state cleared"
+
+# --- build ---
 
 # Build distribution packages (wheel + sdist)
 build:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Building distribution packages..."
     pdm build
-    echo ""
-    echo "✓ Distributions built to dist/"
-    ls -lh dist/
+    echo "[  OK  ] Built to dist/"
+    @ls -lh dist/
 
-# Clean build artifacts
-build-clean:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Cleaning build artifacts..."
-    rm -rf build/ dist/ *.egg-info
-    echo "✓ Build artifacts cleaned"
-
-# ============================================================================
-# DEVELOPMENT UTILITIES
-# ============================================================================
+# --- utilities ---
 
 # Clean all generated files and caches
 clean:
     #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Cleaning generated files and caches..."
-
-    echo "  Removing pytest cache..."
     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
+    rm -rf .coverage .coverage.* htmlcov/ .mypy_cache/ build/ dist/ *.egg-info gen/ run_configs/
+    echo "[  OK  ] Cleaned"
 
-    echo "  Removing coverage data..."
-    rm -rf .coverage htmlcov/ .mypy_cache/
-
-    echo "  Removing build artifacts..."
-    rm -rf build/ dist/ *.egg-info
-
-    echo "  Removing generated outputs..."
-    rm -rf gen/ run_configs/
-
-    echo "✓ Cleanup complete"
-
-# Reset development environment (dangerous!)
-clean-all: clean docker-clean
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "⚠ Removing all generated files, caches, and Docker data..."
-    pdm venv remove in-project --force 2>/dev/null || true
-    echo "✓ Full reset complete. Run 'just install' to rebuild"
-
-# Show project statistics
-stats:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Project Statistics"
-    echo "=================="
-    echo ""
-    echo "Source Code:"
-    find quantum_pipeline -name "*.py" | wc -l | xargs echo "  Python files:"
-    find quantum_pipeline -name "*.py" -exec wc -l {} + | tail -1 | awk '{print "  Lines of code: " $1}'
-    echo ""
-    echo "Tests:"
-    find tests -name "test_*.py" | wc -l | xargs echo "  Test files:"
-    find tests -name "*.py" -exec wc -l {} + | tail -1 | awk '{print "  Lines of test code: " $1}'
-    echo ""
-    echo "Coverage Summary:"
-    pdm run pytest tests/ --cov=quantum_pipeline --cov-report=term-missing -q 2>/dev/null | tail -10 || echo "  (Run 'just test-coverage' to generate)"
-
-# Generate requirements file from pdm.lock
-requirements-freeze:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Generating requirements files from pdm.lock..."
+# Generate requirements.txt from pdm.lock
+requirements:
     pdm export -o requirements.txt --no-hashes
     pdm export -d -o requirements-dev.txt --no-hashes
-    echo "✓ Requirements files updated"
+    echo "[  OK  ] Requirements files updated"
 
-# ============================================================================
-# MONITORING AND PROFILING
-# ============================================================================
-
-# Run with performance profiling
+# Run with CPU profiler
 profile:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running with performance profiling..."
     pdm run python -m cProfile -o profile.stats quantum_pipeline.py
-    echo "✓ Profile saved to profile.stats"
-    echo "View with: python -m pstats profile.stats"
+    echo "[  OK  ] Profile saved to profile.stats"
 
-# Run with memory profiling (requires memory-profiler)
+# Run with memory profiler
 memprofile:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Running with memory profiling..."
     pdm run python -m memory_profiler quantum_pipeline.py
-    echo "✓ Memory profile complete"
 
-# ============================================================================
-# GIT AND VERSIONING
-# ============================================================================
+# --- help ---
 
-# Show current version
-version:
-    #!/usr/bin/env bash
-    python -c "import quantum_pipeline; print(f'quantum-pipeline v{quantum_pipeline.__version__}')"
-
-# ============================================================================
-# HELP AND INFORMATION
-# ============================================================================
-
-# Show detailed help for all commands
+# Show help
 help:
-    @echo "Quantum Pipeline - Universal Justfile"
+    @echo "Quantum Pipeline Justfile"
     @echo ""
-    @echo "Available command categories:"
-    @echo ""
-    @echo "Setup & Installation:"
-    @echo "  just install              - Install all dependencies"
-    @echo "  just install-core         - Install production only"
-    @echo "  just install-airflow      - Install with Airflow"
-    @echo "  just install-docs         - Install docs tools"
+    @echo "Setup:"
+    @echo "  just install          Install dev + docs dependencies"
+    @echo "  just install-core     Install core only (no dev tools)"
     @echo ""
     @echo "Testing:"
-    @echo "  just test                 - Run all tests"
-    @echo "  just test-coverage        - Run tests with coverage report"
-    @echo "  just test-quick           - Run quick smoke-check"
-    @echo "  just test-module MODULE   - Run tests for specific module"
+    @echo "  just test               Run unit tests (parallel)"
+    @echo "  just test ml            Run ML tests (sequential)"
+    @echo "  just test integration   Run integration tests (Docker)"
+    @echo "  just test cov           Unit tests with coverage"
+    @echo "  just test quick         Fail-fast smoke test"
+    @echo "  just test debug [path]  Verbose, no capture, no timeout"
+    @echo "  just test <path>        Run tests at specific path"
+    @echo "  just test-watch         Rerun on file changes"
     @echo ""
     @echo "Code Quality:"
-    @echo "  just format               - Format code automatically"
-    @echo "  just lint                 - Run linting checks"
-    @echo "  just type-check           - Run type checking"
-    @echo "  just quality              - Run all quality checks"
-    @echo "  just check                - Tests + quality checks"
+    @echo "  just fmt              Format + lint fix (ruff)"
+    @echo "  just quality          Lint + type-check + format-check"
     @echo ""
     @echo "Docker:"
-    @echo "  just docker-build-cpu     - Build CPU image"
-    @echo "  just docker-up            - Start Docker Compose"
-    @echo "  just docker-down          - Stop Docker Compose"
+    @echo "  just docker-build         Build CPU image (default)"
+    @echo "  just docker-build gpu     Build GPU image"
+    @echo "  just docker-build all     Build CPU + GPU images"
+    @echo "  just docker-up            Start compose stack"
+    @echo "  just docker-down          Stop compose stack"
+    @echo "  just docker-logs [svc]    Tail logs"
     @echo ""
-    @echo "Documentation:"
-    @echo "  just docs-build           - Build docs"
-    @echo "  just docs-serve           - Serve docs locally"
+    @echo "ML Pipeline:"
+    @echo "  just ml-setup         First-time setup (run once)"
+    @echo "  just ml-up / ml-down  Start / stop ML stack"
     @echo ""
-    @echo "Run 'just --list' for complete command list"
+    @echo "Docs:"
+    @echo "  just docs-build       Build mkdocs site"
+    @echo "  just docs-serve       Serve with live reload"
+    @echo ""
+    @echo "Other:"
+    @echo "  just build            Build wheel + sdist"
+    @echo "  just clean            Remove caches and artifacts"
+    @echo "  just requirements     Export requirements.txt"
+    @echo "  just profile          CPU profiler"
+    @echo "  just memprofile       Memory profiler"

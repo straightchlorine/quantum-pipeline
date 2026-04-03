@@ -1,45 +1,67 @@
+# Prometheus configuration for the quantum-pipeline ML stack.
+#
+# Assumes Prometheus and PushGateway run on the monitoring host,
+# and the pipeline services run on a separate machine (<pipeline-host>).
+# Replace <pipeline-host> with the actual hostname or IP.
+
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
-rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
-
 scrape_configs:
+
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
+  # VQE simulation metrics (push model via PushGateway)
   - job_name: 'pushgateway'
     static_configs:
-      - targets: ['prometheus-pushgateway:9091']
+      - targets: ['localhost:9091']
     scrape_interval: 30s
     honor_labels: true
 
-  - job_name: 'quantum-pipeline-cpu'
+  # Redpanda Connect (Kafka-to-S3 bridge) - built-in metrics
+  - job_name: 'redpanda-connect'
     static_configs:
-      - targets: ['quantum-pipeline-cpu:8000']  # If app exposes metrics
-    scrape_interval: 30s
-
-  - job_name: 'quantum-pipeline-gpu'
-    static_configs:
-      - targets: ['quantum-pipeline-gpu:8000']  # If app exposes metrics
-    scrape_interval: 30s
-
-  - job_name: 'kafka'
-    static_configs:
-      - targets: ['kafka:9092']
-    scrape_interval: 30s
-
-  - job_name: 'spark-master'
-    static_configs:
-      - targets: ['spark-master:8080']
-    scrape_interval: 30s
+      - targets: ['<pipeline-host>:4195']
     metrics_path: '/metrics'
-
-  - job_name: 'minio'
-    static_configs:
-      - targets: ['minio:9000']
     scrape_interval: 30s
-    metrics_path: '/minio/v2/metrics/cluster'
+
+  # Garage (S3-compatible storage) - admin API metrics
+  - job_name: 'garage'
+    static_configs:
+      - targets: ['<pipeline-host>:3903']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Spark Master - REST API metrics
+  - job_name: 'spark'
+    static_configs:
+      - targets: ['<pipeline-host>:8080']
+    metrics_path: '/metrics/prometheus'
+    scrape_interval: 30s
+
+  # Airflow (via statsd-exporter)
+  - job_name: 'airflow'
+    static_configs:
+      - targets: ['<pipeline-host>:9102']
+    scrape_interval: 30s
+
+  # Postgres (via postgres-exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['<pipeline-host>:9187']
+    scrape_interval: 30s
+
+  # Redis (via redis-exporter)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['<pipeline-host>:9121']
+    scrape_interval: 30s
+
+  # GPU (via nvidia_gpu_exporter)
+  - job_name: 'gpu'
+    static_configs:
+      - targets: ['<pipeline-host>:9835']
+    scrape_interval: 15s

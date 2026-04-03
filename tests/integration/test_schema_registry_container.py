@@ -211,15 +211,10 @@ class TestSchemaRegistryContainer:
         assert result['name'] == TEST_SCHEMA['name']
         assert result['type'] == 'record'
 
-    def test_save_schema_to_real_registry(
-        self, schema_registry, schema_registry_url, tmp_path, monkeypatch
-    ):
-        """SchemaRegistry.save_schema() should persist to the live registry."""
-        # Point schema_dir to a temp location so file writes don't pollute the tree
-        monkeypatch.setattr(schema_registry, 'schema_dir', tmp_path)
-
+    def test_register_schema_to_real_registry(self, schema_registry, schema_registry_url):
+        """SchemaRegistry.register_schema() should persist to the live registry."""
         subject = 'test_save_real'
-        schema_registry.save_schema(subject, TEST_SCHEMA)
+        schema_registry.register_schema(subject, TEST_SCHEMA)
 
         # Verify it landed in the registry
         resp = requests.get(
@@ -230,24 +225,5 @@ class TestSchemaRegistryContainer:
         saved = json.loads(resp.json()['schema'])
         assert saved['name'] == TEST_SCHEMA['name']
 
-        # Verify local file was written
-        local_file = tmp_path / f'{subject}.avsc'
-        assert local_file.exists()
-
-    def test_file_fallback_when_registry_down(
-        self, schema_registry_container, schema_registry_url, monkeypatch
-    ):
-        """When the registry is stopped, get_schema falls back to local .avsc files."""
-        # Use an unreachable URL to simulate the registry being down,
-        # rather than actually stopping the session-scoped container.
-        monkeypatch.setattr(
-            'quantum_pipeline.configs.settings.SCHEMA_REGISTRY_URL',
-            'http://127.0.0.1:1',  # unreachable port
-        )
-        sr = SchemaRegistry()
-
-        # "vqe_process" has a local .avsc file in the repo
-        result = sr.get_schema('vqe_process')
-        assert result is not None
-        assert result['name'] == 'VQEProcess'
-        assert result['type'] == 'record'
+        # Verify schema is in memory cache
+        assert subject in schema_registry.schema_cache

@@ -1,43 +1,39 @@
 # Basic Usage
 
-This guide covers fundamental usage patterns and workflows for the Quantum Pipeline framework.
-
----
-
-## Command Line Interface
-
-The primary way to interact with Quantum Pipeline is through the command-line interface.
-
-### Basic Syntax
+## CLI syntax
 
 ```bash
-python quantum_pipeline.py [OPTIONS]
+quantum-pipeline [OPTIONS]
+
+# Or equivalently:
+python -m quantum_pipeline [OPTIONS]
 ```
 
-### Required Options
-
-Only one option is strictly required:
+Only `--file` is required. All other flags have defaults defined in
+[`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
 
 ```bash
-python quantum_pipeline.py --file <path-to-molecules.json>
+quantum-pipeline --file data/molecules.json
 ```
 
-All other parameters have sensible defaults defined in [`quantum_pipeline/configs/defaults.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/configs/defaults.py).
+To process a single molecule by its 0-based index:
 
-### Common Workflows
+```bash
+quantum-pipeline --file data/molecules.json --molecule-index 0
+```
 
-=== "Quick Test Run"
+## Common workflows
+
+=== "Quick test"
     ```bash
-    # Fast test with minimal iterations
-    python quantum_pipeline.py \
+    quantum-pipeline \
         --file data/molecules.json \
         --max-iterations 10
     ```
 
-=== "Production Run"
+=== "Full run with report"
     ```bash
-    # Full simulation with reporting
-    python quantum_pipeline.py \
+    quantum-pipeline \
         --file data/molecules.json \
         --basis cc-pvdz \
         --max-iterations 200 \
@@ -45,238 +41,127 @@ All other parameters have sensible defaults defined in [`quantum_pipeline/config
         --report
     ```
 
-=== "GPU-Accelerated"
+=== "GPU-accelerated"
     ```bash
-    # Use GPU for faster computation
-    python quantum_pipeline.py \
+    quantum-pipeline \
         --file data/molecules.json \
         --gpu \
         --simulation-method statevector \
         --max-iterations 150
     ```
 
-=== "Data Streaming"
+=== "With Kafka streaming"
     ```bash
-    # Stream results to Kafka
-    python quantum_pipeline.py \
+    quantum-pipeline \
         --file data/molecules.json \
         --kafka \
         --max-iterations 100
     ```
 
----
+## Configuration files
 
-## Python API
-
-For programmatic control and integration into larger applications.
-
-### Basic Example
-
-```python
-from quantum_pipeline.runners.vqe_runner import VQERunner
-
-# Create VQE runner
-runner = VQERunner(
-    filepath='data/molecules.json',
-    basis_set='sto3g',
-    max_iterations=100,
-    optimizer='COBYLA',
-    ansatz_reps=2
-)
-
-# Execute simulation
-runner.run()
-```
-
-### With GPU Acceleration
-
-```python
-from quantum_pipeline.runners.vqe_runner import VQERunner
-from quantum_pipeline.configs.module.backend import BackendConfig
-
-backend_config = BackendConfig(
-    local=True,
-    gpu=True,
-    optimization_level=3,
-    min_num_qubits=None,
-    filters=None,
-    simulation_method='statevector',
-    gpu_opts=None,
-    noise=None,
-)
-
-runner = VQERunner(
-    filepath='data/molecules.json',
-    basis_set='sto3g',
-    max_iterations=100,
-    optimizer='L-BFGS-B',
-    backend_config=backend_config,
-)
-
-runner.run()
-```
-
-### Convergence-Based Optimization
-
-```python
-runner = VQERunner(
-    filepath='data/molecules.json',
-    basis_set='sto3g',
-    convergence_threshold=1e-6,
-    optimizer='L-BFGS-B'
-)
-
-runner.run()
-```
-
-!!! warning "Max Iterations vs Convergence"
-    Never set both `max_iterations` and `convergence_threshold`. They are mutually exclusive.
-
----
-
-## Configuration Files
-
-For complex setups, use configuration files to manage parameters.
-
-### Saving Configuration
-
-Save current settings to a file:
+Save the current CLI configuration to a JSON file:
 
 ```bash
-python quantum_pipeline.py \
-    --file molecules.json \
+quantum-pipeline \
+    --file data/molecules.json \
     --basis cc-pvdz \
     --max-iterations 200 \
     --optimizer L-BFGS-B \
-    --dump my_config.json
+    --dump
 ```
 
-### Loading Configuration
-
-Load and run with saved configuration:
+Load a saved configuration:
 
 ```bash
-python quantum_pipeline.py --load my_config.json
+quantum-pipeline --file data/molecules.json --load my_config.json
 ```
 
-### Example Configuration File
+`--dump` and `--load` cannot be used together.
 
-```json
-{
-    "file": "data/molecules.json",
-    "basis": "sto3g",
-    "max_iterations": 150,
-    "optimizer": "L-BFGS-B",
-    "ansatz_reps": 2,
-    "simulation_method": "statevector",
-    "shots": 1024,
-    "optimization_level": 3,
-    "gpu": true,
-    "kafka": true,
-    "report": true,
-    "log_level": "INFO"
-}
+The JSON file mirrors CLI arguments. For an example of the structure, see
+[`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
+
+## Ansatz and initialization
+
+Three ansatz types are supported: `EfficientSU2` (default), `RealAmplitudes`, and `ExcitationPreserving`.
+
+```bash
+quantum-pipeline --file data/molecules.json --ansatz RealAmplitudes
 ```
 
----
+Two initialization strategies are available:
 
-## Working with Molecule Files
+| Strategy | Flag | Description |
+|----------|------|-------------|
+| Random | `--init-strategy random` | Uniform [0, 2pi]. Default, but can trap in local minima. |
+| Hartree-Fock | `--init-strategy hf` | Uses HF parameters as a starting point. More reliable convergence, especially with `cc-pvdz`. Only works with `EfficientSU2`. |
 
-### Single Molecule
+## Simulation methods
 
-```json
-[
-    {
-        "symbols": ["H", "H"],
-        "coords": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-        "multiplicity": 1,
-        "charge": 0,
-        "units": "angstrom",
-        "masses": [1.008, 1.008]
-    }
-]
+The `--simulation-method` flag selects the Aer simulator backend:
+
+| Method | Description |
+|--------|-------------|
+| `statevector` | Dense statevector simulation (default) |
+| `automatic` | Aer selects the best method based on circuit and noise model |
+| `density_matrix` | Dense density matrix, for noisy circuits |
+| `stabilizer` | Clifford stabilizer simulator |
+| `extended_stabilizer` | Approximate Clifford+T simulator |
+| `matrix_product_state` | Tensor-network MPS, lower memory for large circuits |
+| `unitary` | Computes the unitary matrix (no measurement) |
+| `superop` | Dense superoperator matrix |
+| `tensor_network` | GPU-only, requires cuTensorNet |
+
+`tensor_network` requires the `--gpu` flag. Using it without GPU causes an error.
+
+## Output structure
+
+Results are saved under the `gen/` directory by default. Use `--output-dir` to change this.
+
+```
+gen/
+  graphs/
+    molecule_plots/
+    operator_plots/
+    complex_operator_plots/
+    energy_plots/
+    ansatz/
+    ansatz_decomposed/
+  performance_metrics/
+  *.pdf
 ```
 
-### Multiple Molecules
+PDF reports are generated when `--report` is passed. See an
+[example report](https://qp-docs.codextechnologies.org/mkdocs/quantum_report.pdf).
+The `ansatz/` and `ansatz_decomposed/` directories contain circuit diagrams that
+are too large for the PDF - for example,
+[ansatz](https://qp-docs.codextechnologies.org/mkdocs/ansatz_H_H.png) and
+[decomposed ansatz](https://qp-docs.codextechnologies.org/mkdocs/ansatz_decomposed_H_H.png)
+for H2.
 
-```json
-[
-    {
-        "symbols": ["H", "H"],
-        "coords": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-        "multiplicity": 1,
-        "charge": 0,
-        "units": "angstrom"
-    },
-    {
-        "symbols": ["Li", "H"],
-        "coords": [[0.0, 0.0, 0.0], [0.0, 0.0, 1.5949]],
-        "multiplicity": 1,
-        "charge": 0,
-        "units": "angstrom"
-    }
-]
-```
-
-### Field Descriptions
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `symbols` | list[str] | Yes | Atomic symbols (e.g., "H", "O", "C") |
-| `coords` | list[list[float]] | Yes | 3D coordinates for each atom |
-| `multiplicity` | int | Yes | Spin multiplicity (1=singlet, 2=doublet, etc.) |
-| `charge` | int | Yes | Total molecular charge |
-| `units` | str | Yes | Coordinate units ("angstrom" or "bohr") |
-| `masses` | list[float] | No | Atomic masses (auto-detected if omitted) |
-
----
-
-## Output and Logging
-
-### Log Levels
+## Log levels
 
 Control verbosity with `--log-level`:
 
 ```bash
 # Minimal output
-python quantum_pipeline.py --file molecules.json --log-level ERROR
+quantum-pipeline --file data/molecules.json --log-level ERROR
 
-# Standard output (default)
-python quantum_pipeline.py --file molecules.json --log-level INFO
+# Default
+quantum-pipeline --file data/molecules.json --log-level INFO
 
-# Verbose output for debugging
-python quantum_pipeline.py --file molecules.json --log-level DEBUG
+# Verbose
+quantum-pipeline --file data/molecules.json --log-level DEBUG
 ```
 
-### Output Directory
+## Performance monitoring
 
-Specify where to save results:
+Enable system resource tracking during simulation:
 
 ```bash
-python quantum_pipeline.py \
-    --file molecules.json \
-    --output-dir ./results \
-    --report
-```
-
-Default output structure:
-
-```
-results/
-├── reports/          # PDF reports
-├── metrics/          # Performance metrics
-└── visualizations/   # Plots and charts
-```
-
----
-
-## Performance Monitoring
-
-Enable performance tracking:
-
-```bash
-python quantum_pipeline.py \
-    --file molecules.json \
+quantum-pipeline \
+    --file data/molecules.json \
     --enable-performance-monitoring \
     --performance-interval 30 \
     --performance-pushgateway http://localhost:9091 \
@@ -286,146 +171,65 @@ python quantum_pipeline.py \
 Or via environment variables:
 
 ```bash
-export QUANTUM_PERFORMANCE_ENABLED=true
-export QUANTUM_PERFORMANCE_PUSHGATEWAY_URL=http://localhost:9091
-python quantum_pipeline.py --file molecules.json
+export MONITORING_ENABLED=true
+export PUSHGATEWAY_URL=http://localhost:9091
+export MONITORING_INTERVAL=10
+export MONITORING_EXPORT_FORMAT=both
+quantum-pipeline --file data/molecules.json
 ```
 
-See [Monitoring Guide](../monitoring/index.md) for details.
+See [Monitoring](../monitoring/index.md) for more.
 
----
+## Recipe: parameter combinations
 
-## Common Parameter Combinations
-
-### Fast Prototyping
+**Fast prototyping** - small basis, few iterations:
 
 ```bash
-python quantum_pipeline.py \
-    --file molecules.json \
+quantum-pipeline \
+    --file data/molecules.json \
     --basis sto3g \
     --max-iterations 50 \
     --optimizer COBYLA
 ```
 
-- Fastest execution
-- Lower accuracy
-- Good for testing
-
-### Balanced Performance
+**Balanced** - good accuracy, reasonable speed:
 
 ```bash
-python quantum_pipeline.py \
-    --file molecules.json \
+quantum-pipeline \
+    --file data/molecules.json \
     --basis sto3g \
     --max-iterations 150 \
     --optimizer L-BFGS-B \
     --ansatz-reps 2
 ```
 
-- Moderate speed
-- Good accuracy
-- Recommended for most use cases
-
-### High Accuracy
+**High accuracy** - larger basis, HF init, convergence-based:
 
 ```bash
-python quantum_pipeline.py \
-    --file molecules.json \
+quantum-pipeline \
+    --file data/molecules.json \
     --basis cc-pvdz \
     --convergence \
     --threshold 1e-8 \
     --optimizer L-BFGS-B \
-    --ansatz-reps 5 \
-    --shots 4096
+    --init-strategy hf \
+    --ansatz-reps 5
 ```
 
-- Slower execution
-- Higher accuracy
-- For more precise results
+## Working with results in Python
 
----
+For programmatic access to VQE results, see the
+[`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py)
+and
+[`VQEDecoratedResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py)
+classes in the source code.
 
-## Working with Results
+After calling `runner.run()`, results are available in `runner.run_results`,
+which contains per-molecule energy values, timing breakdowns, and optimizer metadata.
 
-### Accessing Results in Python
+## Next steps
 
-```python
-from quantum_pipeline.runners.vqe_runner import VQERunner
-
-runner = VQERunner(filepath='molecules.json', basis_set='sto3g', max_iterations=100)
-runner.run()
-
-# Access results
-for result in runner.run_results:
-    print(f"Molecule: {result.molecule.symbols}")
-    print(f"Ground State Energy: {result.vqe_result.minimum} Hartree")
-    print(f"Iterations: {len(result.vqe_result.iteration_list)}")
-    print(f"Total Time: {result.total_time} seconds")
-```
-
-### Result Structure
-
-Each `VQEDecoratedResult` contains:
-
-- `vqe_result`: VQE optimization results
-    - `minimum`: Optimized ground state energy
-    - `optimal_parameters`: Final ansatz parameters
-    - `iteration_list`: Full iteration history
-- `molecule`: Molecular information
-- `basis_set`: Basis set used
-- `hamiltonian_time`: Time to build Hamiltonian
-- `mapping_time`: Time to map to qubits
-- `vqe_time`: VQE optimization time
-- `total_time`: Total execution time
-
----
-
-## Error Handling
-
-### Common Errors
-
-??? error "FileNotFoundError: Molecule file not found"
-    **Cause**: Specified molecule file doesn't exist
-
-    **Solution**:
-    ```bash
-    # Check file path
-    ls -la data/molecules.json
-
-    # Use absolute path
-    realpath data/molecules.json
-    python quantum_pipeline.py --file /full/path/to/data/molecules.json
-    ```
-
-??? error "ValueError: Cannot use both max_iterations and convergence"
-    **Cause**: Both `--max-iterations` and `--convergence` specified
-
-    **Solution**: Choose one:
-    ```bash
-    # Option 1: Fixed iterations
-    python quantum_pipeline.py --file molecules.json --max-iterations 100
-
-    # Option 2: Convergence threshold
-    python quantum_pipeline.py --file molecules.json --convergence --threshold 1e-6
-    ```
-
-??? error "RuntimeError: GPU not available"
-    **Cause**: GPU requested but CUDA not properly configured
-
-    **Solution**:
-    ```bash
-    # Check CUDA availability
-    nvidia-smi
-
-    # Fall back to CPU
-    python quantum_pipeline.py --file molecules.json  # Remove --gpu flag
-    ```
-
----
-
-## Next Steps
-
-- **[Configuration Reference](../usage/configuration.md)** - All available parameters
-- **[Optimizer Guide](../usage/optimizers.md)** - Choose the right optimizer
-- **[Simulation Methods](../usage/simulation-methods.md)** - Backend configuration
-- **[Examples](../usage/examples.md)** - Real-world use cases
+- [Configuration Reference](../usage/configuration.md) - all available parameters
+- [Optimizer Guide](../usage/optimizers.md) - choosing the right optimizer
+- [Simulation Methods](../usage/simulation-methods.md) - backend details
+- [Examples](../usage/examples.md) - more use cases

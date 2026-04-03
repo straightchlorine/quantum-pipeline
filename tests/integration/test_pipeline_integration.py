@@ -272,9 +272,8 @@ class TestResultAssemblyIntegration:
             molecule_id=0,
         )
 
-        assert decorated.get_result_suffix() == '_it1'
-        assert '_mol0' in decorated.get_schema_suffix()
-        assert '_HH_' in decorated.get_schema_suffix()
+        assert decorated.molecule_id == 0
+        assert list(decorated.molecule.symbols) == ['H', 'H']
 
 
 # ---------------------------------------------------------------------------

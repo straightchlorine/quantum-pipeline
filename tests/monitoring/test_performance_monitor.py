@@ -70,10 +70,10 @@ class TestPerformanceMonitorInitialization:
 
     def test_initialization_enabled_via_env_vars(self, temp_metrics_dir, monkeypatch):
         """Test enabling monitoring via environment variables."""
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_ENABLED', 'true')
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_COLLECTION_INTERVAL', '45')
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_PUSHGATEWAY_URL', 'http://env:9091')
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_EXPORT_FORMAT', 'json,prometheus')
+        monkeypatch.setenv('MONITORING_ENABLED', 'true')
+        monkeypatch.setenv('MONITORING_INTERVAL', '45')
+        monkeypatch.setenv('PUSHGATEWAY_URL', 'http://env:9091')
+        monkeypatch.setenv('MONITORING_EXPORT_FORMAT', 'json,prometheus')
 
         monitor = PerformanceMonitor(metrics_dir=temp_metrics_dir)
 
@@ -84,8 +84,8 @@ class TestPerformanceMonitorInitialization:
 
     def test_config_priority_constructor_over_env(self, temp_metrics_dir, monkeypatch):
         """Test that constructor parameters override environment variables."""
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_ENABLED', 'false')
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_COLLECTION_INTERVAL', '45')
+        monkeypatch.setenv('MONITORING_ENABLED', 'false')
+        monkeypatch.setenv('MONITORING_INTERVAL', '45')
 
         monitor = PerformanceMonitor(
             enabled=True, collection_interval=10, metrics_dir=temp_metrics_dir
@@ -203,7 +203,6 @@ class TestPrometheusExport:
             'reference_energy': -1.17447901,
             'energy_error_hartree': 0.00007901,
             'accuracy_score': 99.2,
-            'within_chemical_accuracy': 1,
         }
 
         prometheus_output = monitor._convert_vqe_to_prometheus(vqe_data)
@@ -213,10 +212,10 @@ class TestPrometheusExport:
         assert len(prometheus_output) > 0
 
         # Verify key metrics are present
-        assert 'quantum_vqe_total_time' in prometheus_output
-        assert 'quantum_vqe_minimum_energy' in prometheus_output
-        assert 'quantum_vqe_accuracy_score' in prometheus_output
-        assert 'quantum_vqe_iterations_count' in prometheus_output
+        assert 'qp_vqe_total_time' in prometheus_output
+        assert 'qp_vqe_minimum_energy' in prometheus_output
+        assert 'qp_vqe_accuracy_score' in prometheus_output
+        assert 'qp_vqe_iterations_count' in prometheus_output
 
         # Verify labels are present
         assert 'container_type="CPU_TEST"' in prometheus_output
@@ -225,9 +224,9 @@ class TestPrometheusExport:
         assert 'optimizer="COBYLA"' in prometheus_output
 
         # Verify calculated efficiency metrics
-        assert 'quantum_vqe_iterations_per_second' in prometheus_output
-        assert 'quantum_vqe_time_per_iteration' in prometheus_output
-        assert 'quantum_vqe_efficiency' in prometheus_output
+        assert 'qp_vqe_iterations_per_second' in prometheus_output
+        assert 'qp_vqe_time_per_iteration' in prometheus_output
+        assert 'qp_vqe_efficiency' in prometheus_output
 
     def test_prometheus_export_with_missing_data(self, temp_metrics_dir):
         """Test Prometheus export handles missing optional data gracefully."""
@@ -368,9 +367,7 @@ class TestMonitoringThread:
         assert monitor.monitoring_thread.is_alive()
 
         monitor.stop_monitoring_thread()
-
-        # Wait a bit for thread to stop
-        time.sleep(0.5)
+        monitor.monitoring_thread.join(timeout=1.0)
 
         # Verify thread stopped
         assert not monitor.monitoring_thread.is_alive()
@@ -395,7 +392,7 @@ class TestMonitoringThread:
             assert monitor.monitoring_thread.is_alive()
 
         # After context exit, thread should be stopped
-        time.sleep(0.5)
+        monitor.monitoring_thread.join(timeout=1.0)
         assert not monitor.monitoring_thread.is_alive()
 
 
@@ -443,14 +440,14 @@ class TestConfigurationEdgeCases:
 
     def test_invalid_env_var_collection_interval(self, temp_metrics_dir, monkeypatch, caplog):
         """Test handling of invalid collection interval from env var."""
-        monkeypatch.setenv('QUANTUM_PERFORMANCE_COLLECTION_INTERVAL', 'not_a_number')
+        monkeypatch.setenv('MONITORING_INTERVAL', 'not_a_number')
 
         monitor = PerformanceMonitor(metrics_dir=temp_metrics_dir)
 
         # Should fall back to settings default
         from quantum_pipeline.configs import settings
 
-        assert monitor.collection_interval == settings.PERFORMANCE_COLLECTION_INTERVAL
+        assert monitor.collection_interval == settings.MONITORING_INTERVAL
 
     def test_export_format_both_expands_to_list(self, temp_metrics_dir):
         """Test that 'both' export format is expanded correctly."""
@@ -487,6 +484,7 @@ class TestConfigurationEdgeCases:
             assert 'error' in snapshot['system']
 
 
+@pytest.mark.slow
 class TestPerformanceMonitorIntegration:
     """Integration tests for complete monitoring workflows."""
 
@@ -560,7 +558,7 @@ class TestPerformanceMonitorIntegration:
             assert snapshot is not None
 
             # Give thread time to collect at least one metric
-            time.sleep(1.5)
+            time.sleep(0.3)
 
         # After context exit, check that system metrics were collected
         system_json_files = list(temp_metrics_dir.glob('system_metrics_*.json'))

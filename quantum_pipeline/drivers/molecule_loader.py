@@ -50,3 +50,14 @@ def load_molecule(file_path: str):
             )
             for mol in data
         ]
+
+
+def load_molecule_names(file_path: str) -> list[str]:
+    """Load molecule names from a JSON file.
+
+    Returns the 'name' field from each molecule entry (e.g., 'H2', 'HeH+').
+    Falls back to joining symbols if name is not present.
+    """
+    with open(file_path) as file:
+        data = json.load(file)
+        return [mol.get('name', ''.join(mol['symbols'])) for mol in data]

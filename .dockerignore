@@ -1,11 +1,10 @@
-.git
-.gitignore
+# Exclude everything by default
+*
 
-notebooks
-examples
-dist
-venv
-
-schemas
-static
-*.avsc
+# Include only what the simulation image build needs:
+#   COPY . .  ->  pip install .  (needs package + pyproject.toml)
+!quantum_pipeline/
+!data/
+!pyproject.toml
+!README.md
+!LICENSE

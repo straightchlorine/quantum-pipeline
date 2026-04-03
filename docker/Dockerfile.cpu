@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bullseye
+FROM python:3.12-slim-bookworm
 
 WORKDIR /usr/src/quantum_pipeline
 
@@ -9,4 +9,4 @@ RUN apt-get update \
 COPY . .
 RUN pip install --no-cache-dir .
 
-ENTRYPOINT [ "python", "quantum_pipeline.py" ]
+ENTRYPOINT ["python", "-m", "quantum_pipeline"]

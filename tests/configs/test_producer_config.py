@@ -12,7 +12,7 @@ def sample_producer_defaults() -> dict[str, Any]:
     return {
         'kafka': {
             'servers': 'localhost:9092',
-            'topic': 'vqe_decorated_result',
+            'topic': 'experiment.vqe',
             'retries': 3,
             'retry_delay': 2,
             'internal_retries': 0,

@@ -1,48 +1,44 @@
 # Data Flow Architecture
 
-This document traces the complete journey of data through the Quantum Pipeline - from molecule specification to ML-ready features in Apache Iceberg tables.
-
----
+Data flow throughout the pipeline. From molecule specification to ML features
+within Apache Iceberg tables.
 
 ## Overview
-
-The Quantum Pipeline implements a **multi-stage data processing architecture** that transforms quantum simulation results into structured analytics data:
 
 ```mermaid
 graph TB
     INPUT[Molecule JSON] --> VQE[VQE Simulation]
     VQE --> STREAM[Kafka Streaming]
-    STREAM --> KC[Kafka Connect]
-    KC --> MINIO[MinIO Storage]
-    MINIO --> SPARK[Spark Processing]
+    STREAM --> RC[Redpanda/Kafka Connect]
+    RC --> GARAGE[Garage Storage]
+    GARAGE --> SPARK[Spark Processing]
     SPARK --> ICEBERG[Iceberg Tables]
 
-    subgraph "Stage 1: Quantum Simulation"
+    subgraph "Stage 1: Simulation"
         VQE
     end
 
-    subgraph "Stage 2: Real-time Streaming"
+    subgraph "Stage 2: Streaming"
         STREAM
-        KC
+        RC
     end
 
     subgraph "Stage 3: Batch Processing"
         SPARK
     end
 
-    subgraph "Stage 4: Analytics Storage"
+    subgraph "Stage 4: Storage"
         ICEBERG
-        MINIO
+        GARAGE
     end
 
     style VQE fill:#c5cae9,color:#1a237e
     style STREAM fill:#ffe082,color:#000
-    style KC fill:#ffe082,color:#000
+    style RC fill:#ffe082,color:#000
     style SPARK fill:#a5d6a7,color:#1b5e20
     style ICEBERG fill:#b39ddb,color:#311b92
 ```
 
----
 
 ## Stage 1: Quantum Simulation
 
@@ -62,288 +58,93 @@ VQE simulations begin with molecule data in JSON format:
 
 ### Processing Pipeline
 
-The simulation follows a structured workflow orchestrated by `VQERunner.run()`:
+`VQERunner.run()` iterates over molecules in the input file, delegating each to
+`_process_molecule()`. For each molecule the pipeline runs four phases:
 
-```mermaid
-sequenceDiagram
-    participant CLI as CLI/API
-    participant Runner as VQERunner
-    participant Loader as load_molecule()
-    participant Driver as PySCFDriver
-    participant Mapper as JordanWignerMapper
-    participant Solver as VQESolver
-    participant Backend as Qiskit Backend
+1. **Molecule loading** - parse JSON, validate fields, create `MoleculeInfo`
+2. **Hamiltonian construction** - PySCF orbital calculation, Jordan-Wigner mapping to qubit operator
+3. **Ansatz creation** - build parameterized circuit, compute initial parameters (random or HF)
+4. **VQE optimization** - `scipy.optimize.minimize` with `EstimatorV2`, recording per-iteration energy and parameters
 
-    CLI->>Runner: run()
-    Runner->>Loader: load_molecule(filepath)
-    Loader->>Loader: Validate & parse JSON
-    Loader-->>Runner: list[MoleculeInfo]
+Each molecule produces a `VQEResult` wrapped in a `VQEDecoratedResult` with timing and metadata.
 
-    loop For each molecule
-        Runner->>Driver: PySCFDriver.from_molecule(mol, basis)
-        Driver->>Driver: PySCF orbital calculation
-        Driver-->>Runner: ElectronicStructureProblem
+For the full execution sequence and component details, see [System Design](system-design.md#quantum-pipeline-module).
 
-        Runner->>Mapper: JordanWignerMapper().map(second_q_op)
-        Mapper-->>Runner: SparsePauliOp
+### Output
 
-        Runner->>Solver: VQESolver(qubit_op, ...).solve()
-        Solver->>Solver: Build EfficientSU2 ansatz
-        loop Until convergence
-            Solver->>Backend: EstimatorV2.run()
-            Backend-->>Solver: Energy estimate + std
-        end
-        Solver-->>Runner: VQEResult
-    end
-```
+Each molecule produces a
+[`VQEDecoratedResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/structures/vqe_observation.py#L64)
+containing timing data, molecule metadata, and a nested
+[`VQEResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/structures/vqe_observation.py#L41)
+with initial parameters, the full iteration history, optimal parameters, and
+convergence info. This is the unit of data that flows through the rest of the
+pipeline.
 
-### Simulation Phases
 
-#### Phase 1: Molecule Loading
+## Stage 2: Streaming
 
-**Source**: [`quantum_pipeline/drivers/molecule_loader.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/drivers/molecule_loader.py)
+When the `--kafka` flag is enabled, each `VQEDecoratedResult` is serialized to
+Avro and published to the `experiment.vqe` Kafka topic immediately after the
+simulation completes.
 
-- Loads JSON, validates required fields (`symbols`, `coords`)
-- Creates `MoleculeInfo` objects (from `qiskit_nature.second_q.formats.molecule_info`)
-- Defaults: `multiplicity=1`, `charge=0`, `units=angstrom`
+The producer uses the Confluent wire format (magic byte + schema ID + Avro
+binary payload) and registers schemas with the Schema Registry automatically.
+For the full serialization process, schema definitions, and wire format details,
+see [Serialization](serialization.md).
 
-!!! note
-    `MoleculeInfo` is imported from `qiskit_nature`, not defined in this project.
-
-#### Phase 2: Hamiltonian Construction
-
-**Source**: [`quantum_pipeline/runners/vqe_runner.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/runners/vqe_runner.py)
-
-- `PySCFDriver.from_molecule()` performs molecular orbital calculation
-- `second_q_ops()[0]` produces the second-quantized fermionic operator
-- `JordanWignerMapper().map()` transforms to qubit operator (`SparsePauliOp`)
-
-#### Phase 3: Ansatz Creation
-
-**Source**: [`quantum_pipeline/solvers/vqe_solver.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/solvers/vqe_solver.py)
-
-- Uses `EfficientSU2` ansatz (not UCCSD) from `qiskit.circuit.library`
-- Configurable repetitions via `ansatz_reps` parameter
-- Random initial parameters: `2 * pi * random(num_parameters)`
-
-#### Phase 4: VQE Optimization
-
-**Source**: [`quantum_pipeline/solvers/vqe_solver.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/solvers/vqe_solver.py)
-
-- Uses `scipy.optimize.minimize` with configurable optimizer (default: COBYLA)
-- `EstimatorV2` from `qiskit_ibm_runtime` estimates expectation values
-- Each iteration records: iteration number, parameters, energy, std deviation
-- Supports convergence threshold and max iteration limits
-
-### Output: VQEDecoratedResult
-
-**Source**: [`quantum_pipeline/structures/vqe_observation.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/structures/vqe_observation.py)
-
-Complete simulation results wrapped in a structured dataclass:
-
-```python
-@dataclass
-class VQEDecoratedResult:
-    vqe_result: VQEResult
-    molecule: MoleculeInfo
-    basis_set: str
-    hamiltonian_time: np.float64
-    mapping_time: np.float64
-    vqe_time: np.float64
-    total_time: np.float64
-    molecule_id: int
-    performance_start: dict | None = None  # Optional system metrics snapshot
-    performance_end: dict | None = None    # Optional system metrics snapshot
-```
-
-The nested `VQEResult` contains:
-
-```python
-@dataclass
-class VQEResult:
-    initial_data: VQEInitialData  # backend, num_qubits, hamiltonian, ansatz, etc.
-    iteration_list: list[VQEProcess]  # per-iteration energy + parameters
-    minimum: np.float64
-    optimal_parameters: np.ndarray
-    maxcv: np.float64 | None
-    minimization_time: np.float64
-```
-
----
-
-## Stage 2: Real-time Streaming
-
-### Kafka Producer Integration
-
-When `--kafka` flag is enabled, results stream to Apache Kafka immediately after each VQE run completes.
-
-```mermaid
-sequenceDiagram
-    participant VQE as VQE Runner
-    participant Cache as Schema Cache
-    participant Registry as Schema Registry
-    participant Serializer as Avro Serializer
-    participant Producer as Kafka Producer
-    participant Broker as Kafka Broker
-
-    VQE->>Cache: Request schema
-    alt Schema cached
-        Cache-->>VQE: Return schema
-    else Cache miss
-        Cache->>Registry: Fetch schema
-        Registry-->>Cache: Schema definition
-        Cache-->>VQE: Return schema
-    end
-
-    VQE->>Serializer: Serialize result
-    Serializer->>Serializer: Convert to Avro
-    Serializer->>Serializer: Add wire format header
-    Serializer-->>VQE: Binary payload
-
-    VQE->>Producer: Send message
-    Producer->>Broker: Publish to topic
-    Broker-->>Producer: Acknowledgment
-    Producer-->>VQE: Success
-```
-
-### Topic Naming Strategy
-
-Each simulation produces a unique topic based on simulation parameters.
-
-**Pattern**: `vqe_decorated_result_{suffix}`
-
-**Suffix** is generated by `VQEDecoratedResult.get_schema_suffix()` and includes: molecule ID, atomic symbols, iteration count, basis set (sanitized), and backend name (sanitized).
-
-**Example topics**:
-```
-vqe_decorated_result_mol0_HH_it150_bs_sto3g_bk_aer_simulator
-vqe_decorated_result_mol1_LiH_it200_bs_cc_pvdz_bk_aer_simulator
-```
-
-### Schema Registration
-
-Schemas are automatically registered with Confluent Schema Registry on first use via `SchemaRegistry.save_schema()`.
-
-**Subject naming**: `{schema_name}-value`
-
-The schema registry client tries three sources in order: in-memory cache, remote registry, local `.avsc` file. If a schema is found locally but not in the registry, it is automatically synchronized.
-
-### Message Format
-
-**Confluent Wire Format**:
-
-```
-[Magic Byte: 0x00] [Schema ID: 4 bytes big-endian] [Avro payload: variable length]
-```
-
-**Logical payload structure** (actual format is Avro binary):
-
-```json
-{
-    "vqe_result": {
-        "initial_data": {
-            "backend": "aer_simulator",
-            "num_qubits": 4,
-            "hamiltonian": [{"label": "IIII", "coefficients": {"real": -0.81, "imaginary": 0.0}}],
-            "num_parameters": 16,
-            "initial_parameters": [0.12, -0.34, "..."],
-            "optimizer": "COBYLA",
-            "ansatz": "<QASM3 string>",
-            "noise_backend": "undef",
-            "default_shots": 1024,
-            "ansatz_reps": 2
-        },
-        "iteration_list": [
-            {"iteration": 1, "parameters": ["..."], "result": -1.0, "std": 0.01}
-        ],
-        "minimum": -1.137270,
-        "optimal_parameters": [0.12, -0.34, "..."],
-        "maxcv": null,
-        "minimization_time": 45.67
-    },
-    "molecule": {
-        "molecule_data": {
-            "symbols": ["H", "H"],
-            "coords": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-            "multiplicity": 1,
-            "charge": 0,
-            "units": "angstrom",
-            "masses": null
-        }
-    },
-    "basis_set": "sto3g",
-    "hamiltonian_time": 2.34,
-    "mapping_time": 0.45,
-    "vqe_time": 45.67,
-    "total_time": 48.46,
-    "molecule_id": 0,
-    "performance_start": null,
-    "performance_end": null
-}
-```
-
-The `performance_start` and `performance_end` fields are nullable strings (`["null", "string"]` in Avro). When present, they contain JSON-serialized system metrics snapshots.
-
----
 
 ## Stage 3: Batch Processing with Spark
 
-### Kafka Connect: Kafka to MinIO
+### Kafka to Garage
 
-Before Spark processes data, **Kafka Connect** (S3 Sink Connector) writes Avro messages from Kafka topics to MinIO.
+Redpanda Connect (default) or Kafka Connect consumes from the `experiment.vqe`
+topic and writes files to the `raw-results` bucket in Garage under
+`experiments/experiment.vqe/`. With Redpanda Connect the files are JSON; with
+Kafka Connect they are Avro. See [Serialization - Overview](serialization.md#overview)
+for details on the connector choice.
 
-**Source**: [`docker/connectors/minio-sink-config.json`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/connectors/minio-sink-config.json)
-
-- **Topics regex**: `vqe_decorated_result_.*`
-- **Bucket**: `local-vqe-results`
-- **Directory**: `experiments/{topic}/partition=N/`
-- **Format**: Avro
-- **Flush size**: 1 (writes each message immediately)
+For the Redpanda Connect configuration, see
+[System Design](system-design.md#redpanda-connect-configuration).
 
 ### Airflow Orchestration
 
-Apache Airflow schedules a daily Spark job.
+Apache Airflow orchestrates batch processing through a chain of DAGs.
 
 ```mermaid
 graph LR
-    SCHEDULE[Airflow Scheduler] --> SPARK[Spark reads Avro from MinIO]
-    SPARK --> TRANSFORM[Transform to feature tables]
-    TRANSFORM --> WRITE[Write to Iceberg]
-    WRITE --> COMPLETE[Mark Complete]
+    SCHEDULE[Airflow Scheduler] --> SPARK1[Spark: normalize raw data]
+    SPARK1 --> SPARK2[Spark: materialize ML features]
+    SPARK2 --> SYNC[rclone: sync to R2]
 
     style SCHEDULE fill:#90caf9,color:#0d47a1
-    style SPARK fill:#ffe082,color:#000
-    style TRANSFORM fill:#a5d6a7,color:#1b5e20
-    style WRITE fill:#b39ddb,color:#311b92
+    style SPARK1 fill:#ffe082,color:#000
+    style SPARK2 fill:#a5d6a7,color:#1b5e20
+    style SYNC fill:#b39ddb,color:#311b92
 ```
 
-**Source**: [`docker/airflow/quantum_processing_dag.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/quantum_processing_dag.py)
+**DAG chain**:
 
-**DAG configuration**:
+1. `quantum_feature_processing`: daily Spark job that reads raw data from Garage, transforms it into 9 normalized Iceberg tables
+2. `quantum_ml_feature_processing`: daily Spark job that joins normalized tables into 2 ML-ready feature tables (waits for upstream DAG via `ExternalTaskSensor`)
+3. `r2_sync`: manual/scheduled rclone sync of ML feature Parquet from Garage to Cloudflare R2
 
-- **DAG ID**: `quantum_feature_processing`
-- **Schedule**: `timedelta(days=1)`
-- **Single task**: `run_quantum_processing` (`SparkSubmitOperator`)
-- **Retries**: 3
-- **Retry delay**: 20 minutes
-- **Tags**: `quantum`, `ML`, `features`, `processing`, `Apache Spark`
+A fourth DAG, `vqe_batch_generation`, handles building simulation Docker images and running batch VQE generation (manual trigger only).
 
-### Reading from MinIO
+DAGs share configuration through
+[`docker/airflow/common/`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/common)
+(S3 paths, catalog names, default args, Spark session factory).
 
-Spark reads Avro files directly from MinIO in batch mode (not from Kafka):
+### Reading from Garage
 
-**Source**: [`docker/airflow/scripts/quantum_incremental_processing.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/scripts/quantum_incremental_processing.py)
-
-```python
-topic_path = f'{bucket_path}{topic_name}/partition=*/*.avro'
-df = spark.read.format('avro').load(topic_path)
-```
-
-The `list_available_topics()` function discovers topic directories under the S3 bucket path, then `read_experiments_by_topic()` loads all Avro files for each topic.
+Spark reads files from Garage via S3A.
+[`read_experiments_by_topic()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py#L75)
+tries Avro first, then falls back to JSON, so it works with either connector's
+output. [`list_available_topics()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py#L47)
+discovers topic directories under the S3 bucket path.
 
 ### Feature Engineering
 
-Spark transforms raw VQE results into **10 feature tables**:
+Spark transforms raw VQE results into **9 normalized feature tables**:
 
 #### Table Summary
 
@@ -358,44 +159,14 @@ Spark transforms raw VQE results into **10 feature tables**:
 | `vqe_iterations` | `iteration_id` | `processing_date`, `basis_set`, `backend` |
 | `iteration_parameters` | `parameter_id` | `processing_date`, `basis_set` |
 | `hamiltonian_terms` | `term_id` | `processing_date`, `basis_set`, `backend` |
-| `processing_metadata` | *(tracking table)* | -- |
 
-#### `vqe_results` Schema
+A second Spark job (`quantum_ml_feature_processing`) joins these into two
+ML-ready tables: `ml_iteration_features` (per-iteration feature vectors for
+convergence prediction) and `ml_run_summary` (per-run aggregates for energy
+estimation).
 
-The primary results table contains the following columns:
-
-| Column | Type |
-|---|---|
-| `experiment_id` | string |
-| `molecule_id` | int |
-| `basis_set` | string |
-| `backend` | string |
-| `num_qubits` | int |
-| `optimizer` | string |
-| `noise_backend` | string |
-| `default_shots` | int |
-| `ansatz_reps` | int |
-| `minimum_energy` | double |
-| `maxcv` | double |
-| `total_iterations` | int |
-| `processing_timestamp` | timestamptz |
-| `processing_date` | date |
-| `processing_batch_id` | string |
-| `processing_name` | string |
-
-#### Other Tables
-
-- **`molecules`** -- Molecular geometry, symbols, masses, charge, multiplicity per experiment.
-- **`ansatz_info`** -- Ansatz QASM string and repetition count per experiment.
-- **`performance_metrics`** -- Timing breakdown: hamiltonian, mapping, VQE, total, and computed total time.
-- **`initial_parameters`** -- Exploded initial ansatz parameters (one row per parameter value).
-- **`optimal_parameters`** -- Exploded optimal parameters found by VQE (one row per parameter value).
-- **`vqe_iterations`** -- Per-iteration energy and standard deviation for convergence tracking.
-- **`iteration_parameters`** -- Exploded parameters at each iteration step (one row per parameter per iteration).
-- **`hamiltonian_terms`** -- Individual Pauli operator terms with real and imaginary coefficients.
-- **`processing_metadata`** -- Tracks batch IDs, table names, version tags, and record counts per processing run.
-
-For full column details, see [`docker/airflow/scripts/quantum_incremental_processing.py`](https://github.com/straightchlorine/quantum-pipeline/blob/master/docker/airflow/scripts/quantum_incremental_processing.py).
+For full table schemas and column definitions, see
+[System Design - Feature Tables](system-design.md#feature-tables-schema).
 
 ### Incremental Processing
 
@@ -405,11 +176,10 @@ The pipeline uses append-only incremental processing to avoid reprocessing exist
 
 1. If the target Iceberg table does not exist, create it with the full dataset.
 2. If the table exists, use `identify_new_records()` to left-join on key columns and find records not yet in the table.
-3. Only truly new records are appended to the table.
+3. Only new records are appended to the table.
 4. Each write is tagged with a version: `v_{batch_id}` for initial loads, `v_incr_{batch_id}` for incremental appends.
 5. The `processing_metadata` table tracks all batch processing runs, including table names, versions, and record counts.
 
----
 
 ## Stage 4: Analytics Storage
 
@@ -428,44 +198,21 @@ graph TB
 
     DATA --> PARQUET[Parquet Files]
 
-    PARQUET --> MINIO[MinIO Object Storage]
-    MANIFEST --> MINIO
-    SNAPSHOT --> MINIO
+    PARQUET --> GARAGE[Garage Object Storage]
+    MANIFEST --> GARAGE
+    SNAPSHOT --> GARAGE
 
     style SPARK fill:#a5d6a7,color:#1b5e20
     style ICEBERG fill:#b39ddb,color:#311b92
-    style MINIO fill:#b39ddb,color:#311b92
+    style GARAGE fill:#b39ddb,color:#311b92
 ```
 
 ### Table Organization
 
-**Catalog**: Hadoop catalog with MinIO backend (`quantum_catalog`)
-
-**Database**: `quantum_features`
-
-**Full table paths**:
-```
-quantum_catalog.quantum_features.molecules
-quantum_catalog.quantum_features.ansatz_info
-quantum_catalog.quantum_features.performance_metrics
-quantum_catalog.quantum_features.vqe_results
-quantum_catalog.quantum_features.initial_parameters
-quantum_catalog.quantum_features.optimal_parameters
-quantum_catalog.quantum_features.vqe_iterations
-quantum_catalog.quantum_features.iteration_parameters
-quantum_catalog.quantum_features.hamiltonian_terms
-quantum_catalog.quantum_features.processing_metadata
-```
-
-### Partitioning Strategy
-
-Tables are partitioned for query performance. Partition columns vary by table as shown in the [Table Summary](#table-summary) above. The most common partition columns are:
-
-- **`processing_date`** -- present on all tables, enables time-based filtering
-- **`basis_set`** -- present on most tables, enables filtering by quantum chemistry basis set
-- **`backend`** -- present on `vqe_results`, `vqe_iterations`, and `hamiltonian_terms`
-
----
+All tables live under `quantum_catalog.quantum_features` (Hadoop catalog backed
+by Garage). Tables are partitioned by `processing_date` and, where applicable,
+`basis_set` and `backend` - see the [Table Summary](#table-summary) above for
+partition columns per table.
 
 ## End-to-End Data Flow Example
 
@@ -490,8 +237,8 @@ sequenceDiagram
     participant CLI as Quantum Pipeline
     participant Kafka
     participant Registry as Schema Registry
-    participant KC as Kafka Connect
-    participant MinIO
+    participant RC as Redpanda Connect
+    participant Garage
     participant Airflow
     participant Spark
     participant Iceberg
@@ -505,34 +252,36 @@ sequenceDiagram
     Registry-->>CLI: Schema ID
 
     CLI->>Kafka: Publish VQEDecoratedResult
-    Note over Kafka: Topic: vqe_decorated_result_mol0_HH_it150_bs_sto3g_bk_aer_simulator
+    Note over Kafka: Topic: experiment.vqe
     Kafka-->>CLI: Ack
 
     CLI-->>User: Simulation complete
 
-    Kafka->>KC: Consume messages
-    KC->>MinIO: Write Avro files to experiments/
+    Kafka->>RC: Consume messages
+    RC->>Registry: Decode Avro
+    RC->>Garage: Write JSON to experiments/
 
     Note over Airflow: Daily schedule
-    Airflow->>Spark: SparkSubmitOperator
+    Airflow->>Spark: SparkSubmitOperator (normalize)
 
-    Spark->>MinIO: spark.read.format('avro').load(...)
-    Spark->>Spark: Transform to 10 feature tables
+    Spark->>Garage: Read raw JSON files
+    Spark->>Spark: Transform to 9 feature tables
     Spark->>Spark: Incremental dedup via left-join
 
     Spark->>Iceberg: Write to quantum_catalog.quantum_features.*
-    Iceberg->>MinIO: Store Parquet + metadata
+    Iceberg->>Garage: Store Parquet + metadata
     Iceberg-->>Spark: Commit with version tag
 
     Spark-->>Airflow: Task complete
-```
 
----
+    Note over Airflow: quantum_ml_feature_processing
+    Airflow->>Spark: SparkSubmitOperator (ML features)
+    Spark->>Spark: Join normalized tables
+    Spark->>Iceberg: Write ml_iteration_features + ml_run_summary
+    Spark-->>Airflow: Task complete
+```
 
 ## Next Steps
 
-- **[Avro Serialization](avro-serialization.md)** - Deep dive into schema management
-- **[Kafka Streaming](../data-platform/kafka-streaming.md)** - Producer/consumer configuration
-- **[Spark Processing](../data-platform/spark-processing.md)** - Feature engineering details
-- **[Iceberg Storage](../data-platform/iceberg-storage.md)** - Table management and queries
-- **[Airflow Orchestration](../data-platform/airflow-orchestration.md)** - DAG configuration
+- **[Serialization](serialization.md)** - Wire format, schema registry, and schema definitions
+- **[System Design](system-design.md)** - Detailed component design and interactions

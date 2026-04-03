@@ -10,6 +10,12 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
+from quantum_pipeline.configs.constants import (
+    COBYLA_DEFAULT_MAXITER,
+    LBFGSB_DEFAULT_MAXITER,
+    SLSQP_DEFAULT_MAXITER,
+)
+
 
 class OptimizerConfig(ABC):
     """Abstract base class for optimizer configurations."""
@@ -45,7 +51,7 @@ class LBFGSBConfig(OptimizerConfig):
     """Configuration for L-BFGS-B optimizer.
 
     Simplified behavior:
-    - If max_iterations is set: Use it with tight tolerances (1e-15) to enforce iteration limit
+    - If max_iterations is set: Use it as the iteration limit (maxfun and maxiter)
     - If convergence_threshold is set: Use it with high max iterations (15000) to let it converge
     - If neither is set: Use defaults (15000 iterations, standard scipy tolerances)
     """
@@ -55,23 +61,24 @@ class LBFGSBConfig(OptimizerConfig):
 
         if self.max_iterations is not None:
             # Mode: Strict iteration control
-            # Set both maxfun and maxiter to prevent hanging
+            # Set both maxfun and maxiter to prevent hanging.
+            # Use tight tolerances to ensure the full iteration budget is used
+            # (scipy's defaults would cause early stopping).
             options['maxfun'] = self.max_iterations
             options['maxiter'] = self.max_iterations
-            # Use tight tolerances to ensure iteration limit is respected
             options['ftol'] = 1e-15
             options['gtol'] = 1e-15
 
         elif self.convergence_threshold is not None:
             # Mode: Convergence-based optimization
             # Use high iteration limit to allow convergence
-            options['maxiter'] = 15000
+            options['maxiter'] = LBFGSB_DEFAULT_MAXITER
             options['ftol'] = self.convergence_threshold
             options['gtol'] = self.convergence_threshold
 
         else:
             # Mode: Defaults
-            options['maxiter'] = 15000
+            options['maxiter'] = LBFGSB_DEFAULT_MAXITER
             # Let scipy use its default tolerances
 
         return options
@@ -97,9 +104,9 @@ class COBYLAConfig(OptimizerConfig):
         if self.max_iterations is not None:
             maxiter = self.max_iterations
         elif self.convergence_threshold is not None:
-            maxiter = 1000  # Default when using convergence
+            maxiter = COBYLA_DEFAULT_MAXITER  # Default when using convergence
         else:
-            maxiter = 1000  # scipy default
+            maxiter = COBYLA_DEFAULT_MAXITER  # scipy default
 
         return {
             'disp': False,
@@ -133,9 +140,9 @@ class SLSQPConfig(OptimizerConfig):
         if self.max_iterations is not None:
             maxiter = self.max_iterations
         elif self.convergence_threshold is not None:
-            maxiter = 100  # Default when using convergence
+            maxiter = SLSQP_DEFAULT_MAXITER  # Default when using convergence
         else:
-            maxiter = 100  # scipy default
+            maxiter = SLSQP_DEFAULT_MAXITER  # scipy default
 
         options = {'disp': False, 'maxiter': maxiter}
 
@@ -153,6 +160,61 @@ class SLSQPConfig(OptimizerConfig):
             self.logger.warning(f'SLSQP max_iterations {self.max_iterations} should be >= 1')
 
 
+class GenericConfig(OptimizerConfig):
+    """Generic configuration for scipy optimizers not requiring custom logic.
+
+    Passes `maxiter` into the options dict and returns `convergence_threshold`
+    as the global `tol` argument for `scipy.optimize.minimize`.
+
+    Optimizer-specific default `maxiter values.
+    """
+
+    # Research-backed default maxiter values per optimizer
+    _DEFAULT_MAXITER: ClassVar[dict[str, int]] = {
+        'Nelder-Mead': 5000,  # gradient-free simplex; slow - needs high budget
+        'Powell': 10000,  # gradient-free conjugate-directions; one iter /approx n line searches
+        'BFGS': 1000,  # quasi-Newton; fast convergence, limit by outer iterations
+        'CG': 2000,  # conjugate gradient; moderate convergence
+        'TNC': 500,  # truncated Newton; each step is expensive (inner CG)
+    }
+
+    # Optimizers that use 'maxfun' instead of 'maxiter'
+    _USES_MAXFUN: ClassVar[set[str]] = {'TNC'}
+
+    def __init__(
+        self,
+        optimizer_name: str,
+        max_iterations: int | None = None,
+        convergence_threshold: float | None = None,
+    ):
+        super().__init__(
+            max_iterations=max_iterations, convergence_threshold=convergence_threshold
+        )
+        self.optimizer_name = optimizer_name
+
+    def _effective_maxiter(self) -> int:
+        """Return the effective maxiter for the options dict."""
+        if self.max_iterations is not None:
+            return self.max_iterations
+        return self._DEFAULT_MAXITER.get(self.optimizer_name, 1000)
+
+    def get_options(self, num_parameters: int) -> dict[str, Any]:
+        key = 'maxfun' if self.optimizer_name in self._USES_MAXFUN else 'maxiter'
+        return {
+            'disp': False,
+            key: self._effective_maxiter(),
+        }
+
+    def get_minimize_tol(self) -> float | None:
+        return self.convergence_threshold
+
+    def validate_parameters(self, num_parameters: int) -> None:
+        if self.max_iterations is not None and self.max_iterations < 1:
+            self.logger.warning(
+                f'{self.optimizer_name} max_iterations {self.max_iterations} should be >= 1'
+            )
+
+
 class OptimizerConfigFactory:
     """Factory class for creating optimizer-specific configurations."""
 
@@ -160,6 +222,11 @@ class OptimizerConfigFactory:
         'L-BFGS-B': LBFGSBConfig,
         'COBYLA': COBYLAConfig,
         'SLSQP': SLSQPConfig,
+        'Nelder-Mead': lambda **kw: GenericConfig('Nelder-Mead', **kw),
+        'Powell': lambda **kw: GenericConfig('Powell', **kw),
+        'BFGS': lambda **kw: GenericConfig('BFGS', **kw),
+        'CG': lambda **kw: GenericConfig('CG', **kw),
+        'TNC': lambda **kw: GenericConfig('TNC', **kw),
     }
 
     @classmethod

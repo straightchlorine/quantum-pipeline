@@ -114,9 +114,9 @@ class TestLBFGSBPriorities:
         minimize_tol = config.get_minimize_tol()
 
         assert options['maxiter'] == 30
-        # For strict max_iterations mode, should use tight tolerances
-        assert options['ftol'] == 1e-15  # Tight tolerance for strict iteration control
-        assert options['gtol'] == 1e-15  # Tight tolerance for strict iteration control
+        # Tight tolerances to prevent premature convergence
+        assert options['ftol'] == 1e-15
+        assert options['gtol'] == 1e-15
         assert minimize_tol is None  # L-BFGS-B uses ftol/gtol, not global tol
 
     def test_lbfgsb_convergence_only(self):
@@ -167,7 +167,7 @@ class TestLBFGSBPriorities:
         )
 
         assert options['maxiter'] == 200
-        assert options['ftol'] == 1e-15  # Tight tolerance
+        assert options['ftol'] == 1e-15
         assert options['gtol'] == 1e-15
         assert minimize_tol is None
 
@@ -209,7 +209,7 @@ class TestOptimizerPriorityIntegration:
             # COBYLA doesn't set tolerance when using max_iterations
             assert minimize_tol is None
         elif optimizer == 'L-BFGS-B':
-            # L-BFGS-B uses tight ftol/gtol for strict iteration control
+            # L-BFGS-B sets tight tolerances to prevent premature convergence
             assert options['ftol'] == 1e-15
             assert options['gtol'] == 1e-15
             assert minimize_tol is None
@@ -263,7 +263,7 @@ class TestOptimizerPriorityIntegration:
             optimizer='L-BFGS-B', max_iterations=100, num_parameters=50
         )
         assert lbfgsb_options['maxiter'] == 100
-        assert lbfgsb_options['ftol'] == 1e-15  # Tight tolerance
+        assert lbfgsb_options['ftol'] == 1e-15
         assert lbfgsb_options['gtol'] == 1e-15
 
         # L-BFGS-B example with convergence_threshold only
@@ -327,7 +327,7 @@ class TestOptimizerPriorityIntegration:
         assert no_params_options['maxiter'] == 15000  # Default
         assert no_params_tol is None
 
-        # max_iterations only - should use specified value with tight tolerances
+        # max_iterations only - should use specified value, no tolerance overrides
         max_iter_options, max_iter_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B', max_iterations=50, num_parameters=10
         )

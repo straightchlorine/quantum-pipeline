@@ -12,8 +12,8 @@ maintainers = [
     {name = 'Piotr Krzysztof', email = 'piotr@codextechnologies.org'}
 ]
 
-version = "1.4.4"
-requires-python = ">=3.10,<3.13"
+version = "2.0.0"
+requires-python = ">=3.12,<3.13"
 license = {text = "MIT"}
 readme = "README.md"
 
@@ -67,9 +67,14 @@ dev = [
     "pytest-cov>=7.0.0",
     "debugpy>=1.8.12",
     "ruff>=0.15.2",
-    "mypy>=1.10.0",
+    "mypy>=1.19.1",
     "testcontainers>=4.13.3",
     "pytest-mock>=3.15.1",
+    "pytest-xdist>=3.5.0",
+    "pytest-randomly>=4.0.1",
+    "pytest-timeout>=2.3.1",
+    "pytest-randomly>=3.16.0",
+    "pytest-watch>=4.2.0",
 ]
 
 # Documentation generation and serving
@@ -81,10 +86,13 @@ docs = [
     "pymdown-extensions>=10.7",
 ]
 
-# Apache Airflow orchestration integration
-airflow = [
-    "apache-airflow>=2.10.5",
-    "apache-airflow-providers-apache-spark>=5.1.1",
+# ML model development and experimentation
+ml = [
+    "scikit-learn>=1.8.0",
+    "xgboost>=3.2.0",
+    "seaborn>=0.13.2",
+    "jupyterlab>=4.5.6",
+    "mlflow>=3.10.1",
 ]
 
 [project.urls]
@@ -93,7 +101,7 @@ Homepage = "https://github.com/straightchlorine/quantum-pipeline"
 [tool.ruff]
 line-length = 99
 target-version = "py310"
-extend-exclude = ["*.ipynb", "examples"]
+extend-exclude = ["*.ipynb", "*.md", "examples"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "ASYNC", "S", "C4", "B", "RET", "SIM", "PERF", "T20", "RUF", "TCH", "PIE"]
@@ -102,6 +110,8 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S108", "S105", "S106"]
 "examples/**" = ["ALL"]
+"quantum_pipeline/ml/**" = ["N803", "N806"]
+"scripts/**" = ["T201", "S603", "S607"]
 
 [tool.ruff.format]
 quote-style = "single"
@@ -135,7 +145,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --strict-markers --strict-config"
+addopts = "-ra -q --strict-markers --strict-config --timeout=120 -p randomly"
 testpaths = [
     "tests"
 ]
@@ -143,18 +153,24 @@ pythonpath = [
     "."
 ]
 markers = [
-    "integration: integration tests",
+    "integration: integration tests (require Docker)",
     "slow: slow-running tests",
 ]
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
 
 [tool.coverage.run]
 source = ["quantum_pipeline"]
 omit = ["tests/*"]
 branch = true
+parallel = true
+concurrency = ["multiprocessing"]
+
+[tool.coverage.paths]
+source = ["quantum_pipeline/"]
 
 [tool.coverage.report]
 fail_under = 50

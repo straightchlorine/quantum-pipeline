@@ -1,0 +1,87 @@
+[
+  {
+    "name": "NH3",
+    "symbols": [
+      "N",
+      "H",
+      "H",
+      "H"
+    ],
+    "coords": [
+      [
+        0.0,
+        0.0,
+        0.1128
+      ],
+      [
+        0.0,
+        0.9395,
+        -0.2632
+      ],
+      [
+        0.8137,
+        -0.4698,
+        -0.2632
+      ],
+      [
+        -0.8137,
+        -0.4698,
+        -0.2632
+      ]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [
+      14.007,
+      1.008,
+      1.008,
+      1.008
+    ],
+    "description": "Ammonia molecule - trigonal pyramidal, lone pair effects",
+    "expected_qubits": 16,
+    "complexity_level": 4,
+    "experimental_bond_length_angstrom": 1.0124,
+    "bond_angle_degrees": 106.67,
+    "reference": "Microwave spectroscopy, Townes & Schawlow"
+  },
+  {
+    "name": "CO2",
+    "symbols": [
+      "C",
+      "O",
+      "O"
+    ],
+    "coords": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.1621
+      ],
+      [
+        0.0,
+        0.0,
+        -1.1621
+      ]
+    ],
+    "multiplicity": 1,
+    "charge": 0,
+    "units": "angstrom",
+    "masses": [
+      12.011,
+      15.999,
+      15.999
+    ],
+    "description": "Carbon dioxide - linear, double bonds, atmospheric relevance",
+    "expected_qubits": 18,
+    "complexity_level": 4,
+    "experimental_bond_length_angstrom": 1.1621,
+    "bond_angle_degrees": 180.0,
+    "reference": "NIST Webbook, infrared spectroscopy"
+  }
+]

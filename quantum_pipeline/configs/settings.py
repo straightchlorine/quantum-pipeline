@@ -22,6 +22,8 @@ SUPPORTED_OPTIMIZERS = {
 
 SUPPORTED_BASIS_SETS = ['sto3g', '6-31g', 'cc-pvdz']
 
+SUPPORTED_ANSATZE = ['EfficientSU2', 'RealAmplitudes', 'ExcitationPreserving']
+
 SIMULATION_METHODS = {
     'automatic': 'Default simulation method. Selects the best method based on the circuit and noise model.',
     'statevector': 'Dense statevector simulation. Supports ideal circuits and noisy circuit sampling.',
@@ -42,7 +44,6 @@ GEN_DIR = 'gen'
 GRAPH_DIR = Path(GEN_DIR, 'graphs')
 REPORT_DIR = GEN_DIR
 
-SCHEMA_DIR = Path('quantum_pipeline', 'stream', 'serialization', 'schemas')
 RUN_CONFIGS = Path('run_configs')
 
 # molecule graph settings
@@ -65,8 +66,8 @@ ANSATZ_DECOMPOSED_PLOT_DIR = Path(GRAPH_DIR, 'ansatz_decomposed')
 ANSATZ_DECOMPOSED = 'ansatz_decomposed'
 
 # Performance Monitoring Settings
-PERFORMANCE_MONITORING_ENABLED = False  # Global toggle
-PERFORMANCE_METRICS_DIR = Path(GEN_DIR, 'performance_metrics')
-PERFORMANCE_COLLECTION_INTERVAL = 10  # seconds
-PERFORMANCE_PUSHGATEWAY_URL = 'http://localhost:9091'
-PERFORMANCE_EXPORT_FORMAT = ['json', 'prometheus']  # Export formats
+MONITORING_ENABLED = False  # Global toggle
+MONITORING_METRICS_DIR = Path(GEN_DIR, 'performance_metrics')
+MONITORING_INTERVAL = 10  # seconds
+PUSHGATEWAY_URL = 'http://localhost:9091'
+MONITORING_EXPORT_FORMAT = ['prometheus']  # Export formats

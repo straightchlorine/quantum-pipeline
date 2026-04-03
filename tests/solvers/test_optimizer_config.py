@@ -11,6 +11,7 @@ import pytest
 
 from quantum_pipeline.solvers.optimizer_config import (
     COBYLAConfig,
+    GenericConfig,
     LBFGSBConfig,
     OptimizerConfig,
     OptimizerConfigFactory,
@@ -53,7 +54,7 @@ class TestLBFGSBConfig:
         assert options['disp'] is False
         assert options['maxfun'] == 50
         assert options['maxiter'] == 50
-        # For strict max_iterations mode, should use tight tolerances
+        # Tight tolerances to prevent premature convergence
         assert options['ftol'] == 1e-15
         assert options['gtol'] == 1e-15
 
@@ -336,7 +337,7 @@ class TestGetOptimizerConfiguration:
         assert isinstance(options, dict)
         assert options['maxfun'] == 50
         assert options['maxiter'] == 50
-        assert options['ftol'] == 1e-15  # Tight tolerance
+        assert options['ftol'] == 1e-15
         assert options['gtol'] == 1e-15
         assert minimize_tol is None
 
@@ -529,3 +530,93 @@ class TestOptimizerConfigIntegration:
         # Should be identical
         assert direct_options == conv_options
         assert direct_tol == conv_tol
+
+
+class TestGenericConfig:
+    """Tests for GenericConfig — the generic optimizer configuration for new scipy optimizers."""
+
+    @pytest.mark.parametrize('optimizer', ['Nelder-Mead', 'Powell', 'BFGS', 'CG', 'TNC'])
+    def test_defaults_no_params(self, optimizer):
+        """Test that GenericConfig returns research-backed defaults when no params given."""
+        config = GenericConfig(optimizer)
+        options = config.get_options(num_parameters=24)
+
+        assert options['disp'] is False
+        iter_key = 'maxfun' if optimizer == 'TNC' else 'maxiter'
+        assert iter_key in options
+        assert options[iter_key] > 0
+
+    def test_nelder_mead_default_maxiter(self):
+        config = GenericConfig('Nelder-Mead')
+        assert config.get_options(10)['maxiter'] == 5000
+
+    def test_powell_default_maxiter(self):
+        config = GenericConfig('Powell')
+        assert config.get_options(10)['maxiter'] == 10000
+
+    def test_bfgs_default_maxiter(self):
+        config = GenericConfig('BFGS')
+        assert config.get_options(10)['maxiter'] == 1000
+
+    def test_cg_default_maxiter(self):
+        config = GenericConfig('CG')
+        assert config.get_options(10)['maxiter'] == 2000
+
+    def test_tnc_default_maxfun(self):
+        config = GenericConfig('TNC')
+        opts = config.get_options(10)
+        assert 'maxiter' not in opts
+        assert opts['maxfun'] == 500
+
+    def test_custom_max_iterations(self):
+        config = GenericConfig('BFGS', max_iterations=200)
+        assert config.get_options(10)['maxiter'] == 200
+
+    def test_convergence_threshold_passed_as_tol(self):
+        config = GenericConfig('CG', convergence_threshold=1e-6)
+        assert config.get_minimize_tol() == 1e-6
+
+    def test_no_convergence_threshold_returns_none_tol(self):
+        config = GenericConfig('BFGS')
+        assert config.get_minimize_tol() is None
+
+    def test_mutual_exclusion_raises(self):
+        with pytest.raises(ValueError, match='mutually exclusive'):
+            GenericConfig('BFGS', max_iterations=100, convergence_threshold=1e-5)
+
+    @pytest.mark.parametrize('optimizer', ['Nelder-Mead', 'Powell', 'BFGS', 'CG', 'TNC'])
+    def test_factory_creates_generic_config(self, optimizer):
+        """Test that the factory creates a GenericConfig for each new optimizer."""
+        config = OptimizerConfigFactory.create_config(optimizer)
+        assert isinstance(config, GenericConfig)
+
+    @pytest.mark.parametrize('optimizer', ['Nelder-Mead', 'Powell', 'BFGS', 'CG', 'TNC'])
+    def test_get_optimizer_configuration_works(self, optimizer):
+        """Test end-to-end convenience function for each new optimizer."""
+        options, tol = get_optimizer_configuration(optimizer, num_parameters=24)
+        iter_key = 'maxfun' if optimizer == 'TNC' else 'maxiter'
+        assert iter_key in options
+        assert options[iter_key] > 0
+        assert tol is None
+
+    @pytest.mark.parametrize('optimizer', ['Nelder-Mead', 'Powell', 'BFGS', 'CG', 'TNC'])
+    def test_get_optimizer_configuration_with_convergence(self, optimizer):
+        """Test convergence threshold is passed through for each new optimizer."""
+        _options, tol = get_optimizer_configuration(
+            optimizer, convergence_threshold=1e-6, num_parameters=24
+        )
+        assert tol == 1e-6
+
+    @pytest.mark.parametrize('optimizer', ['Nelder-Mead', 'Powell', 'BFGS', 'CG', 'TNC'])
+    def test_get_optimizer_configuration_with_max_iterations(self, optimizer):
+        """Test custom max_iterations overrides default."""
+        options, _tol = get_optimizer_configuration(
+            optimizer, max_iterations=300, num_parameters=24
+        )
+        iter_key = 'maxfun' if optimizer == 'TNC' else 'maxiter'
+        assert options[iter_key] == 300
+
+    def test_all_new_optimizers_in_supported_list(self):
+        supported = OptimizerConfigFactory.get_supported_optimizers()
+        for opt in ['Nelder-Mead', 'Powell', 'BFGS', 'CG', 'TNC']:
+            assert opt in supported

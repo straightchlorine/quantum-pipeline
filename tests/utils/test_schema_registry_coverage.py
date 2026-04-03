@@ -1,17 +1,13 @@
 """Additional coverage tests for schema_registry.py.
 
 Targets the paths not reached by the existing test_schema_registry.py:
-  - get_schema() multi-source fallback logic
+  - get_schema() two-tier fallback logic (cache → registry → KeyError)
   - _get_schema_from_registry() caching and error paths
-  - _get_schema_from_file() validation and error paths
-  - save_schema() and its sub-methods
-  - _read_existing_schema() edge cases
+  - register_schema() and its sub-methods
   - _save_schema_to_registry() HTTP error / network failure
-  - _save_schema_to_file_if_changed() write and skip paths
 """
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,14 +21,8 @@ from quantum_pipeline.utils.schema_registry import SchemaRegistry
 
 @pytest.fixture
 def registry():
-    """Fresh SchemaRegistry with mocked-out directory settings."""
-    with patch(
-        'quantum_pipeline.utils.schema_registry.SCHEMA_DIR',
-        Path('/tmp/fake_schemas'),
-    ):
-        r = SchemaRegistry()
-        r.schema_dir = Path('/tmp/fake_schemas')
-        yield r
+    """Fresh SchemaRegistry instance."""
+    return SchemaRegistry()
 
 
 @pytest.fixture
@@ -100,45 +90,6 @@ class TestGetSchemaFromRegistry:
 
 
 # ---------------------------------------------------------------------------
-# _get_schema_from_file
-# ---------------------------------------------------------------------------
-
-
-class TestGetSchemaFromFile:
-    """Coverage for _get_schema_from_file."""
-
-    def test_file_not_found_raises(self, registry):
-        with pytest.raises(FileNotFoundError):
-            registry._get_schema_from_file('nonexistent')
-
-    def test_valid_file_caches_schema(self, registry, sample_schema, tmp_path):
-        registry.schema_dir = tmp_path
-        schema_file = tmp_path / 'good_schema.avsc'
-        schema_file.write_text(json.dumps(sample_schema))
-
-        result = registry._get_schema_from_file('good_schema')
-        assert result['name'] == 'TestRecord'
-        assert 'good_schema' in registry.schema_cache
-
-    def test_invalid_json_raises_value_error(self, registry, tmp_path):
-        registry.schema_dir = tmp_path
-        bad_file = tmp_path / 'bad.avsc'
-        bad_file.write_text('{not json!!}')
-
-        with pytest.raises(ValueError):
-            registry._get_schema_from_file('bad')
-
-    def test_invalid_avro_raises_value_error(self, registry, tmp_path):
-        """Valid JSON but not a valid Avro schema."""
-        registry.schema_dir = tmp_path
-        schema_file = tmp_path / 'not_avro.avsc'
-        schema_file.write_text(json.dumps({'foo': 'bar'}))
-
-        with pytest.raises(ValueError):
-            registry._get_schema_from_file('not_avro')
-
-
-# ---------------------------------------------------------------------------
 # get_schema (orchestrator)
 # ---------------------------------------------------------------------------
 
@@ -154,54 +105,27 @@ class TestGetSchema:
             result = registry.get_schema('cached')
         assert result['name'] == 'TestRecord'
 
-    def test_falls_back_to_file_when_registry_down(self, registry, sample_schema, tmp_path):
-        registry.schema_dir = tmp_path
-        schema_file = tmp_path / 'local.avsc'
-        schema_file.write_text(json.dumps(sample_schema))
-
-        with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            # registry unavailable
-            mock_get.return_value = MagicMock(status_code=500)
-            result = registry.get_schema('local')
-
-        assert result['name'] == 'TestRecord'
-
-    def test_file_not_found_anywhere_raises(self, registry):
+    def test_raises_key_error_when_not_found(self, registry):
+        """When schema is absent from cache and registry, raise KeyError."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
             mock_get.return_value = MagicMock(status_code=500)
-            with pytest.raises(FileNotFoundError):
+            with pytest.raises(KeyError):
                 registry.get_schema('totally_missing')
 
-    def test_syncs_local_schema_to_registry(self, registry, sample_schema, tmp_path):
-        """If schema found locally but not in registry, it should be published."""
-        registry.schema_dir = tmp_path
-        schema_file = tmp_path / 'sync_me.avsc'
-        schema_file.write_text(json.dumps(sample_schema))
-
+    def test_returns_from_registry_when_not_cached(self, registry, sample_schema):
+        """Schema absent from cache but present in registry should be returned."""
         avail_resp = MagicMock(status_code=200)
-        # is_schema_in_registry check — 404 means not in registry
-        not_found_resp = MagicMock(status_code=404)
-        # _get_schema_from_registry returns a non-200 so it falls through to file
-        registry_schema_resp = MagicMock(status_code=404)
+        registry_resp = MagicMock(status_code=200)
+        registry_resp.json.return_value = {
+            'schema': json.dumps(sample_schema),
+            'id': 7,
+        }
 
-        with (
-            patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get,
-            patch('quantum_pipeline.utils.schema_registry.requests.post') as mock_post,
-        ):
-            mock_get.side_effect = [
-                avail_resp,  # is_schema_registry_available (in get_schema)
-                registry_schema_resp,  # _get_schema_from_registry (GET versions/latest)
-                avail_resp,  # is_schema_registry_available (in is_schema_in_registry)
-                not_found_resp,  # schema versions check in is_schema_in_registry
-            ]
-            post_resp = MagicMock(status_code=200)
-            post_resp.json.return_value = {'id': 10}
-            mock_post.return_value = post_resp
+        with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
+            mock_get.side_effect = [avail_resp, registry_resp]
+            result = registry.get_schema('from_registry')
 
-            result = registry.get_schema('sync_me')
-            assert result is not None
-            mock_post.assert_called_once()
-            assert registry.registry_schema_existence.get('sync_me') is True
+        assert result['name'] == 'TestRecord'
 
 
 # ---------------------------------------------------------------------------
@@ -236,95 +160,36 @@ class TestSaveSchemaToRegistry:
 
 
 # ---------------------------------------------------------------------------
-# save_schema (public)
+# register_schema (public)
 # ---------------------------------------------------------------------------
 
 
-class TestSaveSchema:
-    """Coverage for the public save_schema() method."""
+class TestRegisterSchema:
+    """Coverage for the public register_schema() method."""
 
     def test_invalid_avro_raises(self, registry):
         with pytest.raises(ValueError):
-            registry.save_schema('bad', {'not': 'avro'})
+            registry.register_schema('bad', {'not': 'avro'})
 
-    def test_full_save_flow(self, registry, sample_schema, tmp_path):
-        registry.schema_dir = tmp_path
+    def test_valid_schema_is_cached_and_published(self, registry, sample_schema):
+        """register_schema should cache the schema and post it to the registry."""
+        post_resp = MagicMock(status_code=200)
+        post_resp.json.return_value = {'id': 5}
+        with patch('quantum_pipeline.utils.schema_registry.requests.post', return_value=post_resp):
+            registry.register_schema('my_schema', sample_schema)
+
+        assert 'my_schema' in registry.schema_cache
+        assert registry.schema_cache['my_schema']['name'] == 'TestRecord'
+
+    def test_registry_failure_does_not_raise(self, registry, sample_schema):
+        """A failed registry POST should not raise — schema is still cached."""
         with patch(
             'quantum_pipeline.utils.schema_registry.requests.post',
-            return_value=MagicMock(status_code=200, json=lambda: {'id': 5}),
+            return_value=MagicMock(status_code=500, text='err'),
         ):
-            registry.save_schema('full_flow', sample_schema)
-        saved_file = tmp_path / 'full_flow.avsc'
-        assert saved_file.exists()
-        assert json.loads(saved_file.read_text())['name'] == 'TestRecord'
+            registry.register_schema('cached_only', sample_schema)
 
-
-# ---------------------------------------------------------------------------
-# _save_schema_to_file_if_changed
-# ---------------------------------------------------------------------------
-
-
-class TestSaveSchemaToFileIfChanged:
-    """Coverage for _save_schema_to_file_if_changed."""
-
-    def test_writes_new_file(self, registry, sample_schema, tmp_path):
-        registry.schema_dir = tmp_path
-        registry._save_schema_to_file_if_changed('new_one', sample_schema)
-        assert (tmp_path / 'new_one.avsc').exists()
-        assert 'new_one' in registry.schema_cache
-
-    def test_skips_write_when_unchanged(self, registry, sample_schema, tmp_path):
-        registry.schema_dir = tmp_path
-        schema_file = tmp_path / 'same.avsc'
-        schema_file.write_text(json.dumps(sample_schema, indent=4))
-
-        registry._save_schema_to_file_if_changed('same', sample_schema)
-        # Should not update cache since nothing changed
-        assert 'same' not in registry.schema_cache
-
-    def test_write_failure_raises_os_error(self, registry, sample_schema, tmp_path):
-        registry.schema_dir = tmp_path
-        with patch('builtins.open', side_effect=OSError('disk full')), pytest.raises(OSError):
-            registry._save_schema_to_file_if_changed('fail', sample_schema)
-
-
-# ---------------------------------------------------------------------------
-# _read_existing_schema
-# ---------------------------------------------------------------------------
-
-
-class TestReadExistingSchema:
-    """Coverage for _read_existing_schema."""
-
-    def test_reads_valid_file(self, registry, sample_schema, tmp_path):
-        f = tmp_path / 'read_me.avsc'
-        f.write_text(json.dumps(sample_schema))
-        result = registry._read_existing_schema(f)
-        assert result['name'] == 'TestRecord'
-
-    def test_returns_none_for_missing_file(self, registry, tmp_path):
-        assert registry._read_existing_schema(tmp_path / 'nope.avsc') is None
-
-    def test_returns_none_for_invalid_json(self, registry, tmp_path):
-        bad = tmp_path / 'bad.avsc'
-        bad.write_text('{broken json!!}')
-        assert registry._read_existing_schema(bad) is None
-
-
-# ---------------------------------------------------------------------------
-# _ensure_schema_directory_exists
-# ---------------------------------------------------------------------------
-
-
-class TestEnsureSchemaDirectoryExists:
-    def test_creates_directory(self, registry, tmp_path):
-        registry.schema_dir = tmp_path / 'new_dir' / 'nested'
-        registry._ensure_schema_directory_exists()
-        assert registry.schema_dir.exists()
-
-    def test_existing_directory_no_error(self, registry, tmp_path):
-        registry.schema_dir = tmp_path
-        registry._ensure_schema_directory_exists()  # should not raise
+        assert 'cached_only' in registry.schema_cache
 
 
 # ---------------------------------------------------------------------------
