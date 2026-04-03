@@ -140,6 +140,17 @@ Click on any question to expand the answer.
     For data collection or benchmarking, running both strategies across multiple
     seeds gives the most useful comparison.
 
+??? question "Why do I get different results with the same --seed?"
+    The `--seed` flag only controls the initial parameter values (the starting
+    point for the optimizer). It does not seed the Qiskit Aer simulator backend.
+    Since `EstimatorV2` uses shot-based sampling (default 1024 shots per
+    iteration), the measurement outcomes are stochastic. Each run samples
+    different shots, producing a slightly different energy estimate per iteration,
+    which causes the optimizer to follow a different trajectory.
+
+    This is expected behavior, not a bug. To collect meaningful statistics, run
+    multiple seeds and compare the distributions rather than individual values.
+
 ??? question "How do I run multiple simulations in parallel?"
     The batch generation system is the recommended way to run many simulations.
     It defines 4 tiers of increasing complexity and distributes work across

@@ -30,7 +30,7 @@ Or with Docker:
 
 ```bash
 docker pull straightchlorine/quantum-pipeline:cpu
-docker run --rm straightchlorine/quantum-pipeline:cpu -f /app/data/molecule.json -b sto3g
+docker run --rm straightchlorine/quantum-pipeline:cpu -f data/molecules.json -b sto3g --max-iterations 100
 ```
 
 See the [installation guide](https://docs.qp.piotrkrzysztof.dev/getting-started/installation/) for detailed setup, including GPU acceleration and full platform deployment.
@@ -45,7 +45,7 @@ See the [installation guide](https://docs.qp.piotrkrzysztof.dev/getting-started/
 
 **Monitoring** -- Prometheus metrics export, Grafana dashboards, resource tracking. Configurable via environment variables (`MONITORING_ENABLED`, `PUSHGATEWAY_URL`, `MONITORING_INTERVAL`, `MONITORING_EXPORT_FORMAT`) or CLI flags. [Monitoring setup](https://docs.qp.piotrkrzysztof.dev/monitoring/)
 
-**Deployment** -- Docker images for CPU and GPU (`quantum-pipeline:cpu`, `quantum-pipeline:gpu`), multi-service Docker Compose stack. [Deployment guide](https://docs.qp.piotrkrzysztof.dev/deployment/)
+**Deployment** -- Docker images for CPU and GPU (`quantum-pipeline:cpu`, `quantum-pipeline:gpu`). The GPU image on Docker Hub is built for Ampere (RTX 30xx) - rebuild with `CUDA_ARCH=6.1` for Pascal or `8.9` for Ada Lovelace. Sample molecule files are included in the image under `data/`. Multi-service Docker Compose stack for the full platform. [Deployment guide](https://docs.qp.piotrkrzysztof.dev/deployment/)
 
 ## Python API
 

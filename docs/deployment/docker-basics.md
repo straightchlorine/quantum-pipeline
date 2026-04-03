@@ -21,21 +21,27 @@ repository.
 
 The CPU image is a lightweight container based on Python 3.12 (Bookworm). It installs
 the Quantum Pipeline package and its dependencies directly from the project source.
+The `data/` directory with sample molecule files is included in the image, so you
+can run simulations immediately with `--file data/molecules.json`.
 
 ### GPU Image
 
 The GPU image is built on NVIDIA CUDA 12.6.3 with cuDNN. It includes a custom
-compilation of Qiskit Aer from source with CUDA Thrust backend support, providing
-hardware-accelerated quantum circuit simulation.
+compilation of Qiskit Aer from source with CUDA Thrust backend support.
 
-The `CUDA_ARCH` build argument controls which GPU architecture the Aer binary targets:
+The `straightchlorine/quantum-pipeline:gpu` image on Docker Hub is compiled for
+**Ampere architecture** (`CUDA_ARCH=8.6`). If your GPU uses a different
+architecture, rebuild locally with the appropriate `CUDA_ARCH`:
 
 | `CUDA_ARCH` | Architecture | Example GPUs |
 |---|---|---|
 | `6.1` | Pascal | GTX 1060, GTX 1050 Ti |
 | `7.5` | Turing | RTX 2070, RTX 2080 |
-| `8.6` | Ampere (default) | RTX 3060, RTX 3080 |
+| `8.6` | Ampere (Docker Hub default) | RTX 3060, RTX 3080 |
 | `8.9` | Ada Lovelace | RTX 4070, RTX 4090 |
+
+The GPU image is not built in CI/CD due to the long compilation time (Aer from
+source). It is built and pushed manually.
 
 ### Spark Image
 
