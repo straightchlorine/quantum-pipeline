@@ -6,9 +6,9 @@ GPU utilization, system resources, data platform health, databases, and orchestr
 
 ## Setup
 
-Main docker compose file [`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml) defines only exporters. It assumes available Prometheus/Grafana instances.
+The main Docker Compose file [`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml) defines only exporters. It assumes available Prometheus and Grafana instances.
 
-For basic setup, you can look [here](https://grafana.com/docs/grafana-cloud/send-data/metrics/metrics-prometheus/prometheus-config-examples/docker-compose-linux/).
+For a basic Prometheus and Grafana setup, see the [Grafana documentation](https://grafana.com/docs/grafana-cloud/send-data/metrics/metrics-prometheus/prometheus-config-examples/docker-compose-linux/).
 
 ## Dashboard Import
 

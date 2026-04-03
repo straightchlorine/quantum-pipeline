@@ -13,7 +13,7 @@ Click on any question to expand the answer.
 
     The system supports both CPU and GPU-accelerated simulation, and all results are
     automatically serialized, streamed, and stored for analysis. It was developed as
-    part of a thesis project to demonstrate effects of GPU acceleration
+    part of a thesis project to demonstrate effects of GPU acceleration on
     quantum computing workloads.
 
 ??? question "What is the Variational Quantum Eigensolver (VQE)?"
@@ -94,7 +94,7 @@ Click on any question to expand the answer.
 ## Usage
 
 ??? question "How do I choose the right optimizer?"
-    The ones I used the most are **COBYLA** and **L-BFGS-B**.
+    The most commonly used are **COBYLA** and **L-BFGS-B**.
 
     The pipeline supports 8 optimizers used in batch generation:
 

@@ -1,7 +1,7 @@
 # Architecture
 
 This section illustrates how the components fit together architecturally. That
-includes the simulation model and it's relation to other pieces of the pipeline.
+includes the simulation model and its relation to other pieces of the pipeline.
 
 ```mermaid
 graph TD

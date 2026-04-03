@@ -17,7 +17,7 @@ System metrics track hardware resource utilization for each simulation container
 | Container Uptime | `qp_sys_uptime_seconds` | Gauge | seconds | Time since container start |
 
 !!! note "GPU Metrics"
-    GPU-specific Prometheus metrics (utilization, memory, temperature) are not exported by `PerformanceMonitor` directly. GPU usage varies too rapidly to produce reliable statistics from within the simulation process. Instead, GPU metrics are collected by [`nvidia_gpu_exporter`](https://github.com/utkuozdemir/nvidia_gpu_exporter) on port `:9835`, which reads `nvidia-smi` at a 30s interval. The Grafana dashboard has a dedicated GPU row with 8 panels sourced from this exporter.
+    GPU-specific Prometheus metrics (utilization, memory, temperature) are not exported by `PerformanceMonitor` directly. GPU usage varies too rapidly to produce reliable statistics from within the simulation process. Instead, GPU metrics are collected by [`nvidia_gpu_exporter`](https://github.com/utkuozdemir/nvidia_gpu_exporter) on port `:9835`, which reads `nvidia-smi` on each Prometheus scrape (every 15s by default). The Grafana dashboard has a dedicated GPU row with 8 panels sourced from this exporter.
 
 ### VQE Execution Metrics (`qp_vqe_*`)
 
@@ -33,19 +33,29 @@ VQE execution metrics are exported after each simulation completes. These includ
 | Iterations Count | `qp_vqe_iterations_count` | Gauge | Total optimizer iterations to convergence |
 | Optimal Parameters | `qp_vqe_optimal_parameters_count` | Gauge | Number of optimized variational parameters |
 
-### Scientific Accuracy Metrics (`qp_vqe_*`)
+### Accuracy Metrics (`qp_vqe_*`)
 
-!!! warning "Experimental Feature"
-    Scientific accuracy tracking is still in testing. Most of the thesis research was conducted without it. The reference values are drawn from an already scarce bibliography - they should be treated as best-effort baselines rather than authoritative benchmarks.
-
-Scientific metrics evaluate the quality of VQE results against known reference values. These are exported alongside VQE execution metrics.
+These metrics compare VQE results against the Hartree-Fock (HF) reference
+energy computed by PySCF for each molecule. HF is an upper bound
+approximation - a good VQE result will be at or below the HF energy.
 
 | Dashboard Metric | Prometheus Name | Type | Description |
 |-----------------|----------------|------|-------------|
-| Reference Energy | `qp_vqe_reference_energy` | Gauge | Literature reference energy for the molecule |
-| Energy Error (Ha) | `qp_vqe_energy_error_hartree` | Gauge | Deviation from reference value in Hartree |
-| Energy Error (mHa) | `qp_vqe_energy_error_millihartree` | Gauge | Deviation from reference value in mHa |
-| Accuracy Score | `qp_vqe_accuracy_score` | Gauge | Normalized accuracy score (0 to 100) |
+| Reference Energy | `qp_vqe_reference_energy` | Gauge | HF reference energy from PySCF (Ha) |
+| Energy Error (Ha) | `qp_vqe_energy_error_hartree` | Gauge | `VQE_total_energy - HF_energy` (Ha) |
+| Energy Error (mHa) | `qp_vqe_energy_error_millihartree` | Gauge | Same error in millihartree |
+| Accuracy Score | `qp_vqe_accuracy_score` | Gauge | Log-scaled score from 0 to 100 |
+
+The accuracy score uses a logarithmic damping function:
+`score = max(0, min(100, 100 * (1 - log10(|error_mHa| + 1) / 5)))`.
+A score of 100 means the VQE energy matches HF exactly. A score of ~60
+corresponds to ~1 mHa error. The score reaches 0 at ~100 Ha error.
+
+!!! note
+    The reference is the HF ground state energy from PySCF, not a literature
+    or FCI value. Since HF is an approximation, VQE can find lower (better)
+    energies, resulting in negative error values. This is expected behavior
+    for a well-optimized VQE run, not a measurement error.
 
 ### Derived Efficiency Metrics (`qp_vqe_*`)
 

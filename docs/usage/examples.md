@@ -125,7 +125,7 @@ The optimizer runs until the energy change between consecutive iterations falls 
 | `1e-6` | Standard (1 microHartree) | General runs |
 | `1e-8` | High precision (10 nanoHartree) | Publication-quality research |
 
-Convergence mode (`--convergence`) and fixed iterations (`--max-iterations`) are mutually exclusive at the CLI level. If both end up set in a config file, `max_iterations` takes priority.
+Convergence mode (`--convergence`) and fixed iterations (`--max-iterations`) are mutually exclusive at the `OptimizerConfig` level. If `--convergence` is enabled and `--max-iterations` is left at the default, the entry point sets `max_iterations` to `None`. Passing both non-default values raises a `ValueError`.
 
 For L-BFGS-B, the convergence threshold is passed as `ftol` and `gtol` in the options dict. For COBYLA and other optimizers, it is passed as the global `tol` parameter to `scipy.optimize.minimize`.
 

@@ -104,7 +104,7 @@ For H\(_2\) with STO-3G, the ground state energy should be approximately -1.137 
 | `--gpu` | Enable GPU acceleration | off |
 | `--report` | Generate a PDF report | off |
 | `--kafka` | Stream results to Kafka | off |
-| `--convergence` | Enable convergence threshold (replaces fixed iterations) | off |
+| `--convergence` | Enable convergence threshold | off |
 | `--threshold` | Convergence threshold value (requires `--convergence`) | `1e-6` |
 | `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO` |
 
@@ -123,7 +123,7 @@ quantum-pipeline \
     --optimizer L-BFGS-B
 ```
 
-`--convergence` and an explicit `--max-iterations` are mutually exclusive. If you enable `--convergence` without setting `--max-iterations`, the default iteration limit (100) is dropped and the optimizer runs until the threshold is met. Passing both an explicit `--max-iterations` and `--convergence` raises an error.
+When `--convergence` is enabled without an explicit `--max-iterations`, the default iteration limit (100) is dropped and the optimizer runs until the threshold is met. If you pass both `--convergence` and an explicit `--max-iterations`, the optimizer uses the convergence threshold but also respects the iteration cap as an upper bound.
 
 ## GPU acceleration
 

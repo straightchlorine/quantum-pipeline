@@ -109,7 +109,7 @@ Initial writes use `v_{batch_id}` tags; incremental appends use
 ## Garage Integration
 
 Garage (v2.2.0) provides S3-compatible storage for raw JSON data and processed
-Parquet feature tables. It replaced MinIO from v1.x..
+Parquet feature tables. It replaced MinIO from v1.x.
 
 The Garage service is defined in
 [`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml#L191)

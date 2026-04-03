@@ -183,19 +183,16 @@ Iteration counts before termination:
 <figure>
   <img src="https://qp-docs.codextechnologies.org/mkdocs/convergence_OHH.png"
        alt="Convergence plot for H2O molecule">
-  <figcaption>Figure 2. VQE optimization convergence for H2O molecule showing cost function value (energy in Ha) across ~2400 iterations for CPU, GPU GTX 1060, and GPU GTX 1050 Ti configurations. CPU stays around -48 to -50 Ha while GPU configs reach -54 to -58 Ha. This is
-        due to random initializations, but still showcases the advantage of utilising GPU acceleration.</figcaption>
-
+  <figcaption>Figure 2. VQE optimization convergence for H2O molecule showing cost function value (energy in Ha) across ~2400 iterations for CPU, GPU GTX 1060, and GPU GTX 1050 Ti configurations. CPU stays around -48 to -50 Ha while GPU configs reach -54 to -58 Ha. This is due to random initializations, but still showcases the advantage of using GPU acceleration.</figcaption>
 </figure>
 
 ### Thesis Energy Results
 
 The final energy values achieved by each configuration provide insight into
-optimization quality. It's important to note that due to the random initialization
-those graphs are fundamentally flawed and don't reflect the quality of the
-convergence.
+optimization quality. Due to the random initialization, these graphs are
+fundamentally flawed and do not reflect the quality of convergence.
 
-If there is anything to take out of these is that faster hardware completes
+If there is anything to take from these, it is that faster hardware completes
 more iterations in the same wall-clock time. Under random parameter initialization,
 more iterations mean a better statistical chance of reaching lower energy values.
 
@@ -412,7 +409,7 @@ sources:
 
 1. **Energy accuracy with random init:** 4-25% errors relative to reference
    values across all molecules in the thesis.
-3. **Random initialization at scale:** Inadequate for larger systems and
+2. **Random initialization at scale:** Inadequate for larger systems and
    advanced basis sets - the primary driver of poor energy results.
 
 ## Limitations and Future Work
@@ -467,7 +464,7 @@ address the identified limitations directly.
 - **Cloud quantum platform integration** - extending backend support to Amazon
     Braket and Azure Quantum alongside the existing IBM Quantum integration,
     enabling real-device validation on NISQ hardware.
-- **Benchmarking cloud GPU intances** - this would allow for not only faster
+- **Benchmarking cloud GPU instances** - this would allow for not only faster
     results but also more credible information, up to date with current
     state of the technology. Planned once project is more reliable and tested.
 

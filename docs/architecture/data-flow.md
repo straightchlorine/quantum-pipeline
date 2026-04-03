@@ -68,7 +68,7 @@ VQE simulations begin with molecule data in JSON format:
 
 Each molecule produces a `VQEResult` wrapped in a `VQEDecoratedResult` with timing and metadata.
 
-For the full execution sequence and component details, see [System Design](system-design.md#1-quantum-simulation-module).
+For the full execution sequence and component details, see [System Design](system-design.md#quantum-pipeline-module).
 
 ### Output
 
@@ -124,9 +124,9 @@ graph LR
 
 **DAG chain**:
 
-1. `quantum_feature_processing` -- daily Spark job that reads raw data from Garage, transforms it into 9 normalized Iceberg tables
-2. `quantum_ml_feature_processing` -- daily Spark job that joins normalized tables into 2 ML-ready feature tables (waits for upstream DAG via `ExternalTaskSensor`)
-3. `r2_sync` -- manual/scheduled rclone sync of ML feature Parquet from Garage to Cloudflare R2
+1. `quantum_feature_processing`: daily Spark job that reads raw data from Garage, transforms it into 9 normalized Iceberg tables
+2. `quantum_ml_feature_processing`: daily Spark job that joins normalized tables into 2 ML-ready feature tables (waits for upstream DAG via `ExternalTaskSensor`)
+3. `r2_sync`: manual/scheduled rclone sync of ML feature Parquet from Garage to Cloudflare R2
 
 A fourth DAG, `vqe_batch_generation`, handles building simulation Docker images and running batch VQE generation (manual trigger only).
 

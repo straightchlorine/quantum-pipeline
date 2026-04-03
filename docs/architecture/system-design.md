@@ -208,7 +208,7 @@ Each table has Iceberg's `metadata/` (snapshots, manifests) and `data/`
 
 !!! tip
     Garage is S3 compatible. Use `aws configure --profile garage` with your
-    `S3_ACCESS_KEY` / `S3_SECRET_KEY` from `.env` to browse files wth `aws s3`.
+    `S3_ACCESS_KEY` / `S3_SECRET_KEY` from `.env` to browse files with `aws s3`.
 
 
 ## Apache Airflow Orchestration

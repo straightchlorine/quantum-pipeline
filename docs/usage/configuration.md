@@ -69,7 +69,7 @@ by
 | Kafka | `--acks` | choice | `all` | Ack level (`0`, `1`, `all`) |
 | Kafka | `--timeout` | int | `10` | Request timeout (seconds) |
 | Security | `--ssl` | flag | `false` | Enable SSL/TLS for Kafka |
-| Security | `--disable-ssl-check-hostname` | flag | `true` | Disable hostname verification (testing only) |
+| Security | `--disable-ssl-check-hostname` | flag | `false` | Disable hostname verification (testing only) |
 | Security | `--sasl-ssl` | flag | `false` | Enable SASL_SSL |
 | Security | `--ssl-password` | string | `None` | SSL private key password |
 | Security | `--ssl-dir` | path | `./secrets/` | SSL certificates directory |
@@ -158,7 +158,7 @@ the scipy options dict, and the `compute_energy()` callback raises
 
 Enable convergence-based stopping. When `--convergence` is set, the optimizer
 runs until the energy change between iterations falls below `--threshold`
-(default `1e-6` Hartree). Requires `--threshold` to be set explicitly.
+(default `1e-6` Hartree).
 
 | Threshold | Precision | Typical use |
 |-----------|-----------|-------------|
@@ -380,7 +380,7 @@ enforces these rules:
 |------|-----------|
 | `--dump` and `--load` are mutually exclusive | Cannot use together |
 | `--min-qubits` requires `--ibm` | Local simulator ignores it |
-| `--convergence` requires `--threshold` | Threshold must be set explicitly |
+| `--convergence` uses `--threshold` | Threshold defaults to `1e-6` if not set |
 | `tensor_network` requires `--gpu` | CPU-only methods: statevector, automatic, etc. |
 | Kafka params require `--kafka` | Changing servers/topic/acks without `--kafka` is an error |
 | `--ssl` requires `--kafka` | SSL is for Kafka connections |

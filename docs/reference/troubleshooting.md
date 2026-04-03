@@ -24,7 +24,7 @@ quantum-pipeline -f molecules.json --init-strategy hf
 # Try a different optimizer
 quantum-pipeline -f molecules.json --optimizer COBYLA
 
-# Reduce convergence tolerance for faster (less precise) convergence
+# Loosen convergence tolerance for faster (less precise) convergence
 quantum-pipeline -f molecules.json --convergence --threshold 1e-4
 ```
 
@@ -193,7 +193,7 @@ docker compose exec kafka kafka-topics --list --bootstrap-server localhost:9092
 
 # Create topic manually
 docker compose exec kafka kafka-topics --create \
-    --topic vqe_decorated_result_v1 \
+    --topic experiment.vqe \
     --bootstrap-server localhost:9092 \
     --partitions 3 \
     --replication-factor 1

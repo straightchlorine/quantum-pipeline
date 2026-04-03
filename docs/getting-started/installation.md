@@ -57,7 +57,7 @@ GPU images require the NVIDIA Container Toolkit and Docker configured with the n
 To build images locally:
 
 ```bash
-just docker-build {all, cpu, gpu}
+just docker-build cpu    # or: gpu, all
 ```
 
 ## Full platform with Docker Compose
@@ -92,7 +92,7 @@ The
 [`ml-setup.sh`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/scripts/ml-setup.sh)
 script handles everything you would otherwise have to fill in manually:
 Garage RPC and admin secrets, Airflow passwords, Fernet key, JWT secret,
-S3 access keys, and bucket creation. If `.env` already exists, it skips
+webserver secret key, S3 access keys, and bucket creation. If `.env` already exists, it skips
 what is already configured.
 
 If you prefer manual setup (or have existing deployments you'd like to use),

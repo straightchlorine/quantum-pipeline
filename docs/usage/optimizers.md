@@ -129,8 +129,7 @@ a custom `OptimizerConfig` subclass or a lambda wrapping `GenericConfig`.
 | `Powell` | Derivative-free (direction-set) | 10,000 |
 | `Nelder-Mead` | Derivative-free (simplex) | 5,000 |
 
-In practice, the thesis used L-BFGS-B and COBYLA exclusively. The v2.0
-.0 verification tested COBYLA, L-BFGS-B, SLSQP, Nelder-Mead, Powell, and BFGS on H2 and
+In practice, the thesis used L-BFGS-B and COBYLA exclusively. The v2.0.0 verification tested COBYLA, L-BFGS-B, SLSQP, Nelder-Mead, Powell, and BFGS on H2 and
 HeH+ (see [Benchmarking Results](../scientific/benchmarking.md#v200-verification-results)).
 The main finding was that initialization strategy matters far more than
 optimizer choice - with HF init, all tested gradient-based optimizers reached

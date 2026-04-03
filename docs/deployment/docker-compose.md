@@ -6,8 +6,8 @@ Redpanda Connect for S3 sink streaming, Apache Spark for data processing,
 Apache Airflow for workflow orchestration, Garage for S3-compatible object storage,
 MLflow for experiment tracking, and monitoring exporters.
 
-As for now MLflow wasn't yet integrated into the actual workflow. Ensuring stability
-of other components, including simulation module takes precedence.
+MLflow has not yet been integrated into the actual workflow. Ensuring stability
+of other components, including the simulation module, takes precedence.
 
 ## Overview
 

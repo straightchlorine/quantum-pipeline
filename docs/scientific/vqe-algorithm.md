@@ -232,7 +232,7 @@ from its starting point - not necessarily the global minimum.
 EfficientSU2 does not preserve particle number or spin symmetry, which can lead
 to anomalous results such as the HeH\(^+\) VQE energy falling below the exact
 Full CI value (see
-[Benchmarking: Comparison with Reference Values](../scientific/benchmarking.md#comparison-with-reference-values)).
+[Benchmarking: Detailed Error Analysis](../scientific/benchmarking.md#detailed-error-analysis)).
 
 Hardware-efficient ansatze are also susceptible to **barren plateaus** - regions
 where gradients vanish exponentially with system size (McClean et al. 2018).

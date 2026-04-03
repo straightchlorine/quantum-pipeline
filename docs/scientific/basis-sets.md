@@ -98,7 +98,6 @@ The appropriate basis set depends on the objectives and constraints of the simul
 | Real quantum hardware experiments | STO-3G | Minimizes qubit count and circuit depth |
 | Large molecules (>10 atoms) | STO-3G or 6-31G | Computational feasibility constraints |
 
-
 ### Decision Flowchart
 
 When selecting a basis set, consider the following progression:
