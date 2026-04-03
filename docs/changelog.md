@@ -10,7 +10,7 @@ For earlier versions, see the [GitHub releases](https://github.com/straightchlor
 
 ---
 
-## 2.0.0 (preparation)
+## 2.0.0
 
 Complete rewrite of the simulation module, DAGs, tests, and
 infrastructure. Adds batch generation, multiple ansatze and optimizers,
