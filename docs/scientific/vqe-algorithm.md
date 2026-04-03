@@ -5,17 +5,14 @@ title: Variational Quantum Eigensolver
 # Variational Quantum Eigensolver
 
 The Variational Quantum Eigensolver (VQE) is a hybrid quantum-classical algorithm
-designed to approximate the ground-state energy of a quantum system. Originally
+for approximating the ground-state energy of a quantum system. Originally
 proposed by Peruzzo et al. (2014), VQE combines parameterized quantum circuits
 with classical optimization to find the lowest eigenvalue of a molecular
-Hamiltonian. Its shallow circuit depth and tolerance for noise make it one of the
-most practical algorithms for near-term quantum devices operating in the NISQ
-(Noisy Intermediate-Scale Quantum) regime.
+Hamiltonian. Its shallow circuit depth makes it practical for near-term quantum
+devices in the NISQ regime.
 
-For a thorough treatment of VQE theory, see Tilly et al. (2022) and the
+For a thorough treatment, see Tilly et al. (2022) and the
 [Qiskit VQE tutorial](https://learning.quantum.ibm.com/tutorial/variational-quantum-eigensolver).
-
----
 
 ## Algorithm Overview
 
@@ -23,7 +20,8 @@ The VQE algorithm operates as an iterative loop between a quantum processor (or
 simulator) and a classical optimizer:
 
 1. **Initialization** - Select a molecular system, basis set, and ansatz.
-   Initialize the variational parameters \(\theta\).
+   Initialize the variational parameters \(\theta\) (randomly or via
+   Hartree-Fock pre-optimization).
 
 2. **State Preparation** - Execute the parameterized quantum circuit (ansatz)
    to prepare the trial state \(\lvert \psi(\theta) \rangle\).
@@ -33,18 +31,16 @@ simulator) and a classical optimizer:
    the Hamiltonian into a sum of Pauli operators.
 
 4. **Classical Optimization** - Feed the measured energy back to a classical
-   optimizer (e.g., [L-BFGS-B](https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html),
-   [COBYLA](https://docs.scipy.org/doc/scipy/reference/optimize.minimize-cobyla.html)),
-   which proposes updated parameters \(\theta'\).
+   optimizer, which proposes updated parameters \(\theta'\). The pipeline
+   supports multiple optimizers via
+   [`scipy.optimize.minimize`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html) -
+   see [Optimizers](../usage/optimizers.md) for details.
 
 5. **Convergence Check** - If the energy change between successive iterations
    falls below a specified threshold (e.g., \(10^{-6}\) Ha), terminate.
    Otherwise, return to step 2.
 
 ### Flowchart
-
-The following diagram illustrates the VQE optimization loop as implemented in
-the Quantum Pipeline:
 
 ```mermaid
 flowchart TD
@@ -61,16 +57,19 @@ flowchart TD
     style E fill:#ffb74d,color:#ffffff
 ```
 
----
-
 ## Ansatz Construction
 
 The **ansatz** is the parameterized quantum circuit that prepares the trial
-state. The choice of ansatz is critical to VQE performance: it must be
-expressive enough to represent the ground state while remaining shallow enough
-to execute on noisy hardware.
+state. The choice of ansatz is critical: it must be expressive enough to
+represent the ground state while remaining shallow enough for noisy hardware.
 
-### UCCSD Ansatz
+The pipeline supports three ansatz types, all from Qiskit's circuit library.
+The ansatz is selected via the `--ansatz` CLI flag (default: `EfficientSU2`).
+See
+[`_build_ansatz()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py#L93)
+for the implementation.
+
+### UCCSD Ansatz (Background)
 
 The Unitary Coupled Cluster Singles and Doubles (UCCSD) ansatz is a
 chemistry-inspired construction that applies single and double excitation
@@ -81,30 +80,130 @@ operators to a Hartree-Fock reference state:
 \]
 
 While UCCSD provides strong theoretical guarantees, its circuit depth can be
-prohibitive for NISQ devices, motivating hardware-efficient alternatives.
+prohibitive for NISQ devices, motivating hardware-efficient alternatives. The
+pipeline does not implement UCCSD, but it is included here for context.
 
-### EfficientSU2 Ansatz
+### EfficientSU2 (Default)
 
-The Quantum Pipeline employs the [**EfficientSU2**](https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.EfficientSU2) ansatz from Qiskit
-([source](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/solvers/vqe_solver.py#L189))
-as the default circuit construction. EfficientSU2 is a hardware-efficient ansatz that
-uses layers of single-qubit SU(2) rotations followed by entangling CNOT gates.
-Its advantages include:
+[EfficientSU2](https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.EfficientSU2)
+is a hardware-efficient ansatz that uses layers of single-qubit SU(2) rotations
+(RY, RZ) followed by entangling CNOT gates.
 
-- **Shallow circuit depth** - scales linearly with the number of qubits and
-  layers, making it feasible for NISQ simulation.
-- **Full SU(2) coverage** - each qubit undergoes RY and RZ rotations,
-  providing sufficient expressibility for many molecular systems.
-- **Flexible entanglement** - supports various entanglement patterns (linear,
-  full, circular).
+- **Expressibility:** Full SU(2) coverage per qubit. High expressibility across
+  a broad range of molecular systems.
+- **Circuit depth:** Scales linearly with the number of qubits and repetition
+  layers (`reps`), making it feasible for NISQ simulation.
+- **Entanglement:** Supports various entanglement patterns (linear, full,
+  circular).
+- **Symmetry:** Does not preserve particle number or spin symmetry, which can
+  lead to unphysical states (see
+  [Experimental Observations](#experimental-observations)).
+- **HF initialization:** Supported. The pre-optimization finds EfficientSU2
+  parameters that approximate the Hartree-Fock state.
 
-The trade-off is that hardware-efficient ansatze lack the physical intuition of
-UCCSD and may encounter optimization difficulties such as barren plateaus for
-large systems.
+This is the default and most-tested ansatz. All thesis experiments used
+EfficientSU2.
 
----
+### RealAmplitudes
+
+[RealAmplitudes](https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.RealAmplitudes)
+uses only RY rotations (no RZ), producing states with purely real amplitudes.
+
+- **Expressibility:** Lower than EfficientSU2 due to the restricted gate set.
+  Suitable for systems where the ground state has predominantly real
+  coefficients.
+- **Circuit depth:** Similar structure to EfficientSU2 but with fewer
+  parameters per layer (one rotation per qubit instead of two).
+- **Symmetry:** Does not preserve particle number or spin symmetry.
+- **HF initialization:** Not supported. Falls back to random initialization
+  with a warning.
+
+Tested in v2.0.0 verification: SLSQP with RealAmplitudes (3 reps) on H\(_2\)/STO-3G
+reached -1.111 Ha in 50 iterations.
+
+### ExcitationPreserving
+
+[ExcitationPreserving](https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.ExcitationPreserving)
+conserves the number of excitations (particles) in the system.
+
+- **Expressibility:** More physically constrained than EfficientSU2.
+  Explores only states with the same particle number as the initial state.
+- **Circuit depth:** Uses RZ rotations and RXX+RYY entangling gates that
+  preserve excitation number.
+- **Symmetry:** Preserves particle number, which prevents the sub-FCI
+  anomalies observed with EfficientSU2 (e.g., the HeH+ issue described below).
+- **Entanglement:** Uses linear entanglement by default in the pipeline.
+- **HF initialization:** Not supported. Falls back to random initialization
+  with a warning.
+
+Tested in v2.0.0 verification: Powell with ExcitationPreserving on H\(_2\)/STO-3G
+reached -0.005 Ha in 30 iterations - a poor result, likely due to the
+combination of optimizer and limited iterations rather than the ansatz itself.
+
+## Parameter Initialization
+
+The choice of initial parameters \(\theta_0\) has a large effect on VQE
+outcomes. Because the VQE cost function is non-convex, a local optimizer
+converges to the nearest minimum from its starting point, which may not be the
+global minimum.
+
+### Random Initialization
+
+The default strategy initializes parameters from a uniform random distribution
+over \([0, 2\pi)\). This is simple and unbiased, but it is the primary source
+of poor convergence in the thesis experiments. Random starting points frequently
+land in regions far from the ground state, and local optimizers cannot escape
+the resulting local minima. The problem worsens with system size: more
+parameters mean a larger search space and more local minima to get trapped in.
+
+See
+[`_compute_initial_parameters()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py#L155)
+for the implementation.
+
+### Hartree-Fock Initialization
+
+Added in v1.4.0 and refined in v2.0.0, the `--init-strategy hf` flag starts
+VQE from the classical Hartree-Fock solution instead of a random point.
+
+**How it works:** A classical pre-optimization finds ansatz parameters that
+prepare the Hartree-Fock state through the ansatz circuit, by maximizing state
+fidelity between the ansatz output and the HF reference state. The
+pre-optimization uses COBYLA with up to 10 attempts (different random seeds)
+and a fidelity threshold of 0.9999. See
+[`_compute_hf_initial_parameters()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py#L114)
+for the implementation.
+
+**Why not just prepend the HF circuit?** A naive approach - prepending a
+HartreeFock circuit to EfficientSU2 and setting all parameters to zero - does
+not work. The fixed CX entangling gates in EfficientSU2 are not parameterized
+and always act, regardless of rotation angles. At zero parameters the rotation
+gates become identity, but the CX gates still scramble the HF state. The
+pre-optimization approach avoids this by finding parameters where the ansatz
+itself produces the HF state.
+
+**Current limitations:**
+
+- Only supported for EfficientSU2. Other ansatz types fall back to random
+  initialization with a warning.
+- The pre-optimization itself takes time (COBYLA, up to 1000 iterations per
+  attempt, up to 10 attempts), though this is typically small relative to the
+  main VQE optimization.
+- Fidelity degrades with system size.
+
+**Verification results from v2.0.0 (H2, 6-31G basis, L-BFGS-B):**
+
+| Init Strategy | Iterations | H2 Energy (Ha) | Outcome |
+|---------------|-----------|----------------|---------|
+| Random | 1029 | +2.101 | Stuck in barren plateau |
+| HF | 50 | -1.857 | Correct energy region |
+
+This is a clear example of why initialization matters. The random run spent over
+1000 iterations to arrive at a *positive* energy for H2 - physically
+meaningless. The HF run reached a reasonable energy in 50 iterations.
 
 ## Experimental Observations
+
+### Thesis Experiments (v1.x)
 
 The thesis experiments ran VQE with random parameter initialization and a
 single optimizer (L-BFGS-B) across six molecules. The results illustrate both
@@ -113,18 +212,16 @@ the potential and the current limitations of the approach.
 The optimizer ran for approximately 650 iterations (H\(_2\)) and 630 iterations
 (HeH\(^+\)) on average for 4-qubit systems, and 1,500-2,700 iterations for
 larger molecules (8-12 qubits). In most cases, the optimizer was terminated
-without reaching the known ground-state energy — the runs show the optimizer
+without reaching the known ground-state energy - the runs show the optimizer
 exploring the landscape and getting trapped in local minima, not converging
 to the correct solution.
 
-### Why the Results Fall Short
+#### Why the Results Fall Short
 
 The pipeline initializes EfficientSU2 parameters from a uniform random
-distribution over \([0, 2\pi)\) via
-[`np.random.random()`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/solvers/vqe_solver.py#L193).
-Because the VQE cost function is non-convex and [L-BFGS-B](https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html) is a local optimizer,
-each run converges to the nearest minimum from its starting point - not
-necessarily the global minimum.
+distribution over \([0, 2\pi)\). Because the VQE cost function is non-convex
+and L-BFGS-B is a local optimizer, each run converges to the nearest minimum
+from its starting point - not necessarily the global minimum.
 
 - **Small molecules (H\(_2\), 4 qubits, 32 parameters):** Figure 1 shows one
   of three runs approaching -1.117 Ha (HF/STO-3G; Szabo & Ostlund 1996, p.108)
@@ -140,71 +237,71 @@ Full CI value (see
 Hardware-efficient ansatze are also susceptible to **barren plateaus** - regions
 where gradients vanish exponentially with system size (McClean et al. 2018).
 
-Steps taken or planned to address the problems documented above:
+### v2.0.0 Verification
 
-- **Hartree-Fock-informed initialization** — partially addressed in v1.4.0
-  via `--init-strategy hf`. A classical pre-optimization finds EfficientSU2
-  parameters that prepare the HF state, providing a better starting point
-  than random initialization. Early results show meaningful improvement for
-  small molecules, though the approach does not yet scale reliably to larger
-  systems. See the [Changelog](../changelog.md#140) for details.
-- **Adaptive ansatze (ADAPT-VQE)** — dynamically growing the circuit to lower
+Version 2.0.0 tested a broader range of configurations (multiple optimizers,
+both initialization strategies, multiple ansatz types). The full verification
+table is in the [Changelog](../changelog.md#200). Key observations:
+
+- **HF initialization consistently outperforms random** for EfficientSU2.
+  COBYLA with HF init reached -1.836 Ha for H2 (vs. -1.555 Ha with random).
+  L-BFGS-B and BFGS with HF init both reached -1.838 Ha.
+- **Optimizer choice matters.** COBYLA and SLSQP performed well with random
+  init; L-BFGS-B struggled more (likely due to barren plateau sensitivity
+  in gradient-based methods).
+- **Basis set + init interaction is significant.** L-BFGS-B with random init
+  on 6-31G produced +2.101 Ha for H2 (barren plateau). The same optimizer
+  with HF init on 6-31G reached -1.857 Ha.
+
+#### Steps Taken or Planned
+
+- **Hartree-Fock initialization** - implemented in v1.4.0, refined in v2.0.0.
+  Provides meaningful improvement for small-to-medium molecules with
+  EfficientSU2. Does not yet support other ansatz types.
+- **Multiple ansatz types** - added in v2.0.0 (RealAmplitudes,
+  ExcitationPreserving). ExcitationPreserving's particle conservation may
+  help with the HeH+ sub-FCI anomaly, though it has not been extensively
+  tested yet.
+- **Adaptive ansatze (ADAPT-VQE)** - dynamically growing the circuit to lower
   energy at each step (Grimsley et al. 2019). Not yet implemented.
-- **Multiple random restarts** — running VQE from several initial points and
+- **Multiple random restarts** - running VQE from several initial points and
   selecting the best result. Not yet implemented.
-
-<figure>
-  <img src="https://qp-docs.codextechnologies.org/mkdocs/convergence_HH.png"
-       alt="Convergence plot for H2 molecule showing energy vs. iteration number">
-  <figcaption>Figure 1. VQE optimization trajectories for H<sub>2</sub> across three hardware configurations over ~700 iterations. The three energy bands (~-0.9, ~-0.7, ~-0.6 Ha) result from different random initializations, not hardware differences. None of the runs reached the known ground-state energy of -1.117 Ha (HF/STO-3G; Szabo &amp; Ostlund 1996). The best trace (~-0.9 Ha) remains ~20% above it; the other two are trapped in shallow local minima. This illustrates the fundamental challenge of random initialization with a hardware-efficient ansatz.</figcaption>
-</figure>
-
-<figure>
-  <img src="https://qp-docs.codextechnologies.org/mkdocs/convergence_LiH.png"
-       alt="Convergence plot for LiH molecule showing energy vs. iteration number">
-  <figcaption>Figure 2. VQE optimization trajectory for LiH (8 qubits). The optimizer ran for more iterations than H<sub>2</sub> but the trajectory shows extended plateaus rather than steady progress toward the ground state, reflecting the difficulty of navigating a larger parameter space with random initialization.</figcaption>
-</figure>
-
-Known problems identified in the thesis experiments:
-
-- **Basis set complexity** — cc-pVDZ experiments failed entirely (energies of
-  24-26 Ha vs expected -1 Ha for H\(_2\)).
-- **Ansatz limitations** — EfficientSU2 does not preserve particle number or
-  spin symmetry, leading to unphysical results (e.g. HeH\(^+\) sub-FCI anomaly).
-
----
 
 ## Implementation in Quantum Pipeline
 
-Within the Quantum Pipeline framework, VQE simulations are executed through the
-[`vqe_runner`](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/runners/vqe_runner.py) module, which orchestrates the interaction between Qiskit's quantum
-circuit primitives and the classical optimization backend. Key implementation
-details include:
+VQE simulations are executed through the
+[`VQESolver`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py#L47)
+class, which orchestrates the interaction between Qiskit's quantum circuit
+primitives and the classical optimization backend. Key implementation details:
 
-- [**Hamiltonian construction**](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/runners/vqe_runner.py#L145) via PySCF driver integration, supporting multiple
-  basis sets and molecular geometries.
-- [**Qubit mapping**](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/mappers/jordan_winger_mapper.py) via Jordan-Wigner transformation, converting the second-quantized Hamiltonian to a qubit operator.
-- **Ansatz selection** defaulting to [EfficientSU2](https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.library.EfficientSU2)
-  ([source](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/solvers/vqe_solver.py#L189))
-  with configurable depth and entanglement topology.
-- **Optimizer** defaulting to [L-BFGS-B](https://docs.scipy.org/doc/scipy/reference/optimize.minimize-lbfgsb.html)
-  ([source](https://github.com/straightchlorine/quantum-pipeline/blob/master/quantum_pipeline/configs/defaults.py#L9)),
-  with support for [COBYLA](https://docs.scipy.org/doc/scipy/reference/optimize.minimize-cobyla.html),
-  [SLSQP](https://docs.scipy.org/doc/scipy/reference/optimize.minimize-slsqp.html),
-  [Nelder-Mead](https://docs.scipy.org/doc/scipy/reference/optimize.minimize-neldermead.html),
-  and SPSA. All optimizers are provided by [`scipy.optimize.minimize`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html).
-  See the [Optimizers](../usage/optimizers.md) page for configuration details.
+- **Hamiltonian construction** via PySCF driver integration
+  ([`provide_hamiltonian()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L158)),
+  supporting multiple basis sets and molecular geometries.
+- **Qubit mapping** via Jordan-Wigner transformation, converting the
+  second-quantized Hamiltonian to a qubit operator.
+- **Ansatz selection** via
+  [`_build_ansatz()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py#L93) -
+  supports EfficientSU2 (default), RealAmplitudes, and ExcitationPreserving,
+  with configurable depth (`reps`) and entanglement topology.
+- **Parameter initialization** via
+  [`_compute_initial_parameters()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py#L155) -
+  random uniform \([0, 2\pi)\) or Hartree-Fock pre-optimization (EfficientSU2
+  only).
+- **Optimizer configuration** via the
+  [optimizer config factory](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L218),
+  with eight optimizers having dedicated configuration (three with custom
+  classes: L-BFGS-B, COBYLA, SLSQP). See
+  [Optimizers](../usage/optimizers.md) for the full list.
 - **Statevector simulation** with optional GPU acceleration through NVIDIA
-  cuQuantum, enabling significant speedups for medium-to-large molecular
-  systems (see [GPU Acceleration](../deployment/gpu-acceleration.md)).
+  cuQuantum (see [GPU Acceleration](../deployment/gpu-acceleration.md)).
+- **Accuracy comparison** against the Hartree-Fock reference energy from PySCF,
+  reported alongside the VQE result for each molecule.
 - **Streaming telemetry** - iteration-level data (energy, parameters, timing)
   is published to Apache Kafka for real-time monitoring and post-hoc analysis.
 
 For practical guidance on running VQE simulations, consult the
 [Quick Start](../getting-started/quick-start.md) and
 [Examples](../usage/examples.md) pages.
-
----
 
 ## References
 
@@ -214,3 +311,4 @@ For practical guidance on running VQE simulations, consult the
 4. McClean, J.R. et al. *Barren plateaus in quantum neural network training landscapes.* Nature Communications 9, 4812 (2018).
 5. Grimsley, H.R. et al. *An adaptive variational algorithm for exact molecular simulations on a quantum computer.* Nature Communications 10, 3007 (2019).
 6. Szabo, A. & Ostlund, N.S. *Modern Quantum Chemistry: Introduction to Advanced Electronic Structure Theory.* Dover Publications (1996).
+7. Pachucki, K. & Komasa, J. *Schrodinger equation solved for the hydrogen molecule with unprecedented accuracy.* J. Chem. Phys. 144, 164306 (2016).

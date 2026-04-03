@@ -1,94 +1,28 @@
----
-title: Scientific Background
----
-
 # Scientific Background
 
-Quantum chemistry simulation represents one of the most promising near-term
-applications of quantum computing. The fundamental challenge lies in solving the
-electronic structure problem - determining the ground-state energy of molecular
-systems by finding the lowest eigenvalue of the molecular Hamiltonian. Classical
-approaches to this problem, such as Full Configuration Interaction (FCI), scale
-exponentially with system size, rendering exact solutions intractable for all but
-the smallest molecules.
+Quantum chemistry simulation is one of the most promising near-term applications
+of quantum computing. The core challenge is the electronic structure problem -
+finding the ground-state energy of molecular systems by computing the lowest
+eigenvalue of the molecular Hamiltonian. Classical exact methods (Full
+Configuration Interaction) scale factorially with system size, making them
+intractable beyond the smallest molecules. Approximate methods like
+Hartree-Fock, DFT, and Coupled Cluster trade accuracy for tractability.
 
-The Variational Quantum Eigensolver (VQE) algorithm offers a pragmatic path
-forward within the constraints of current quantum hardware. As a hybrid
-quantum-classical algorithm, VQE delegates the preparation and measurement of
-quantum states to a quantum processor (or simulator) while relying on classical
-optimization routines to iteratively refine circuit parameters. This division of
-labor makes VQE particularly well-suited to the Noisy Intermediate-Scale Quantum
-(NISQ) era, where available quantum devices possess limited qubit counts and are
-subject to significant noise and decoherence.
+The Variational Quantum Eigensolver (VQE) takes a different approach. As a
+hybrid quantum-classical algorithm, VQE uses parameterized quantum circuits to
+prepare trial states and classical optimizers to refine them. Shallow circuits
+and classical post-processing make VQE practical for the NISQ era, where
+quantum devices have limited qubits and significant noise.
 
-## Relevance to Quantum Pipeline
-
-The Quantum Pipeline framework provides an infrastructure for
-executing, orchestrating, and analyzing VQE simulations at scale. By integrating
-GPU-accelerated statevector simulation with streaming data pipelines, the system
-enables systematic exploration of molecular systems across different
-configurations, basis sets, and optimization strategies.
-
-The scientific content presented in this section draws upon experimental results
-from thesis research conducted with the Quantum Pipeline framework. The
-experiments had specific limitations (single optimizer, random initialization
-only, consumer-grade GPUs) which are documented in
+The pipeline supports three ansatz types, sixteen classical optimizers, two
+parameter initialization strategies (random and Hartree-Fock), and three basis
+sets. Accuracy is evaluated against PySCF-derived Hartree-Fock reference
+energies. The scientific content in this section draws on thesis experiments
+(random initialization, L-BFGS-B, consumer GPUs) and v2.0.0 verification runs
+(multiple optimizers and init strategies). Limitations are documented in
 [Benchmarking: Limitations](benchmarking.md#limitations-and-future-work).
 
-## The Electronic Structure Problem
-
-At the heart of quantum chemistry lies the time-independent Schrodinger equation:
-
-\[
-\hat{H} \lvert \psi \rangle = E \lvert \psi \rangle
-\]
-
-For molecular systems, solving this equation exactly (Full Configuration
-Interaction) scales factorially with the number of electrons, placing all but
-the simplest molecules beyond the reach of classical exact methods. Approximate
-classical techniques - Hartree-Fock, Density Functional Theory, Coupled
-Cluster - introduce systematic truncations that trade accuracy for tractability.
-Quantum computers offer a fundamentally different approach: by representing the
-molecular wavefunction directly in a qubit register, the exponential state space
-is encoded naturally rather than simulated.
-
-## NISQ-Era Considerations
-
-Current quantum devices operate in the NISQ regime, characterized by:
-
-- **Limited qubit counts** - typically tens to hundreds of physical qubits,
-  constraining the size of molecular systems that can be simulated directly.
-- **Gate errors and decoherence** - noise accumulates with circuit depth,
-  limiting the complexity of ansatz circuits that can be reliably executed.
-- **No error correction** - fault-tolerant quantum computing remains a
-  longer-term objective; near-term algorithms must tolerate or mitigate hardware
-  noise.
-- **Short coherence times** - quantum states degrade within microseconds to
-  milliseconds, imposing strict upper bounds on circuit depth.
-
-VQE addresses these constraints through shallow parameterized circuits and
-classical post-processing, making it one of the most viable quantum algorithms
-for contemporary hardware. Classical simulators accelerated by GPUs can assist with algorithm development
-and benchmarking while fault-tolerant quantum hardware remains unavailable.
-
-## GPU Acceleration in Quantum Simulation
-
-Statevector simulation of quantum circuits requires manipulating vectors of
-dimension \(2^n\) for an \(n\)-qubit system. For 20 qubits, this already
-involves vectors with over one million complex-valued entries. GPU architectures,
-with their massively parallel execution model, are naturally suited to the
-linear algebra operations that dominate quantum simulation workloads.
-
-The Quantum Pipeline leverages NVIDIA CUDA (cuQuantum) to accelerate statevector
-operations, achieving speedups of 1.74-4.08x depending on the problem size and
-basis set complexity. These performance gains are documented in detail on the
-[Benchmarking Results](benchmarking.md) page.
-
-## Section Contents
-
-This section is organized into three principal topics covering the theoretical
-foundations, computational methodology, and experimental validation of VQE
-simulations within the Quantum Pipeline framework.
+## Section Guide
 
 <div class="grid cards" markdown>
 
@@ -96,10 +30,9 @@ simulations within the Quantum Pipeline framework.
 
     ---
 
-    Theoretical foundations of the Variational Quantum Eigensolver, including the
-    variational principle, ansatz construction, the Jordan-Wigner transformation,
-    and convergence behavior. Provides a detailed walkthrough of the hybrid
-    quantum-classical optimization loop.
+    Variational principle, ansatz construction (EfficientSU2, RealAmplitudes,
+    ExcitationPreserving), parameter initialization strategies, and convergence
+    behavior from thesis and v2.0.0 experiments.
 
     [:octicons-arrow-right-24: VQE Algorithm](vqe-algorithm.md)
 
@@ -107,10 +40,8 @@ simulations within the Quantum Pipeline framework.
 
     ---
 
-    Comprehensive guide to the basis sets supported by Quantum Pipeline -
-    STO-3G, 6-31G, and cc-pVDZ. Covers the trade-offs between accuracy,
-    computational cost, and qubit requirements, with practical recommendations
-    for basis set selection.
+    STO-3G, 6-31G, and cc-pVDZ - trade-offs between accuracy, computational
+    cost, and qubit requirements, with selection guidance.
 
     [:octicons-arrow-right-24: Basis Sets](basis-sets.md)
 
@@ -118,21 +49,14 @@ simulations within the Quantum Pipeline framework.
 
     ---
 
-    Experimental results from initial VQE benchmarking across six molecular
-    systems. Documents GPU acceleration performance and identifies optimization
-    challenges with random initialization that inform future development.
+    GPU acceleration performance, energy results across molecules,
+    initialization strategy comparisons, and accuracy against PySCF references.
 
     [:octicons-arrow-right-24: Benchmarking Results](benchmarking.md)
 
 </div>
 
-For practical usage of the Quantum Pipeline framework, refer to the
-[Usage Overview](../usage/index.md) and
-[Configuration](../usage/configuration.md) sections.
-
 ## Notation Conventions
-
-Throughout this section, the following notation is employed:
 
 | Symbol | Meaning |
 |--------|---------|
