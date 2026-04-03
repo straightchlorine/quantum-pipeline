@@ -104,6 +104,9 @@ The full pipeline config is at
 [`compose/redpanda-connect.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/redpanda-connect.yaml):
 
 ```yaml
+http:
+  address: 0.0.0.0:4195
+
 input:
   kafka:
     addresses:

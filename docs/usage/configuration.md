@@ -63,8 +63,8 @@ by
 | Kafka | `--kafka` | flag | `false` | Enable Kafka streaming |
 | Kafka | `--servers` | string | `localhost:9092` | Bootstrap servers |
 | Kafka | `--topic` | string | `experiment.vqe` | Topic name |
-| Kafka | `--retries` | int | `3` | Send retry attempts |
-| Kafka | `--retry-delay` | int | `2` | Retry delay (seconds) |
+| Kafka | `--retries` | string | `3` | Send retry attempts |
+| Kafka | `--retry-delay` | string | `2` | Retry delay (seconds) |
 | Kafka | `--internal-retries` | int | `0` | Kafka-internal retries (risk of duplicates) |
 | Kafka | `--acks` | choice | `all` | Ack level (`0`, `1`, `all`) |
 | Kafka | `--timeout` | int | `10` | Request timeout (seconds) |

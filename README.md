@@ -37,15 +37,15 @@ See the [installation guide](https://docs.qp.piotrkrzysztof.dev/getting-started/
 
 ## Features
 
-**Quantum Computing** -- VQE execution with multiple optimizers (L-BFGS-B, COBYLA, SLSQP, and others), configurable ansatz circuits (EfficientSU2, RealAmplitudes, ExcitationPreserving), parameter initialization strategies (random or Hartree-Fock based), multiple basis sets (sto-3g, 6-31g, cc-pVDZ), and GPU acceleration via CUDA. [Learn more](https://docs.qp.piotrkrzysztof.dev/scientific/vqe-algorithm/)
+**Quantum Computing** - VQE execution with multiple optimizers (L-BFGS-B, COBYLA, SLSQP, and others), configurable ansatz circuits (EfficientSU2, RealAmplitudes, ExcitationPreserving), parameter initialization strategies (random or Hartree-Fock based), multiple basis sets (sto-3g, 6-31g, cc-pVDZ), and GPU acceleration via CUDA. [Learn more](https://docs.qp.piotrkrzysztof.dev/scientific/vqe-algorithm/)
 
-**Data Platform** -- Real-time Kafka streaming with Avro serialization, Spark-based ML feature engineering, Airflow workflow orchestration. [Architecture overview](https://docs.qp.piotrkrzysztof.dev/architecture/)
+**Data Platform** - Real-time Kafka streaming with Avro serialization, Spark-based ML feature engineering, Airflow workflow orchestration. [Architecture overview](https://docs.qp.piotrkrzysztof.dev/architecture/)
 
-**ML Pipeline** -- Convergence prediction and energy estimation models trained on VQE experiment data. Includes preprocessing, experiment tracking, and a dedicated Docker Compose stack (`just ml-up` / `just ml-down`).
+**ML Pipeline** - Convergence prediction and energy estimation models trained on VQE experiment data. Includes preprocessing, experiment tracking, and a dedicated Docker Compose stack (`just up` / `just down`).
 
-**Monitoring** -- Prometheus metrics export, Grafana dashboards, resource tracking. Configurable via environment variables (`MONITORING_ENABLED`, `PUSHGATEWAY_URL`, `MONITORING_INTERVAL`, `MONITORING_EXPORT_FORMAT`) or CLI flags. [Monitoring setup](https://docs.qp.piotrkrzysztof.dev/monitoring/)
+**Monitoring** - Prometheus metrics export, Grafana dashboards, resource tracking. Configurable via environment variables (`MONITORING_ENABLED`, `PUSHGATEWAY_URL`, `MONITORING_INTERVAL`, `MONITORING_EXPORT_FORMAT`) or CLI flags. [Monitoring setup](https://docs.qp.piotrkrzysztof.dev/monitoring/)
 
-**Deployment** -- Docker images for CPU and GPU (`quantum-pipeline:cpu`, `quantum-pipeline:gpu`). The GPU image on Docker Hub is built for Ampere (RTX 30xx) - rebuild with `CUDA_ARCH=6.1` for Pascal or `8.9` for Ada Lovelace. Sample molecule files are included in the image under `data/`. Multi-service Docker Compose stack for the full platform. [Deployment guide](https://docs.qp.piotrkrzysztof.dev/deployment/)
+**Deployment** - Docker images for CPU and GPU (`quantum-pipeline:cpu`, `quantum-pipeline:gpu`). The GPU image on Docker Hub is built for Ampere (RTX 30xx) - rebuild with `CUDA_ARCH=6.1` for Pascal or `8.9` for Ada Lovelace. Sample molecule files are included in the image under `data/`. Multi-service Docker Compose stack for the full platform. [Deployment guide](https://docs.qp.piotrkrzysztof.dev/deployment/)
 
 ## Python API
 
@@ -56,11 +56,12 @@ runner = VQERunner(
     filepath='data/molecules.json',
     basis_set='sto3g',
     max_iterations=100,
-    optimizer='L-BFGS-B',
-    ansatz_reps=3,
+    optimizer='COBYLA',
 )
 runner.run()
 ```
+
+See the [API documentation](https://docs.qp.piotrkrzysztof.dev/getting-started/basic-usage/) for all constructor parameters.
 
 ## License
 

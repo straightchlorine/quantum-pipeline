@@ -27,9 +27,9 @@ Click on any question to expand the answer.
     - **H\(_2\)** (Hydrogen) - 4 qubits with sto-3g
     - **HeH\(^+\)** (Helium hydride cation) - 4 qubits with sto-3g
     - **LiH** (Lithium hydride) - 8 qubits with sto-3g
-    - **BeH\(_2\)** (Beryllium hydride) - 10 qubits with sto-3g
-    - **H\(_2\)O** (Water) - 12 qubits with sto-3g
-    - **NH\(_3\)** (Ammonia) - 12 qubits with sto-3g
+    - **BeH\(_2\)** (Beryllium hydride) - 12 qubits with sto-3g
+    - **H\(_2\)O** (Water) - 14 qubits with sto-3g
+    - **NH\(_3\)** (Ammonia) - 16 qubits with sto-3g
     - **CO\(_2\)** (Carbon dioxide)
     - **N\(_2\)** (Nitrogen)
 
@@ -156,17 +156,14 @@ Click on any question to expand the answer.
     It defines 4 tiers of increasing complexity and distributes work across
     3 hardware lanes (two GPU lanes and one CPU lane) that run concurrently:
 
-    ```bash
-    # Run the full batch (resumes from where it left off)
-    just ml-generate
-    ```
+    Batch generation is triggered via the `vqe_batch_generation` Airflow DAG
+    (manual trigger with `{"tier": N}` conf). The underlying script is
+    [`scripts/generate_ml_batch.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/scripts/generate_ml_batch.py),
+    which handles 3-lane parallel Docker execution with idempotent resume.
 
     Each tier varies the basis set, optimizer set, init strategy, seeds, and
     ansatz. Tier 1 (sto-3g, all 8 optimizers, 25 seeds) is the broadest sweep;
     Tier 4 (cc-pvdz, 3 optimizers, 10 seeds) targets the hardest configurations.
-
-    For simpler parallel runs, you can also launch multiple `docker compose run`
-    instances with different molecule or optimizer configurations.
 
 ??? question "How do I interpret the simulation output?"
     The key output values are:

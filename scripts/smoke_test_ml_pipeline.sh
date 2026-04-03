@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Smoke test: end-to-end VQE pipeline through Garage
-# Prerequisites: just ml-setup (stack must be running)
+# Prerequisites: just setup (stack must be running)
 set -euo pipefail
 
 COMPOSE_FILE="compose/docker-compose.ml.yaml"
@@ -31,7 +31,7 @@ wait_for() {
 # --- load env ---
 
 if [ ! -f .env ]; then
-    echo "[ FAIL ] .env not found - run 'just ml-setup' first"
+    echo "[ FAIL ] .env not found - run 'just setup' first"
     exit 1
 fi
 set -a; source .env; set +a
@@ -55,7 +55,7 @@ if curl -sf "http://localhost:${GARAGE_ADMIN_PORT}/v1/health" \
        -H "Authorization: Bearer ${GARAGE_ADMIN_TOKEN}" > /dev/null 2>&1; then
     ok "Garage admin API healthy"
 else
-    fail "Garage admin API not healthy - run 'just ml-up' first"
+    fail "Garage admin API not healthy - run 'just up' first"
 fi
 
 if curl -sf "http://localhost:${SCHEMA_REGISTRY_PORT}/subjects" > /dev/null 2>&1; then
@@ -82,7 +82,7 @@ CONNECTOR_STATE=$(echo "$CONNECTOR_STATUS" | python3 -c "import sys,json; d=json
 if [ "$CONNECTOR_STATE" = "RUNNING" ]; then
     ok "garage-sink connector: RUNNING"
 elif [ "$CONNECTOR_STATE" = "NOT_FOUND" ]; then
-    fail "garage-sink connector not registered - run 'just ml-up' (kafka-connect-init registers it)"
+    fail "garage-sink connector not registered - run 'just up' (kafka-connect-init registers it)"
 else
     fail "garage-sink connector state: ${CONNECTOR_STATE} (expected RUNNING)"
     log "Trace: $(echo "$CONNECTOR_STATUS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tasks',[{}])[0].get('trace','')[:200])" 2>/dev/null || echo 'n/a')"
@@ -95,7 +95,7 @@ echo ""
 echo "Step 3: Garage S3 bucket access"
 
 if [ -z "${S3_ACCESS_KEY:-}" ] || echo "${S3_ACCESS_KEY}" | grep -q "CHANGE_ME\|GK_CHANGE"; then
-    fail "S3_ACCESS_KEY is still a placeholder - run 'just ml-setup' first"
+    fail "S3_ACCESS_KEY is still a placeholder - run 'just setup' first"
 else
     BUCKET_RESP=$(curl -sf \
         -H "Authorization: AWS ${S3_ACCESS_KEY}:ignored" \
@@ -105,7 +105,7 @@ else
     if echo "$BUCKET_RESP" | grep -q "ListBucketResult\|Contents\|KeyCount"; then
         ok "Garage bucket '${S3_RAW_BUCKET}' accessible"
     elif echo "$BUCKET_RESP" | grep -q "NoSuchBucket"; then
-        fail "Bucket '${S3_RAW_BUCKET}' does not exist - run 'just ml-setup'"
+        fail "Bucket '${S3_RAW_BUCKET}' does not exist - run 'just setup'"
     else
         fail "Could not list bucket '${S3_RAW_BUCKET}' (check S3_ACCESS_KEY/S3_SECRET_KEY in .env)"
     fi
@@ -216,8 +216,8 @@ echo ""
 
 if [ "$FAIL" -gt 0 ]; then
     echo "  Next steps for failed checks:"
-    echo "    1. Stack not running?   just ml-up"
-    echo "    2. Garage not init?     just ml-setup"
+    echo "    1. Stack not running?   just up"
+    echo "    2. Garage not init?     just setup"
     echo "    3. Connector failed?    docker compose -f ${COMPOSE_FILE} logs kafka-connect"
     echo ""
     exit 1

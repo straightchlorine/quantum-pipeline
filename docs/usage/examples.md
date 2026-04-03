@@ -87,7 +87,7 @@ quantum-pipeline \
     --simulation-method statevector \
     --kafka \
     --servers kafka:9092 \
-    --topic vqe_decorated_result \
+    --topic experiment.vqe \
     --acks all \
     --retries 3
 ```
@@ -180,28 +180,15 @@ Backend, Kafka producer, and security settings can be passed as [`BackendConfig`
 
 This is useful for parameter sweeps, automated benchmarks, and integration with analysis notebooks.
 
-## Thesis Experiment Reproduction
+## Full Stack Experiment
 
-The thesis experiments can be reproduced using the provided environment configuration. Copy the [`.env.thesis.example`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/.env.thesis.example) file and customize it for your system:
+Run experiments with the full ML data pipeline. Copy the [`.env.ml.example`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/.env.ml.example) file and customize it for your system:
 
 ```bash
-cp .env.thesis.example .env
+cp .env.ml.example .env
 ```
 
 Start the full stack using Docker Compose (see the [Docker Compose](../deployment/docker-compose.md) deployment guide), then monitor progress through container logs and `nvidia-smi`.
-
-### Resource allocation reference
-
-The thesis experiments used the following distribution:
-
-| Component | CPUs | RAM | GPU |
-|-----------|------|-----|-----|
-| CPU Pipeline | 3 | 16 GB | - |
-| GPU Pipeline | 3 | 16 GB | GTX 1060 |
-| Infrastructure | 1 | 24 GB | - |
-| Monitoring | 0.5 | 8 GB | - |
-
-The thesis compared CPU vs. GPU performance across multiple molecules and optimizers. Three separate pipeline containers were used: one CPU-only and two GPU-accelerated (each with a different GPU). Results were streamed via Kafka to Garage (S3), then processed by Spark through Airflow DAGs for feature engineering.
 
 ## Ansatz and Init Strategy Comparison
 
@@ -262,7 +249,7 @@ The three supported ansatze are:
 | [Convergence](#convergence-based-optimization) | Adaptive stopping | `--convergence --threshold 1e-6` |
 | [Save/Load](#configuration-save-and-load) | Reproducibility | `--dump` / `--load` |
 | [Python API](#programmatic-usage) | Programmatic usage | `VQERunner` class |
-| [Thesis](#thesis-experiment-reproduction) | Full reproduction | `.env.thesis.example` |
+| [Full Stack](#full-stack-experiment) | Full ML pipeline | `.env.ml.example` |
 | [Ansatz/Init](#ansatz-and-init-strategy-comparison) | Ansatz comparison | `--ansatz --init-strategy` |
 
 ## Next steps

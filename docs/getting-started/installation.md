@@ -35,7 +35,7 @@ Pre-built images are available on Docker Hub:
     docker pull straightchlorine/quantum-pipeline:cpu
 
     docker run --rm straightchlorine/quantum-pipeline:cpu \
-        --file /app/data/molecules.json \
+        --file data/molecules.json \
         --basis sto3g \
         --max-iterations 100
     ```
@@ -46,7 +46,7 @@ Pre-built images are available on Docker Hub:
 
     docker run --rm --gpus all \
         straightchlorine/quantum-pipeline:gpu \
-        --file /app/data/molecules.json \
+        --file data/molecules.json \
         --basis sto3g \
         --gpu \
         --max-iterations 100
@@ -77,15 +77,15 @@ git clone https://codeberg.org/piotrkrzysztof/quantum-pipeline.git
 cd quantum-pipeline
 
 # Automated first-time setup (generates .env, configures Garage)
-just ml-setup
+just setup
 # Or without just: bash scripts/ml-setup.sh
 
 # Start the stack
-just ml-up
+just up
 # Or: docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d
 
 # Stop the stack
-just ml-down
+just down
 ```
 
 The
@@ -97,7 +97,7 @@ what is already configured.
 
 If you prefer manual setup (or have existing deployments you'd like to use),
 copy `.env.ml.example` to `.env` and fill in the values yourself before
-running `just ml-up`.
+running `just up`.
 
 Services started:
 

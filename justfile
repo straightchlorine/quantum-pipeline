@@ -15,15 +15,19 @@ install-core:
     pdm install -G core
     echo "[  OK  ] Core dependencies installed"
 
+# First-time stack setup (secrets, Garage config) - run once
+setup:
+    bash scripts/ml-setup.sh
+
 # --- development ---
 
 # Run the quantum pipeline simulation
 run *ARGS:
-    pdm run python quantum_pipeline.py {{ARGS}}
+    python -m quantum_pipeline {{ARGS}}
 
 # Start IPython shell with quantum_pipeline imported
 shell:
-    pdm run python -c "from quantum_pipeline import *; import IPython; IPython.embed()"
+    python -c "from quantum_pipeline import *; import IPython; IPython.embed()"
 
 # --- testing ---
 
@@ -111,7 +115,7 @@ docs-serve:
 
 # --- docker ---
 
-# Build Docker image (target: cpu, gpu)
+# Build Docker image (target: cpu, gpu, all)
 # For GPU: set CUDA_ARCH env var to match your GPU (default: 8.6/Ampere)
 #   CUDA_ARCH=6.1 just docker-build gpu   # Pascal (GTX 10xx)
 #   CUDA_ARCH=7.5 just docker-build gpu   # Turing (RTX 20xx)
@@ -150,53 +154,30 @@ docker-build TARGET="cpu":
             ;;
     esac
 
-# Start docker compose stack
-docker-up *ARGS:
-    docker compose -f compose/docker-compose.yaml up -d {{ARGS}}
+# Start the compose stack (requires .env - run 'just setup' first)
+up *ARGS:
+    #!/usr/bin/env bash
+    [ ! -f .env ] && echo "[ FAIL ] .env not found - run 'just setup' first" && exit 1
+    docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d {{ARGS}}
     echo "[  OK  ] Stack started"
-    docker compose -f compose/docker-compose.yaml ps
-
-# Build and start docker compose stack
-docker-up-build:
-    docker compose -f compose/docker-compose.yaml up -d --build
-    echo "[  OK  ] Stack built and started"
-    docker compose -f compose/docker-compose.yaml ps
-
-# Stop docker compose stack
-docker-down:
-    docker compose -f compose/docker-compose.yaml down
-    echo "[  OK  ] Stack stopped"
-
-# Tail docker compose logs (optional: service name)
-docker-logs SERVICE="":
-    #!/usr/bin/env bash
-    if [ -z "{{SERVICE}}" ]; then
-        docker compose -f compose/docker-compose.yaml logs -f
-    else
-        docker compose -f compose/docker-compose.yaml logs -f {{SERVICE}}
-    fi
-
-# --- ml pipeline ---
-
-# First-time setup (secrets, Garage config) - run once
-ml-setup:
-    bash scripts/ml-setup.sh
-
-# Start the ML pipeline stack
-ml-up:
-    #!/usr/bin/env bash
-    [ ! -f .env ] && echo "[ FAIL ] .env not found - run 'just ml-setup' first" && exit 1
-    docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d
-    echo "[  OK  ] ML stack started"
     docker compose --env-file .env -f compose/docker-compose.ml.yaml ps
 
-# Stop the ML pipeline stack (including batch containers and state)
-ml-down:
+# Stop the compose stack (including batch containers and state)
+down:
     #!/usr/bin/env bash
     docker rm -f $(docker ps -q --filter "name=ml-quantum-pipeline" 2>/dev/null) 2>/dev/null || true
     docker compose --env-file .env -f compose/docker-compose.ml.yaml --profile batch down
     rm -f gen/ml_batch_state.json
-    echo "[  OK  ] ML stack stopped, batch state cleared"
+    echo "[  OK  ] Stack stopped, batch state cleared"
+
+# Tail compose logs (optional: service name)
+logs SERVICE="":
+    #!/usr/bin/env bash
+    if [ -z "{{SERVICE}}" ]; then
+        docker compose --env-file .env -f compose/docker-compose.ml.yaml logs -f
+    else
+        docker compose --env-file .env -f compose/docker-compose.ml.yaml logs -f {{SERVICE}}
+    fi
 
 # --- build ---
 
@@ -222,15 +203,6 @@ requirements:
     pdm export -d -o requirements-dev.txt --no-hashes
     echo "[  OK  ] Requirements files updated"
 
-# Run with CPU profiler
-profile:
-    pdm run python -m cProfile -o profile.stats quantum_pipeline.py
-    echo "[  OK  ] Profile saved to profile.stats"
-
-# Run with memory profiler
-memprofile:
-    pdm run python -m memory_profiler quantum_pipeline.py
-
 # --- help ---
 
 # Show help
@@ -240,6 +212,10 @@ help:
     @echo "Setup:"
     @echo "  just install          Install dev + docs dependencies"
     @echo "  just install-core     Install core only (no dev tools)"
+    @echo "  just setup            First-time stack setup (run once)"
+    @echo ""
+    @echo "Development:"
+    @echo "  just run [ARGS]       Run quantum-pipeline with arguments"
     @echo ""
     @echo "Testing:"
     @echo "  just test               Run unit tests (parallel)"
@@ -259,13 +235,12 @@ help:
     @echo "  just docker-build         Build CPU image (default)"
     @echo "  just docker-build gpu     Build GPU image"
     @echo "  just docker-build all     Build CPU + GPU images"
-    @echo "  just docker-up            Start compose stack"
-    @echo "  just docker-down          Stop compose stack"
-    @echo "  just docker-logs [svc]    Tail logs"
     @echo ""
-    @echo "ML Pipeline:"
-    @echo "  just ml-setup         First-time setup (run once)"
-    @echo "  just ml-up / ml-down  Start / stop ML stack"
+    @echo "Stack:"
+    @echo "  just setup            First-time setup (secrets, Garage)"
+    @echo "  just up               Start the compose stack"
+    @echo "  just down             Stop the compose stack"
+    @echo "  just logs [service]   Tail compose logs"
     @echo ""
     @echo "Docs:"
     @echo "  just docs-build       Build mkdocs site"
@@ -275,5 +250,3 @@ help:
     @echo "  just build            Build wheel + sdist"
     @echo "  just clean            Remove caches and artifacts"
     @echo "  just requirements     Export requirements.txt"
-    @echo "  just profile          CPU profiler"
-    @echo "  just memprofile       Memory profiler"
