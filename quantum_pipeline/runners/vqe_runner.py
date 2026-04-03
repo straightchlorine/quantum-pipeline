@@ -39,7 +39,7 @@ class VQERunner(Runner):
         report=False,
         kafka=False,
         kafka_bootstrap_servers='localhost:9092',
-        kafka_topic='vqe_results',
+        kafka_topic='experiment.vqe',
         kafka_retries=3,
         kafka_internal_retries=5,
         kafka_acks='all',

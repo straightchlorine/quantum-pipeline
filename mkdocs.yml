@@ -7,7 +7,7 @@ repo_name: straightchlorine/quantum-pipeline
 repo_url: https://github.com/straightchlorine/quantum-pipeline
 edit_uri: edit/master/docs/
 
-copyright: Copyright &copy; 2025 Piotr Krzysztof Lis
+copyright: Copyright &copy; 2025-2026 Piotr Krzysztof Lis
 
 theme:
   name: material

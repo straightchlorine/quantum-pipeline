@@ -47,9 +47,9 @@ The molecule format fields:
 
 === "Docker"
     ```bash
-    docker run --rm -v $(pwd)/data:/data \
+    docker run --rm \
         straightchlorine/quantum-pipeline:cpu \
-        --file /data/molecules.json \
+        --file data/molecules.json \
         --molecule-index 0 \
         --basis sto3g \
         --max-iterations 100 \
@@ -143,7 +143,7 @@ Or with Docker:
 ```bash
 docker run --rm --gpus all \
     straightchlorine/quantum-pipeline:gpu \
-    --file /app/data/molecules.json \
+    --file data/molecules.json \
     --gpu \
     --max-iterations 100
 ```

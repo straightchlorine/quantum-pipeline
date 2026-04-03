@@ -69,7 +69,7 @@ and it is still a work in progress.
 - **Convergence Prediction** - Predict VQE convergence behavior from experiment metadata
 - **Energy Estimation** - Estimate ground-state energies from molecular and circuit parameters
 - **Experiment Tracking** - Log and compare ML training runs via MLflow
-- **Dedicated Stack** - Separate Docker Compose stack (`just ml-up` / `just ml-down`)
+- **Dedicated Stack** - Separate Docker Compose stack (`just up` / `just down`)
 
 ### Monitoring and Observability
 

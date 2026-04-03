@@ -216,16 +216,49 @@ quantum-pipeline \
     --ansatz-reps 5
 ```
 
-## Working with results in Python
+## Python API
 
-For programmatic access to VQE results, see the
-[`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py)
-and
-[`VQEDecoratedResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py)
-classes in the source code.
+The pipeline can also be used programmatically. The
+[`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L24)
+class accepts the same parameters as the CLI:
 
-After calling `runner.run()`, results are available in `runner.run_results`,
-which contains per-molecule energy values, timing breakdowns, and optimizer metadata.
+```python
+from quantum_pipeline.runners.vqe_runner import VQERunner
+
+runner = VQERunner(
+    filepath='data/molecules.json',
+    basis_set='sto3g',
+    max_iterations=100,
+    optimizer='COBYLA',
+)
+runner.run()
+
+# Results are stored per molecule
+for result in runner.run_results:
+    print(f'{result.basis_set}: {result.vqe_result.minimum:.6f} Ha')
+    print(f'  Iterations: {len(result.vqe_result.iteration_list)}')
+    print(f'  Total time: {result.total_time:.2f}s')
+```
+
+With HF initialization and a specific molecule:
+
+```python
+runner = VQERunner(
+    filepath='data/molecules.json',
+    basis_set='6-31g',
+    max_iterations=200,
+    optimizer='L-BFGS-B',
+    init_strategy='hf',
+    seed=42,
+    report=True,
+)
+runner.run()
+```
+
+Note that the class default optimizer is `COBYLA`, while the CLI defaults to
+`L-BFGS-B` (the CLI config layer overrides the class default). For the full
+constructor signature, see the
+[source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L27).
 
 ## Next steps
 

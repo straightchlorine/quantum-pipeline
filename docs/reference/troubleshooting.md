@@ -373,7 +373,7 @@ docker logs <container-id>
 cat gen/ml_batch_state.json | python -m json.tool
 ```
 
-The batch system is idempotent - rerunning `just ml-generate` will skip completed configurations and retry failed ones.
+The batch system is idempotent - rerunning the generation script will skip completed configurations and retry failed ones. Trigger via the `vqe_batch_generation` Airflow DAG or directly with `python scripts/generate_ml_batch.py`.
 
 ### Batch Progress Not Visible
 

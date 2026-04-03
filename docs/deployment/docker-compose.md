@@ -52,7 +52,7 @@ cd quantum-pipeline
 Run the first-time setup script, which generates secrets and Garage configuration:
 
 ```bash
-just ml-setup
+just setup
 ```
 
 This creates a `.env` file from `.env.ml.example` and generates the required secrets.
@@ -84,7 +84,7 @@ just docker-build all
 ### Step 4: Deploy
 
 ```bash
-just ml-up
+just up
 ```
 
 This runs `docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d`.
@@ -163,7 +163,7 @@ separate rclone configuration file.
 | `garage` | `dxflrs/garage:v2.2.0` | 3901 (S3 API), 3903 (admin) | S3-compatible object storage |
 
 Garage stores raw VQE results, feature datasets, and Iceberg warehouse data. Buckets
-are configured during `just ml-setup`. The S3 endpoint is `http://garage:3901` from
+are configured during `just setup`. The S3 endpoint is `http://garage:3901` from
 within the Docker network. The admin API on port 3903 exposes cluster status and
 metrics that can be scraped by Prometheus.
 
@@ -189,7 +189,7 @@ These services expose Prometheus metrics for scraping by an external monitoring 
 
 ### Batch Simulation Containers
 
-These containers are defined in the `batch` profile and are not started by `just ml-up`.
+These containers are defined in the `batch` profile and are not started by `just up`.
 They are launched on-demand by Airflow DAGs via `docker compose run`:
 
 | Service | Image | Description |
@@ -233,15 +233,13 @@ simulation data (`data/`), and output (`gen/`).
 
 | Command | Description |
 |---|---|
-| `just ml-setup` | First-time setup: generates secrets, Garage config, `.env` file |
-| `just ml-up` | Start the ML pipeline stack |
-| `just ml-down` | Force-remove running batch containers, then stop the ML stack (includes `--profile batch`) |
+| `just setup` | First-time setup: generates secrets, Garage config, `.env` file |
+| `just up` | Start the compose stack |
+| `just down` | Force-remove running batch containers, then stop the stack (includes `--profile batch`) |
+| `just logs [service]` | Tail compose logs (all services, or a specific one) |
 | `just docker-build cpu` | Build CPU simulation image |
 | `just docker-build gpu` | Build GPU simulation image |
 | `just docker-build all` | Build both CPU and GPU images |
-| `just docker-up` | Start the base compose stack (`compose/docker-compose.yaml`) |
-| `just docker-down` | Stop the base compose stack |
-| `just docker-logs [service]` | Tail logs from the base compose stack |
 
 ## Scaling
 
@@ -259,7 +257,7 @@ separate output volume mounts.
 
 ```bash
 # Stop services, preserve data (also force-removes any running batch containers)
-just ml-down
+just down
 
 # Or manually, including volume cleanup
 docker compose --env-file .env -f compose/docker-compose.ml.yaml --profile batch down -v
