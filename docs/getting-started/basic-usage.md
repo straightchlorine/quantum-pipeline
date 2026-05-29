@@ -5,7 +5,7 @@
 ```bash
 quantum-pipeline [OPTIONS]
 
-# Or equivalently:
+# or equivalently:
 python -m quantum_pipeline [OPTIONS]
 ```
 
@@ -113,7 +113,7 @@ The `--simulation-method` flag selects the Aer simulator backend:
 | `superop` | Dense superoperator matrix |
 | `tensor_network` | GPU-only, requires cuTensorNet |
 
-`tensor_network` requires the `--gpu` flag. Using it without GPU causes an error.
+`tensor_network` requires the `--gpu` flag.
 
 ## Output structure
 
@@ -135,8 +135,8 @@ gen/
 PDF reports are generated when `--report` is passed. See an
 [example report](https://qp-docs.codextechnologies.org/mkdocs/quantum_report.pdf).
 The `ansatz/` and `ansatz_decomposed/` directories contain circuit diagrams that
-are too large for the PDF - for example,
-[ansatz](https://qp-docs.codextechnologies.org/mkdocs/ansatz_H_H.png) and
+often are too large to fit into the PDF, especially for larger molecules.
+See [ansatz](https://qp-docs.codextechnologies.org/mkdocs/ansatz_H_H.png) and
 [decomposed ansatz](https://qp-docs.codextechnologies.org/mkdocs/ansatz_decomposed_H_H.png)
 for H2.
 
@@ -180,9 +180,9 @@ quantum-pipeline --file data/molecules.json
 
 See [Monitoring](../monitoring/index.md) for more.
 
-## Recipe: parameter combinations
+## Recipes - basic parameter combinations
 
-**Fast prototyping** - small basis, few iterations:
+**Fast prototyping**
 
 ```bash
 quantum-pipeline \
@@ -192,7 +192,7 @@ quantum-pipeline \
     --optimizer COBYLA
 ```
 
-**Balanced** - good accuracy, reasonable speed:
+**Balanced**
 
 ```bash
 quantum-pipeline \
@@ -203,7 +203,7 @@ quantum-pipeline \
     --ansatz-reps 2
 ```
 
-**High accuracy** - larger basis, HF init, convergence-based:
+**High accuracy**
 
 ```bash
 quantum-pipeline \
@@ -218,9 +218,8 @@ quantum-pipeline \
 
 ## Python API
 
-The pipeline can also be used programmatically. The
-[`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L24)
-class accepts the same parameters as the CLI:
+The pipeline can also be used programmatically. The [`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L24)
+class accepts similar parameters as the CLI:
 
 ```python
 from quantum_pipeline.runners.vqe_runner import VQERunner
@@ -255,10 +254,8 @@ runner = VQERunner(
 runner.run()
 ```
 
-Note that the class default optimizer is `COBYLA`, while the CLI defaults to
-`L-BFGS-B` (the CLI config layer overrides the class default). For the full
-constructor signature, see the
-[source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L27).
+Default optimizer for Python API is `COBYLA`, while the CLI defaults to `L-BFGS-B`.
+For the full constructor signature, see the [source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L27).
 
 ## Next steps
 
