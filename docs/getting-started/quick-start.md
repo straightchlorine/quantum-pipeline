@@ -4,7 +4,8 @@ Run a VQE simulation for the H\(_2\) molecule in a few steps.
 
 ## Molecule data
 
-The repository includes `data/molecules.json` with 9 molecules (H\(_2\), H\(_2\)O, He\(_2\), LiH, BeH, BH, CH\(_4\), NH\(_3\), N\(_2\)). You can use it directly.
+Project includes `data/molecules.json` with 9 molecules (H\(_2\), H\(_2\)O, He\(_2\), LiH, BeH,
+BH, CH\(_4\), NH\(_3\), N\(_2\)). You can use for testing.
 
 To create your own file, use this JSON format:
 
@@ -56,10 +57,9 @@ The molecule format fields:
         --optimizer L-BFGS-B
     ```
 
-`--molecule-index 0` selects the first molecule (H\(_2\)). Without it, all molecules in the file are processed.
+`--molecule-index 0` selects the first molecule (H\(_2\)). Otherwise, all molecules in the file are processed.
 
-The `--report` flag generates a PDF in `gen/` with molecular structure
-visualization, energy convergence plot, and Hamiltonian operator coefficients.
+The `--report` flag generates a PDF in `gen/` with visualizations and a summary.
 See an [example report (H2, 6-31g, L-BFGS-B, HF init)](https://qp-docs.codextechnologies.org/mkdocs/quantum_report.pdf).
 
 ## Expected output
@@ -112,7 +112,11 @@ See [Configuration](../usage/configuration.md) for the full parameter reference.
 
 ## Convergence-based optimization
 
-Instead of a fixed iteration count, stop when the energy change is below a threshold:
+When `--convergence` is enabled without an explicit `--max-iterations`, the default iteration limit (100)
+is dropped and the optimizer runs until the threshold is met.
+
+If you pass both `--convergence` and an explicit `--max-iterations`, the optimizer uses the convergence 
+threshold but also respects the iteration cap as an upper bound.
 
 ```bash
 quantum-pipeline \
@@ -123,7 +127,6 @@ quantum-pipeline \
     --optimizer L-BFGS-B
 ```
 
-When `--convergence` is enabled without an explicit `--max-iterations`, the default iteration limit (100) is dropped and the optimizer runs until the threshold is met. If you pass both `--convergence` and an explicit `--max-iterations`, the optimizer uses the convergence threshold but also respects the iteration cap as an upper bound.
 
 ## GPU acceleration
 
@@ -166,9 +169,9 @@ This requires Kafka and Schema Registry to be running. See [Kafka Streaming](../
 
 ## Common issues
 
-**Simulation takes too long?** Use fixed iterations instead of `--convergence`. Consider starting with `sto3g` basis set.
+**Simulation takes too long?** Use fixed iterations instead of `--convergence`. Consider also starting with `sto3g` basis set for faster execution.
 
-**Results do not match reference energies?** Random initialization can trap the optimizer in local minima, especially with `cc-pvdz`. Try `--init-strategy hf` for Hartree-Fock-based initialization, or increase `--max-iterations`.
+**Results do not match reference energies?** Random initialization can trap the optimizer in local minima. Try `--init-strategy hf` for Hartree-Fock-based initialization, or increase `--max-iterations`.
 
 **Memory errors with large molecules?** Use `--simulation-method matrix_product_state`, reduce `--ansatz-reps`, or use a smaller basis set.
 
