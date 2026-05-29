@@ -17,7 +17,7 @@
 
 ---
 
-A framework for running quantum algorithms, with optional Kafka streaming, Spark processing, and Airflow orchestration. Currently implements the Variational Quantum Eigensolver (VQE) for ground-state energy estimation. Built as an engineering thesis project.
+A framework for running quantum algorithms, with optional Kafka streaming, Spark processing, and Airflow orchestration. Currently implements the Variational Quantum Eigensolver (VQE) for ground-state energy estimation. Built as an bachelor of engineering thesis project, continued as masters of engineering thesis project.
 
 ## Quick Start
 
