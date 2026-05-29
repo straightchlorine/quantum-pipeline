@@ -219,7 +219,7 @@ quantum-pipeline \
 ## Python API
 
 The pipeline can also be used programmatically. The [`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L24)
-class accepts similar parameters as the CLI:
+class accepts parameters similar to the CLI:
 
 ```python
 from quantum_pipeline.runners.vqe_runner import VQERunner

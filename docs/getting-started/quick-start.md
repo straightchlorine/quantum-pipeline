@@ -4,8 +4,8 @@ Run a VQE simulation for the H\(_2\) molecule in a few steps.
 
 ## Molecule data
 
-Project includes `data/molecules.json` with 9 molecules (H\(_2\), H\(_2\)O, He\(_2\), LiH, BeH,
-BH, CH\(_4\), NH\(_3\), N\(_2\)). You can use for testing.
+The repository includes `data/molecules.json` with 9 molecules (H\(_2\), H\(_2\)O, He\(_2\), LiH, BeH,
+BH, CH\(_4\), NH\(_3\), N\(_2\)). You can use it directly.
 
 To create your own file, use this JSON format:
 
@@ -59,7 +59,8 @@ The molecule format fields:
 
 `--molecule-index 0` selects the first molecule (H\(_2\)). Otherwise, all molecules in the file are processed.
 
-The `--report` flag generates a PDF in `gen/` with visualizations and a summary.
+The `--report` flag generates a PDF in `gen/` with molecular structure
+visualization, energy convergence plot, and Hamiltonian operator coefficients.
 See an [example report (H2, 6-31g, L-BFGS-B, HF init)](https://qp-docs.codextechnologies.org/mkdocs/quantum_report.pdf).
 
 ## Expected output
@@ -112,11 +113,11 @@ See [Configuration](../usage/configuration.md) for the full parameter reference.
 
 ## Convergence-based optimization
 
-When `--convergence` is enabled without an explicit `--max-iterations`, the default iteration limit (100)
-is dropped and the optimizer runs until the threshold is met.
+When `--convergence` is enabled, the default iteration limit (100) is dropped and the optimizer
+runs until the threshold is met.
 
-If you pass both `--convergence` and an explicit `--max-iterations`, the optimizer uses the convergence 
-threshold but also respects the iteration cap as an upper bound.
+`--convergence` and an explicit `--max-iterations` are mutually exclusive — pass one or the other,
+not both.
 
 ```bash
 quantum-pipeline \
@@ -126,7 +127,6 @@ quantum-pipeline \
     --convergence --threshold 1e-6 \
     --optimizer L-BFGS-B
 ```
-
 
 ## GPU acceleration
 

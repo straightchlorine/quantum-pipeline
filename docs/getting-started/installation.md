@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - **Python**: 3.12 (the only supported version)
-- **OS**: Linux, macOS and Windows (WSL2) - both untested; may work for CPU-only
+- **OS**: Linux (tested). macOS and Windows (WSL2) are untested; may work for CPU-only use.
 - **Optional**: NVIDIA GPU with CUDA for GPU acceleration
 
 ## From source

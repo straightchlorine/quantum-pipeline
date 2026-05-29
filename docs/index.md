@@ -89,7 +89,6 @@ and it is still a work in progress.
 - **Experiment Tracking** - Log and compare ML training runs via MLflow
 - **Dedicated Stack** - Separate Docker Compose stack
 
-
 ---
 
 ## Quick Links
