@@ -41,7 +41,7 @@ See the [installation guide](https://docs.qp.piotrkrzysztof.dev/getting-started/
 
 **Data Platform** - Kafka streaming with Avro serialization, Spark-based ML feature engineering, Airflow workflow orchestration. [Architecture overview](https://docs.qp.piotrkrzysztof.dev/architecture/)
 
-**ML Pipeline** - Working on convergence prediction and energy estimation models trained on VQE experiment data. Includes dedicated Docker Compose stack - for this purpose.
+**ML Pipeline** - Work in progress to provide convergence prediction and energy estimation models trained on VQE experiment data. Includes dedicated Docker Compose stack - for this purpose.
 
 **Monitoring** - Prometheus metrics export, Grafana dashboard and resource tracking. Configurable via environment variables or CLI flags. [Monitoring setup](https://docs.qp.piotrkrzysztof.dev/monitoring/)
 
