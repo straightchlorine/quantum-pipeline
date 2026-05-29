@@ -64,18 +64,11 @@ and it is still a work in progress.
 - **ML Feature Engineering** - Transform quantum experiment data into ML features using Apache Spark
 - **Workflow Orchestration** - Automate data processing workflows using Apache Airflow
 
-### ML Pipeline
-
-- **Convergence Prediction** - Predict VQE convergence behavior from experiment metadata
-- **Energy Estimation** - Estimate ground-state energies from molecular and circuit parameters
-- **Experiment Tracking** - Log and compare ML training runs via MLflow
-- **Dedicated Stack** - Separate Docker Compose stack (`just up` / `just down`)
-
 ### Monitoring and Observability
 
 - **Prometheus Metrics** - Export performance and resource metrics to Prometheus via PushGateway
 - **Grafana Dashboards** - Visualize simulation performance, convergence, and system resources
-- **Environment Configuration** - Toggle monitoring via `MONITORING_ENABLED`, `PUSHGATEWAY_URL`, `MONITORING_INTERVAL`, `MONITORING_EXPORT_FORMAT`
+- **Environment Configuration** - Toggle monitoring via environment variables
 
 ### Analytics and Visualization
 
@@ -88,6 +81,14 @@ and it is still a work in progress.
 - **Docker Images** - CPU (`quantum-pipeline:cpu`) and GPU (`quantum-pipeline:gpu`) images
 - **Docker Compose** - Multi-service stack for the full data platform
 - **GPU Acceleration** - CUDA-based simulation via Qiskit Aer
+
+### ML Pipeline - work in progress
+
+- **Convergence Prediction** - Predict VQE convergence behavior from experiment metadata
+- **Energy Estimation** - Estimate ground-state energies from molecular and circuit parameters
+- **Experiment Tracking** - Log and compare ML training runs via MLflow
+- **Dedicated Stack** - Separate Docker Compose stack
+
 
 ---
 
