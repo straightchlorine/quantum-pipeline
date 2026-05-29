@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - **Python**: 3.12 (the only supported version)
-- **OS**: Linux (tested). macOS and Windows (via WSL2) are untested but may work for CPU-only use.
+- **OS**: Linux, macOS and Windows (WSL2) - both untested; may work for CPU-only
 - **Optional**: NVIDIA GPU with CUDA for GPU acceleration
 
 ## From source
@@ -44,8 +44,7 @@ Pre-built images are available on Docker Hub:
     ```bash
     docker pull straightchlorine/quantum-pipeline:gpu
 
-    docker run --rm --gpus all \
-        straightchlorine/quantum-pipeline:gpu \
+    docker run --rm --gpus all straightchlorine/quantum-pipeline:gpu \
         --file data/molecules.json \
         --basis sto3g \
         --gpu \
@@ -58,17 +57,21 @@ To build images locally:
 
 ```bash
 just docker-build cpu    # or: gpu, all
+
+# in case of gpu:
+# set CUDA_ARCH env var to match your GPU (default: 8.6/Ampere)
+CUDA_ARCH=7.5 just docker-build gpu   # Turing (RTX 20xx)
 ```
 
 ## Full platform with Docker Compose
 
-This deploys the VQE runner alongside Kafka, Spark, Airflow, Garage, and
-monitoring. The stack is defined in
+This deploys the simulation module alongside Kafka, Spark, Airflow, Garage,
+monitoring and MLflow. The stack is defined in
 [`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml).
 
-The fastest way to get started is the setup script, which generates `.env` with
+The fastest way to get started is the setup script. It generates `.env` with
 random secrets, configures Garage (S3 storage), creates buckets, and sets up
-access keys - all in one step:
+access keys:
 
 ```bash
 # git clone https://github.com/straightchlorine/quantum-pipeline.git
@@ -78,26 +81,18 @@ cd quantum-pipeline
 
 # Automated first-time setup (generates .env, configures Garage)
 just setup
-# Or without just: bash scripts/ml-setup.sh
+# bash scripts/ml-setup.sh
 
 # Start the stack
 just up
-# Or: docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d
+# docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d
 
 # Stop the stack
 just down
 ```
 
-The
-[`ml-setup.sh`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/scripts/ml-setup.sh)
-script handles everything you would otherwise have to fill in manually:
-Garage RPC and admin secrets, Airflow passwords, Fernet key, JWT secret,
-webserver secret key, S3 access keys, and bucket creation. If `.env` already exists, it skips
-what is already configured.
-
-If you prefer manual setup (or have existing deployments you'd like to use),
-copy `.env.ml.example` to `.env` and fill in the values yourself before
-running `just up`.
+If `.env` already exists, it skips what is already configured. Otherwise copy
+`.env.ml.example` to `.env` and fill in the values yourself before running `just up`.
 
 Services started:
 
@@ -135,10 +130,6 @@ With pip, use `pip install -e ".[dev]"`, `pip install -e ".[docs]"`, or `pip ins
 After installing `docs`, run `mkdocs serve` and open `http://127.0.0.1:8000`.
 
 ## Troubleshooting
-
-If you get import errors after installing, make sure you installed in editable mode (`pip install -e .`) or with PDM (`pdm install`). Setting `PYTHONPATH` manually is not necessary when installed properly.
-
-For Docker issues, check that the daemon is running (`docker ps`) and inspect logs with `docker compose logs quantum-pipeline`.
 
 See the [Troubleshooting Guide](../reference/troubleshooting.md) for more.
 
