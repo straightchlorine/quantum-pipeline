@@ -140,7 +140,9 @@ docker-build TARGET="cpu":
                 --build-arg CUDA_ARCH="${ARCH}" \
                 -t quantum-pipeline:gpu \
                 -t straightchlorine/quantum-pipeline:gpu \
-                -t straightchlorine/quantum-pipeline:gpu-${VERSION} \
+                -t straightchlorine/quantum-pipeline:${VERSION}-gpu \
+                -t ghcr.io/straightchlorine/quantum-pipeline:gpu \
+                -t ghcr.io/straightchlorine/quantum-pipeline:${VERSION}-gpu \
                 .
             echo "[  OK  ] GPU image built (v${VERSION}, CUDA_ARCH=${ARCH})"
             ;;
@@ -153,6 +155,33 @@ docker-build TARGET="cpu":
             exit 1
             ;;
     esac
+
+# Release the GPU image locally: build, push to Docker Hub + GHCR, sign.
+docker-release-gpu VERSION:
+    #!/usr/bin/env bash
+    TREE_VERSION=$(python -c "import quantum_pipeline; print(quantum_pipeline.__version__)")
+    if [ "$TREE_VERSION" != "{{VERSION}}" ]; then
+        echo "[ FAIL ] Working tree is ${TREE_VERSION}, expected {{VERSION}} - run: git checkout {{VERSION}}"
+        exit 1
+    fi
+    just docker-build gpu
+    for ref in \
+        straightchlorine/quantum-pipeline:gpu \
+        straightchlorine/quantum-pipeline:{{VERSION}}-gpu \
+        ghcr.io/straightchlorine/quantum-pipeline:gpu \
+        ghcr.io/straightchlorine/quantum-pipeline:{{VERSION}}-gpu; do
+        echo "[ INFO ] Pushing ${ref}..."
+        docker push "$ref"
+    done
+    if command -v cosign >/dev/null; then
+        echo "[ INFO ] Signing images (keyless OIDC - browser window will open)..."
+        cosign sign --yes \
+            straightchlorine/quantum-pipeline:{{VERSION}}-gpu \
+            ghcr.io/straightchlorine/quantum-pipeline:{{VERSION}}-gpu
+    else
+        echo "[ WARN ] cosign not found - images pushed unsigned"
+    fi
+    echo "[  OK  ] GPU image {{VERSION}} released"
 
 # Start the compose stack (requires .env - run 'just setup' first)
 up *ARGS:
@@ -232,9 +261,10 @@ help:
     @echo "  just quality          Lint + type-check + format-check"
     @echo ""
     @echo "Docker:"
-    @echo "  just docker-build         Build CPU image (default)"
-    @echo "  just docker-build gpu     Build GPU image"
-    @echo "  just docker-build all     Build CPU + GPU images"
+    @echo "  just docker-build              Build CPU image (default)"
+    @echo "  just docker-build gpu          Build GPU image"
+    @echo "  just docker-build all          Build CPU + GPU images"
+    @echo "  just docker-release-gpu VER    Build, push + sign GPU image (both registries)"
     @echo ""
     @echo "Stack:"
     @echo "  just setup            First-time setup (secrets, Garage)"

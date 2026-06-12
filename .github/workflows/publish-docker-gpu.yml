@@ -1,0 +1,242 @@
+name: Publish GPU Image
+
+# Manual-only: the GPU image is ~11 GB compressed and compiles qiskit-aer
+# from source (~1-2 h uncached on a standard runner).
+#
+# Use `just docker-release-gpu` locally.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to build (empty = latest tag on master)"
+        required: false
+        type: string
+        default: ""
+      cuda_arch:
+        description: "CUDA compute capability (6.1 Pascal, 7.5 Turing, 8.6 Ampere, 8.9 Ada)"
+        required: false
+        type: string
+        default: "8.6"
+
+env:
+  DOCKERHUB_IMAGE: docker.io/${{ github.repository }}
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-gpu
+  cancel-in-progress: false
+
+jobs:
+  build-gpu-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    environment: docker
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="$INPUT_VERSION"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(git describe --tags --abbrev=0 origin/master)
+          fi
+          git rev-parse --verify "refs/tags/$VERSION" >/dev/null
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building GPU image for release $VERSION"
+
+      - name: Check out release tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: git checkout "refs/tags/$VERSION"
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: true
+          large-packages: false # slow, the above already frees ~30 GB
+          swap-storage: false # keep swap - the aer compile is memory-hungry
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: |
+            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}-gpu
+            type=raw,value=gpu
+
+      - name: Build and push GPU image
+        id: build
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: ./docker/Dockerfile.gpu
+          push: true
+          build-args: |
+            CUDA_ARCH=${{ inputs.cuda_arch }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.GHCR_IMAGE }}:buildcache-gpu
+          cache-to: type=registry,ref=${{ env.GHCR_IMAGE }}:buildcache-gpu,mode=max
+
+      - name: Verify digest is present
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: test -n "$DIGEST"
+
+  sign-and-attest:
+    needs: [build-gpu-image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sign images (keyless OIDC)
+        env:
+          DIGEST: ${{ needs.build-gpu-image.outputs.digest }}
+        run: |
+          cosign sign --yes \
+            "${DOCKERHUB_IMAGE}@${DIGEST}" \
+            "${GHCR_IMAGE}@${DIGEST}"
+
+      # Syft pulls and unpacks the full image - may fail on disk/time for an
+      # image this size, hence best-effort.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: true
+          large-packages: false
+          swap-storage: false
+
+      - name: Generate SBOM
+        continue-on-error: true
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ env.GHCR_IMAGE }}@${{ needs.build-gpu-image.outputs.digest }}
+          format: spdx-json
+          artifact-name: quantum-pipeline-${{ needs.build-gpu-image.outputs.version }}-gpu.spdx.json
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest build provenance (GHCR)
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-name: ${{ env.GHCR_IMAGE }}
+          subject-digest: ${{ needs.build-gpu-image.outputs.digest }}
+          push-to-registry: true
+
+      # Docker Hub does not support OCI referrers - attestation is stored in
+      # GitHub's attestation store only (gh attestation verify).
+      - name: Attest build provenance (Docker Hub)
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-name: index.docker.io/${{ github.repository }}
+          subject-digest: ${{ needs.build-gpu-image.outputs.digest }}
+
+  # Best-effort: scanning an 11 GB image can exhaust runner disk or time out.
+  scan-gpu-image:
+    needs: [build-gpu-image]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: true
+          large-packages: false
+          swap-storage: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan GPU image
+        id: scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.GHCR_IMAGE }}@${{ needs.build-gpu-image.outputs.digest }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+          timeout: 40m
+
+      - name: Upload report to Security tab
+        if: steps.scan.outcome == 'success'
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-gpu
