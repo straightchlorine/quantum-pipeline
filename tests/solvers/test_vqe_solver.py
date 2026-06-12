@@ -936,17 +936,80 @@ class TestAnsatzTypes:
             solver._build_ansatz(4)
             mock_cls.assert_called_once_with(4, reps=2)
 
-    def test_build_ansatz_excitation_preserving(self, mock_backend_config, sample_hamiltonian):
-        """Test that _build_ansatz builds ExcitationPreserving with linear entanglement."""
+    def test_build_ansatz_excitation_preserving_raises_without_hf_data(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        """ExcitationPreserving without HF data must raise — silent vacuum trap is worse than a crash."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
             ansatz_type='ExcitationPreserving',
             ansatz_reps=2,
         )
-        with patch('quantum_pipeline.solvers.vqe_solver.ExcitationPreserving') as mock_cls:
+        with pytest.raises(ValueError, match='hf_data and mapper'):
             solver._build_ansatz(4)
-            mock_cls.assert_called_once_with(4, reps=2, entanglement='linear')
+
+    def test_build_ansatz_excitation_preserving_with_hf_data(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        """Test ExcitationPreserving with HF data passes the HF circuit as initial_state."""
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        mock_mapper = MagicMock()
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='ExcitationPreserving',
+            ansatz_reps=2,
+            hf_data=hf_data,
+            mapper=mock_mapper,
+        )
+        mock_hf_circuit = MagicMock()
+        with (
+            patch('quantum_pipeline.solvers.vqe_solver.ExcitationPreserving') as mock_cls,
+            patch(
+                'quantum_pipeline.solvers.vqe_solver.build_hf_initial_state',
+                return_value=mock_hf_circuit,
+            ),
+        ):
+            solver._build_ansatz(4)
+            mock_cls.assert_called_once_with(
+                4, reps=2, entanglement='full', initial_state=mock_hf_circuit
+            )
+
+    def test_excitation_preserving_initial_params_zero_with_hf_data(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        """ExcitationPreserving + HF data → zero initial parameters (θ=0 is the HF state)."""
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        mock_mapper = MagicMock()
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='ExcitationPreserving',
+            hf_data=hf_data,
+            mapper=mock_mapper,
+        )
+        mock_ansatz = MagicMock()
+        mock_ansatz.num_parameters = 12
+        params = solver._compute_initial_parameters(mock_ansatz)
+        assert np.all(params == 0.0)
+        assert len(params) == 12
+
+    def test_excitation_preserving_initial_params_always_zero(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        """ExcitationPreserving always returns zero initial params — HF state is in the circuit."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='ExcitationPreserving',
+            seed=42,
+        )
+        mock_ansatz = MagicMock()
+        mock_ansatz.num_parameters = 12
+        params = solver._compute_initial_parameters(mock_ansatz)
+        assert len(params) == 12
+        assert np.all(params == 0.0)
 
     def test_unknown_ansatz_type_falls_back_to_efficient_su2(
         self, mock_backend_config, sample_hamiltonian

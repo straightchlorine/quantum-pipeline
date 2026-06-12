@@ -91,19 +91,57 @@ class VQESolver(Solver):
         return ansatz_isa, hamiltonian_isa
 
     def _build_ansatz(self, n_qubits):
-        """Build the ansatz circuit based on the configured ansatz_type.
+        """Build the parameterised ansatz circuit for the given number of qubits.
 
-        Supported types: EfficientSU2, RealAmplitudes, ExcitationPreserving.
-        Always builds a plain ansatz (no HF circuit prepended). When using HF
-        init, we compute initial parameters that approximate the HF state
-        through the ansatz instead.
+        Supported ansatz types
+        ----------------------
+        EfficientSU2 / RealAmplitudes
+            General-purpose circuits with no particle-number constraint.
+            Built as a plain circuit without a fixed initial state.
+            When init_strategy='hf', a separate pre-optimization step finds
+            parameters that make the circuit approximate the Hartree-Fock state.
+
+        ExcitationPreserving
+            A circuit built from XX+YY rotation gates. Only moves electrons,
+            so particle-number must be constant.
+
+            Prepending the Heartree-Fock state as the circuit's `initial_state`.
+            This ensures that correct number of electrons resides in correct
+            orbitals before any gate runs - places cirtuit in the right sector
+            from the start.
+
+            Initial parameters are set to zero - no rotations are applied at the start.
+            Circuit outputs exactly the HF reference state - giving a meaningful
+            starting point.
+
+            entanglement='full' is required.
+                Adjacent-only (linear) gates just slide electrons between
+                neighbouring orbitals - a Slater determinant in, a Slater
+                determinant out. The best reachable state is HF, so the
+                correlation energy is unreachable regardless of reps.
+
+                Non-adjacent (full) gates reach over intermediate qubits,
+                which introduces a many-body interaction under Jordan-Wigner.
+                That lets the circuit produce superpositions of configurations
+                and access the correlated states where the correlation energy lives.
+
+            Raises ValueError if hf_data or mapper is not provided.
         """
+        if self.ansatz_type == 'ExcitationPreserving':
+            if self.hf_data is None or self.mapper is None:
+                raise ValueError(
+                    'ExcitationPreserving requires hf_data and mapper. '
+                    'Without an HF initial state the circuit starts in the 0-electron sector '
+                    'and cannot reach the molecular ground state at any reps.'
+                )
+            hf_state = build_hf_initial_state(self.hf_data, self.mapper)
+            return ExcitationPreserving(
+                n_qubits, reps=self.ansatz_reps, entanglement='full', initial_state=hf_state
+            )
+
         ansatze = {
             'EfficientSU2': lambda: EfficientSU2(n_qubits, reps=self.ansatz_reps),
             'RealAmplitudes': lambda: RealAmplitudes(n_qubits, reps=self.ansatz_reps),
-            'ExcitationPreserving': lambda: ExcitationPreserving(
-                n_qubits, reps=self.ansatz_reps, entanglement='linear'
-            ),
         }
         if self.ansatz_type not in ansatze:
             self.logger.warning(
@@ -158,9 +196,17 @@ class VQESolver(Solver):
         """Compute initial ansatz parameters based on the configured strategy."""
         param_num = ansatz.num_parameters
 
+        # ExcitationPreserving prepends the HF circuit as initial_state.
+        # See VQESolver._build_ansatz() for details.
+        if self.ansatz_type == 'ExcitationPreserving':
+            self.logger.info(
+                'ExcitationPreserving: using zero initial parameters (HF state prepended as initial_state)'
+            )
+            return np.zeros(param_num)
+
         if self.init_strategy == 'hf' and self.ansatz_type != 'EfficientSU2':
             self.logger.warning(
-                f'HF init is only supported for EfficientSU2, not {self.ansatz_type}. '
+                f'HF parameter pre-optimization is only supported for EfficientSU2, not {self.ansatz_type}. '
                 'Falling back to random initialization.'
             )
         elif self.init_strategy == 'hf' and self.hf_data is not None and self.mapper is not None:
