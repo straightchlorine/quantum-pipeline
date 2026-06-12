@@ -14,6 +14,7 @@ class Solver(ABC):
     """Base class for quantum solvers."""
 
     backend_config: BackendConfig
+    seed: int | None = None
 
     def __init__(self):
         self.logger = get_logger(self.__class__.__name__)
@@ -117,6 +118,10 @@ class Solver(ABC):
                     method=self.backend_config.simulation_method,
                     noise_model=noise_model if noise_model else None,
                 )
+
+            if self.seed is not None:
+                backend.set_options(seed_simulator=self.seed)
+                self.logger.info(f'Aer simulator seeded with seed_simulator={self.seed}.')
 
             self.logger.info('Aer simulator backend initialized.')
         else:

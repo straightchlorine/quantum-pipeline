@@ -36,9 +36,7 @@ class MaxFunctionEvalsReachedError(Exception):
     """Raised when the hard function evaluation limit is exceeded."""
 
     def __init__(self, iteration: int, best_params: np.ndarray, best_energy: float):
-        super().__init__(
-            f'Hard function evaluation limit reached after {iteration} evaluations.'
-        )
+        super().__init__(f'Hard function evaluation limit reached after {iteration} evaluations.')
         self.iteration = iteration
         self.best_params = best_params
         self.best_energy = best_energy
@@ -83,7 +81,9 @@ class VQESolver(Solver):
         """Prepare ISA-compatible circuits and observables"""
         target = backend.target
         pm = generate_preset_pass_manager(
-            target=target, optimization_level=self.optimization_level
+            target=target,
+            optimization_level=self.optimization_level,
+            seed_transpiler=self.seed,
         )
         ansatz_isa = pm.run(ansatz)
 
@@ -132,13 +132,16 @@ class VQESolver(Solver):
         best_fid = 0.0
         best_params = np.zeros(ansatz.num_parameters)
         n_attempts = HF_PRE_OPT_ATTEMPTS
+
         # Default to seed 0 for reproducible HF pre-optimization
         seed = self.seed if self.seed is not None else 0
 
         for i in range(n_attempts):
             rng = np.random.default_rng(seed + i)
             x0 = 2 * np.pi * rng.random(ansatz.num_parameters)
-            res = minimize(neg_fidelity, x0, method='COBYLA', options={'maxiter': HF_PRE_OPT_MAXITER})
+            res = minimize(
+                neg_fidelity, x0, method='COBYLA', options={'maxiter': HF_PRE_OPT_MAXITER}
+            )
             fid = -res.fun
             if fid > best_fid:
                 best_fid = fid
@@ -147,8 +150,7 @@ class VQESolver(Solver):
                 break
 
         self.logger.info(
-            f'HF parameter pre-optimization: fidelity={best_fid:.6f} '
-            f'after {i + 1} attempts'
+            f'HF parameter pre-optimization: fidelity={best_fid:.6f} after {i + 1} attempts'
         )
         return best_params
 
@@ -206,6 +208,7 @@ class VQESolver(Solver):
 
     def compute_energy(self, params, ansatz, hamiltonian, estimator):
         """Return estimate of energy from estimator"""
+
         if self.max_iterations is not None and self.current_iter > self.max_iterations:
             best = min(self.vqe_process, key=lambda p: p.cumulative_min_energy)
             raise MaxFunctionEvalsReachedError(
@@ -340,13 +343,13 @@ class VQESolver(Solver):
                 f'(limit: {self.max_iterations}). Best energy: {truncated.best_energy:.8f} Ha'
             )
             self._log_total_energy(truncated.best_energy)
-            return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
+            return self._make_truncated_result(
+                truncated.best_energy, truncated.best_params, t.elapsed
+            )
 
         actual_iterations = len(self.vqe_process)
         best_energy = (
-            min(p.cumulative_min_energy for p in self.vqe_process)
-            if self.vqe_process
-            else res.fun
+            min(p.cumulative_min_energy for p in self.vqe_process) if self.vqe_process else res.fun
         )
         if self.convergence_threshold:
             if res.success:

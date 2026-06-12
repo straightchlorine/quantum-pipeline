@@ -152,7 +152,9 @@ def test_optimize_circuits(vqe_solver):
         )
 
         mock_pm.assert_called_once_with(
-            target=mock_backend.target, optimization_level=vqe_solver.optimization_level
+            target=mock_backend.target,
+            optimization_level=vqe_solver.optimization_level,
+            seed_transpiler=vqe_solver.seed,
         )
         assert optimized_ansatz == mock_ansatz
         mock_hamiltonian.apply_layout.assert_called_once()
@@ -1549,6 +1551,7 @@ class TestOptimizeCircuits:
             mock_pm_gen.assert_called_once_with(
                 target=mock_backend.target,
                 optimization_level=2,
+                seed_transpiler=solver.seed,
             )
 
     def test_returns_isa_pair(self, hamiltonian, backend_config):
