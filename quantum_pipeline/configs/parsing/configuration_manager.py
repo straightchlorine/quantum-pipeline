@@ -12,8 +12,16 @@ from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.monitoring import init_performance_monitoring
 from quantum_pipeline.utils.logger import get_logger
 
-_SENSITIVE_KEYS = {'password', 'token', 'secret', 'pass', 'key', 'ssl_password',
-                    'sasl_plain_password', 'sasl_plain_username'}
+_SENSITIVE_KEYS = {
+    'password',
+    'token',
+    'secret',
+    'pass',
+    'key',
+    'ssl_password',
+    'sasl_plain_password',
+    'sasl_plain_username',
+}
 
 
 def _redact_sensitive(data: Any, _depth: int = 0) -> Any:
@@ -22,7 +30,9 @@ def _redact_sensitive(data: Any, _depth: int = 0) -> Any:
         return data
     if isinstance(data, dict):
         return {
-            k: '***' if any(s in k.lower() for s in _SENSITIVE_KEYS) else _redact_sensitive(v, _depth + 1)
+            k: '***'
+            if any(s in k.lower() for s in _SENSITIVE_KEYS)
+            else _redact_sensitive(v, _depth + 1)
             for k, v in data.items()
         }
     if isinstance(data, list):
@@ -91,6 +101,7 @@ class ConfigurationManager:
                 'gpu': args.gpu,
                 'gpu_opts': DEFAULTS['backend']['gpu_opts'].copy(),
                 'simulation_method': args.simulation_method,
+                'noise': args.noise,
             }
         )
 
