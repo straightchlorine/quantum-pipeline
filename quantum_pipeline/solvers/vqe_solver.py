@@ -417,7 +417,9 @@ class VQESolver(Solver):
             )
 
         # Past the truncated-return above, minimize() completed normally, so res is set.
-        assert res is not None
+        if res is None:
+            raise RuntimeError('Optimization produced no result (minimize did not run).')
+
         actual_iterations = len(self.vqe_process)
         if self.vqe_process:
             best_step = self._best_step()
