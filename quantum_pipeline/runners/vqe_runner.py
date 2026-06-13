@@ -28,12 +28,12 @@ class VQERunner(Runner):
         self,
         filepath,
         basis_set='sto3g',
-        max_iterations=100,
+        max_iterations: int | None = 100,
         convergence_threshold=None,
         optimizer='COBYLA',
         ansatz_reps=3,
         ansatz_type='EfficientSU2',
-        default_shots=1024,
+        default_shots: int | None = 1024,
         seed=None,
         init_strategy='random',
         report=False,
@@ -215,7 +215,10 @@ class VQERunner(Runner):
                 convergence_threshold=self.convergence_threshold,
                 seed=self.seed,
                 init_strategy=self.init_strategy,
-                hf_data=hf_data if self.init_strategy == 'hf' else None,
+                # Always pass HF data:
+                # 'hf' init needs it and ExcitationPreserving requires it structurally.
+                # Other ansatze never read it.
+                hf_data=hf_data,
                 mapper=mapper,
             )
             result = solver.solve()
@@ -263,7 +266,9 @@ class VQERunner(Runner):
             'accuracy_score': min(100, accuracy_score),
         }
 
-    def _build_metrics_data(self, molecule_id, molecule_name, result, total_time, accuracy_metrics) -> dict:
+    def _build_metrics_data(
+        self, molecule_id, molecule_name, result, total_time, accuracy_metrics
+    ) -> dict:
         """Build the metrics dict used for Prometheus export."""
         return {
             'container_type': os.getenv('CONTAINER_TYPE', 'unknown'),
@@ -342,12 +347,8 @@ class VQERunner(Runner):
             mapping_time=np.float64(self.mapping_time),
             vqe_time=np.float64(self.vqe_time),
             total_time=total_time,
-            performance_start=performance_start
-            if self.performance_monitor.is_enabled()
-            else None,
-            performance_end=performance_end
-            if self.performance_monitor.is_enabled()
-            else None,
+            performance_start=performance_start if self.performance_monitor.is_enabled() else None,
+            performance_end=performance_end if self.performance_monitor.is_enabled() else None,
         )
         self.logger.debug('Appended run information to the result.')
 

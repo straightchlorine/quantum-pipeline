@@ -11,11 +11,13 @@ from qiskit.circuit.library import EfficientSU2, ExcitationPreserving, RealAmpli
 from qiskit.quantum_info import Statevector, state_fidelity
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer.backends.aer_simulator import AerBackend
+from qiskit_aer.primitives import EstimatorV2 as AerEstimatorV2
 from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
 from quantum_pipeline.circuits import HFData, build_hf_initial_state
 from quantum_pipeline.configs.constants import (
+    EP_INIT_JITTER,
     HF_FIDELITY_THRESHOLD,
     HF_PRE_OPT_ATTEMPTS,
     HF_PRE_OPT_MAXITER,
@@ -47,11 +49,11 @@ class VQESolver(Solver):
         self,
         qubit_op,
         backend_config: BackendConfig,
-        max_iterations=50,
+        max_iterations: int | None = 50,
         optimizer='COBYLA',
         ansatz_reps=3,
         ansatz_type='EfficientSU2',
-        default_shots=1024,
+        default_shots: int | None = 1024,
         convergence_threshold=None,
         optimization_level=3,
         seed=None,
@@ -110,9 +112,11 @@ class VQESolver(Solver):
             orbitals before any gate runs - places cirtuit in the right sector
             from the start.
 
-            Initial parameters are set to zero - no rotations are applied at the start.
-            Circuit outputs exactly the HF reference state - giving a meaningful
-            starting point.
+            Initial parameters are a small jitter around zero (not exactly zero).
+            Zero params output exactly the HF reference, which is a stationary point
+            of the energy (Brillouin's theorem) where the optimizer stalls at HF; a
+            small perturbation breaks that point so it can descend into correlation.
+            See _compute_initial_parameters().
 
             entanglement='full' is required.
                 Adjacent-only (linear) gates just slide electrons between
@@ -196,13 +200,13 @@ class VQESolver(Solver):
         """Compute initial ansatz parameters based on the configured strategy."""
         param_num = ansatz.num_parameters
 
-        # ExcitationPreserving prepends the HF circuit as initial_state.
-        # See VQESolver._build_ansatz() for details.
+        # ExcitationPreserving prepends the HF circuit as initial_state (see _build_ansatz).
         if self.ansatz_type == 'ExcitationPreserving':
+            rng = np.random.default_rng(self.seed if self.seed is not None else 0)
             self.logger.info(
-                'ExcitationPreserving: using zero initial parameters (HF state prepended as initial_state)'
+                'ExcitationPreserving: small jitter around the HF reference for initial parameters'
             )
-            return np.zeros(param_num)
+            return EP_INIT_JITTER * rng.standard_normal(param_num)
 
         if self.init_strategy == 'hf' and self.ansatz_type != 'EfficientSU2':
             self.logger.warning(
@@ -239,6 +243,19 @@ class VQESolver(Solver):
                 f'(nuclear repulsion: {self._nuclear_repulsion:.8f} Ha)'
             )
 
+    def _best_step(self) -> VQEProcess:
+        """Return the VQEProcess with the lowest evaluated energy.
+
+        Keys on the raw per-iteration `result` (not `cumulative_min_energy`), so the
+        returned step's energy and parameters are self-consistent.
+
+        Result is the lowest energy seen and parameters are exactly the ones
+        that produced it. Keying on the running cumulative minimum would pair
+        the global-min energy with whichever iteration's parameters happened
+        to be stored alongside it.
+        """
+        return min(self.vqe_process, key=lambda p: p.result)
+
     def _make_truncated_result(self, best_energy, best_params, elapsed):
         """Build a VQEResult from the best observed state after early termination."""
         return VQEResult(
@@ -256,11 +273,11 @@ class VQESolver(Solver):
         """Return estimate of energy from estimator"""
 
         if self.max_iterations is not None and self.current_iter > self.max_iterations:
-            best = min(self.vqe_process, key=lambda p: p.cumulative_min_energy)
+            best = self._best_step()
             raise MaxFunctionEvalsReachedError(
                 iteration=self.current_iter - 1,
                 best_params=best.parameters,
-                best_energy=float(best.cumulative_min_energy),
+                best_energy=float(best.result),
             )
 
         pub = (ansatz, [hamiltonian], [params])
@@ -271,7 +288,10 @@ class VQESolver(Solver):
             prev = self.vqe_process[-1]
             energy_delta = np.float64(energy - prev.result)
             parameter_delta_norm = np.float64(np.linalg.norm(params - prev.parameters))
-            cumulative_min_energy = np.float64(min(energy, prev.cumulative_min_energy))
+            prev_min = prev.cumulative_min_energy
+            cumulative_min_energy = np.float64(
+                energy if prev_min is None else min(energy, prev_min)
+            )
         else:
             energy_delta = None
             parameter_delta_norm = None
@@ -317,7 +337,9 @@ class VQESolver(Solver):
 
         return x0, ansatz_isa, hamiltonian_isa
 
-    def _build_init_data(self, backend_name, ansatz_isa, hamiltonian_isa, x0):
+    def _build_init_data(
+        self, backend_name, ansatz_isa, hamiltonian_isa, x0, exact_estimator=False
+    ):
         """Construct and store VQEInitialData on self.init_data."""
         self.init_data = VQEInitialData(
             backend=backend_name,
@@ -333,6 +355,7 @@ class VQESolver(Solver):
             seed=self.seed,
             init_strategy=self.init_strategy,
             ansatz_name=self.ansatz_type,
+            exact_estimator=exact_estimator,
         )
 
     def _run_optimization(self, ansatz_isa, hamiltonian_isa, estimator, x0) -> VQEResult:
@@ -393,10 +416,16 @@ class VQESolver(Solver):
                 truncated.best_energy, truncated.best_params, t.elapsed
             )
 
+        # Past the truncated-return above, minimize() completed normally, so res is set.
+        assert res is not None
         actual_iterations = len(self.vqe_process)
-        best_energy = (
-            min(p.cumulative_min_energy for p in self.vqe_process) if self.vqe_process else res.fun
-        )
+        if self.vqe_process:
+            best_step = self._best_step()
+            best_energy = float(best_step.result)
+            best_params = best_step.parameters
+        else:
+            best_energy = res.fun
+            best_params = res.x
         if self.convergence_threshold:
             if res.success:
                 self.logger.info(
@@ -418,8 +447,8 @@ class VQESolver(Solver):
         return VQEResult(
             initial_data=self.init_data,
             iteration_list=self.vqe_process,
-            minimum=res.fun,
-            optimal_parameters=res.x,
+            minimum=np.float64(best_energy),
+            optimal_parameters=best_params,
             maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
             nuclear_repulsion_energy=self._nuclear_repulsion,
@@ -446,12 +475,24 @@ class VQESolver(Solver):
         return result
 
     def via_aer(self, backend):
-        """Run the VQE simulation via Aer simulator."""
-        x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
-        self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0)
+        """Run the VQE simulation via Aer simulator.
 
-        estimator = EstimatorV2(mode=backend)
-        estimator.options.default_shots = self.default_shots
+        When default_shots is None, uses qiskit_aer.primitives.EstimatorV2 with
+        default_precision=0.0 (exact statevector expectation values, no shot noise).
+        Otherwise uses qiskit_ibm_runtime.EstimatorV2 in local mode with the
+        specified shot count.
+        """
+        x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
+
+        exact = self.default_shots is None
+        self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0, exact_estimator=exact)
+
+        if exact:
+            estimator = AerEstimatorV2(options={'default_precision': 0.0})
+            self.logger.info('Using exact Aer estimator (default_precision=0.0, no shot noise).')
+        else:
+            estimator = EstimatorV2(mode=backend)
+            estimator.options.default_shots = self.default_shots
 
         result = self._run_optimization(ansatz_isa, hamiltonian_isa, estimator, x0)
 

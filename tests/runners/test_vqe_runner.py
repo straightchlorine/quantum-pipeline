@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import ANY, MagicMock, Mock, patch
 
 import pytest
 from kafka.errors import KafkaError
@@ -724,7 +724,9 @@ class TestVQERunner:
                 convergence_threshold=1e-6,
                 seed=None,
                 init_strategy='random',
-                hf_data=None,
+                # hf_data is now always passed (EP needs it structurally); ANY because
+                # it wraps a Mock nuclear_repulsion_energy that can't be reconstructed here.
+                hf_data=ANY,
                 mapper=mock_mapper.return_value,
             )
 

@@ -224,7 +224,16 @@ class QuantumPipelineArgParser:
             '--shots',
             type=self.shots,
             default=DEFAULTS['shots'],
-            help='Number of shots for quantum circuit execution',
+            help='Number of shots for quantum circuit execution (ignored when --exact is set)',
+        )
+        backend_group.add_argument(
+            '--exact',
+            action='store_true',
+            help=(
+                'Use exact statevector expectation values (qiskit_aer EstimatorV2, '
+                'default_precision=0.0) instead of shot sampling. Eliminates shot noise, '
+                'is deterministic, and is faster for noiseless runs. Overrides --shots.'
+            ),
         )
         backend_group.add_argument(
             '--optimization-level',

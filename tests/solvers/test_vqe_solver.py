@@ -9,7 +9,7 @@ from quantum_pipeline.circuits import HFData
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.solvers.optimizer_config import get_optimizer_configuration
 from quantum_pipeline.solvers.vqe_solver import MaxFunctionEvalsReachedError, VQESolver
-from quantum_pipeline.structures.vqe_observation import VQEResult
+from quantum_pipeline.structures.vqe_observation import VQEProcess, VQEResult
 
 
 @pytest.fixture
@@ -103,14 +103,18 @@ def test_compute_energy_derived_features(vqe_solver):
 
     with patch.object(vqe_solver.logger, 'debug'):
         # Iteration 1: first iteration — deltas are None
-        vqe_solver.compute_energy(params1, mock_ansatz, mock_hamiltonian, make_estimator(-1.0, 0.1))
+        vqe_solver.compute_energy(
+            params1, mock_ansatz, mock_hamiltonian, make_estimator(-1.0, 0.1)
+        )
         p1 = vqe_solver.vqe_process[0]
         assert p1.energy_delta is None
         assert p1.parameter_delta_norm is None
         assert p1.cumulative_min_energy == np.float64(-1.0)
 
         # Iteration 2: energy improves
-        vqe_solver.compute_energy(params2, mock_ansatz, mock_hamiltonian, make_estimator(-1.5, 0.05))
+        vqe_solver.compute_energy(
+            params2, mock_ansatz, mock_hamiltonian, make_estimator(-1.5, 0.05)
+        )
         p2 = vqe_solver.vqe_process[1]
         assert p2.energy_delta == pytest.approx(-0.5)
         expected_norm = np.linalg.norm(params2 - params1)
@@ -118,7 +122,9 @@ def test_compute_energy_derived_features(vqe_solver):
         assert p2.cumulative_min_energy == np.float64(-1.5)
 
         # Iteration 3: energy worsens — cumulative_min stays at -1.5
-        vqe_solver.compute_energy(params3, mock_ansatz, mock_hamiltonian, make_estimator(-0.8, 0.2))
+        vqe_solver.compute_energy(
+            params3, mock_ansatz, mock_hamiltonian, make_estimator(-0.8, 0.2)
+        )
         p3 = vqe_solver.vqe_process[2]
         assert p3.energy_delta == pytest.approx(0.7)
         expected_norm3 = np.linalg.norm(params3 - params2)
@@ -545,19 +551,20 @@ class TestMaxFunctionEvalsReachedError:
         vqe_solver.max_iterations = 3
         vqe_solver.current_iter = 4  # one past the limit
 
-        # Populate vqe_process with mock data so min() works
+        # Populate vqe_process with mock data so min() works.
+        # _best_step keys on `result` (raw energy), reporting that step's params/energy.
         mock_process = MagicMock()
+        mock_process.result = -1.5
         mock_process.cumulative_min_energy = -1.5
         mock_process.parameters = np.array([0.1, 0.2])
         vqe_solver.vqe_process = [mock_process]
 
         with pytest.raises(MaxFunctionEvalsReachedError) as exc_info:
-            vqe_solver.compute_energy(
-                np.array([0.1, 0.2]), MagicMock(), MagicMock(), MagicMock()
-            )
+            vqe_solver.compute_energy(np.array([0.1, 0.2]), MagicMock(), MagicMock(), MagicMock())
 
         assert exc_info.value.iteration == 3
         assert exc_info.value.best_energy == -1.5
+        np.testing.assert_array_equal(exc_info.value.best_params, np.array([0.1, 0.2]))
 
     def test_compute_energy_runs_within_limit(self, vqe_solver):
         """Test that compute_energy runs normally when within the limit."""
@@ -790,7 +797,9 @@ class TestVQESolverHFInit:
         mock_minimize_result.success = True
 
         # For HF init, mock the pre-optimization to avoid needing real quantum circuits
-        hf_init_params = np.ones(16) * 0.5 if init_strategy == 'hf' and hf_data is not None else None
+        hf_init_params = (
+            np.ones(16) * 0.5 if init_strategy == 'hf' and hf_data is not None else None
+        )
 
         with (
             patch.object(
@@ -992,24 +1001,33 @@ class TestAnsatzTypes:
         mock_ansatz = MagicMock()
         mock_ansatz.num_parameters = 12
         params = solver._compute_initial_parameters(mock_ansatz)
-        assert np.all(params == 0.0)
         assert len(params) == 12
+        # Jitter around zero (not exactly zero): escapes the HF stationary point while
+        # staying near the HF reference — spread well under a full random [0, 2π] init.
+        assert not np.all(params == 0.0)
+        assert np.std(params) < 1.5
+        assert np.all(np.abs(params) < 2 * np.pi)
 
-    def test_excitation_preserving_initial_params_always_zero(
+    def test_excitation_preserving_initial_params_seeded_deterministic(
         self, mock_backend_config, sample_hamiltonian
     ):
-        """ExcitationPreserving always returns zero initial params — HF state is in the circuit."""
-        solver = VQESolver(
-            qubit_op=sample_hamiltonian,
-            backend_config=mock_backend_config,
-            ansatz_type='ExcitationPreserving',
-            seed=42,
-        )
+        """ExcitationPreserving jitter is seeded → identical across solver instances."""
         mock_ansatz = MagicMock()
         mock_ansatz.num_parameters = 12
-        params = solver._compute_initial_parameters(mock_ansatz)
-        assert len(params) == 12
-        assert np.all(params == 0.0)
+
+        def make(seed):
+            s = VQESolver(
+                qubit_op=sample_hamiltonian,
+                backend_config=mock_backend_config,
+                ansatz_type='ExcitationPreserving',
+                seed=seed,
+            )
+            return s._compute_initial_parameters(mock_ansatz)
+
+        np.testing.assert_array_equal(make(42), make(42))
+        assert not np.array_equal(make(0), make(1))
+        # None seed falls back to a fixed default seed → still deterministic.
+        np.testing.assert_array_equal(make(None), make(None))
 
     def test_unknown_ansatz_type_falls_back_to_efficient_su2(
         self, mock_backend_config, sample_hamiltonian
@@ -1590,6 +1608,143 @@ class TestSolve:
         mock_ibmq.assert_called_once_with(mock_backend)
         mock_aer.assert_not_called()
         assert result == mock_result
+
+
+class TestExactEstimatorAndBestStep:
+    """Fix B: exact Aer estimator when default_shots=None; best-step result consistency."""
+
+    @staticmethod
+    def _mock_via_aer_result():
+        """Minimal mock result compatible with via_aer's post-optimization logging."""
+        r = MagicMock()
+        r.minimization_time = 0.1
+        r.iteration_list = []
+        return r
+
+    def test_via_aer_uses_aer_estimator_when_shots_none(self, hamiltonian, backend_config):
+        """default_shots=None → AerEstimatorV2 with default_precision=0.0."""
+        solver = _make_solver(hamiltonian, backend_config, default_shots=None)
+        mock_backend = MagicMock(spec=AerBackend)
+        mock_backend.name = 'aer_simulator'
+
+        with (
+            patch.object(
+                solver, '_prepare_circuit', return_value=(np.zeros(2), MagicMock(), MagicMock())
+            ),
+            patch.object(solver, '_build_init_data'),
+            patch.object(solver, '_run_optimization', return_value=self._mock_via_aer_result()),
+            patch('quantum_pipeline.solvers.vqe_solver.AerEstimatorV2') as mock_aer_est,
+            patch('quantum_pipeline.solvers.vqe_solver.EstimatorV2') as mock_rt_est,
+        ):
+            solver.via_aer(mock_backend)
+            mock_aer_est.assert_called_once_with(options={'default_precision': 0.0})
+            mock_rt_est.assert_not_called()
+
+    def test_via_aer_uses_runtime_estimator_when_shots_set(self, hamiltonian, backend_config):
+        """default_shots=64 → RuntimeEstimatorV2 in local mode."""
+        solver = _make_solver(hamiltonian, backend_config, default_shots=64)
+        mock_backend = MagicMock(spec=AerBackend)
+        mock_backend.name = 'aer_simulator'
+
+        with (
+            patch.object(
+                solver, '_prepare_circuit', return_value=(np.zeros(2), MagicMock(), MagicMock())
+            ),
+            patch.object(solver, '_build_init_data'),
+            patch.object(solver, '_run_optimization', return_value=self._mock_via_aer_result()),
+            patch('quantum_pipeline.solvers.vqe_solver.AerEstimatorV2') as mock_aer_est,
+            patch('quantum_pipeline.solvers.vqe_solver.EstimatorV2') as mock_rt_est,
+        ):
+            solver.via_aer(mock_backend)
+            mock_rt_est.assert_called_once_with(mode=mock_backend)
+            mock_aer_est.assert_not_called()
+
+    def test_exact_estimator_flag_in_init_data(self, hamiltonian, backend_config):
+        """exact_estimator=True recorded in VQEInitialData when default_shots=None."""
+        solver = _make_solver(hamiltonian, backend_config, default_shots=None)
+        mock_backend = MagicMock(spec=AerBackend)
+        mock_backend.name = 'aer_simulator'
+
+        with (
+            patch.object(
+                solver, '_prepare_circuit', return_value=(np.zeros(2), MagicMock(), MagicMock())
+            ),
+            patch.object(solver, '_run_optimization', return_value=self._mock_via_aer_result()),
+            patch('quantum_pipeline.solvers.vqe_solver.AerEstimatorV2'),
+        ):
+            solver.via_aer(mock_backend)
+            assert solver.init_data.exact_estimator is True
+
+    def test_exact_estimator_false_when_shots_set(self, hamiltonian, backend_config):
+        """exact_estimator=False recorded in VQEInitialData when shots are set."""
+        solver = _make_solver(hamiltonian, backend_config, default_shots=64)
+        mock_backend = MagicMock(spec=AerBackend)
+        mock_backend.name = 'aer_simulator'
+
+        with (
+            patch.object(
+                solver, '_prepare_circuit', return_value=(np.zeros(2), MagicMock(), MagicMock())
+            ),
+            patch.object(solver, '_run_optimization', return_value=self._mock_via_aer_result()),
+            patch('quantum_pipeline.solvers.vqe_solver.EstimatorV2'),
+        ):
+            solver.via_aer(mock_backend)
+            assert solver.init_data.exact_estimator is False
+
+    def test_run_optimization_reports_best_step_not_final_iterate(
+        self, hamiltonian, backend_config
+    ):
+        """minimum and optimal_parameters come from the best VQEProcess, not the final iterate.
+
+        Proves the fix for the biased-minimum bug: the optimizer's final point
+        (res.fun, res.x) may not be the lowest energy seen. The result must report
+        the iteration that achieved the global minimum so energy and parameters
+        are self-consistent.
+        """
+        solver = _make_solver(hamiltonian, backend_config)
+
+        best_params = np.array([0.5, 0.6])
+        solver.vqe_process = [
+            VQEProcess(
+                iteration=1,
+                parameters=np.array([0.1, 0.2]),
+                result=np.float64(-0.8),
+                std=np.float64(0.0),
+                cumulative_min_energy=np.float64(-0.8),
+            ),
+            VQEProcess(
+                iteration=2,
+                parameters=best_params,
+                result=np.float64(-1.5),
+                std=np.float64(0.0),
+                cumulative_min_energy=np.float64(-1.5),  # global min at iteration 2
+            ),
+            VQEProcess(
+                iteration=3,
+                parameters=np.array([0.9, 1.0]),
+                result=np.float64(-1.1),
+                std=np.float64(0.0),
+                cumulative_min_energy=np.float64(-1.5),  # still -1.5 (iter 2 was best)
+            ),
+        ]
+        solver.init_data = MagicMock()
+
+        mock_res = _mock_minimize_result(fun=-1.1)  # final iterate energy ≠ best
+        mock_res.x = np.array([0.9, 1.0])
+        mock_res.nfev = 3
+        mock_res.nit = 3
+
+        with (
+            patch(
+                'quantum_pipeline.solvers.vqe_solver.get_optimizer_configuration',
+                return_value=({'maxiter': 3}, None),
+            ),
+            patch('quantum_pipeline.solvers.vqe_solver.minimize', return_value=mock_res),
+        ):
+            result = solver._run_optimization(MagicMock(), MagicMock(), MagicMock(), np.zeros(2))
+
+        assert result.minimum == pytest.approx(-1.5)
+        assert np.array_equal(result.optimal_parameters, best_params)
 
 
 class TestOptimizeCircuits:
