@@ -5,17 +5,17 @@ Pipeline. The CLI entry point is `quantum-pipeline`.
 
 ```mermaid
 graph LR
-    A[CLI Arguments] -->|Override| B[Config File --load]
-    B -->|Fallback| C[Defaults]
+    A[CLI Flags] -->|Override| C[Defaults]
 
     style A fill:#1a73e8,color:#fff,stroke:#1557b0
-    style B fill:#e8710a,color:#fff,stroke:#c45e08
     style C fill:#34a853,color:#fff,stroke:#2d8f47
 ```
 
-Configuration resolves in three layers. CLI flags override loaded config files,
-which override the built-in defaults in
+CLI flags override the built-in defaults in
 [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
+A config file passed with `--load` is read and validated but its values are not
+currently merged into the run, so the run still uses CLI flags and defaults. See
+[Configuration](configuration.md) for details.
 
 ## Section Guide
 
@@ -25,9 +25,8 @@ which override the built-in defaults in
 
     ---
 
-    Complete CLI flag reference, parameter categories, validation rules,
-    and save/load workflows. The single source of truth for every flag
-    `quantum-pipeline` accepts.
+    CLI flag reference, parameter categories, validation rules, and the
+    save/load workflow for every flag `quantum-pipeline` accepts.
 
     [:octicons-arrow-right-24: Configuration](configuration.md)
 

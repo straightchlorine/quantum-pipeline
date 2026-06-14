@@ -1,7 +1,7 @@
 # Architecture
 
-This section illustrates how the components fit together architecturally. That
-includes the simulation model and its relation to other pieces of the pipeline.
+How the components fit together, from the simulation model to the rest of the
+pipeline.
 
 ```mermaid
 graph TD
@@ -37,9 +37,8 @@ Prometheus and Grafana provide observability.
 
     ---
 
-    Component-by-component breakdown: simulation module, Kafka integration,
-    Garage storage, Airflow DAGs, Spark processing, and the incremental
-    feature engineering pipeline.
+    Component breakdown: simulation module, Kafka, Garage storage, Airflow
+    DAGs, Spark, and the incremental feature pipeline.
 
     [:octicons-arrow-right-24: System Design](system-design.md)
 
@@ -47,9 +46,8 @@ Prometheus and Grafana provide observability.
 
     ---
 
-    How data moves through the system, stage by stage - from molecule JSON
-    input through VQE simulation, Kafka streaming, Spark batch processing,
-    to Iceberg tables. Includes an end-to-end \(H_2\) example.
+    How data moves stage by stage, from molecule input through VQE, Kafka,
+    and Spark to Iceberg tables, with an end-to-end \(H_2\) example.
 
     [:octicons-arrow-right-24: Data Flow](data-flow.md)
 
@@ -57,9 +55,8 @@ Prometheus and Grafana provide observability.
 
     ---
 
-    Wire format between the producer and Kafka (Avro), schema registry
-    integration, schema definitions, and the JSON vs Avro storage choice
-    depending on which connector you use.
+    The Avro wire format, schema registry, schema definitions, and the JSON
+    vs Avro storage choice between connectors.
 
     [:octicons-arrow-right-24: Serialization](serialization.md)
 

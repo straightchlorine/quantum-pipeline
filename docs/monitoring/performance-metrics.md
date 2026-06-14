@@ -48,8 +48,9 @@ approximation - a good VQE result will be at or below the HF energy.
 
 The accuracy score uses a logarithmic damping function:
 `score = max(0, min(100, 100 * (1 - log10(|error_mHa| + 1) / 5)))`.
-A score of 100 means the VQE energy matches HF exactly. A score of ~60
-corresponds to ~1 mHa error. The score reaches 0 at ~100 Ha error.
+A score of 100 means the VQE energy matches HF exactly. From the formula,
+~1 mHa error (chemical accuracy) scores ~94, ~10 mHa scores ~79, and
+~99 mHa scores ~60. The score reaches 0 at ~100 Ha error.
 
 !!! note
     The reference is the HF ground state energy from PySCF, not a literature
@@ -208,7 +209,28 @@ Metrics can be exported in multiple formats:
     ```
 
 !!! note "PushGateway Hostname"
-    The PushGateway hostname depends on where Prometheus is running. The default `http://localhost:9091` works for local development. In the Docker Compose stack, set it to match your PushGateway service name (e.g., `http://pushgateway:9091`).
+    The PushGateway hostname depends on where you run the gateway. The default `http://localhost:9091` is for local development. When the gateway runs on a shared network, set the URL to match its hostname (for example `http://pushgateway:9091`).
+
+### Running a PushGateway
+
+The Docker Compose stack in
+[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml)
+ships the metric exporters and the pipeline services, but it does not bundle
+a PushGateway, Prometheus, or Grafana. You need to run a PushGateway yourself
+before any `qp_*` metric can be collected. If nothing is reachable at
+`PUSHGATEWAY_URL`, pushes fail and the error is logged and swallowed, so no
+metrics are recorded.
+
+The simplest setup runs the official [`prom/pushgateway`](https://hub.docker.com/r/prom/pushgateway) image:
+
+```bash
+docker run -d --name pushgateway -p 9091:9091 prom/pushgateway
+```
+
+Then point the pipeline at it with `PUSHGATEWAY_URL` and add the gateway as a
+scrape target in
+[`prometheus.yml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/monitoring/prometheus.yml)
+so Prometheus pulls the pushed metrics.
 
 ### PushGateway Grouping Key
 

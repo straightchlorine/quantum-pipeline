@@ -54,11 +54,13 @@ experiments:
 | Ansatz | EfficientSU2 |
 | Parameter initialization | Random uniform \([0, 2\pi]\) |
 
-Only L-BFGS-B was tested in the thesis. The pipeline now supports
+Only L-BFGS-B was tested in the thesis. The pipeline lists
 [16 optimizers](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L4),
-of which three (L-BFGS-B, COBYLA, SLSQP) have
-[dedicated configuration classes](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py).
-See [Optimizers](../usage/optimizers.md) for details.
+of which 8 are wired through the
+[optimizer config factory](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L218)
+(three with dedicated configuration classes: L-BFGS-B, COBYLA, SLSQP).
+Selecting one of the others raises an error. See
+[Optimizers](../usage/optimizers.md) for details.
 
 ### v2.0.0 Verification Parameters
 
@@ -94,14 +96,14 @@ Six molecular systems of increasing complexity were tested in the thesis:
 |----------|---------|-----------------|-----------|-------------------|------------|
 | Hydrogen | H\(_2\) | 4 | 2 | ~650 | Minimal |
 | Helium hydride cation | HeH\(^+\) | 4 | 2 | ~630 | Minimal |
-| Lithium hydride | LiH | 8 | 4 | ~1,455 | Moderate |
-| Beryllium dihydride | BeH\(_2\) | 10 | 6 | ~2,373 | Significant |
-| Water | H\(_2\)O | 12 | 10 | ~2,185 | High |
-| Ammonia | NH\(_3\) | 12 | 10 | ~2,410 | High |
+| Lithium hydride | LiH | 12 | 4 | ~1,455 | Moderate |
+| Beryllium dihydride | BeH\(_2\) | 14 | 6 | ~2,373 | Significant |
+| Water | H\(_2\)O | 14 | 10 | ~2,185 | High |
+| Ammonia | NH\(_3\) | 16 | 10 | ~2,410 | High |
 
 ### Pipeline-Supported Molecules
 
-The pipeline ships with eight molecules spanning 4-18 qubits under STO-3G,
+The pipeline ships with eight molecules spanning 4-30 qubits under STO-3G,
 defined in
 [`molecules.thesis.json`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/data/molecules.thesis.json):
 
@@ -127,7 +129,7 @@ with seed 42 and EfficientSU2 (2 reps) unless noted.
 | COBYLA | sto-3g | hf | 50 | -1.836 | -4.267 | |
 | BFGS | sto-3g | hf | 40 | -1.838 | -4.224 | |
 | L-BFGS-B | sto-3g | hf | 30 | -1.838 | -4.218 | |
-| L-BFGS-B | 6-31g | random | 1029/1372 | +2.101 | -0.956 | H\(_2\) stuck in barren plateau |
+| L-BFGS-B | 6-31g | random | 1029/1372 | +2.101 | -0.956 | H\(_2\) stuck in a poor local minimum |
 | L-BFGS-B | 6-31g | hf | 50 | -1.857 | -4.294 | HF avoids local min |
 
 These are electronic energies (before nuclear repulsion correction). The table
@@ -137,8 +139,8 @@ is reproduced from the [Changelog](../changelog.md#200).
 
 **Initialization strategy is the dominant factor.** The last two rows make this
 clear: L-BFGS-B with random init on 6-31G spent 1029 iterations to arrive at a
-positive energy for H\(_2\) - a barren plateau. The same setup with HF init reached
--1.857 Ha in 50 iterations.
+positive energy for H\(_2\), a poor local minimum. The same setup with HF init
+reached -1.857 Ha in 50 iterations.
 
 **HF init consistently reaches lower energies.** Across all three optimizers
 tested with HF init (COBYLA, BFGS, L-BFGS-B), H\(_2\) energies clustered around
@@ -168,8 +170,8 @@ Iteration counts before termination:
 
 - **Small molecules (H\(_2\), HeH\(^+\), 4 qubits):** ~650 iterations
   (H\(_2\)) and ~630 iterations (HeH\(^+\)).
-- **Medium molecules (LiH, 8 qubits):** ~1,455 iterations on average.
-- **Large molecules (BeH\(_2\), H\(_2\)O, NH\(_3\), 10-12 qubits):**
+- **Medium molecules (LiH, 12 qubits):** ~1,455 iterations on average.
+- **Large molecules (BeH\(_2\), H\(_2\)O, NH\(_3\), 14-16 qubits):**
   1,500-2,700 iterations before termination.
 
 ### Molecule-Specific Trajectories
@@ -254,15 +256,14 @@ Measured GPU speedup by molecule:
 |----------|--------|----------------|-------------------|
 | H\(_2\) | 4 | 650 | 0.8-1.0x (GPU overhead dominates) |
 | HeH\(^+\) | 4 | 630 | 0.9-1.1x (marginal benefit) |
-| LiH | 8 | 1,455 | 1.5-1.6x (moderate) |
-| BeH\(_2\) | 10 | 2,373 | 1.8-2.1x (significant) |
-| H\(_2\)O | 12 | 2,185 | 1.3-1.4x (moderate) |
-| NH\(_3\) | 12 | 2,410 | 1.3-1.4x (moderate) |
+| LiH | 12 | 1,455 | 1.5-1.6x (moderate) |
+| BeH\(_2\) | 14 | 2,373 | 1.8-2.1x (significant) |
+| H\(_2\)O | 14 | 2,185 | 1.3-1.4x (moderate) |
+| NH\(_3\) | 16 | 2,410 | 1.3-1.4x (moderate) |
 
 For small molecules, the overhead of data transfer between CPU and
-GPU memory negates the computational advantage. The crossover point occurs at
-approximately 8 qubits, beyond which GPU acceleration provides consistent
-benefits.
+GPU memory negates the computational advantage. The crossover appears around
+LiH (12 qubits), beyond which GPU acceleration provides consistent benefits.
 
 <figure>
   <img src="https://qp-docs.codextechnologies.org/mkdocs/performance_heatmap.png"
@@ -305,7 +306,7 @@ workflows involving many molecular configurations, this compounds.
 ### STO-3G Performance (Primary Experiments)
 
 All primary thesis benchmarking experiments utilized the STO-3G basis set, which
-provides a computationally efficient baseline with 4-12 qubits for the tested
+provides a computationally efficient baseline with 4-16 qubits for the tested
 molecular systems. The results presented in the preceding sections - speedup
 factors of 1.74-1.81x, convergence within hundreds to thousands of iterations
 - are representative of STO-3G performance.
@@ -386,8 +387,9 @@ sources:
   cost of greater circuit depth.
 - **Barren plateaus:** For higher qubit counts, gradient magnitudes can vanish
   exponentially, impeding gradient-based optimizers like L-BFGS-B (McClean et
-  al. 2018). The v2.0.0 6-31G results provide a concrete example: L-BFGS-B
-  with random init produced positive energy for H\(_2\).
+  al. 2018). The v2.0.0 6-31G results are consistent with this (L-BFGS-B with
+  random init produced a positive energy for H\(_2\)), though diagnosing a barren
+  plateau would require showing gradient variance vanishing with system size.
 - **Basis set truncation:** STO-3G is a minimal basis set, though both VQE
   and reference values use the same basis, so optimization quality is the
   primary source of discrepancy.
@@ -429,15 +431,15 @@ should be considered when interpreting the findings:
    is only implemented for EfficientSU2. RealAmplitudes and
    ExcitationPreserving fall back to random initialization.
 
-4. **Limited cc-pVDZ data.** The cc-pVDZ experiments were conducted only for
+3. **Limited cc-pVDZ data.** The cc-pVDZ experiments were conducted only for
    H\(_2\) due to computational constraints. Extending these experiments to
    larger molecules would provide more comprehensive basis set scaling data.
 
-5. **Simulator-only results.** All experiments were conducted using statevector
+4. **Simulator-only results.** All experiments were conducted using statevector
    simulation. Results on real quantum hardware would be subject to additional
    factors including gate noise, measurement error, and decoherence.
 
-6. **No systematic multi-optimizer benchmarking.** The v2.0.0 verification
+5. **No systematic multi-optimizer benchmarking.** The v2.0.0 verification
    tested six optimizers on H\(_2\) and HeH\(^+\) only. A systematic study across all
    supported optimizers and all molecules has not been conducted.
 

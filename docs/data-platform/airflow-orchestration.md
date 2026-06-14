@@ -63,11 +63,14 @@ All Airflow containers mount:
 ### Monitoring
 
 Airflow exports metrics via StatsD to a `prom/statsd-exporter` container, which
-exposes them as Prometheus metrics:
+re-exposes them in Prometheus format:
 
 ```
-Airflow --[StatsD UDP]--> statsd-exporter (:9125) --[HTTP]--> Prometheus (:9102)
+Airflow --[StatsD UDP :9125]--> statsd-exporter --[Prometheus metrics on :9102]
 ```
+
+The stack does not run a Prometheus server. Port `9102` is the statsd-exporter's
+own scrape endpoint, so an external scraper has to pull metrics from there.
 
 | Variable | Value |
 |----------|-------|
@@ -159,8 +162,11 @@ graph LR
 |-----------|-------|
 | `schedule` | `timedelta(days=1)` |
 | `retries` | `2` (with exponential backoff) |
+| `retry_delay` | `timedelta(minutes=15)` |
+| `execution_timeout` | 1 hour |
 | `ExternalTaskSensor mode` | `reschedule` (frees worker slot while waiting) |
 | `poke_interval` | 60 seconds |
+| `ExternalTaskSensor timeout` | 3600 seconds (1 hour) |
 | `sla` | 45 minutes |
 
 ## DAG 3: vqe_batch_generation
@@ -210,8 +216,13 @@ graph LR
 
 Rclone remote configuration is injected through environment variables in
 `docker-compose.ml.yaml`. The Garage remote uses the same S3 credentials as the
-rest of the pipeline. The R2 remote requires `R2_ACCOUNT_ID`,
-`R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`.
+rest of the pipeline and points rclone at Garage's S3 API on port `3901` (the
+same endpoint Spark and Redpanda Connect use), not the RPC port. The R2 remote
+requires `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`.
+
+!!! note
+    The `r2_sync_dag.py` docstring shows the Garage endpoint as port `3900`,
+    which is stale. The compose file sets it to the S3 API port `3901`.
 
 ## Related Documentation
 

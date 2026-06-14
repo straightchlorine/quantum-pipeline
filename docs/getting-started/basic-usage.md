@@ -60,7 +60,9 @@ quantum-pipeline --file data/molecules.json --molecule-index 0
 
 ## Configuration files
 
-Save the current CLI configuration to a JSON file:
+`--dump` saves the current CLI configuration. It writes a JSON file to
+`run_configs/` with a name built from the molecule file, basis set, optimizer,
+backend, and date (for example `molecules-cc-pvdz-L-BFGS-B-local-20260613.json`):
 
 ```bash
 quantum-pipeline \
@@ -71,15 +73,17 @@ quantum-pipeline \
     --dump
 ```
 
-Load a saved configuration:
+`--load` points the run at a saved configuration file and validates it:
 
 ```bash
-quantum-pipeline --file data/molecules.json --load my_config.json
+quantum-pipeline --file data/molecules.json --load run_configs/my_config.json
 ```
 
-`--dump` and `--load` cannot be used together.
+The loaded values are not currently applied, though: the run still uses the
+arguments and defaults from the command line, so treat `--dump` as a record of a
+run rather than a way to replay one. `--dump` and `--load` cannot be used together.
 
-The JSON file mirrors CLI arguments. For an example of the structure, see
+The dumped JSON mirrors the CLI arguments. For the field names, see
 [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
 
 ## Ansatz and initialization
@@ -117,7 +121,7 @@ The `--simulation-method` flag selects the Aer simulator backend:
 
 ## Output structure
 
-Results are saved under the `gen/` directory by default. Use `--output-dir` to change this.
+Results are saved under the `gen/` directory. The `--output-dir` flag is accepted but currently has no effect; output always goes to `gen/`.
 
 ```
 gen/
@@ -228,7 +232,9 @@ runner = VQERunner(
     filepath='data/molecules.json',
     basis_set='sto3g',
     max_iterations=100,
-    optimizer='COBYLA',
+    optimizer='L-BFGS-B',
+    init_strategy='hf',
+    seed=42,
 )
 runner.run()
 
@@ -239,23 +245,10 @@ for result in runner.run_results:
     print(f'  Total time: {result.total_time:.2f}s')
 ```
 
-With HF initialization and a specific molecule:
-
-```python
-runner = VQERunner(
-    filepath='data/molecules.json',
-    basis_set='6-31g',
-    max_iterations=200,
-    optimizer='L-BFGS-B',
-    init_strategy='hf',
-    seed=42,
-    report=True,
-)
-runner.run()
-```
-
-Default optimizer for Python API is `COBYLA`, while the CLI defaults to `L-BFGS-B`.
-For the full constructor signature, see the [source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L27).
+The constructor defaults differ from the CLI: when you omit them it uses the
+`COBYLA` optimizer (CLI default is `L-BFGS-B`) and `ansatz_reps=3` (CLI default is
+2). Pass these explicitly to reproduce a CLI run. For the full constructor
+signature, see the [source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L27).
 
 ## Next steps
 

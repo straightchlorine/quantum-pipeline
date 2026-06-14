@@ -130,8 +130,10 @@ conserves the number of excitations (particles) in the system.
   Explores only states with the same particle number as the initial state.
 - **Circuit depth:** Uses RZ rotations and RXX+RYY entangling gates that
   preserve excitation number.
-- **Symmetry:** Preserves particle number, which prevents the sub-FCI
-  anomalies observed with EfficientSU2 (e.g., the HeH+ issue described below).
+- **Symmetry:** Preserves particle number. This avoids the kind of sub-FCI
+  anomaly that EfficientSU2 can produce in principle, since EfficientSU2 does
+  not conserve particle number (see
+  [Experimental Observations](#experimental-observations)).
 - **Entanglement:** Uses linear entanglement by default in the pipeline.
 - **HF initialization:** Not supported. Falls back to random initialization
   with a warning.
@@ -194,11 +196,16 @@ itself produces the HF state.
 
 | Init Strategy | Iterations | H2 Energy (Ha) | Outcome |
 |---------------|-----------|----------------|---------|
-| Random | 1029 | +2.101 | Stuck in barren plateau |
+| Random | 1029 | +2.101 | Poor local minimum |
 | HF | 50 | -1.857 | Correct energy region |
 
+These are electronic energies, reported before the nuclear repulsion
+correction. The electronic Hartree-Fock reference for H2/6-31G is about
+-1.847 Ha, so the HF-init run lands close to it while the random run sits far
+above zero.
+
 This is a clear example of why initialization matters. The random run spent over
-1000 iterations to arrive at a *positive* energy for H2 - physically
+1000 iterations to arrive at a positive energy for H2, which is physically
 meaningless. The HF run reached a reasonable energy in 50 iterations.
 
 ## Experimental Observations
@@ -211,7 +218,7 @@ the potential and the current limitations of the approach.
 
 The optimizer ran for approximately 650 iterations (H\(_2\)) and 630 iterations
 (HeH\(^+\)) on average for 4-qubit systems, and 1,500-2,700 iterations for
-larger molecules (8-12 qubits). In most cases, the optimizer was terminated
+larger molecules (12-16 qubits). In most cases, the optimizer was terminated
 without reaching the known ground-state energy - the runs show the optimizer
 exploring the landscape and getting trapped in local minima, not converging
 to the correct solution.
@@ -223,16 +230,17 @@ distribution over \([0, 2\pi)\). Because the VQE cost function is non-convex
 and L-BFGS-B is a local optimizer, each run converges to the nearest minimum
 from its starting point - not necessarily the global minimum.
 
-- **Small molecules (H\(_2\), 4 qubits, 32 parameters):** Figure 1 shows one
-  of three runs approaching -1.117 Ha (HF/STO-3G; Szabo & Ostlund 1996, p.108)
-  while the other two settle in shallower local minima.
-- **Larger molecules (H\(_2\)O, 12 qubits, 96+ parameters):** Random starting
+- **Small molecules (H\(_2\), 4 qubits, 32 parameters):** the thesis runs show
+  one of three H\(_2\) runs approaching the -1.117 Ha total HF/STO-3G energy
+  (Szabo & Ostlund 1996, p.108) while the other two settle in shallower local
+  minima.
+- **Larger molecules (H\(_2\)O, 14 qubits, 112 parameters):** Random starting
   points produced relative errors of 9-25% in the benchmarking results.
 
-EfficientSU2 does not preserve particle number or spin symmetry, which can lead
-to anomalous results such as the HeH\(^+\) VQE energy falling below the exact
-Full CI value (see
-[Benchmarking: Detailed Error Analysis](../scientific/benchmarking.md#detailed-error-analysis)).
+EfficientSU2 does not preserve particle number or spin symmetry. This lets the
+optimizer explore states outside the correct particle-number sector, so a VQE
+energy can in principle fall below the exact Full CI value. We have not isolated
+a confirmed case of this in the current runs.
 
 Hardware-efficient ansatze are also susceptible to **barren plateaus** - regions
 where gradients vanish exponentially with system size (McClean et al. 2018).
@@ -250,7 +258,7 @@ table is in the [Changelog](../changelog.md#200). Key observations:
   init; L-BFGS-B struggled more (likely due to barren plateau sensitivity
   in gradient-based methods).
 - **Basis set + init interaction is significant.** L-BFGS-B with random init
-  on 6-31G produced +2.101 Ha for H2 (barren plateau). The same optimizer
+  on 6-31G produced +2.101 Ha for H2 (a poor local minimum). The same optimizer
   with HF init on 6-31G reached -1.857 Ha.
 
 #### Steps Taken or Planned
@@ -260,8 +268,7 @@ table is in the [Changelog](../changelog.md#200). Key observations:
   EfficientSU2. Does not yet support other ansatz types.
 - **Multiple ansatz types** - added in v2.0.0 (RealAmplitudes,
   ExcitationPreserving). ExcitationPreserving's particle conservation may
-  help with the HeH+ sub-FCI anomaly, though it has not been extensively
-  tested yet.
+  help avoid sub-FCI anomalies, though it has not been extensively tested yet.
 - **Adaptive ansatze (ADAPT-VQE)** - dynamically growing the circuit to lower
   energy at each step (Grimsley et al. 2019). Not yet implemented.
 - **Multiple random restarts** - running VQE from several initial points and
@@ -312,3 +319,4 @@ For practical guidance on running VQE simulations, consult the
 5. Grimsley, H.R. et al. *An adaptive variational algorithm for exact molecular simulations on a quantum computer.* Nature Communications 10, 3007 (2019).
 6. Szabo, A. & Ostlund, N.S. *Modern Quantum Chemistry: Introduction to Advanced Electronic Structure Theory.* Dover Publications (1996).
 7. Pachucki, K. & Komasa, J. *Schrodinger equation solved for the hydrogen molecule with unprecedented accuracy.* J. Chem. Phys. 144, 164306 (2016).
+8. Preskill, J. *Quantum Computing in the NISQ era and beyond.* Quantum 2, 79 (2018).

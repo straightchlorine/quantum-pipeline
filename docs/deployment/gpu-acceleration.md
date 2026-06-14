@@ -20,32 +20,23 @@ The GPU image is built on CUDA 12.6.3. For detailed installation steps, see the
 
 ## GPU Configuration
 
-Quantum Pipeline's GPU behavior is controlled through the backend configuration in
-[`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py#L17):
+GPU behavior is controlled through the backend defaults in
+[`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py#L22).
+The top-level `gpu` flag (default `False`) turns acceleration on, and the `gpu_opts`
+dictionary holds the options passed to Qiskit Aer:
 
-```python
-'backend': {
-    'gpu': False,                       # Enable GPU acceleration
-    'gpu_opts': {
-        'device': 'GPU',                # Target device ('GPU' or 'CPU')
-        'cuStateVec_enable': False,     # NVIDIA cuStateVec (Volta+ only)
-        'blocking_enable': False,       # Reduce synchronization overhead (Volta+ only)
-        'batched_shots_gpu': True,      # Enable shot parallelization for better GPU utilization
-        'shot_branching_enable': True,  # Enable circuit branching optimization
-        'max_memory_mb': 5500,          # GTX 1060: 6GB - 500MB buffer
-    },
-}
-```
+| Option | Default | Description |
+|---|---|---|
+| `device` | `GPU` | Target device (`GPU` or `CPU`). |
+| `cuStateVec_enable` | `False` | NVIDIA cuStateVec (Volta+ only). |
+| `blocking_enable` | `False` | Reduce synchronization overhead (Volta+ only). |
+| `batched_shots_gpu` | `True` | Shot parallelization for better GPU utilization. |
+| `shot_branching_enable` | `True` | Circuit branching optimization. |
+| `max_memory_mb` | `5500` | Memory cap in MB. The default leaves a buffer on a 6 GB GTX 1060; adjust it for your GPU. |
 
-These options are passed to Qiskit Aer's `AerSimulator` when GPU mode is enabled:
-
-```python
-backend = AerSimulator(
-    method=self.backend_config.simulation_method,
-    **self.backend_config.gpu_opts,
-    noise_model=noise_model if noise_model else None,
-)
-```
+When GPU mode is enabled, `gpu_opts` is unpacked into Qiskit Aer's `AerSimulator`
+alongside the simulation method and any noise model
+([`solver.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/solver.py#L109)).
 
 ### Command-Line GPU Activation
 

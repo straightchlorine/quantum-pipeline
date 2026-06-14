@@ -15,12 +15,18 @@ with concrete implementations:
 - [`VQESolver`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py#L47) - ansatz construction, circuit preparation, optimization loop
 - [`JordanWignerMapper`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/mappers/jordan_winger_mapper.py#L14) - fermionic-to-qubit operator mapping
 
+By default `VQERunner.run()` processes every molecule in the input file. Passing
+`--molecule-index` restricts a run to a single molecule. That single-molecule
+run is the per-container unit the [`vqe_batch_generation`](#dags) batch job fans
+out across hardware lanes.
+
 ### Execution Flow
 
 ```mermaid
 sequenceDiagram
     participant User
     participant VQERunner
+    participant VQESolver
     participant QiskitAer
     participant Monitor
     participant Prometheus
@@ -37,15 +43,16 @@ sequenceDiagram
     VQERunner->>Monitor: Start Performance Monitoring
     Monitor->>Prometheus: Export System Metrics
 
-    VQERunner->>QiskitAer: Execute VQE
-    loop Each Optimizer Iteration
-        QiskitAer->>QiskitAer: Evaluate Cost Function
-        QiskitAer->>Monitor: Log Iteration Data
-        Monitor->>Monitor: Store Parameters & Energy
+    VQERunner->>VQESolver: solve()
+    Note over VQESolver: Build ansatz, initial parameters
+    loop Each Optimizer Iteration (scipy.optimize.minimize)
+        VQESolver->>QiskitAer: Evaluate energy (EstimatorV2)
+        QiskitAer->>VQESolver: Energy and standard deviation
+        VQESolver->>VQESolver: Record iteration (parameters, energy)
     end
-    Note over QiskitAer: Track vqe_time
+    Note over VQERunner: Track vqe_time
 
-    QiskitAer->>VQERunner: Return Optimization Result
+    VQESolver->>VQERunner: Return VQEResult
     VQERunner->>VQERunner: _collect_accuracy_metrics()
     VQERunner->>VQERunner: _build_metrics_data()
     Note over VQERunner: Calculate total_time
@@ -176,17 +183,15 @@ Raw results written by Redpanda Connect:
 s3://raw-results/
   experiments/
     experiment.vqe/
-      year=2026/
-        month=03/
-          ...
       1-1774375957377835260.json
       2-1774887616244742408.json
       ...
 ```
 
-File names follow `{counter}-{timestamp_unix_nano}.json`. Older runs land
-flat in the topic directory; newer runs may appear under time-partitioned
-subdirectories depending on the connector configuration.
+File names follow `{counter}-{timestamp_unix_nano}.json`. The default Redpanda
+Connect config writes every file flat under the topic directory, with no
+Hive-style partitioning (see the `path` template in
+[`compose/redpanda-connect.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/redpanda-connect.yaml#L20)).
 
 Iceberg feature tables (written by Spark):
 
@@ -249,7 +254,7 @@ graph LR
 | `quantum_feature_processing` | Daily | Reads raw data from Garage, transforms into 9 normalized Iceberg tables | [`quantum_processing_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py) |
 | `quantum_ml_feature_processing` | Daily | Joins normalized tables into 2 ML-ready feature tables. Waits for upstream via `ExternalTaskSensor` | [`quantum_ml_feature_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_ml_feature_dag.py) |
 | `vqe_batch_generation` | Manual | Builds Docker images, runs batch VQE generation script. Trigger conf: `{"tier": N}` | [`vqe_batch_generation_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/vqe_batch_generation_dag.py) |
-| `r2_sync` | Manual | Syncs ML feature Parquet from Garage to Cloudflare R2 via rclone | [`r2_sync_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/r2_sync_dag.py) |
+| `r2_sync` | Manual by default, or set the `R2_SYNC_SCHEDULE` Airflow Variable | Waits for `quantum_ml_feature_processing` via an `ExternalTaskSensor`, health-checks rclone, then syncs ML feature Parquet from Garage to Cloudflare R2 | [`r2_sync_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/r2_sync_dag.py) |
 
 ### Execution Flow
 

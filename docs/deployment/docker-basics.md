@@ -167,7 +167,7 @@ docker run --rm --gpus all \
 | `--gpu` | Enable GPU acceleration |
 | `--kafka` | Enable Kafka output |
 | `--topic <name>` | Kafka topic name for results |
-| `--simulation-method <method>` | Simulation method (`statevector`, `automatic`) |
+| `--simulation-method <method>` | Simulation method, e.g. `statevector` or `automatic` (full list in [Environment Variables](environment-variables.md); `tensor_network` requires `--gpu`) |
 | `--max-iterations <n>` | Maximum VQE optimizer iterations |
 | `--convergence` | Enable convergence threshold |
 | `--threshold <value>` | Convergence threshold value (default: `1e-6`) |
@@ -177,5 +177,5 @@ docker run --rm --gpus all \
 | `--seed <n>` | Random seed for reproducible parameter initialization |
 | `--init-strategy <strategy>` | Parameter initialization (`random`, `hf`) |
 | `--log-level <level>` | Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| `--report` | Generate a report after simulation |
+| `--report` | Generate a PDF report after simulation |
 | `--enable-performance-monitoring` | Enable resource monitoring |

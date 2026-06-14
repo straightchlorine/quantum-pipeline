@@ -59,7 +59,7 @@ The v2.0.0 verification runs included 6-31G tests on H\(_2\) and HeH\(^+\), prov
 
 | Optimizer | Init | Molecule | Iters | Energy (Ha) | Outcome |
 |-----------|------|----------|-------|-------------|---------|
-| L-BFGS-B | random | H\(_2\) | 1029 | +2.101 | Barren plateau, physically meaningless |
+| L-BFGS-B | random | H\(_2\) | 1029 | +2.101 | Poor local minimum, physically meaningless |
 | L-BFGS-B | random | HeH\(^+\) | 1372 | -0.956 | Poor convergence |
 | L-BFGS-B | HF | H\(_2\) | 50 | -1.857 | Good result |
 | L-BFGS-B | HF | HeH\(^+\) | 50 | -4.294 | Good result |

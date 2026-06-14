@@ -53,6 +53,21 @@ Pre-built images are available on Docker Hub:
 
 GPU images require the NVIDIA Container Toolkit and Docker configured with the nvidia runtime. See the [GPU Acceleration Guide](../deployment/gpu-acceleration.md) for setup.
 
+The runs above leave nothing behind once the container exits. To keep generated
+reports and plots, pass `--report` and mount the output directory. The container
+writes artifacts to `gen/` under its working directory (`/usr/src/quantum_pipeline`):
+
+```bash
+docker run --rm \
+    -v "$(pwd)/gen:/usr/src/quantum_pipeline/gen" \
+    straightchlorine/quantum-pipeline:cpu \
+    --file data/molecules.json \
+    --molecule-index 0 \
+    --basis sto3g \
+    --max-iterations 100 \
+    --report
+```
+
 To build images locally:
 
 ```bash
@@ -100,7 +115,6 @@ Services started:
 |---------|-----|
 | Airflow | `http://localhost:8084` |
 | Spark Master | `http://localhost:8080` |
-| Grafana | `http://localhost:3000` |
 | Garage S3 API | `http://localhost:3901` |
 | Schema Registry | `http://localhost:8081` |
 | MLflow | `http://localhost:5000` |
@@ -110,7 +124,7 @@ See [Docker Compose Guide](../deployment/docker-compose.md) for details.
 ## Verify installation
 
 ```bash
-quantum-pipeline --file data/molecules.json --basis sto3g --max-iterations 10
+quantum-pipeline --file data/molecules.json --molecule-index 0 --basis sto3g --max-iterations 10
 ```
 
 If this completes without errors, the installation is working.

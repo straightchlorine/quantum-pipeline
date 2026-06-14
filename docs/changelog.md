@@ -10,7 +10,76 @@ For earlier versions, see the [GitHub releases](https://github.com/straightchlor
 
 ---
 
-## 2.0.0
+## [2.1.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.1.0)
+
+This version includes fixes for [issue #52](https://github.com/straightchlorine/quantum-pipeline/issues/52)
+reported by [@avnerbensoussan](https://github.com/avnerbensoussan).
+
+### ExcitationPreserving ansatz
+
+The `ExcitationPreserving` ansatz now works instead of getting stuck near
+the Hartree-Fock energy. It prepends the Hartree-Fock state as the
+circuit's initial state.
+
+Full entanglement is used and optimization starts from a small jitter off zero parameters.
+The jitter matters because zero parameters sit exactly on the HF reference, a
+stationary point where the optimizer stalls; noise lets it descend into the correlation
+energy.
+
+Full entanglement is required because adjacent-only gates can only
+slide electrons between neighbouring orbitals (a Slater determinant in, a
+Slater determinant out). It leaves the correlated states unreachable. With
+these changes it reaches chemical accuracy and improves with more reps.
+
+Error is now raised when Hartree-Fock data is not provided, rather than
+silently producing a meaningless result.
+
+### Reproducible seeding
+
+A fixed `--seed` now reaches the Aer simulator (`seed_simulator`) and the
+transpiler (`seed_transpiler`). Two runs with the same seed now produce
+identical results.
+
+### Exact statevector mode
+
+A new `--exact` flag computes exact expectation values through the Aer
+EstimatorV2 (`default_precision=0.0`) with no shot noise.
+
+It overrides `--shots`. The reported minimum is now the best evaluated
+iteration: the energy and the parameters come from the same step,
+rather than pairing the lowest observed energy with whatever parameters
+happened to be stored alongside it.
+
+### Noise model fix
+
+`--noise` now reaches the backend. The flag was previously dropped before
+the backend configuration was built, so noisy runs silently ran noiseless
+and were recorded as if they were not.
+
+### Spark incremental processing
+
+Incremental processing now derives a deterministic `experiment_id` from the
+experiment's own fields instead of a fresh value on each run, so
+re-processing no longer duplicates the dataset every day.
+
+### Batch generation
+
+The batch run key now includes the basis set.
+
+Tiers differ by basis set while sharing molecule, optimizer, init strategy,
+seed, and ansatz, so without the basis in the key a finished Tier 1 (sto3g)
+run marked the higher-basis tiers as done and they were silently skipped.
+
+### Kafka delivery
+
+A failed Kafka send is no longer dropped silently. Undelivered results are
+spooled to disk (`gen/undelivered/`) for later replay and the run exits
+non-zero, so a downed broker cannot discard computed output while the job
+still reports success.
+
+---
+
+## [2.0.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.0.0)
 
 Complete rewrite of the simulation module, DAGs, tests, and
 infrastructure. Adds batch generation, multiple ansatze and optimizers,
@@ -115,9 +184,8 @@ for a fast inner loop (`pytest -m "not slow"` runs in ~38s).
 
 Ran the refactored simulation across a range of configurations. All
 combinations completed correctly on CPU (Aer statevector, seed 42,
-EfficientSU2 2 reps unless noted).
-
-<!-- TODO: fill in remaining combinations as they are tested -->
+EfficientSU2 2 reps unless noted). The table below is a partial sample;
+more combinations are still being verified.
 
 | Optimizer | Basis | Init | Iters | H\(_2\) (Ha) | HeH\(^+\) (Ha) | Notes |
 |-----------|-------|------|-------|---------|-----------|-------|
@@ -132,7 +200,6 @@ EfficientSU2 2 reps unless noted).
 | L-BFGS-B | sto-3g | hf | 30 | -1.838 | -4.218 | |
 | L-BFGS-B | 6-31g | random | 1029/1372 | +2.101 | -0.956 | H\(_2\) stuck in local min |
 | L-BFGS-B | 6-31g | hf | 50 | -1.857 | -4.294 | HF avoids local min |
-| | | | | | | |
 
 The last two rows are a good example of why initialization matters.
 L-BFGS-B with random init on 6-31g spent 1029 iterations to arrive at a

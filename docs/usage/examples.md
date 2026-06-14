@@ -64,7 +64,7 @@ quantum-pipeline \
     --report
 ```
 
-GPU acceleration offloads statevector operations to the NVIDIA GPU. The `cc-pvdz` basis set provides higher accuracy but needs significantly more qubits (e.g. 58 for H\(_2\)O). Convergence mode runs until the energy change falls below the threshold.
+GPU acceleration offloads statevector operations to the NVIDIA GPU. The `cc-pvdz` basis set provides higher accuracy but needs significantly more qubits (e.g. 48 for H\(_2\)O). Convergence mode runs until the energy change falls below the threshold.
 
 The `--init-strategy hf` flag pre-optimizes parameters using Hartree-Fock data, which helps avoid local minima that are common with `cc-pvdz`. This strategy only works with the `EfficientSU2` ansatz - using it with other ansatze falls back to random initialization.
 
@@ -135,7 +135,7 @@ Save a simulation configuration for reproducibility and reload it later.
 
 ### Save configuration
 
-Adding `--dump` saves the run configuration as a JSON file in `run_configs/` with a timestamped filename.
+Adding `--dump` saves the run configuration as a JSON file in `run_configs/`. The filename encodes the molecule file, basis, optimizer, backend, and date (for example `molecules-cc-pvdz-L-BFGS-B-local-20250615.json`).
 
 ```bash
 quantum-pipeline \
@@ -153,30 +153,21 @@ quantum-pipeline \
     --dump
 ```
 
-### Load and override
+### Load a saved configuration
 
 ```bash
-# Reload a saved configuration
-quantum-pipeline --load run_configs/config_20250615.json
-
-# Load saved config but change the optimizer
-quantum-pipeline \
-    --load run_configs/config_20250615.json \
-    --optimizer COBYLA
-
-# Load saved config but switch basis set
-quantum-pipeline \
-    --load run_configs/config_20250615.json \
-    --basis sto3g
+quantum-pipeline --load run_configs/molecules-cc-pvdz-L-BFGS-B-local-20250615.json
 ```
 
-`--dump` and `--load` are mutually exclusive. CLI arguments override loaded configuration values, allowing selective parameter changes.
+`--dump` and `--load` are mutually exclusive. Note that `--load` currently only reads and validates the file: its values are not merged back into the run, which still uses the CLI flags and defaults. Treat a dumped config as a record of the settings a run used rather than a way to replay it.
 
 ## Programmatic Usage
 
 The pipeline can also be used as a Python library through the [`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py) class. It accepts the same parameters as the CLI but as constructor arguments, and returns [`VQEDecoratedResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/structures/vqe_observation.py) objects containing the full simulation data, including per-iteration energy values.
 
 Backend, Kafka producer, and security settings can be passed as [`BackendConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/backend.py), [`ProducerConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/producer.py), and [`SecurityConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/security.py) objects respectively.
+
+Note that a few `VQERunner` constructor defaults differ from the CLI defaults: the optimizer defaults to `COBYLA` (CLI: `L-BFGS-B`) and `ansatz_reps` defaults to `3` (CLI: `2`). Pass these explicitly when you want a run to match its CLI equivalent.
 
 This is useful for parameter sweeps, automated benchmarks, and integration with analysis notebooks.
 
@@ -247,7 +238,7 @@ The three supported ansatze are:
 | [GPU Research](#gpu-accelerated-simulation) | High-accuracy GPU | `--gpu --basis cc-pvdz --init-strategy hf` |
 | [Data Pipeline](#full-data-pipeline-with-kafka) | Kafka streaming | `--kafka --servers kafka:9092` |
 | [Convergence](#convergence-based-optimization) | Adaptive stopping | `--convergence --threshold 1e-6` |
-| [Save/Load](#configuration-save-and-load) | Reproducibility | `--dump` / `--load` |
+| [Save/Load](#configuration-save-and-load) | Record run settings | `--dump` / `--load` |
 | [Python API](#programmatic-usage) | Programmatic usage | `VQERunner` class |
 | [Full Stack](#full-stack-experiment) | Full ML pipeline | `.env.ml.example` |
 | [Ansatz/Init](#ansatz-and-init-strategy-comparison) | Ansatz comparison | `--ansatz --init-strategy` |

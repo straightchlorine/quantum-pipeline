@@ -21,36 +21,45 @@ Avro was treated as the end-to-end data format. In the current architecture:
 The default setup uses Redpanda Connect, which decodes to JSON at rest. If you
 need Avro end-to-end (for example, to take advantage of schema evolution on the
 storage layer), you can [configure redpanda](https://docs.redpanda.com/redpanda-connect/components/processors/avro/)
-or swap in the Kafka Connect alternative by running the compose
-stack with `docker-compose.ml.kafka-connect.yaml` and `--scale redpanda-connect=0`.
-That config uses the Confluent S3 sink with `AvroConverter`. The Spark processing
-scripts handle both formats, so no downstream changes are needed.
+or swap in the Kafka Connect alternative, which uses the Confluent S3 sink with
+`AvroConverter`. That path is an override compose file layered on top of the base
+stack; for the exact two-file invocation, see
+[Docker Compose - Confluent Kafka Connect](../deployment/docker-compose.md#alternative-confluent-kafka-connect).
+The Spark processing scripts handle both formats, so no downstream changes are
+needed.
 
 For general Avro concepts, see the [Apache Avro specification](https://avro.apache.org/docs/current/specification/).
 
 ## Schema Registry
 
-The Schema Registry implements a two-tier lookup with runtime generation as a
-fallback:
+Schema generation and lookup are two separate concerns. The producer always
+generates and registers its schema; the lookup only reads.
 
 ```mermaid
 graph TD
-    APP[Quantum Pipeline] -->| Check cache | CACHE[In-Memory Schema Cache]
-    CACHE -->|Hit| USE[Use Schema]
-    CACHE -->|Miss| SR[Schema Registry]
+    PROD[Producer interface] -->|Build + register schema| SR[Schema Registry]
+    PROD -->|Serialize| MSG[Avro payload with schema ID]
+
+    LOOKUP[get_schema lookup] -->|Check cache| CACHE[In-Memory Cache]
+    CACHE -->|Hit| USE[Return schema]
+    CACHE -->|Miss| SR
     SR -->|Found| USE
-    SR -->|Not Found| GEN[Generate & Register Schema]
-    GEN -->|Register| SR
-    GEN --> USE
+    SR -->|Not found| ERR[Raise KeyError]
 
     style CACHE fill:#a5d6a7,color:#1b5e20
     style SR fill:#ffe082,color:#000
     style USE fill:#e8f5e9,color:#1b5e20
+    style ERR fill:#ffcdd2,color:#b71c1c
 ```
 
-Schemas are resolved through: in-memory cache first, then Confluent Schema
-Registry. If neither has the schema, the interface class generates it at runtime
-and registers it. See the
+On the producer side, each serialization interface builds its Avro schema from
+its `schema` property and registers it with the registry on every access.
+Registration is idempotent, so generation lives in the interface, not in the
+registry. The registry's
+[`get_schema()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/utils/schema_registry.py#L89)
+lookup only reads an existing schema: it checks the in-memory cache first, then
+the Confluent Schema Registry, and raises `KeyError` if neither has it. It never
+generates. See the
 [Confluent Schema Registry documentation](https://docs.confluent.io/platform/current/schema-registry/)
 for details on the registry API.
 
@@ -120,7 +129,7 @@ graph LR
 | `initial_parameters` | array of double | Starting parameter values |
 | `optimizer` | string | Optimizer name (e.g., `L-BFGS-B`) |
 | `ansatz` | string | QASM3 representation of ansatz circuit |
-| `noise_backend` | string | Noise model backend (empty if none) |
+| `noise_backend` | string | Noise model backend name; the sentinel string `undef` when no noise model is used |
 | `default_shots` | int | Number of measurement shots |
 | `ansatz_reps` | int | Ansatz repetition count |
 | `init_strategy` | string (nullable) | `random` or `hf` |
