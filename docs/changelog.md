@@ -43,12 +43,15 @@ identical results.
 ### Exact statevector mode
 
 A new `--exact` flag computes exact expectation values through the Aer
-EstimatorV2 (`default_precision=0.0`) with no shot noise.
+EstimatorV2 (`default_precision=0.0`) with no shot noise. It overrides
+`--shots`.
 
-It overrides `--shots`. The reported minimum is now the best evaluated
-iteration: the energy and the parameters come from the same step,
-rather than pairing the lowest observed energy with whatever parameters
-happened to be stored alongside it.
+### Minimum energy reporting
+
+The reported minimum is now the best evaluated iteration: the energy and
+the parameters come from the same step, rather than pairing the lowest
+observed energy with whatever parameters happened to be stored alongside
+it. This applies to every run, not only exact mode.
 
 ### Noise model fix
 
