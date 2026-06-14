@@ -126,6 +126,7 @@ jobs:
   sign-and-attest:
     needs: [build-gpu-image]
     runs-on: ubuntu-latest
+    environment: docker
     permissions:
       contents: read
       packages: write
