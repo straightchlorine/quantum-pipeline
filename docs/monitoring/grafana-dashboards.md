@@ -6,7 +6,7 @@ GPU utilization, system resources, data platform health, databases, and orchestr
 
 ## Setup
 
-The main Docker Compose file [`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml) defines only exporters. It assumes available Prometheus and Grafana instances.
+The main Docker Compose file [`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml) ships the pipeline services and metric exporters, but not the monitoring backends. It assumes a PushGateway, Prometheus, and Grafana are already running. See [Running a PushGateway](performance-metrics.md#running-a-pushgateway) for the collection side.
 
 For a basic Prometheus and Grafana setup, see the [Grafana documentation](https://grafana.com/docs/grafana-cloud/send-data/metrics/metrics-prometheus/prometheus-config-examples/docker-compose-linux/).
 
@@ -32,18 +32,20 @@ The dashboard will appear under the name **Quantum Pipeline - ML Stack**.
 
 ### Template Variables
 
-The dashboard includes template variables for interactive filtering:
+The dashboard includes template variables for interactive filtering. The
+variables have no display label set, so Grafana shows the variable name
+(lowercase) in the dashboard header.
 
-| Variable | Label | Description | Source |
-|----------|-------|-------------|--------|
-| `DS_PROMETHEUS` | Data Source | Prometheus data source selector | Data source query |
-| `tier` | Tier | Batch generation tier | `label_values(qp_batch_total, tier)` |
-| `lane` | Lane | Batch generation lane | `label_values(qp_batch_done, lane)` |
-| `optimizer` | Optimizer | Filter by optimization algorithm | `label_values(qp_vqe_total_time, optimizer)` |
-| `molecule` | Molecule | Filter by molecule symbols | `label_values(qp_vqe_total_time, molecule_symbols)` |
-| `container_type` | Container Type | Filter by container configuration (cpu, gpu1, gpu2) | `label_values(qp_vqe_total_time, container_type)` |
+| Variable | Description | Source |
+|----------|-------------|--------|
+| `DS_PROMETHEUS` | Prometheus data source selector | Data source query |
+| `tier` | Batch generation tier | `label_values(qp_batch_total, tier)` |
+| `lane` | Batch generation lane | `label_values(qp_batch_done, lane)` |
+| `optimizer` | Filter by optimization algorithm | `label_values(qp_vqe_total_time, optimizer)` |
+| `molecule` | Filter by molecule symbols | `label_values(qp_vqe_total_time, molecule_symbols)` |
+| `container_type` | Filter by container configuration (cpu, gpu1, gpu2) | `label_values(qp_vqe_total_time, container_type)` |
 
-All variables support multi-select and an "All" option for viewing data across all configurations simultaneously.
+The `optimizer`, `molecule`, and `container_type` variables support multi-select; `tier` and `lane` are single-select. Each query variable offers an "All" option for viewing data across all configurations at once.
 
 ## Dashboard Layout
 
@@ -55,8 +57,8 @@ Detailed performance analysis across container configurations.
 
 | Panel | Type | PromQL |
 |-------|------|--------|
-| VQE Efficiency | Time Series | `qp_vqe_efficiency{...}` |
-| Overhead Ratio | Time Series | `qp_vqe_overhead_ratio{...}` |
+| VQE Efficiency | Gauge | `qp_vqe_efficiency{...}` |
+| Overhead Ratio | Gauge | `qp_vqe_overhead_ratio{...}` |
 | Iterations per Second | Time Series | `qp_vqe_iterations_per_second{...}` |
 | Setup Ratio | Time Series | `qp_vqe_setup_ratio{...}` |
 | VQE Total Time | Time Series | `qp_vqe_total_time{...}` |
@@ -75,7 +77,7 @@ Tracks the state and throughput of ML data generation runs.
 | Failed Over Time | Time Series | `qp_batch_failed{tier=~"$tier",lane=~"$lane"}` |
 | Done | Stat | `sum(qp_batch_done{tier=~"$tier"})` |
 | Failed | Stat | `sum(qp_batch_failed{tier=~"$tier"})` |
-| Per-Lane Progress | Time Series | `qp_batch_done{tier=~"$tier",lane=~"$lane"}` |
+| Per-Lane Progress | Bar Gauge | `qp_batch_done{tier=~"$tier",lane=~"$lane"}` |
 
 ### Row 3: Quality Metrics (4 panels)
 
@@ -83,7 +85,7 @@ Monitors the scientific quality of simulation results.
 
 | Panel | Type | PromQL |
 |-------|------|--------|
-| Accuracy Score | Time Series | `qp_vqe_accuracy_score{...}` |
+| Accuracy Score | Bar Gauge | `qp_vqe_accuracy_score{...}` |
 | Reference Energy | Time Series | `qp_vqe_reference_energy{...}` |
 | Ground State Energy | Time Series | `qp_vqe_minimum_energy{...}` |
 | Energy Error (mHa) | Time Series | `qp_vqe_energy_error_millihartree{...}` |

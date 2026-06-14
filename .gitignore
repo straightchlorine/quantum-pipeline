@@ -28,6 +28,23 @@ run_configs
 # ignore directory with generated graphs
 gen/
 
+# ignore generated batch resume state (canonical copy lives in gen/; this catches stray root copies)
+ml_batch_state.json
+
+# ignore local editor and AI-tooling configs
+.vscode/
+.claude/
+
+# ignore local-only agent and issue working notes (scratch, not shipped)
+agents/
+issue/
+
+# ignore security scanner reports (Trivy / CodeQL / Scorecard SARIF uploads)
+*.sarif
+
+# ignore local uv lockfile (project ships pdm.lock as the dependency source of truth)
+uv.lock
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -147,6 +164,8 @@ ipython_config.py
 #   in version control.
 #   https://pdm.fming.dev/#use-with-ide
 .pdm.toml
+# pdm build staging dir
+.pdm-build/
 
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
 __pypackages__/
@@ -181,6 +200,9 @@ venv.bak/
 styles/Google/
 styles/write-good/
 styles/proselint/
+
+# ruff
+.ruff_cache/
 
 # mypy
 .mypy_cache/

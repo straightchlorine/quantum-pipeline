@@ -105,7 +105,7 @@ docker compose --env-file .env -f compose/docker-compose.ml.yaml ps
 |---|---|---|---|
 | `kafka` | `apache/kafka:4.2.0` | 9092 (internal), 9094 (external) | Message broker with KRaft mode |
 | `schema-registry` | `confluentinc/cp-schema-registry:8.2.0` | 8081 | Avro schema management |
-| `redpanda-connect` | `docker.redpanda.com/redpandadata/connect` | 4195 (metrics) | S3 sink streaming from Kafka to Garage |
+| `redpanda-connect` | `docker.redpanda.com/redpandadata/connect` | 4195 (HTTP API: health, metrics) | S3 sink streaming from Kafka to Garage |
 
 Kafka runs in KRaft mode (no ZooKeeper). Schema Registry manages Avro schemas.
 Redpanda Connect replaces the older Kafka Connect + S3 Sink connector setup, streaming
@@ -186,6 +186,11 @@ These services expose Prometheus metrics for scraping by an external monitoring 
 | `postgres-exporter` | `prometheuscommunity/postgres-exporter` | 9187 | PostgreSQL metrics |
 | `redis-exporter` | `oliver006/redis_exporter` | 9121 | Redis metrics |
 | `nvidia-gpu-exporter` | `utkuozdemir/nvidia_gpu_exporter:1.2.0` | 9835 | NVIDIA GPU utilization, memory, temperature |
+
+Some of the images above float on an unpinned or `latest` tag: Redpanda Connect and
+the StatsD, PostgreSQL, and Redis exporters. A redeploy can pull a newer image and
+change behavior, so pin these to specific versions before any long-running data
+generation.
 
 ### Batch Simulation Containers
 

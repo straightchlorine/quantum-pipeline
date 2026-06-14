@@ -4,13 +4,16 @@ Complete reference for all CLI flags accepted by `quantum-pipeline`.
 
 ## Configuration Layers
 
-The pipeline resolves settings in three layers (highest priority first):
+CLI arguments override the built-in defaults (highest priority first):
 
 | Layer | Source | Purpose |
 |-------|--------|---------|
 | CLI arguments | Flags passed to `quantum-pipeline` | Runtime overrides |
-| Config file | Loaded via `--load config.json` | Saved experiment configs |
 | Defaults | [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py) | Built-in fallback values |
+
+A config file passed with `--load` is read and validated, but its values are not
+currently merged back into the run (see the `--load` flag below). The run still
+uses CLI flags and defaults.
 
 Static settings (supported optimizers, basis sets, simulation methods, output
 directories) live in
@@ -34,7 +37,7 @@ by
 | Category | Flag | Type | Default | Description |
 |----------|------|------|---------|-------------|
 | Required | `--file` / `-f` | path | - | Molecule data file (JSON) |
-| Required | `--molecule-index` | int | `None` | Process single molecule by 0-based index |
+| Input | `--molecule-index` | int | `None` | Process single molecule by 0-based index |
 | Simulation | `--basis` / `-b` | choice | `sto3g` | Basis set (`sto3g`, `6-31g`, `cc-pvdz`) |
 | Simulation | `--ansatz` | choice | `EfficientSU2` | Ansatz type (`EfficientSU2`, `RealAmplitudes`, `ExcitationPreserving`) |
 | Simulation | `--ansatz-reps` / `-ar` | int | `2` | Ansatz circuit repetitions |
@@ -113,7 +116,7 @@ Basis set for quantum chemistry calculations.
 |-----------|----------|-------|---------------|
 | `sto3g` | Low | Very fast | 14 |
 | `6-31g` | Medium | Medium | 26 |
-| `cc-pvdz` | High | Slow | 58 |
+| `cc-pvdz` | High | Slow | 48 |
 
 ### `--ansatz`
 
@@ -138,7 +141,8 @@ and a more expressive circuit, but longer optimization. Default: `2`.
 
 Switch from local Aer simulator to IBM Quantum backend. Requires
 `IBM_RUNTIME_TOKEN` and `IBM_RUNTIME_INSTANCE` environment variables.
-Cannot be used with `--gpu`.
+GPU acceleration applies only to the local Aer backend, so `--gpu` has no
+effect with `--ibm`.
 
 ### `--min-qubits`
 
@@ -264,17 +268,21 @@ often too large for the PDF
 
 ### `--dump`
 
-Save the current configuration to a timestamped JSON file in `run_configs/`.
-Cannot be used with `--load`.
+Save the current configuration to a JSON file in `run_configs/`. The filename
+follows the pattern `{file stem}-{basis}-{optimizer}-{local|api}-{YYYYMMDD}.json`
+(for example `molecules-cc-pvdz-L-BFGS-B-local-20250615.json`). Cannot be used
+with `--load`.
 
 ### `--load`
 
-Load configuration from a previously saved JSON file. CLI flags override loaded
-values. Cannot be used with `--dump`.
+Read and validate a previously saved configuration file. The current
+implementation does not merge the loaded values back into the run: the file is
+parsed and checked, but the run still uses the CLI flags and defaults. Treat a
+dumped config as a record of the settings a run used rather than a way to replay
+them. Cannot be used with `--dump`.
 
 ```bash
-# Load config, override optimizer
-quantum-pipeline --load run_configs/config_20250615.json --optimizer COBYLA
+quantum-pipeline --load run_configs/molecules-cc-pvdz-L-BFGS-B-local-20250615.json
 ```
 
 ## Monitoring Flags
@@ -322,8 +330,9 @@ brokers.
 
 ### `--topic`
 
-Topic name. Default: `experiment.vqe`. The pipeline appends experiment metadata
-(molecule, iterations, basis set, backend) to form the full topic name.
+Topic name. Default: `experiment.vqe`. Results publish to this literal topic
+value. Experiment metadata (molecule, iterations, basis set, backend) travels in
+the Avro payload and the producer log lines, not in the topic name.
 
 ### `--acks`
 
@@ -380,7 +389,7 @@ enforces these rules:
 |------|-----------|
 | `--dump` and `--load` are mutually exclusive | Cannot use together |
 | `--min-qubits` requires `--ibm` | Local simulator ignores it |
-| `--convergence` uses `--threshold` | Threshold defaults to `1e-6` if not set |
+| `--convergence` needs a `--threshold` | `--threshold` defaults to `1e-6`, so this always holds |
 | `tensor_network` requires `--gpu` | CPU-only methods: statevector, automatic, etc. |
 | Kafka params require `--kafka` | Changing servers/topic/acks without `--kafka` is an error |
 | `--ssl` requires `--kafka` | SSL is for Kafka connections |

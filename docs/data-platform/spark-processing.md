@@ -38,7 +38,8 @@ Key details:
   environment variables
 - JAR dependencies (Iceberg runtime, Hadoop AWS, Spark Avro) are resolved via
   Maven/Ivy at startup and cached in the `spark-ivy-cache` volume
-- Spark Web UI is available at port `8080` on the master node
+- Spark Web UI is available at port `8080` on the master node (published to
+  host port `8080`)
 
 <figure>
   <img src="https://qp-docs.codextechnologies.org/mkdocs/spark_view.png"

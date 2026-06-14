@@ -1,25 +1,19 @@
 # Scientific Background
 
-Quantum chemistry simulation is one of the most promising near-term applications
-of quantum computing. The core challenge is the electronic structure problem -
-finding the ground-state energy of molecular systems by computing the lowest
-eigenvalue of the molecular Hamiltonian. Classical exact methods (Full
-Configuration Interaction) scale factorially with system size, making them
-intractable beyond the smallest molecules. Approximate methods like
-Hartree-Fock, DFT, and Coupled Cluster trade accuracy for tractability.
+Quantum chemistry simulation is a promising near-term application of quantum
+computing. The core challenge is the electronic structure problem: finding a
+molecule's ground-state energy by computing the lowest eigenvalue of its
+Hamiltonian. Classical exact methods scale factorially with system size, so
+approximate methods trade accuracy for tractability.
 
-The Variational Quantum Eigensolver (VQE) takes a different approach. As a
-hybrid quantum-classical algorithm, VQE uses parameterized quantum circuits to
-prepare trial states and classical optimizers to refine them. Shallow circuits
-and classical post-processing make VQE practical for the NISQ era, where
-quantum devices have limited qubits and significant noise.
+The Variational Quantum Eigensolver (VQE) is a hybrid quantum-classical
+algorithm. It uses parameterized quantum circuits to prepare trial states and
+classical optimizers to refine them. Its shallow circuits make it a candidate
+for the NISQ era, where devices have limited qubits and significant noise.
 
-The pipeline supports three ansatz types, sixteen classical optimizers, two
-parameter initialization strategies (random and Hartree-Fock), and three basis
-sets. Accuracy is evaluated against PySCF-derived Hartree-Fock reference
-energies. The scientific content in this section draws on thesis experiments
-(random initialization, L-BFGS-B, consumer GPUs) and v2.0.0 verification runs
-(multiple optimizers and init strategies). Limitations are documented in
+This section covers the algorithm, the supported basis sets, and benchmarking
+results, drawing on the thesis experiments and the v2.0.0 verification runs.
+Limitations are noted in
 [Benchmarking: Limitations](benchmarking.md#limitations-and-future-work).
 
 ## Section Guide
@@ -30,9 +24,8 @@ energies. The scientific content in this section draws on thesis experiments
 
     ---
 
-    Variational principle, ansatz construction (EfficientSU2, RealAmplitudes,
-    ExcitationPreserving), parameter initialization strategies, and convergence
-    behavior from thesis and v2.0.0 experiments.
+    Variational principle, ansatz types, parameter initialization, and
+    convergence behavior.
 
     [:octicons-arrow-right-24: VQE Algorithm](vqe-algorithm.md)
 
@@ -40,8 +33,8 @@ energies. The scientific content in this section draws on thesis experiments
 
     ---
 
-    STO-3G, 6-31G, and cc-pVDZ - trade-offs between accuracy, computational
-    cost, and qubit requirements, with selection guidance.
+    STO-3G, 6-31G, and cc-pVDZ: accuracy, cost, and qubit requirements, with
+    selection guidance.
 
     [:octicons-arrow-right-24: Basis Sets](basis-sets.md)
 
@@ -49,8 +42,8 @@ energies. The scientific content in this section draws on thesis experiments
 
     ---
 
-    GPU acceleration performance, energy results across molecules,
-    initialization strategy comparisons, and accuracy against PySCF references.
+    GPU acceleration, energy results, initialization comparisons, and accuracy
+    against PySCF references.
 
     [:octicons-arrow-right-24: Benchmarking Results](benchmarking.md)
 
@@ -66,14 +59,3 @@ energies. The scientific content in this section draws on thesis experiments
 | \(E_0\) | Ground-state energy |
 | Ha | Hartree (atomic unit of energy) |
 | \(n\) | Number of qubits |
-
-## Further Reading
-
-- Peruzzo, A. et al. (2014). "A variational eigenvalue solver on a photonic
-  quantum processor." *Nature Communications*, 5, 4213.
-- McClean, J. R. et al. (2016). "The theory of variational hybrid
-  quantum-classical algorithms." *New Journal of Physics*, 18(2), 023023.
-- Tilly, J. et al. (2022). "The Variational Quantum Eigensolver: a review of
-  methods and best practices." *Physics Reports*, 986, 1-128.
-- Preskill, J. (2018). "Quantum Computing in the NISQ era and beyond."
-  *Quantum*, 2, 79.

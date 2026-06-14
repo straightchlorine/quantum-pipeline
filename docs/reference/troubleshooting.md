@@ -4,6 +4,22 @@ This page provides solutions to common issues encountered when installing, confi
 
 ## Installation Issues
 
+### Unsupported Python Version
+
+**Symptom:** `pip install quantum-pipeline` fails with an error stating the package requires a different Python version, or imports fail after install.
+
+**Cause:** The active interpreter is outside the supported range.
+
+**Solution:** Install into a supported Python version. Tools such as `uv`, `conda`, or `pyenv` make it easy to pin the right interpreter. See the [Installation](../getting-started/installation.md) guide for the supported versions and detailed setup.
+
+### GPU Container Fails to Start
+
+**Symptom:** A GPU container exits immediately with `could not select device driver "nvidia"` or `unknown or invalid runtime name: nvidia`.
+
+**Cause:** The NVIDIA Container Toolkit is not installed, or the Docker daemon is not configured with the `nvidia` runtime.
+
+**Solution:** Install the NVIDIA Container Toolkit on the host and restart Docker. See [GPU Acceleration](../deployment/gpu-acceleration.md) for the full driver and runtime setup.
+
 ## Simulation Issues
 
 ### VQE Convergence Failure
@@ -16,16 +32,16 @@ This page provides solutions to common issues encountered when installing, confi
 
 ```bash
 # Increase the maximum number of iterations
-quantum-pipeline -f molecules.json --max-iterations 500
+quantum-pipeline -f data/molecules.json --max-iterations 500
 
 # Try Hartree-Fock initialization to avoid barren plateaus
-quantum-pipeline -f molecules.json --init-strategy hf
+quantum-pipeline -f data/molecules.json --init-strategy hf
 
 # Try a different optimizer
-quantum-pipeline -f molecules.json --optimizer COBYLA
+quantum-pipeline -f data/molecules.json --optimizer COBYLA
 
 # Loosen convergence tolerance for faster (less precise) convergence
-quantum-pipeline -f molecules.json --convergence --threshold 1e-4
+quantum-pipeline -f data/molecules.json --convergence --threshold 1e-4
 ```
 
 ### Out of Memory During Simulation
@@ -41,10 +57,10 @@ quantum-pipeline -f molecules.json --convergence --threshold 1e-4
 docker run --memory=16g straightchlorine/quantum-pipeline:latest ...
 
 # Use a simpler basis set to reduce qubit count
-quantum-pipeline -f molecules.json --basis sto3g
+quantum-pipeline -f data/molecules.json --basis sto3g
 
 # Reduce ansatz repetitions (default is 2, lowering to 1 cuts parameter count)
-quantum-pipeline -f molecules.json --ansatz-reps 1
+quantum-pipeline -f data/molecules.json --ansatz-reps 1
 ```
 
 ### Slow Simulation Performance
@@ -57,7 +73,7 @@ quantum-pipeline -f molecules.json --ansatz-reps 1
 
 ```bash
 # Verify GPU is being used (check logs for "Using GPU backend")
-quantum-pipeline -f molecules.json --log-level DEBUG
+quantum-pipeline -f data/molecules.json --log-level DEBUG
 
 # Ensure no other heavy processes are running
 top
@@ -155,10 +171,10 @@ For CUDA setup issues (`RuntimeError: CUDA is not available`) or driver version 
 nvidia-smi
 
 # Use a simpler basis set to reduce memory requirements
-quantum-pipeline -f molecules.json --basis sto3g
+quantum-pipeline -f data/molecules.json --basis sto3g
 
 # Fall back to CPU for very large molecules (omit --gpu to use CPU)
-quantum-pipeline -f molecules.json
+quantum-pipeline -f data/molecules.json
 ```
 
 ## Kafka Issues
@@ -247,7 +263,7 @@ Also verify that Garage is running:
 
 ```bash
 # Check Garage container status
-docker compose ps ml-garage
+docker compose ps garage
 ```
 
 ## Airflow Issues
@@ -323,7 +339,7 @@ curl http://localhost:9091/metrics | head -50
 export MONITORING_ENABLED=true
 
 # Or pass the CLI flag:
-quantum-pipeline -f molecules.json --enable-performance-monitoring
+quantum-pipeline -f data/molecules.json --enable-performance-monitoring
 ```
 
 ### Grafana Cannot Connect to Prometheus

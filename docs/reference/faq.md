@@ -24,14 +24,18 @@ Click on any question to expand the answer.
     specification format. The thesis benchmark set (`data/molecules.thesis.json`)
     includes:
 
-    - **H\(_2\)** (Hydrogen) - 4 qubits with sto-3g
-    - **HeH\(^+\)** (Helium hydride cation) - 4 qubits with sto-3g
-    - **LiH** (Lithium hydride) - 8 qubits with sto-3g
-    - **BeH\(_2\)** (Beryllium hydride) - 12 qubits with sto-3g
-    - **H\(_2\)O** (Water) - 14 qubits with sto-3g
-    - **NH\(_3\)** (Ammonia) - 16 qubits with sto-3g
+    - **H\(_2\)** (Hydrogen) - 4 qubits with sto3g
+    - **HeH\(^+\)** (Helium hydride cation) - 4 qubits with sto3g
+    - **LiH** (Lithium hydride) - 12 qubits with sto3g
+    - **BeH\(_2\)** (Beryllium hydride) - 14 qubits with sto3g
+    - **H\(_2\)O** (Water) - 14 qubits with sto3g
+    - **NH\(_3\)** (Ammonia) - 16 qubits with sto3g
     - **CO\(_2\)** (Carbon dioxide)
     - **N\(_2\)** (Nitrogen)
+
+    The qubit counts above are the full Jordan-Wigner counts. The pipeline
+    applies no active-space or frozen-core reduction, so each count equals twice
+    the number of spatial orbitals for the basis set.
 
     The general-purpose file (`data/molecules.json`) contains 9 molecules
     including He2, BeH, BH, and CH\(_4\). You can define custom molecules by
@@ -64,7 +68,7 @@ Click on any question to expand the answer.
 ## Installation
 
 ??? question "Which Python version is required?"
-    Quantum Pipeline requires Python 3.10, 3.11, or 3.12.
+    Quantum Pipeline requires Python 3.12.
 
     During development `uv` was extensively used to ensure proper versioning.
     Alternatives include `conda`, `pyenv` and similar tools to ensure correct Python version.
@@ -88,7 +92,7 @@ Click on any question to expand the answer.
     on your machine.
 
 ??? question "What are the required system dependencies?"
-    Python 3.10-3.12, Docker, and Docker Compose. For GPU support: NVIDIA drivers and the NVIDIA Container Toolkit.
+    Python 3.12, Docker, and Docker Compose. For GPU support: NVIDIA drivers and the NVIDIA Container Toolkit.
     All scientific computing dependencies are managed through pip.
 
 ## Usage
@@ -112,7 +116,7 @@ Click on any question to expand the answer.
     See the [Optimizers](../usage/optimizers.md) page for a comparison.
 
 ??? question "What basis set should I use?"
-    Start with **sto-3g** for rapid prototyping (fewest qubits, fastest execution). Use **cc-pvdz** for high-accuracy results (GPU speedup up to 4x). See [Basis Sets](../scientific/basis-sets.md) for a detailed comparison.
+    Start with **sto3g** for rapid prototyping (fewest qubits, fastest execution). Use **cc-pvdz** for high-accuracy results (GPU speedup up to 4x). See [Basis Sets](../scientific/basis-sets.md) for a detailed comparison.
 
 ??? question "Which ansatz should I use?"
     Three ansatze are available via the `--ansatz` flag:
@@ -154,7 +158,9 @@ Click on any question to expand the answer.
 ??? question "How do I run multiple simulations in parallel?"
     The batch generation system is the recommended way to run many simulations.
     It defines 4 tiers of increasing complexity and distributes work across
-    3 hardware lanes (two GPU lanes and one CPU lane) that run concurrently:
+    3 hardware lanes that run concurrently: two GPU lanes for the larger
+    molecules (`data/molecules.gpu1.json` and `data/molecules.gpu2.json`) and
+    one CPU lane for the smallest ones (`data/molecules.cpu.json`).
 
     Batch generation is triggered via the `vqe_batch_generation` Airflow DAG
     (manual trigger with `{"tier": N}` conf). The underlying script is
@@ -162,7 +168,7 @@ Click on any question to expand the answer.
     which handles 3-lane parallel Docker execution with idempotent resume.
 
     Each tier varies the basis set, optimizer set, init strategy, seeds, and
-    ansatz. Tier 1 (sto-3g, all 8 optimizers, 25 seeds) is the broadest sweep;
+    ansatz. Tier 1 (sto3g, all 8 optimizers, 25 seeds) is the broadest sweep;
     Tier 4 (cc-pvdz, 3 optimizers, 10 seeds) targets the hardest configurations.
 
 ??? question "How do I interpret the simulation output?"
@@ -216,21 +222,27 @@ Click on any question to expand the answer.
     message delivery](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/kafka_interface.py#L101).
 
     Simulation results are not lost as long as Kafka retains the messages
-    (default retention: 7 days).
+    (Kafka's default retention is 7 days unless overridden). Redpanda Connect
+    persists each message to object storage, which is the durable boundary.
 
 ## Monitoring
 
 ??? question "How do I enable monitoring?"
     Set the `MONITORING_ENABLED` environment variable to `true`, or pass
-    `--enable-performance-monitoring` on the command line. Metrics are pushed
-    to the Prometheus PushGateway at the URL specified by `PUSHGATEWAY_URL`
-    (default: `http://localhost:9091`).
+    `--enable-performance-monitoring` on the command line.
 
-    Other monitoring environment variables:
+    The environment-variable path reads its configuration from:
 
+    - `PUSHGATEWAY_URL` - PushGateway address (default: `http://localhost:9091`)
     - `MONITORING_INTERVAL` - collection interval in seconds (default: 10)
     - `MONITORING_EXPORT_FORMAT` - export format (`prometheus`, `json`, or `both`)
     - `CONTAINER_TYPE` - label for the container (e.g. `GPU_GTX1060_6GB`, `CPU`)
+
+    The CLI path has matching flags: `--performance-pushgateway` for the URL,
+    `--performance-interval` for the collection interval (default 30 seconds),
+    and `--performance-export-format`. A value given on the command line takes
+    priority over the environment variable, which takes priority over the
+    built-in default.
 
 ??? question "What metrics are collected?"
     Metrics use the `qp_` prefix and fall into three groups:
@@ -278,9 +290,9 @@ Click on any question to expand the answer.
 ??? question "What speedup can I expect with GPU acceleration?"
     Speedup depends on the basis set and molecule complexity:
 
-    - **sto-3g basis set**: 1.7-1.8x average speedup, up to 2.1x for medium
+    - **sto3g basis set**: 1.7-1.8x average speedup, up to 2.1x for medium
       molecules (8-10 qubits)
-    - **cc-pVDZ basis set**: 3.5-4.1x speedup due to larger matrix operations
+    - **cc-pvdz basis set**: 3.5-4.1x speedup due to larger matrix operations
 
     Small molecules (4 qubits) may see no benefit or slight slowdown due to GPU
     overhead. The greatest speedup is observed for molecules of medium complexity
@@ -290,8 +302,9 @@ Click on any question to expand the answer.
 ??? question "How do I speed up optimization?"
     Try `--init-strategy hf` to start from a better initial point,
     increase `--ansatz-reps` for expressiveness, run multiple
-    simulations to avoid local minima, use GPU acceleration, start with sto-3g,
-    and adjust `--convergence` tolerance for faster results.
+    simulations to avoid local minima, use GPU acceleration, start with sto3g,
+    and enable `--convergence` with a looser `--threshold` (e.g. `1e-4`) for
+    faster results.
 
 ??? question "Why are my energy values different from reference literature?"
     Common causes: random parameter initialization converging on local minima, limited ansatz expressiveness, or early termination from convergence tolerance. Run multiple simulations and select the best result, or try `--init-strategy hf` for a better starting point. See [Benchmarking](../scientific/benchmarking.md) for detailed analysis.

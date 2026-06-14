@@ -44,27 +44,24 @@ graph TB
 
 ### Input: Molecule Specification
 
-VQE simulations begin with molecule data in JSON format:
-
-```json
-{
-    "symbols": ["H", "H"],
-    "coords": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-    "multiplicity": 1,
-    "charge": 0,
-    "units": "angstrom"
-}
-```
+VQE simulations begin with molecule data in JSON: atomic symbols, 3D
+coordinates, charge, multiplicity, and units. See the
+[molecule format](../getting-started/quick-start.md#molecule-data) for the full
+field reference.
 
 ### Processing Pipeline
 
 `VQERunner.run()` iterates over molecules in the input file, delegating each to
-`_process_molecule()`. For each molecule the pipeline runs four phases:
+`_process_molecule()`. By default every molecule in the file is processed;
+passing `--molecule-index` restricts the run to a single molecule, which is the
+per-container unit the `vqe_batch_generation` batch job fans out (see
+[System Design - DAGs](system-design.md#dags)). For each molecule the pipeline
+runs four phases:
 
 1. **Molecule loading** - parse JSON, validate fields, create `MoleculeInfo`
-2. **Hamiltonian construction** - PySCF orbital calculation, Jordan-Wigner mapping to qubit operator
-3. **Ansatz creation** - build parameterized circuit, compute initial parameters (random or HF)
-4. **VQE optimization** - `scipy.optimize.minimize` with `EstimatorV2`, recording per-iteration energy and parameters
+2. **Hamiltonian construction** - PySCF orbital calculation building the second-quantized operator (timed as `hamiltonian_time`)
+3. **Jordan-Wigner mapping** - map the fermionic operator to a qubit operator (timed separately as `mapping_time`)
+4. **VQE optimization** - `VQESolver.solve()` builds the ansatz and initial parameters (random or HF), then runs `scipy.optimize.minimize` with `EstimatorV2`, recording per-iteration energy and parameters
 
 Each molecule produces a `VQEResult` wrapped in a `VQEDecoratedResult` with timing and metadata.
 
@@ -126,7 +123,7 @@ graph LR
 
 1. `quantum_feature_processing`: daily Spark job that reads raw data from Garage, transforms it into 9 normalized Iceberg tables
 2. `quantum_ml_feature_processing`: daily Spark job that joins normalized tables into 2 ML-ready feature tables (waits for upstream DAG via `ExternalTaskSensor`)
-3. `r2_sync`: manual/scheduled rclone sync of ML feature Parquet from Garage to Cloudflare R2
+3. `r2_sync`: rclone sync of ML feature Parquet from Garage to Cloudflare R2. It runs on manual trigger by default, or on the schedule set in the `R2_SYNC_SCHEDULE` Airflow Variable, and gates itself behind an `ExternalTaskSensor` that waits for `quantum_ml_feature_processing` before a health check and the two sync tasks
 
 A fourth DAG, `vqe_batch_generation`, handles building simulation Docker images and running batch VQE generation (manual trigger only).
 
@@ -218,16 +215,8 @@ partition columns per table.
 
 ### Scenario: H2 Molecule VQE Simulation
 
-**Input**:
-```json
-{
-    "symbols": ["H", "H"],
-    "coords": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-    "multiplicity": 1,
-    "charge": 0,
-    "units": "angstrom"
-}
-```
+**Input**: an H2 molecule (two hydrogen atoms 0.74 angstrom apart), in the
+[molecule format](../getting-started/quick-start.md#molecule-data).
 
 ### Complete Flow
 
@@ -244,7 +233,7 @@ sequenceDiagram
     participant Iceberg
 
     User->>CLI: Submit H2 simulation
-    CLI->>CLI: load_molecule()
+    CLI->>CLI: load_molecules()
     CLI->>CLI: PySCFDriver + JordanWignerMapper
     CLI->>CLI: VQESolver.solve()
 

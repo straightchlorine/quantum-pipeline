@@ -48,7 +48,7 @@ For details on compatibility modes, see the
 ## Producer Configuration
 
 [`VQEKafkaProducer`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/kafka_interface.py#L20)
-wraps `kafka-python`'s `KafkaProducer`, adding Avro serialization and a
+wraps `kafka-python-ng`'s `KafkaProducer`, adding Avro serialization and a
 two-level retry mechanism. On initialization it builds the security config,
 connects to Schema Registry, and sets up the
 [`VQEDecoratedResultInterface`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py)
@@ -56,8 +56,8 @@ serializer.
 
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
-| `bootstrap_servers` | `localhost:9092` | Kafka broker addresses (overridden by `KAFKA_SERVERS` env var at CLI level) |
-| `kafka_retries` | `5` | Client-level retries handled by `kafka-python` for transient broker errors |
+| `servers` | `localhost:9092` | Kafka broker addresses, set via the `--servers` flag or the `KAFKA_SERVERS` env var (passed to `KafkaProducer` as its `bootstrap_servers` kwarg) |
+| `kafka_retries` | `0` | Client-level retries handled by `kafka-python-ng` for transient broker errors |
 | `retries` | `3` | Application-level retries in `_send_with_retry()`, with configurable `retry_delay` (default 2s) |
 | `acks` | `all` | Acknowledgment level required from brokers |
 | `timeout` | `10` | Timeout in seconds for each `send().get()` call |
@@ -66,6 +66,13 @@ There are two retry layers: `kafka_retries` is passed to the `KafkaProducer`
 constructor for low-level retries. `retries` controls the outer application
 loop in `_send_with_retry()`, which catches `KafkaError` exceptions and retries
 with a delay.
+
+The `ProducerConfig` dataclass default for `kafka_retries` is 5, but the CLI
+always builds the config through `ProducerConfig.from_dict()`, which falls back
+to the `--internal-retries` default of 0, so every real run uses 0 client-level
+retries. The 0 default is deliberate: automatic client retries can produce
+duplicate entries, so the pipeline leans on the application-level `retries`
+loop and `acks: all` instead.
 
 The [`ProducerConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/producer.py)
 dataclass holds all producer settings and can be constructed directly or via
@@ -101,41 +108,8 @@ via `schema_registry_decode`, and writes the resulting JSON to the `raw-results`
 bucket in Garage.
 
 The full pipeline config is at
-[`compose/redpanda-connect.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/redpanda-connect.yaml):
-
-```yaml
-http:
-  address: 0.0.0.0:4195
-
-input:
-  kafka:
-    addresses:
-      - kafka:9092
-    topics:
-      - experiment.vqe
-    consumer_group: redpanda-s3-sink
-
-  processors:
-    - schema_registry_decode:
-        url: http://schema-registry:8081
-        avro_raw_json: true
-
-output:
-  aws_s3:
-    bucket: raw-results
-    path: experiments/experiment.vqe/${!count("s3_objects")}-${!timestamp_unix_nano()}.json
-    endpoint: http://garage:3901
-    region: garage
-    force_path_style_urls: true
-    credentials:
-      id: ${S3_ACCESS_KEY}
-      secret: ${S3_SECRET_KEY}
-    content_type: application/json
-    max_in_flight: 1
-    batching:
-      count: 1
-      period: 10s
-```
+[`compose/redpanda-connect.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/redpanda-connect.yaml).
+It writes to the `raw-results` bucket in batches of one message every 10 seconds.
 
 Output files follow the pattern `{counter}-{unix_nano_timestamp}.json`.
 

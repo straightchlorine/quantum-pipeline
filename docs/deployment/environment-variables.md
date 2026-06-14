@@ -45,7 +45,7 @@ Environment variables for IBM Quantum cloud backend. Only needed if running VQE 
 | Variable | Default | Description |
 |---|---|---|
 | `KAFKA_VERSION` | `4.2.0` | Apache Kafka Docker image tag. |
-| `KAFKA_SERVERS` | `kafka:9092` | Kafka bootstrap servers. Also read by the CLI entrypoint at runtime - when set, overrides the `--kafka-bootstrap-servers` flag. |
+| `KAFKA_SERVERS` | `kafka:9092` | Kafka bootstrap servers. Also read by the CLI entrypoint at runtime - when set, overrides the `--servers` flag. |
 | `KAFKA_EXTERNAL_HOST_IP` | `localhost` | IP/hostname for external Kafka access. |
 | `KAFKA_EXTERNAL_PORT` | `9094` | External Kafka listener port. |
 | `KAFKA_INTERNAL_PORT` | `9092` | Internal Kafka listener port. |
