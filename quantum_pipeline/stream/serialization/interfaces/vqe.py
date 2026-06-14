@@ -166,8 +166,12 @@ class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
             'result': float(obj.result),
             'std': float(obj.std),
             'energy_delta': float(obj.energy_delta) if obj.energy_delta is not None else None,
-            'parameter_delta_norm': float(obj.parameter_delta_norm) if obj.parameter_delta_norm is not None else None,
-            'cumulative_min_energy': float(obj.cumulative_min_energy) if obj.cumulative_min_energy is not None else None,
+            'parameter_delta_norm': float(obj.parameter_delta_norm)
+            if obj.parameter_delta_norm is not None
+            else None,
+            'cumulative_min_energy': float(obj.cumulative_min_energy)
+            if obj.cumulative_min_energy is not None
+            else None,
         }
 
     def deserialize(self, data: dict[str, Any]) -> VQEProcess:
@@ -176,9 +180,15 @@ class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
             parameters=self._convert_to_numpy(data['parameters']),
             result=float64(data['result']),
             std=float64(data['std']),
-            energy_delta=float64(data['energy_delta']) if data.get('energy_delta') is not None else None,
-            parameter_delta_norm=float64(data['parameter_delta_norm']) if data.get('parameter_delta_norm') is not None else None,
-            cumulative_min_energy=float64(data['cumulative_min_energy']) if data.get('cumulative_min_energy') is not None else None,
+            energy_delta=float64(data['energy_delta'])
+            if data.get('energy_delta') is not None
+            else None,
+            parameter_delta_norm=float64(data['parameter_delta_norm'])
+            if data.get('parameter_delta_norm') is not None
+            else None,
+            cumulative_min_energy=float64(data['cumulative_min_energy'])
+            if data.get('cumulative_min_energy') is not None
+            else None,
         )
 
 
@@ -222,11 +232,12 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
                 {'name': 'optimizer', 'type': 'string'},
                 {'name': 'ansatz', 'type': 'string'},
                 {'name': 'noise_backend', 'type': 'string'},
-                {'name': 'default_shots', 'type': 'int'},
+                {'name': 'default_shots', 'type': ['int', 'null']},
                 {'name': 'ansatz_reps', 'type': 'int'},
                 {'name': 'init_strategy', 'type': ['string', 'null'], 'default': 'random'},
                 {'name': 'seed', 'type': ['null', 'int'], 'default': None},
                 {'name': 'ansatz_name', 'type': ['null', 'string'], 'default': None},
+                {'name': 'exact_estimator', 'type': 'boolean', 'default': False},
             ],
         }
         self._register_schema(self.SCHEMA_NAME, deepcopy(schema))
@@ -277,6 +288,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
             'init_strategy': obj.init_strategy,
             'seed': int(obj.seed) if obj.seed is not None else None,
             'ansatz_name': obj.ansatz_name,
+            'exact_estimator': obj.exact_estimator,
         }
 
     def deserialize(self, data: dict[str, Any]) -> VQEInitialData:
@@ -294,6 +306,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
             init_strategy=data.get('init_strategy') or 'random',
             seed=data.get('seed'),
             ansatz_name=data.get('ansatz_name') or 'EfficientSU2',
+            exact_estimator=data.get('exact_estimator', False),
         )
 
 
@@ -337,7 +350,9 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
             'optimal_parameters': self._convert_to_primitives(obj.optimal_parameters),
             'maxcv': float(obj.maxcv) if obj.maxcv is not None else None,
             'minimization_time': float(obj.minimization_time),
-            'nuclear_repulsion_energy': float(obj.nuclear_repulsion_energy) if obj.nuclear_repulsion_energy is not None else None,
+            'nuclear_repulsion_energy': float(obj.nuclear_repulsion_energy)
+            if obj.nuclear_repulsion_energy is not None
+            else None,
             'success': bool(obj.success) if obj.success is not None else None,
             'nfev': int(obj.nfev) if obj.nfev is not None else None,
             'nit': int(obj.nit) if obj.nit is not None else None,
@@ -351,7 +366,9 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
             optimal_parameters=self._convert_to_numpy(data['optimal_parameters']),
             maxcv=float64(data['maxcv']) if data.get('maxcv') is not None else None,
             minimization_time=float64(data['minimization_time']),
-            nuclear_repulsion_energy=float64(data['nuclear_repulsion_energy']) if data.get('nuclear_repulsion_energy') is not None else None,
+            nuclear_repulsion_energy=float64(data['nuclear_repulsion_energy'])
+            if data.get('nuclear_repulsion_energy') is not None
+            else None,
             success=bool(data['success']) if data.get('success') is not None else None,
             nfev=int(data['nfev']) if data.get('nfev') is not None else None,
             nit=int(data['nit']) if data.get('nit') is not None else None,

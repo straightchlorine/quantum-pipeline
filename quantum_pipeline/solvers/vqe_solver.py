@@ -11,11 +11,13 @@ from qiskit.circuit.library import EfficientSU2, ExcitationPreserving, RealAmpli
 from qiskit.quantum_info import Statevector, state_fidelity
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer.backends.aer_simulator import AerBackend
+from qiskit_aer.primitives import EstimatorV2 as AerEstimatorV2
 from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
 from quantum_pipeline.circuits import HFData, build_hf_initial_state
 from quantum_pipeline.configs.constants import (
+    EP_INIT_JITTER,
     HF_FIDELITY_THRESHOLD,
     HF_PRE_OPT_ATTEMPTS,
     HF_PRE_OPT_MAXITER,
@@ -36,9 +38,7 @@ class MaxFunctionEvalsReachedError(Exception):
     """Raised when the hard function evaluation limit is exceeded."""
 
     def __init__(self, iteration: int, best_params: np.ndarray, best_energy: float):
-        super().__init__(
-            f'Hard function evaluation limit reached after {iteration} evaluations.'
-        )
+        super().__init__(f'Hard function evaluation limit reached after {iteration} evaluations.')
         self.iteration = iteration
         self.best_params = best_params
         self.best_energy = best_energy
@@ -49,11 +49,11 @@ class VQESolver(Solver):
         self,
         qubit_op,
         backend_config: BackendConfig,
-        max_iterations=50,
+        max_iterations: int | None = 50,
         optimizer='COBYLA',
         ansatz_reps=3,
         ansatz_type='EfficientSU2',
-        default_shots=1024,
+        default_shots: int | None = 1024,
         convergence_threshold=None,
         optimization_level=3,
         seed=None,
@@ -83,7 +83,9 @@ class VQESolver(Solver):
         """Prepare ISA-compatible circuits and observables"""
         target = backend.target
         pm = generate_preset_pass_manager(
-            target=target, optimization_level=self.optimization_level
+            target=target,
+            optimization_level=self.optimization_level,
+            seed_transpiler=self.seed,
         )
         ansatz_isa = pm.run(ansatz)
 
@@ -91,19 +93,59 @@ class VQESolver(Solver):
         return ansatz_isa, hamiltonian_isa
 
     def _build_ansatz(self, n_qubits):
-        """Build the ansatz circuit based on the configured ansatz_type.
+        """Build the parameterised ansatz circuit for the given number of qubits.
 
-        Supported types: EfficientSU2, RealAmplitudes, ExcitationPreserving.
-        Always builds a plain ansatz (no HF circuit prepended). When using HF
-        init, we compute initial parameters that approximate the HF state
-        through the ansatz instead.
+        Supported ansatz types
+        ----------------------
+        EfficientSU2 / RealAmplitudes
+            General-purpose circuits with no particle-number constraint.
+            Built as a plain circuit without a fixed initial state.
+            When init_strategy='hf', a separate pre-optimization step finds
+            parameters that make the circuit approximate the Hartree-Fock state.
+
+        ExcitationPreserving
+            A circuit built from XX+YY rotation gates. Only moves electrons,
+            so particle-number must be constant.
+
+            Prepending the Heartree-Fock state as the circuit's `initial_state`.
+            This ensures that correct number of electrons resides in correct
+            orbitals before any gate runs - places cirtuit in the right sector
+            from the start.
+
+            Initial parameters are a small jitter around zero (not exactly zero).
+            Zero params output exactly the HF reference, which is a stationary point
+            of the energy (Brillouin's theorem) where the optimizer stalls at HF; a
+            small perturbation breaks that point so it can descend into correlation.
+            See _compute_initial_parameters().
+
+            entanglement='full' is required.
+                Adjacent-only (linear) gates just slide electrons between
+                neighbouring orbitals - a Slater determinant in, a Slater
+                determinant out. The best reachable state is HF, so the
+                correlation energy is unreachable regardless of reps.
+
+                Non-adjacent (full) gates reach over intermediate qubits,
+                which introduces a many-body interaction under Jordan-Wigner.
+                That lets the circuit produce superpositions of configurations
+                and access the correlated states where the correlation energy lives.
+
+            Raises ValueError if hf_data or mapper is not provided.
         """
+        if self.ansatz_type == 'ExcitationPreserving':
+            if self.hf_data is None or self.mapper is None:
+                raise ValueError(
+                    'ExcitationPreserving requires hf_data and mapper. '
+                    'Without an HF initial state the circuit starts in the 0-electron sector '
+                    'and cannot reach the molecular ground state at any reps.'
+                )
+            hf_state = build_hf_initial_state(self.hf_data, self.mapper)
+            return ExcitationPreserving(
+                n_qubits, reps=self.ansatz_reps, entanglement='full', initial_state=hf_state
+            )
+
         ansatze = {
             'EfficientSU2': lambda: EfficientSU2(n_qubits, reps=self.ansatz_reps),
             'RealAmplitudes': lambda: RealAmplitudes(n_qubits, reps=self.ansatz_reps),
-            'ExcitationPreserving': lambda: ExcitationPreserving(
-                n_qubits, reps=self.ansatz_reps, entanglement='linear'
-            ),
         }
         if self.ansatz_type not in ansatze:
             self.logger.warning(
@@ -132,13 +174,16 @@ class VQESolver(Solver):
         best_fid = 0.0
         best_params = np.zeros(ansatz.num_parameters)
         n_attempts = HF_PRE_OPT_ATTEMPTS
+
         # Default to seed 0 for reproducible HF pre-optimization
         seed = self.seed if self.seed is not None else 0
 
         for i in range(n_attempts):
             rng = np.random.default_rng(seed + i)
             x0 = 2 * np.pi * rng.random(ansatz.num_parameters)
-            res = minimize(neg_fidelity, x0, method='COBYLA', options={'maxiter': HF_PRE_OPT_MAXITER})
+            res = minimize(
+                neg_fidelity, x0, method='COBYLA', options={'maxiter': HF_PRE_OPT_MAXITER}
+            )
             fid = -res.fun
             if fid > best_fid:
                 best_fid = fid
@@ -147,8 +192,7 @@ class VQESolver(Solver):
                 break
 
         self.logger.info(
-            f'HF parameter pre-optimization: fidelity={best_fid:.6f} '
-            f'after {i + 1} attempts'
+            f'HF parameter pre-optimization: fidelity={best_fid:.6f} after {i + 1} attempts'
         )
         return best_params
 
@@ -156,9 +200,17 @@ class VQESolver(Solver):
         """Compute initial ansatz parameters based on the configured strategy."""
         param_num = ansatz.num_parameters
 
+        # ExcitationPreserving prepends the HF circuit as initial_state (see _build_ansatz).
+        if self.ansatz_type == 'ExcitationPreserving':
+            rng = np.random.default_rng(self.seed if self.seed is not None else 0)
+            self.logger.info(
+                'ExcitationPreserving: small jitter around the HF reference for initial parameters'
+            )
+            return EP_INIT_JITTER * rng.standard_normal(param_num)
+
         if self.init_strategy == 'hf' and self.ansatz_type != 'EfficientSU2':
             self.logger.warning(
-                f'HF init is only supported for EfficientSU2, not {self.ansatz_type}. '
+                f'HF parameter pre-optimization is only supported for EfficientSU2, not {self.ansatz_type}. '
                 'Falling back to random initialization.'
             )
         elif self.init_strategy == 'hf' and self.hf_data is not None and self.mapper is not None:
@@ -191,6 +243,19 @@ class VQESolver(Solver):
                 f'(nuclear repulsion: {self._nuclear_repulsion:.8f} Ha)'
             )
 
+    def _best_step(self) -> VQEProcess:
+        """Return the VQEProcess with the lowest evaluated energy.
+
+        Keys on the raw per-iteration `result` (not `cumulative_min_energy`), so the
+        returned step's energy and parameters are self-consistent.
+
+        Result is the lowest energy seen and parameters are exactly the ones
+        that produced it. Keying on the running cumulative minimum would pair
+        the global-min energy with whichever iteration's parameters happened
+        to be stored alongside it.
+        """
+        return min(self.vqe_process, key=lambda p: p.result)
+
     def _make_truncated_result(self, best_energy, best_params, elapsed):
         """Build a VQEResult from the best observed state after early termination."""
         return VQEResult(
@@ -206,12 +271,13 @@ class VQESolver(Solver):
 
     def compute_energy(self, params, ansatz, hamiltonian, estimator):
         """Return estimate of energy from estimator"""
+
         if self.max_iterations is not None and self.current_iter > self.max_iterations:
-            best = min(self.vqe_process, key=lambda p: p.cumulative_min_energy)
+            best = self._best_step()
             raise MaxFunctionEvalsReachedError(
                 iteration=self.current_iter - 1,
                 best_params=best.parameters,
-                best_energy=float(best.cumulative_min_energy),
+                best_energy=float(best.result),
             )
 
         pub = (ansatz, [hamiltonian], [params])
@@ -222,7 +288,10 @@ class VQESolver(Solver):
             prev = self.vqe_process[-1]
             energy_delta = np.float64(energy - prev.result)
             parameter_delta_norm = np.float64(np.linalg.norm(params - prev.parameters))
-            cumulative_min_energy = np.float64(min(energy, prev.cumulative_min_energy))
+            prev_min = prev.cumulative_min_energy
+            cumulative_min_energy = np.float64(
+                energy if prev_min is None else min(energy, prev_min)
+            )
         else:
             energy_delta = None
             parameter_delta_norm = None
@@ -268,7 +337,9 @@ class VQESolver(Solver):
 
         return x0, ansatz_isa, hamiltonian_isa
 
-    def _build_init_data(self, backend_name, ansatz_isa, hamiltonian_isa, x0):
+    def _build_init_data(
+        self, backend_name, ansatz_isa, hamiltonian_isa, x0, exact_estimator=False
+    ):
         """Construct and store VQEInitialData on self.init_data."""
         self.init_data = VQEInitialData(
             backend=backend_name,
@@ -284,6 +355,7 @@ class VQESolver(Solver):
             seed=self.seed,
             init_strategy=self.init_strategy,
             ansatz_name=self.ansatz_type,
+            exact_estimator=exact_estimator,
         )
 
     def _run_optimization(self, ansatz_isa, hamiltonian_isa, estimator, x0) -> VQEResult:
@@ -340,14 +412,22 @@ class VQESolver(Solver):
                 f'(limit: {self.max_iterations}). Best energy: {truncated.best_energy:.8f} Ha'
             )
             self._log_total_energy(truncated.best_energy)
-            return self._make_truncated_result(truncated.best_energy, truncated.best_params, t.elapsed)
+            return self._make_truncated_result(
+                truncated.best_energy, truncated.best_params, t.elapsed
+            )
+
+        # Past the truncated-return above, minimize() completed normally, so res is set.
+        if res is None:
+            raise RuntimeError('Optimization produced no result (minimize did not run).')
 
         actual_iterations = len(self.vqe_process)
-        best_energy = (
-            min(p.cumulative_min_energy for p in self.vqe_process)
-            if self.vqe_process
-            else res.fun
-        )
+        if self.vqe_process:
+            best_step = self._best_step()
+            best_energy = float(best_step.result)
+            best_params = best_step.parameters
+        else:
+            best_energy = res.fun
+            best_params = res.x
         if self.convergence_threshold:
             if res.success:
                 self.logger.info(
@@ -369,8 +449,8 @@ class VQESolver(Solver):
         return VQEResult(
             initial_data=self.init_data,
             iteration_list=self.vqe_process,
-            minimum=res.fun,
-            optimal_parameters=res.x,
+            minimum=np.float64(best_energy),
+            optimal_parameters=best_params,
             maxcv=getattr(res, 'maxcv', None),
             minimization_time=np.float64(t.elapsed),
             nuclear_repulsion_energy=self._nuclear_repulsion,
@@ -397,12 +477,24 @@ class VQESolver(Solver):
         return result
 
     def via_aer(self, backend):
-        """Run the VQE simulation via Aer simulator."""
-        x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
-        self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0)
+        """Run the VQE simulation via Aer simulator.
 
-        estimator = EstimatorV2(mode=backend)
-        estimator.options.default_shots = self.default_shots
+        When default_shots is None, uses qiskit_aer.primitives.EstimatorV2 with
+        default_precision=0.0 (exact statevector expectation values, no shot noise).
+        Otherwise uses qiskit_ibm_runtime.EstimatorV2 in local mode with the
+        specified shot count.
+        """
+        x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
+
+        exact = self.default_shots is None
+        self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0, exact_estimator=exact)
+
+        if exact:
+            estimator = AerEstimatorV2(options={'default_precision': 0.0})
+            self.logger.info('Using exact Aer estimator (default_precision=0.0, no shot noise).')
+        else:
+            estimator = EstimatorV2(mode=backend)
+            estimator.options.default_shots = self.default_shots
 
         result = self._run_optimization(ansatz_isa, hamiltonian_isa, estimator, x0)
 

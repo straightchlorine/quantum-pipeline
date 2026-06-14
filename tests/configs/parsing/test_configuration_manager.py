@@ -50,6 +50,7 @@ def sample_args():
     args.optimization_level = 1
     args.gpu = False
     args.simulation_method = 'statevector'
+    args.noise = 'ibm_brisbane'
 
     # Other args
     args.file = 'test_file.json'
@@ -88,6 +89,17 @@ def test_create_backend_config(config_manager, sample_args):
     assert backend_config.optimization_level == 1
     assert backend_config.gpu is False
     assert backend_config.simulation_method == 'statevector'
+    # --noise must reach BackendConfig, else runs execute noiseless + mislabeled
+    assert backend_config.noise == 'ibm_brisbane'
+
+
+def test_create_backend_config_propagates_noise(config_manager, sample_args):
+    """Regression: --noise must flow into BackendConfig (was silently dropped)."""
+    sample_args.noise = 'thermal_relaxation'
+    assert config_manager.create_backend_config(sample_args).noise == 'thermal_relaxation'
+
+    sample_args.noise = None  # noiseless run stays noiseless
+    assert config_manager.create_backend_config(sample_args).noise is None
 
 
 @patch('quantum_pipeline.configs.settings')

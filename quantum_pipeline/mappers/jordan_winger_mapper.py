@@ -6,6 +6,7 @@ using the Jordan-Wigner transformation. This transformation is used to represent
 fermionic systems on quantum computers.
 """
 
+from qiskit.quantum_info import SparsePauliOp
 from qiskit_nature.second_q.mappers import JordanWignerMapper as JordanWignerMapperQiskit
 
 from quantum_pipeline.mappers.mapper import Mapper
@@ -31,6 +32,10 @@ class JordanWignerMapper(Mapper):
         """
         if operator is None:
             raise ValueError('The input operator must not be None.')
+
+        # An empty operator has no orbitals to map.
+        if operator.register_length == 0:
+            return SparsePauliOp([''], coeffs=[0j])
 
         # Perform the Jordan-Wigner mapping
         return JordanWignerMapperQiskit().map(operator)

@@ -398,3 +398,61 @@ class TestVQEIterationsDeduplication:
         """Should have exactly 2 distinct iterations for the test record."""
         count = transformed['vqe_iterations'].count()
         assert count == 2
+
+
+class TestDeterministicExperimentId:
+    """experiment_id must be a deterministic hash of the experiment identity.
+
+    Regression for the CRITICAL uuid4 bug: a random per-row experiment_id defeats
+    the dedup in identify_new_records (the same record gets a fresh id every run),
+    so each daily run re-appends the whole dataset. The id must be stable across
+    re-processing of the same record, and distinct across genuinely different runs.
+    """
+
+    def test_experiment_id_is_deterministic_across_runs(self, sample_df):
+        """Re-processing the same record yields the same experiment_id (dedup can match)."""
+        first = transform_quantum_data(sample_df)['vqe_results'].select('experiment_id').first()
+        second = transform_quantum_data(sample_df)['vqe_results'].select('experiment_id').first()
+        assert first['experiment_id'] == second['experiment_id']
+
+    def test_experiment_id_is_sha256_not_uuid(self, transformed):
+        """The id is a 64-char hex sha256 digest, not a random uuid4 (36 chars, dashed)."""
+        exp_id = transformed['vqe_results'].select('experiment_id').first()['experiment_id']
+        assert len(exp_id) == 64
+        assert '-' not in exp_id
+        assert all(c in '0123456789abcdef' for c in exp_id)
+
+    def test_distinct_seed_yields_distinct_experiment_id(self, sample_df):
+        """A different seed is a different experiment → different id (no false dedup)."""
+        from pyspark.sql.functions import col, lit
+
+        base_id = transform_quantum_data(sample_df)['vqe_results'].select('experiment_id').first()[
+            'experiment_id'
+        ]
+        df_other_seed = sample_df.withColumn(
+            'vqe_result', col('vqe_result').withField('initial_data.seed', lit(99))
+        )
+        other_id = transform_quantum_data(df_other_seed)['vqe_results'].select(
+            'experiment_id'
+        ).first()['experiment_id']
+        assert base_id != other_id
+
+    def test_distinct_basis_yields_distinct_experiment_id(self, sample_df):
+        """A different basis set is a different experiment → different id."""
+        from pyspark.sql.functions import lit
+
+        base_id = transform_quantum_data(sample_df)['vqe_results'].select('experiment_id').first()[
+            'experiment_id'
+        ]
+        df_other_basis = sample_df.withColumn('basis_set', lit('cc-pvdz'))
+        other_id = transform_quantum_data(df_other_basis)['vqe_results'].select(
+            'experiment_id'
+        ).first()['experiment_id']
+        assert base_id != other_id
+
+    def test_child_tables_share_the_same_experiment_id(self, transformed):
+        """The deterministic id propagates unchanged to every child table."""
+        vqe_id = transformed['vqe_results'].select('experiment_id').first()['experiment_id']
+        for table in ('molecules', 'ansatz_info', 'performance_metrics', 'vqe_iterations'):
+            row = transformed[table].select('experiment_id').first()
+            assert row['experiment_id'] == vqe_id, f'{table} experiment_id diverged'

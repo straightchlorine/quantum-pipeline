@@ -23,7 +23,10 @@ except ModuleNotFoundError:
 
     def create_spark_session(app_name):
         from pyspark.sql import SparkSession
+
         return SparkSession.builder.appName(app_name).getOrCreate()
+
+
 from pyspark.sql.functions import (
     array_join,
     coalesce,
@@ -34,10 +37,11 @@ from pyspark.sql.functions import (
     expr,
     lit,
     posexplode,
+    sha2,
     size,
-    udf,
+    struct,
+    to_json,
 )
-from pyspark.sql.types import StringType
 
 logger = logging.getLogger(__name__)
 
@@ -91,15 +95,18 @@ def read_experiments_by_topic(spark, bucket_path, topic_name, num_partitions=Non
     topic_dir = f'{bucket_path}{topic_name}'
 
     try:
-        df = (spark.read.format('avro')
-              .option('recursiveFileLookup', 'true')
-              .option('pathGlobFilter', '*.avro')
-              .load(topic_dir))
+        df = (
+            spark.read.format('avro')
+            .option('recursiveFileLookup', 'true')
+            .option('pathGlobFilter', '*.avro')
+            .load(topic_dir)
+        )
     except Exception:
-        df = (spark.read
-              .option('recursiveFileLookup', 'true')
-              .option('pathGlobFilter', '*.json')
-              .json(topic_dir))
+        df = (
+            spark.read.option('recursiveFileLookup', 'true')
+            .option('pathGlobFilter', '*.json')
+            .json(topic_dir)
+        )
 
     if num_partitions:
         df = df.repartition(num_partitions)
@@ -119,13 +126,20 @@ def add_metadata_columns(dataframe, processing_name):
     Returns:
         DataFrame: Dataframe with added metadata columns
     """
-    #  udf to generate uuids
-    generate_uuid = udf(lambda: str(uuid.uuid4()), StringType())
+    # deterministic experiment_id.
+    experiment_identity = to_json(
+        struct(
+            col('molecule.molecule_data'),
+            col('basis_set'),
+            col('vqe_result.initial_data'),
+        )
+    )
 
     return (
-        dataframe.withColumn('experiment_id', generate_uuid())
+        dataframe.withColumn('experiment_id', sha2(experiment_identity, 256))
         .withColumn('processing_timestamp', current_timestamp())
         .withColumn('processing_date', current_date())
+        # processing_batch_id marks one job run (not a dedup key) — random is fine here.
         .withColumn('processing_batch_id', lit(str(uuid.uuid4())))
         .withColumn('processing_name', lit(processing_name))
     )
@@ -205,9 +219,7 @@ def process_incremental_data(
         tuple:  version tag and count of new records processed
     """
     # check if table exists
-    table_exists = spark.catalog._jcatalog.tableExists(
-        f'{CATALOG_FQN}.{table_name}'
-    )
+    table_exists = spark.catalog._jcatalog.tableExists(f'{CATALOG_FQN}.{table_name}')
 
     # if the table doesn't exist, create it
     if not table_exists:
@@ -726,7 +738,8 @@ def process_experiments_incrementally(spark, df, topic_name=None):
     processed_count = sum(1 for c in record_counts if c > 0)
     logger.info(
         'Volume check: %d/%d tables received new records this batch',
-        processed_count, len(table_names),
+        processed_count,
+        len(table_names),
     )
 
     summary_parts = [f'{t}={c}' for t, c in zip(table_names, record_counts, strict=True)]
@@ -739,7 +752,8 @@ def process_experiments_incrementally(spark, df, topic_name=None):
             logger.warning(
                 'Volume mismatch: vqe_iterations (%d) < vqe_results (%d) — '
                 'possible truncated Kafka events for this batch',
-                iter_count, results_count,
+                iter_count,
+                results_count,
             )
 
     # release cached dataframes

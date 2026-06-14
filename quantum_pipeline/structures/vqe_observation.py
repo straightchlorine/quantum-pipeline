@@ -18,10 +18,11 @@ class VQEInitialData:
     optimizer: str
     ansatz: QuantumCircuit
     ansatz_reps: int
-    default_shots: int
+    default_shots: int | None
     seed: int | None = None
     init_strategy: str = 'random'
     ansatz_name: str = 'EfficientSU2'
+    exact_estimator: bool = False
 
 
 @dataclass

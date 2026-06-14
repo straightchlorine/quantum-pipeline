@@ -1,5 +1,7 @@
+import json
 import math
 import os
+from pathlib import Path
 
 import numpy as np
 from qiskit_nature.second_q.drivers.pyscfd.pyscfdriver import PySCFDriver
@@ -15,10 +17,13 @@ from quantum_pipeline.monitoring import get_performance_monitor
 from quantum_pipeline.report.report_generator import ReportGenerator
 from quantum_pipeline.runners.runner import Runner
 from quantum_pipeline.solvers.vqe_solver import VQESolver
-from quantum_pipeline.stream.kafka_interface import VQEKafkaProducer
+from quantum_pipeline.stream.kafka_interface import KafkaProducerError, VQEKafkaProducer
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 from quantum_pipeline.utils.timer import Timer
 from quantum_pipeline.visual.ansatz import AnsatzViewer
+
+# Local dead-letter directory for results that failed to reach Kafka.
+UNDELIVERED_DIR = Path('gen/undelivered')
 
 
 class VQERunner(Runner):
@@ -28,12 +33,12 @@ class VQERunner(Runner):
         self,
         filepath,
         basis_set='sto3g',
-        max_iterations=100,
+        max_iterations: int | None = 100,
         convergence_threshold=None,
         optimizer='COBYLA',
         ansatz_reps=3,
         ansatz_type='EfficientSU2',
-        default_shots=1024,
+        default_shots: int | None = 1024,
         seed=None,
         init_strategy='random',
         report=False,
@@ -139,6 +144,8 @@ class VQERunner(Runner):
                 raise
 
         self.run_results = []
+        # Molecule indices whose results failed to reach Kafka (spooled to disk instead).
+        self._undelivered: list[int] = []
 
         # Initialize performance monitoring
         self.performance_monitor = get_performance_monitor()
@@ -215,7 +222,10 @@ class VQERunner(Runner):
                 convergence_threshold=self.convergence_threshold,
                 seed=self.seed,
                 init_strategy=self.init_strategy,
-                hf_data=hf_data if self.init_strategy == 'hf' else None,
+                # Always pass HF data:
+                # 'hf' init needs it and ExcitationPreserving requires it structurally.
+                # Other ansatze never read it.
+                hf_data=hf_data,
                 mapper=mapper,
             )
             result = solver.solve()
@@ -263,7 +273,9 @@ class VQERunner(Runner):
             'accuracy_score': min(100, accuracy_score),
         }
 
-    def _build_metrics_data(self, molecule_id, molecule_name, result, total_time, accuracy_metrics) -> dict:
+    def _build_metrics_data(
+        self, molecule_id, molecule_name, result, total_time, accuracy_metrics
+    ) -> dict:
         """Build the metrics dict used for Prometheus export."""
         return {
             'container_type': os.getenv('CONTAINER_TYPE', 'unknown'),
@@ -342,12 +354,8 @@ class VQERunner(Runner):
             mapping_time=np.float64(self.mapping_time),
             vqe_time=np.float64(self.vqe_time),
             total_time=total_time,
-            performance_start=performance_start
-            if self.performance_monitor.is_enabled()
-            else None,
-            performance_end=performance_end
-            if self.performance_monitor.is_enabled()
-            else None,
+            performance_start=performance_start if self.performance_monitor.is_enabled() else None,
+            performance_end=performance_end if self.performance_monitor.is_enabled() else None,
         )
         self.logger.debug('Appended run information to the result.')
 
@@ -368,14 +376,51 @@ class VQERunner(Runner):
                 self.logger.debug(f'Error closing Kafka producer: {e}')
             self._producer = None
 
-    def _stream_result(self, decorated_result):
-        """Send a decorated VQE result to the Kafka broker."""
+    def _stream_result(self, decorated_result, molecule_id) -> bool:
+        """Send a decorated VQE result to the Kafka broker.
+
+        A failed send must never be silent: the computed result is spooled to disk
+        for replay and the molecule is recorded so run() can exit non-zero. Otherwise
+        a downed broker would drop paid GPU output while the job still reported success.
+
+        Returns True on success, False on failure.
+        """
         try:
             producer = self._get_producer()
             producer.send_result(decorated_result)
+            return True
         except Exception as e:
-            self.logger.error('Unable to send the result to the Kafka broker.')
-            self.logger.debug(f'Error: {e}')
+            self.logger.error(
+                f'Failed to stream result for molecule index {molecule_id} to Kafka: {e}'
+            )
+            self._undelivered.append(molecule_id)
+            self._spool_undelivered(decorated_result, molecule_id)
+            return False
+
+    def _spool_undelivered(self, decorated_result, molecule_id) -> None:
+        """Persist an undelivered result to disk so it can be replayed (no recompute).
+
+        Best-effort: uses the Avro interface's registry-free serialize() to write a
+        JSON record.
+        """
+        producer = getattr(self, '_producer', None)
+        if producer is None:
+            self.logger.error(
+                f'Cannot spool molecule {molecule_id}: producer never initialized. '
+                'Re-run once the broker is reachable (run will exit non-zero).'
+            )
+            return
+        try:
+            UNDELIVERED_DIR.mkdir(parents=True, exist_ok=True)
+            payload = producer.serializer.serialize(decorated_result)
+            path = UNDELIVERED_DIR / f'molecule_{molecule_id}.json'
+            with open(path, 'w') as f:
+                json.dump(payload, f, default=str)
+            self.logger.warning(f'Spooled undelivered result to {path} for later replay.')
+        except Exception as e:
+            self.logger.error(
+                f'Failed to spool undelivered result for molecule {molecule_id}: {e}'
+            )
 
     def run(self):
         self.molecules = self.load_molecules()
@@ -397,7 +442,7 @@ class VQERunner(Runner):
                     self.run_results.append(decorated_result)
 
                     if self.kafka:
-                        self._stream_result(decorated_result)
+                        self._stream_result(decorated_result, molecule_id)
 
                     if self.report:
                         self.logger.info(f'Generating report for molecule {molecule_id + 1}...')
@@ -411,6 +456,15 @@ class VQERunner(Runner):
 
         if self.report:
             self.report_gen.generate_report()
+
+        # Surface streaming failures loudly.
+        # Results spooled (see _spool_undelivered) for replay.
+        if self._undelivered:
+            raise KafkaProducerError(
+                f'{len(self._undelivered)} of {len(self.run_results)} results failed to '
+                f'stream to Kafka (molecule indices {self._undelivered}). They were spooled '
+                f'to {UNDELIVERED_DIR}/ for replay. Failing non-zero so the job is retried.'
+            )
 
     def generate_report(self):
         for result in self.run_results:

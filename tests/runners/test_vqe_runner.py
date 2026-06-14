@@ -1,4 +1,5 @@
-from unittest.mock import MagicMock, Mock, patch
+import json
+from unittest.mock import ANY, MagicMock, Mock, patch
 
 import pytest
 from kafka.errors import KafkaError
@@ -7,6 +8,7 @@ from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.runners.vqe_runner import VQERunner
+from quantum_pipeline.stream.kafka_interface import KafkaProducerError
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 
 
@@ -491,11 +493,14 @@ class TestVQERunner:
             # run the test
             runner = VQERunner(filepath=str(single_molecule_file), basis_set='sto3g', kafka=True)
 
-            # should continue
-            runner.run()
+            # A failed send must NOT pass as success: run() exits non-zero so the job
+            # is retried instead of silently dropping the paid compute output.
+            with pytest.raises(KafkaProducerError):
+                runner.run()
 
-            # check if processing is continued, despite kafka failure
+            # compute is preserved (not lost) and the failure is recorded
             assert len(runner.run_results) == 1
+            assert runner._undelivered == [0]
 
     def test_run_with_report_generation(self, single_molecule_file):
         """Test running with report generation enabled using a real file."""
@@ -724,7 +729,9 @@ class TestVQERunner:
                 convergence_threshold=1e-6,
                 seed=None,
                 init_strategy='random',
-                hf_data=None,
+                # hf_data is now always passed (EP needs it structurally); ANY because
+                # it wraps a Mock nuclear_repulsion_energy that can't be reconstructed here.
+                hf_data=ANY,
                 mapper=mock_mapper.return_value,
             )
 
@@ -743,3 +750,45 @@ class TestVQERunner:
             # see if it was called and if the return value is correct
             mock_default.assert_called_once()
             assert default_backend == mock_backend
+
+
+class TestStreamResultDeadLetter:
+    """Streaming failures must be loud and recoverable, never silently swallowed."""
+
+    @staticmethod
+    def _runner():
+        return VQERunner(filepath='x.json', basis_set='sto3g')
+
+    def test_successful_send_returns_true_no_undelivered(self):
+        runner = self._runner()
+        runner._producer = Mock()  # send_result succeeds (no exception)
+        assert runner._stream_result(Mock(), 0) is True
+        assert runner._undelivered == []
+
+    def test_failed_send_spools_to_disk_and_records(self, tmp_path, monkeypatch):
+        """A transient send failure (producer exists) spools the result for replay."""
+        monkeypatch.setattr(
+            'quantum_pipeline.runners.vqe_runner.UNDELIVERED_DIR', tmp_path / 'undelivered'
+        )
+        runner = self._runner()
+        producer = Mock()
+        producer.send_result.side_effect = KafkaProducerError('broker down')
+        producer.serializer.serialize.return_value = {'molecule_id': 3, 'energy': -1.0}
+        runner._producer = producer
+
+        assert runner._stream_result(Mock(), 3) is False
+        assert runner._undelivered == [3]
+
+        spooled = tmp_path / 'undelivered' / 'molecule_3.json'
+        assert spooled.exists()
+        assert json.loads(spooled.read_text()) == {'molecule_id': 3, 'energy': -1.0}
+
+    def test_failed_send_without_producer_records_but_does_not_crash(self):
+        """Broker down at init (no serializer) still records the failure, no spool, no crash."""
+        runner = self._runner()
+        with patch(
+            'quantum_pipeline.runners.vqe_runner.VQEKafkaProducer',
+            side_effect=KafkaProducerError('no brokers'),
+        ):
+            assert runner._stream_result(Mock(), 0) is False
+        assert runner._undelivered == [0]

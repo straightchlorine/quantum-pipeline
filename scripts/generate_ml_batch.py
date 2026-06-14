@@ -225,14 +225,21 @@ def _push_batch_metrics(state_file: Path, tier: int, lanes: dict[str, list]) -> 
 
 def make_run_key(
     lane: str,
+    basis: str,
     optimizer: str,
     init_strategy: str,
     seed: int,
     ansatz: str,
     molecule: str,
 ) -> str:
-    """Unique key per container invocation (lane x molecule x optimizer x init x seed x ansatz)."""
-    return f"{lane}__{molecule}__{optimizer}__{init_strategy}__seed{seed}__{ansatz}"
+    """Unique key per container invocation.
+
+    Must include `basis`: tiers differ by basis set (Tier 1 sto3g, Tier 2 6-31g,
+    Tier 4 cc-pvdz) while sharing molecule/optimizer/init/seed/ansatz. Without basis
+    in the key, those runs collide — once Tier 1 marks a key 'done', the higher-basis
+    tier sees it already complete and is silently skipped while reporting 100%.
+    """
+    return f"{lane}__{basis}__{molecule}__{optimizer}__{init_strategy}__seed{seed}__{ansatz}"
 
 
 # ---------------------------------------------------------------------------
@@ -468,7 +475,9 @@ def generate_run_matrix(
                 for optimizer in optimizers:
                     for init_strategy in config["init_strategies"]:
                         for seed in config["seeds"]:
-                            key = make_run_key(lane, optimizer, init_strategy, seed, ansatz, mol_name)
+                            key = make_run_key(
+                                lane, config["basis"], optimizer, init_strategy, seed, ansatz, mol_name
+                            )
                             lanes[lane].append({
                                 "key": key,
                                 "lane": lane,

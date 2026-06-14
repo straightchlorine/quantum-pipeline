@@ -10,6 +10,12 @@ HF_FIDELITY_THRESHOLD = 0.9999
 HF_PRE_OPT_ATTEMPTS = 10
 HF_PRE_OPT_MAXITER = 1000
 
+# ExcitationPreserving initial-parameter jitter.
+# Zero params sit exactly on HF, where the gradient vanishes and the optimizer
+# stalls. A small jitter nudges it off HF so it can descend into correlation.
+# 0.1 too timid to escape reliably; 0.5 reaches chemical accuracy across seeds.
+EP_INIT_JITTER = 0.5
+
 # L-BFGS-B optimizer defaults
 LBFGSB_DEFAULT_MAXITER = 15000
 

@@ -309,10 +309,11 @@ class TestVQEInitialDataInterface(unittest.TestCase):
 
         self.assertIsInstance(schema, dict)
         self.assertEqual(schema['name'], 'VQEInitialData')
-        self.assertEqual(len(schema['fields']), 13)
+        self.assertEqual(len(schema['fields']), 14)
         field_names = [f['name'] for f in schema['fields']]
         self.assertIn('seed', field_names)
         self.assertIn('ansatz_name', field_names)
+        self.assertIn('exact_estimator', field_names)
 
     def test_serialize_hamiltonian(self):
         """Test serialization of Hamiltonian terms."""
@@ -1020,6 +1021,7 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
                     'noise_backend': 'fake_noise_backend',
                     'default_shots': 1024,
                     'ansatz_reps': 1,
+                    'exact_estimator': False,
                 },
                 'iteration_list': [
                     {'iteration': 0, 'parameters': [0.1, 0.2, 0.3], 'result': -74.0, 'std': 0.02},
@@ -1081,6 +1083,7 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
                     'noise_backend': 'fake_noise_backend',
                     'default_shots': 1024,
                     'ansatz_reps': 1,
+                    'exact_estimator': False,
                 },
                 'iteration_list': [
                     {'iteration': 0, 'parameters': [0.1, 0.2, 0.3], 'result': -74.0, 'std': 0.02},
