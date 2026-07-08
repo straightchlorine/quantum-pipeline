@@ -7,7 +7,7 @@ def save_plot(
     path: str | Path,
     prefix: str,
     symbols: list[str],
-):
+) -> Path:
     path = Path(
         ensure_dir_exists(path),
         build_graph_name(prefix, symbols),

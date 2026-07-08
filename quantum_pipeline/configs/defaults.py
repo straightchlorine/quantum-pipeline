@@ -1,4 +1,6 @@
-DEFAULTS = {
+from typing import Any
+
+DEFAULTS: dict[str, Any] = {
     'basis_set': 'sto3g',
     'ansatz_reps': 2,
     'local': True,
@@ -6,7 +8,7 @@ DEFAULTS = {
     'max_iterations': 100,
     'convergence_threshold_enable': False,
     'convergence_threshold': 1e-6,
-    'optimizer': 'L-BFGS-B',  # Optimal for GPU acceleration and accuracy
+    'optimizer': 'L-BFGS-B',
     'ansatz_type': 'EfficientSU2',
     'seed': None,
     'init_strategy': 'random',
@@ -16,7 +18,7 @@ DEFAULTS = {
         'min_qubits': None,
         'optimization_level': 3,
         'filters': None,
-        'method': 'statevector',  # tensor_network requires cuQuantum!
+        'method': 'statevector',  # tensor_network requires cuQuantum
         'gpu': False,
         'noise_backend': None,
         'gpu_opts': {

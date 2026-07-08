@@ -149,7 +149,7 @@ class ConfigurationManager:
         try:
             self.logger.debug(f'Loading configuration from:\n\n{file_path}\n')
             with open(file_path) as file:
-                config_dict = json.load(file)
+                config_dict: dict[str, Any] = json.load(file)
 
             # reconstruct config objects
             backend_config = BackendConfig.from_dict(config_dict['backend_config'])

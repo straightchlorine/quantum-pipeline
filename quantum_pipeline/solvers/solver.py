@@ -7,6 +7,7 @@ from qiskit_ibm_runtime import QiskitRuntimeService
 
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.configs.settings import SUPPORTED_OPTIMIZERS
+from quantum_pipeline.structures.vqe_observation import VQEResult
 from quantum_pipeline.utils.logger import get_logger
 
 
@@ -20,7 +21,7 @@ class Solver(ABC):
         self.logger = get_logger(self.__class__.__name__)
 
     @abstractmethod
-    def solve(self):
+    def solve(self) -> VQEResult:
         """Run the quantum solver and return the result. Subclasses must implement this."""
         ...
 

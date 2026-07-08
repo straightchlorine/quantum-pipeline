@@ -202,7 +202,7 @@ class TestPrometheusExport:
             'optimal_parameters_count': 4,
             'reference_energy': -1.17447901,
             'energy_error_hartree': 0.00007901,
-            'accuracy_score': 99.2,
+            'hf_deviation_score': 99.2,
         }
 
         prometheus_output = monitor._convert_vqe_to_prometheus(vqe_data)
@@ -214,7 +214,7 @@ class TestPrometheusExport:
         # Verify key metrics are present
         assert 'qp_vqe_total_time' in prometheus_output
         assert 'qp_vqe_minimum_energy' in prometheus_output
-        assert 'qp_vqe_accuracy_score' in prometheus_output
+        assert 'qp_vqe_hf_deviation_score' in prometheus_output
         assert 'qp_vqe_iterations_count' in prometheus_output
 
         # Verify labels are present

@@ -1,9 +1,4 @@
-"""
-Performance monitoring module for quantum pipeline thesis analysis.
-
-This module provides comprehensive system and application performance monitoring
-that can be completely switched on/off via settings, command line args, or env vars.
-"""
+"""Performance monitoring module for quantum pipeline thesis analysis."""
 
 import json
 import os
@@ -73,10 +68,10 @@ class PerformanceMonitor:
         self.metrics_dir = metrics_dir or settings.MONITORING_METRICS_DIR
 
         # Runtime state
-        self.monitoring_thread = None
+        self.monitoring_thread: threading.Thread | None = None
         self.stop_monitoring = threading.Event()
         self.container_type = os.getenv('CONTAINER_TYPE', 'unknown')
-        self.experiment_context = {}
+        self.experiment_context: dict[str, Any] = {}
         self._context_lock = threading.Lock()
         self._start_time = time.time()  # Track container start time for uptime
 
@@ -126,7 +121,7 @@ class PerformanceMonitor:
 
     def is_enabled(self) -> bool:
         """Check if performance monitoring is enabled."""
-        return self.enabled
+        return bool(self.enabled)
 
     def set_experiment_context(self, **context):
         """Set experiment context for correlation with metrics."""
@@ -536,12 +531,12 @@ class PerformanceMonitor:
                 if isinstance(value, (int, float)):
                     lines.append(f'qp_vqe_{metric_name}{{{labels}}} {value}')
 
-            # Scientific accuracy metrics
+            # HF-deviation metrics
             for metric_name in [
                 'reference_energy',
                 'energy_error_hartree',
                 'energy_error_millihartree',
-                'accuracy_score',
+                'hf_deviation_score',
             ]:
                 value = vqe_data.get(metric_name)
                 if isinstance(value, (int, float)):
@@ -557,9 +552,7 @@ class PerformanceMonitor:
             if vqe_time and iterations_count and iterations_count > 0:
                 # Iterations per second
                 iterations_per_second = iterations_count / vqe_time
-                lines.append(
-                    f'qp_vqe_iterations_per_second{{{labels}}} {iterations_per_second}'
-                )
+                lines.append(f'qp_vqe_iterations_per_second{{{labels}}} {iterations_per_second}')
 
                 # Average time per iteration
                 time_per_iteration = vqe_time / iterations_count
@@ -640,7 +633,7 @@ class PerformanceMonitor:
             self.stop_monitoring_thread()
 
 
-# Global instance for easy access
+# Global instance
 _global_monitor: PerformanceMonitor | None = None
 
 
@@ -661,7 +654,7 @@ def init_performance_monitoring(**kwargs):
     return _global_monitor
 
 
-# Convenience functions
+# Helpers
 def is_monitoring_enabled() -> bool:
     """Check if performance monitoring is globally enabled."""
     monitor = get_performance_monitor()

@@ -111,6 +111,8 @@ class VQEKafkaProducer:
 
     def _attempt_send(self, avro_bytes: bytes, attempt: int) -> KafkaError | None:
         """Attempt a single send, returning the error if one occurred."""
+        if self.producer is None:
+            raise KafkaProducerError('Producer not initialized')
         try:
             record_metadata = self.producer.send(
                 self.config.topic,

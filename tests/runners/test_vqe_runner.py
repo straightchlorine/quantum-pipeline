@@ -293,12 +293,13 @@ class TestVQERunner:
             mock_load.assert_called_once()
             mock_solver.assert_called_once()
 
-            # check if results were returned and if timing data was set
+            # check if results were returned and if timing data propagated to the result
             assert len(runner.run_results) == 1
-            assert isinstance(runner.run_results[0], VQEDecoratedResult)
-            assert runner.hamiltonian_time == 0.5
-            assert runner.mapping_time == 0.5
-            assert runner.vqe_time == 0.5
+            result = runner.run_results[0]
+            assert isinstance(result, VQEDecoratedResult)
+            assert result.hamiltonian_time == 0.5
+            assert result.mapping_time == 0.5
+            assert result.vqe_time == 0.5
 
     def test_run_with_molecule_index(self, multiple_molecules_file):
         """Test run() with molecule_index filters to a single molecule."""
@@ -431,8 +432,6 @@ class TestVQERunner:
                 filepath=str(single_molecule_file),
                 basis_set='sto3g',
                 kafka=True,
-                kafka_bootstrap_servers='localhost:9092',
-                kafka_topic='test_topic',
             )
             runner.run()
 
