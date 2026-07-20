@@ -1,4 +1,4 @@
-FROM apache/airflow:3.1.8
+FROM apache/airflow:3.3.0
 
 # Host docker socket GID - override if your system differs (check: stat -c '%g' /var/run/docker.sock)
 ARG DOCKER_GID=970
