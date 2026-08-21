@@ -18,10 +18,7 @@ from __future__ import annotations
 
 import os
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    import mlflow
+from typing import Any
 
 _DEFAULT_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
 
@@ -43,14 +40,16 @@ class ExperimentTracker:
 
     def __init__(self, tracking_uri: str | None = None) -> None:
         self._tracking_uri = tracking_uri or get_tracking_uri()
-        self._mlflow: mlflow | None = None
+        # Any, not the mlflow module: mlflow ships no stubs, and a module is not a
+        # valid type annotation. Typing it precisely buys nothing for a lazy import.
+        self._mlflow: Any = None
 
     # ------------------------------------------------------------------
     # Lazy MLflow import
     # ------------------------------------------------------------------
 
     @property
-    def mlflow(self) -> mlflow:
+    def mlflow(self) -> Any:
         if self._mlflow is None:
             try:
                 import mlflow as _mlflow

@@ -8,6 +8,7 @@ validation for different optimizers used in VQE optimization.
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any, ClassVar
 
 from quantum_pipeline.configs.constants import (
@@ -57,7 +58,7 @@ class LBFGSBConfig(OptimizerConfig):
     """
 
     def get_options(self, num_parameters: int) -> dict[str, Any]:
-        options = {'disp': False}
+        options: dict[str, Any] = {'disp': False}
 
         if self.max_iterations is not None:
             # Mode: Strict iteration control
@@ -101,12 +102,9 @@ class COBYLAConfig(OptimizerConfig):
     """
 
     def get_options(self, num_parameters: int) -> dict[str, Any]:
-        if self.max_iterations is not None:
-            maxiter = self.max_iterations
-        elif self.convergence_threshold is not None:
-            maxiter = COBYLA_DEFAULT_MAXITER  # Default when using convergence
-        else:
-            maxiter = COBYLA_DEFAULT_MAXITER  # scipy default
+        maxiter = (
+            self.max_iterations if self.max_iterations is not None else COBYLA_DEFAULT_MAXITER
+        )
 
         return {
             'disp': False,
@@ -130,21 +128,18 @@ class COBYLAConfig(OptimizerConfig):
 class SLSQPConfig(OptimizerConfig):
     """Configuration for SLSQP optimizer.
 
-    Simplified behavior:
+    Behavior:
     - If max_iterations is set: Use it as the iteration limit
     - If convergence_threshold is set: Use it with default iterations (100)
     - If neither is set: Use scipy defaults (100 iterations)
     """
 
     def get_options(self, num_parameters: int) -> dict[str, Any]:
-        if self.max_iterations is not None:
-            maxiter = self.max_iterations
-        elif self.convergence_threshold is not None:
-            maxiter = SLSQP_DEFAULT_MAXITER  # Default when using convergence
-        else:
-            maxiter = SLSQP_DEFAULT_MAXITER  # scipy default
+        maxiter = (
+            self.max_iterations if self.max_iterations is not None else SLSQP_DEFAULT_MAXITER
+        )
 
-        options = {'disp': False, 'maxiter': maxiter}
+        options: dict[str, Any] = {'disp': False, 'maxiter': maxiter}
 
         if self.convergence_threshold is not None:
             options['ftol'] = self.convergence_threshold
@@ -218,7 +213,7 @@ class GenericConfig(OptimizerConfig):
 class OptimizerConfigFactory:
     """Factory class for creating optimizer-specific configurations."""
 
-    _configs: ClassVar[dict] = {
+    _configs: ClassVar[dict[str, Callable[..., OptimizerConfig]]] = {
         'L-BFGS-B': LBFGSBConfig,
         'COBYLA': COBYLAConfig,
         'SLSQP': SLSQPConfig,
@@ -267,7 +262,7 @@ class OptimizerConfigFactory:
         return list(cls._configs.keys())
 
     @classmethod
-    def register_optimizer(cls, name: str, config_class: type[OptimizerConfig]) -> None:
+    def register_optimizer(cls, name: str, config_class: Callable[..., OptimizerConfig]) -> None:
         """Register a new optimizer configuration class."""
         cls._configs[name] = config_class
 

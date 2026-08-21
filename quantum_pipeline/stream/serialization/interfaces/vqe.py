@@ -2,7 +2,7 @@ import io
 import json
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 import avro.schema
 import numpy as np
@@ -47,11 +47,11 @@ class AvroInterfaceBase(ABC, Generic[T]):
 
     def _is_numpy_int(self, obj: Any) -> bool:
         """Check if object is a numpy integer type."""
-        return isinstance(obj, int32 | int64)  # type: ignore
+        return isinstance(obj, int32 | int64)
 
     def _is_numpy_float(self, obj: Any) -> bool:
         """Check if object is a numpy float type."""
-        return isinstance(obj, float32 | float64)  # type: ignore
+        return isinstance(obj, float32 | float64)
 
     def _convert_to_primitives(self, obj: Any) -> Any:
         """Convert numpy types to Python native types."""
@@ -89,13 +89,14 @@ class AvroInterfaceBase(ABC, Generic[T]):
         self.logger.debug(f'Serializing object with schema {schema_name}.')
         schema = self.schema
 
-        parsed_schema = ''
         if isinstance(schema, dict):
             parsed_schema = avro.schema.parse(json.dumps(schema))
             self.logger.debug(f'Parsed dict schema: {parsed_schema}')
         elif isinstance(schema, str):
             parsed_schema = avro.schema.parse(schema)
             self.logger.debug(f'Parsed string schema: {parsed_schema}')
+        else:
+            raise TypeError(f'Unsupported schema type: {type(schema).__name__}')
 
         writer = DatumWriter(parsed_schema)
         bytes_writer = io.BytesIO()
@@ -123,7 +124,7 @@ class AvroInterfaceBase(ABC, Generic[T]):
         # read the magic byte
         magic_byte = bytes_reader.read(1)
         if magic_byte != bytes([0]):
-            raise ValueError(f'Invalid magic byte: {magic_byte}. Expected: {bytes([0])}')
+            raise ValueError(f'Invalid magic byte: {magic_byte!r}. Expected: {bytes([0])!r}')
 
         # read the schema id
         bytes_reader.read(4)
@@ -135,7 +136,7 @@ class AvroInterfaceBase(ABC, Generic[T]):
         )
         reader = DatumReader(parsed_schema)
         decoder = BinaryDecoder(bytes_reader)
-        return self.deserialize(reader.read(decoder))
+        return self.deserialize(cast('dict[str, Any]', reader.read(decoder)))
 
 
 class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):

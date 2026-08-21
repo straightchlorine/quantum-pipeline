@@ -256,7 +256,7 @@ class VQESolver(Solver):
         """
         return min(self.vqe_process, key=lambda p: p.result)
 
-    def _make_truncated_result(self, best_energy, best_params, elapsed):
+    def _make_truncated_result(self, best_energy, best_params, elapsed) -> VQEResult:
         """Build a VQEResult from the best observed state after early termination."""
         return VQEResult(
             initial_data=self.init_data,
@@ -459,7 +459,7 @@ class VQESolver(Solver):
             nit=int(res.nit) if hasattr(res, 'nit') and res.nit is not None else None,
         )
 
-    def via_ibmq(self, backend):
+    def via_ibmq(self, backend) -> VQEResult:
         """Run the VQE simulation on IBM Quantum backend."""
         x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
         self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0)
@@ -476,7 +476,7 @@ class VQESolver(Solver):
         )
         return result
 
-    def via_aer(self, backend):
+    def via_aer(self, backend) -> VQEResult:
         """Run the VQE simulation via Aer simulator.
 
         When default_shots is None, uses qiskit_aer.primitives.EstimatorV2 with
@@ -504,7 +504,7 @@ class VQESolver(Solver):
         )
         return result
 
-    def solve(self):
+    def solve(self) -> VQEResult:
         """Run the VQE simulation and return the result."""
         self.current_iter = 1
         self.vqe_process = []

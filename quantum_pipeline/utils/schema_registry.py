@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, cast
 
 import avro.schema
 import requests
@@ -18,15 +18,15 @@ class SchemaRegistry:
         self.schema_registry_url = SCHEMA_REGISTRY_URL
 
         # dictionary, with schema_name:bool pairs
-        self.registry_schema_existence = {}
+        self.registry_schema_existence: dict[str, bool] = {}
 
     def _normalize_schema(self, schema: dict[str, Any] | str) -> dict[str, Any]:
         """Normalize schema to ensure consistent formatting."""
         if isinstance(schema, dict):
             schema_str = json.dumps(schema)
-            return json.loads(schema_str)
+            return cast('dict[str, Any]', json.loads(schema_str))
         if isinstance(schema, str):
-            return json.loads(schema)
+            return cast('dict[str, Any]', json.loads(schema))
         raise ValueError('Invalid schema format.')
 
     def is_schema_registry_available(self) -> bool:
@@ -34,7 +34,7 @@ class SchemaRegistry:
         test_url = f'{self.schema_registry_url}/subjects'
         try:
             response = requests.get(test_url, timeout=5)
-            return response.status_code == 200
+            return bool(response.status_code == 200)
         except requests.RequestException:
             return False
 
@@ -69,7 +69,7 @@ class SchemaRegistry:
             url = f'{self.schema_registry_url}/subjects/{schema_name}-value/versions'
             response = requests.get(url, timeout=5)
 
-            exists = response.status_code == 200
+            exists: bool = response.status_code == 200
 
             # cache the result
             self.registry_schema_existence[schema_name] = exists
