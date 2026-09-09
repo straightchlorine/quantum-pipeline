@@ -42,16 +42,12 @@ jobs:
       - name: Lint with ruff
         run: ruff check .
 
+      - name: Type-check with mypy
+        run: mypy quantum_pipeline/
+
       - name: Run tests
         run: >
-          pytest tests/
-          -n auto
-          -m "not integration and not slow"
-          --timeout=120
-          --cov=quantum_pipeline
-          --cov-report=term-missing
-          -v
-
+          pytest tests/ -n auto -m "not integration and not slow" --timeout=120 --cov=quantum_pipeline --cov-report=term-missing -v
       - name: Coverage check
         if: success() || failure()
         run: |
