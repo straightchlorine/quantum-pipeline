@@ -1,9 +1,3 @@
-"""
-ansatz.py
-
-This module visualizes the ansatz circuit used in quantum algorithms.
-"""
-
 from qiskit.visualization import circuit_drawer
 
 from quantum_pipeline.configs import settings
@@ -22,15 +16,7 @@ class AnsatzViewer:
         self.symbols = symbols
 
     def save_circuit(self):
-        """
-        Saves the given ansatz circuit and its decomposed version as images.
-
-        Args:
-            ansatz (QuantumCircuit): Qiskit QuantumCircuit object.
-            symbols (str): Additional symbols to append to the saved filename.
-        """
-
-        # save the ansatz circuit
+        """Save the ansatz circuit and its decomposed version as images."""
         try:
             circuit_drawer(
                 self.ansatz,
@@ -42,7 +28,7 @@ class AnsatzViewer:
         except Exception as e:
             self.logger.error(f'Unable to save ansatz: {e}')
 
-        # save the decomposed ansatz circuit
+        # saving the decomposed circuit
         try:
             circuit_drawer(
                 self.ansatz.decompose(),

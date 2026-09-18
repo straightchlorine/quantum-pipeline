@@ -1,9 +1,3 @@
-"""
-energy_plotter.py
-
-This module visualizes the energy convergence during optimization.
-"""
-
 import logging
 
 import matplotlib.pyplot as plt
@@ -64,12 +58,10 @@ class EnergyPlotter:
 
         Args:
             title: Title of the plot.
-            save_path: Path to save the plot (optional).
         """
         iterations, energy_values, stds = self._filter_points()
 
         plt.figure(figsize=(10, 6))
-        # plt.plot(iterations, energy_values, marker='o', label='Energy')
         plt.errorbar(
             iterations,
             energy_values,
