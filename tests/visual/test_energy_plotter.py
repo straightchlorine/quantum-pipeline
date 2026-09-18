@@ -11,13 +11,13 @@ from quantum_pipeline.visual.energy import EnergyPlotter
 def sample_vqe_processes():
     """Create sample VQE processes for testing."""
     processes = []
-    energies = np.linspace(2.0, -1.0, 10)  # Energy convergence
+    energies = np.linspace(2.0, -1.0, 10)
     for i, energy in enumerate(energies):
         process = VQEProcess(
             iteration=i + 1,
             parameters=np.random.random(4),
             result=energy,
-            std=0.05 * (i + 1) / 10,  # Decreasing uncertainty
+            std=0.05 * (i + 1) / 10,
         )
         processes.append(process)
     return processes
@@ -135,10 +135,10 @@ class TestPointFiltering:
 
         filtered_iter, filtered_energy, filtered_std = plotter._filter_points()
         # Filtering may result in slightly more points due to slicing
-        assert len(filtered_iter) <= 200  # More lenient upper bound
+        assert len(filtered_iter) <= 200
         assert len(filtered_energy) <= 200
         assert len(filtered_std) <= 200
-        assert len(filtered_iter) < len(processes)  # But definitely fewer than original
+        assert len(filtered_iter) < len(processes)
 
     def test_filtering_preserves_endpoints(self, sample_symbols):
         """Test that filtering preserves first and last points."""
@@ -154,8 +154,8 @@ class TestPointFiltering:
         plotter = EnergyPlotter(processes, sample_symbols, max_points=50)
 
         filtered_iter, _, _ = plotter._filter_points()
-        assert filtered_iter[0] == 1  # First iteration
-        assert filtered_iter[-1] == 200  # Last iteration
+        assert filtered_iter[0] == 1
+        assert filtered_iter[-1] == 200
 
     def test_max_points_one(self, sample_vqe_processes, sample_symbols):
         """Test with max_points = 1."""
@@ -181,7 +181,7 @@ class TestPointFiltering:
         # With 100 points and max_points=10, step should be ~10
         # May result in slightly more due to slicing
         assert len(filtered_iter) <= 20
-        assert len(filtered_iter) < 100  # But definitely fewer than original
+        assert len(filtered_iter) < 100
 
 
 class TestEnergyConvergence:
@@ -194,7 +194,7 @@ class TestEnergyConvergence:
             process = VQEProcess(
                 iteration=i + 1,
                 parameters=np.random.random(4),
-                result=2.0 - i * 0.1,  # Monotonic decrease
+                result=2.0 - i * 0.1,
                 std=0.01,
             )
             processes.append(process)
@@ -223,7 +223,7 @@ class TestEnergyConvergence:
             process = VQEProcess(
                 iteration=i + 1,
                 parameters=np.random.random(4),
-                result=1.5,  # Constant energy
+                result=1.5,
                 std=0.05,
             )
             processes.append(process)
@@ -237,7 +237,7 @@ class TestEnergyConvergence:
             process = VQEProcess(
                 iteration=i + 1,
                 parameters=np.random.random(4),
-                result=-1.0 - i * 0.1,  # Negative energies
+                result=-1.0 - i * 0.1,
                 std=0.05,
             )
             processes.append(process)
@@ -286,7 +286,7 @@ class TestUncertaintyHandling:
                 iteration=i + 1,
                 parameters=np.random.random(4),
                 result=1.0,
-                std=10.0,  # Large uncertainty
+                std=10.0,
             )
             processes.append(process)
         plotter = EnergyPlotter(processes, sample_symbols)
@@ -300,7 +300,7 @@ class TestUncertaintyHandling:
                 iteration=i + 1,
                 parameters=np.random.random(4),
                 result=1.0,
-                std=1.0 - i * 0.05,  # Decreasing uncertainty
+                std=1.0 - i * 0.05,
             )
             processes.append(process)
         plotter = EnergyPlotter(processes, sample_symbols)
@@ -314,7 +314,7 @@ class TestUncertaintyHandling:
                 iteration=i + 1,
                 parameters=np.random.random(4),
                 result=1.0,
-                std=i * 0.05,  # Increasing uncertainty
+                std=i * 0.05,
             )
             processes.append(process)
         plotter = EnergyPlotter(processes, sample_symbols)

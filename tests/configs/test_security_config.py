@@ -20,9 +20,9 @@ def sample_defaults() -> dict[str, Any]:
                 'ssl_check_hostname': False,
                 'certs': {
                     'ssl_dir': '/path/to/ssl',
-                    'cafile': '/path/to/default/cafile',
-                    'certfile': '/path/to/default/certfile',
-                    'keyfile': '/path/to/default/keyfile',
+                    'ssl_cafile': '/path/to/default/cafile',
+                    'ssl_certfile': '/path/to/default/certfile',
+                    'ssl_keyfile': '/path/to/default/keyfile',
                 },
                 'sasl_opts': {
                     'sasl_mechanism': 'PLAIN',
@@ -70,6 +70,21 @@ def test_cert_config_default_values(sample_defaults):
     assert cert_config.ssl_password is None
     assert cert_config.ssl_crlfile is None
     assert cert_config.ssl_ciphers is None
+
+
+def test_cert_config_dict_round_trip():
+    """from_dict() must read back every key to_dict() writes."""
+    cert_config = CertConfig(
+        ssl_dir='/path/to/ssl',
+        ssl_cafile='/path/to/cafile',
+        ssl_certfile='/path/to/certfile',
+        ssl_keyfile='/path/to/keyfile',
+        ssl_password='secret',
+        ssl_crlfile='/path/to/crlfile',
+        ssl_ciphers='HIGH:!aNULL:!MD5',
+    )
+
+    assert CertConfig.from_dict(cert_config.to_dict()) == cert_config
 
 
 def test_cert_config_to_dict():

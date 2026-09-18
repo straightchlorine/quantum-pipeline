@@ -32,10 +32,6 @@ class TestPlotOperatorCoefficients:
         """Qubit op with > 50 significant terms to trigger subsampling."""
         return [(f'P{i}', 0.5 + 0.1j) for i in range(80)]
 
-    # ------------------------------------------------------------------ #
-    # Happy-path tests
-    # ------------------------------------------------------------------ #
-
     @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_returns_plot_path(self, mock_plt, mock_save, simple_qubit_op):
@@ -83,10 +79,6 @@ class TestPlotOperatorCoefficients:
 
         mock_ax.set_title.assert_called_once_with('My Title', fontsize=14)
 
-    # ------------------------------------------------------------------ #
-    # Filtering / threshold tests
-    # ------------------------------------------------------------------ #
-
     @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_negligible_terms_grouped_as_other(self, mock_plt, mock_save, op_with_negligible):
@@ -99,7 +91,6 @@ class TestPlotOperatorCoefficients:
 
         OperatorViewer.plot_operator_coefficients(op_with_negligible, symbols='H2')
 
-        # yticklabels should include 'Other' for grouped negligible terms
         ytick_call = mock_ax.set_yticklabels.call_args
         labels = ytick_call[0][0]
         assert 'Other' in labels
@@ -135,12 +126,8 @@ class TestPlotOperatorCoefficients:
         OperatorViewer.plot_operator_coefficients(simple_qubit_op, symbols='H2', threshold=0.0)
 
         labels = mock_ax.set_yticklabels.call_args[0][0]
-        assert len(labels) == 3  # all terms, no 'Other'
+        assert len(labels) == 3
         assert 'Other' not in labels
-
-    # ------------------------------------------------------------------ #
-    # Subsampling (max_terms) tests
-    # ------------------------------------------------------------------ #
 
     @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
@@ -170,11 +157,7 @@ class TestPlotOperatorCoefficients:
         OperatorViewer.plot_operator_coefficients(simple_qubit_op, symbols='H2', max_terms=50)
 
         labels = mock_ax.set_yticklabels.call_args[0][0]
-        assert len(labels) == 3  # no subsampling needed
-
-    # ------------------------------------------------------------------ #
-    # Edge cases
-    # ------------------------------------------------------------------ #
+        assert len(labels) == 3
 
     @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
@@ -229,10 +212,6 @@ class TestPlotComplexCoefficientsPolar:
     @pytest.fixture
     def large_qubit_op(self):
         return [(f'P{i}', 0.5 + 0.1j) for i in range(80)]
-
-    # ------------------------------------------------------------------ #
-    # Happy-path tests
-    # ------------------------------------------------------------------ #
 
     @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
@@ -290,10 +269,6 @@ class TestPlotComplexCoefficientsPolar:
         assert 'Polar View' in mag_title
         assert 'Polar View' in phase_title
 
-    # ------------------------------------------------------------------ #
-    # Filtering
-    # ------------------------------------------------------------------ #
-
     @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_negligible_terms_grouped_polar(self, mock_plt, mock_save, op_with_negligible):
@@ -325,10 +300,6 @@ class TestPlotComplexCoefficientsPolar:
 
         labels = mock_ax1.set_xticklabels.call_args[0][0]
         assert len(labels) <= 15
-
-    # ------------------------------------------------------------------ #
-    # Edge cases
-    # ------------------------------------------------------------------ #
 
     @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
@@ -363,7 +334,7 @@ class TestPlotComplexCoefficientsPolar:
     @patch('quantum_pipeline.visual.operator.save_plot')
     @patch('quantum_pipeline.visual.operator.plt')
     def test_all_negligible_no_crash(self, mock_plt, mock_save):
-        """When every term is below threshold, no 'Other' added if sums are zero."""
+        """Sub-threshold terms with a non-zero sum still produce an 'Other' bucket."""
         from quantum_pipeline.visual.operator import OperatorViewer
 
         mock_fig = MagicMock()

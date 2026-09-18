@@ -5,10 +5,6 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _make_molecule(symbols, coords, masses):
     """Create a lightweight molecule mock."""
@@ -17,11 +13,6 @@ def _make_molecule(symbols, coords, masses):
     mol.coords = coords
     mol.masses = masses
     return mol
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -62,11 +53,6 @@ def multi_element_molecule():
         ],
         masses=[12.011, 14.007, 15.999, 32.06, 1.008],
     )
-
-
-# ---------------------------------------------------------------------------
-# hex_to_rgb
-# ---------------------------------------------------------------------------
 
 
 class TestHexToRgb:
@@ -118,11 +104,6 @@ class TestHexToRgb:
             MoleculePlotter.hex_to_rgb('#FFF')
 
 
-# ---------------------------------------------------------------------------
-# get_text_color
-# ---------------------------------------------------------------------------
-
-
 class TestGetTextColor:
     """Test MoleculePlotter.get_text_color static method."""
 
@@ -153,11 +134,6 @@ class TestGetTextColor:
         assert MoleculePlotter.get_text_color('#ZZZ') == 'black'
 
 
-# ---------------------------------------------------------------------------
-# _get_atom_color
-# ---------------------------------------------------------------------------
-
-
 class TestGetAtomColor:
     """Test MoleculePlotter._get_atom_color."""
 
@@ -182,11 +158,6 @@ class TestGetAtomColor:
 
         plotter = MoleculePlotter()
         assert plotter._get_atom_color('Unobtanium') == MoleculePlotter.DEFAULT_COLOR
-
-
-# ---------------------------------------------------------------------------
-# _validate_molecule
-# ---------------------------------------------------------------------------
 
 
 class TestValidateMolecule:
@@ -228,11 +199,6 @@ class TestValidateMolecule:
             plotter._validate_molecule(coords, ['H'], [1.0, 2.0])
 
 
-# ---------------------------------------------------------------------------
-# _calculate_atom_sizes
-# ---------------------------------------------------------------------------
-
-
 class TestCalculateAtomSizes:
     """Test MoleculePlotter._calculate_atom_sizes."""
 
@@ -270,11 +236,6 @@ class TestCalculateAtomSizes:
         sizes_default = plotter._calculate_atom_sizes([1.0], base_size=500)
         sizes_small = plotter._calculate_atom_sizes([1.0], base_size=100)
         assert sizes_default[0] > sizes_small[0]
-
-
-# ---------------------------------------------------------------------------
-# plot_molecule (integration-level, heavily mocked)
-# ---------------------------------------------------------------------------
 
 
 class TestPlotMolecule:

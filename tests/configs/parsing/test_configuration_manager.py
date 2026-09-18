@@ -110,18 +110,14 @@ def test_dump_configuration(mock_open, mock_json_dump, mock_settings, config_man
     sample_args.dump = True
     mock_settings.RUN_CONFIGS = '/mock/path'
 
-    # test config
     config = {
         'backend_config': config_manager.create_backend_config(sample_args),
         'kafka_config': config_manager.create_kafka_config(sample_args),
         'some_other_config': 'value',
     }
 
-    # call the method
     config_manager.dump(sample_args, config)
 
-    # check if the file was open for writing and if the
-    # dump() method was called
     mock_open.assert_called_once()
     mock_json_dump.assert_called_once()
 
@@ -129,7 +125,6 @@ def test_dump_configuration(mock_open, mock_json_dump, mock_settings, config_man
 @patch('builtins.open')
 def test_load_configuration(mock_open, config_manager):
     """Test loading configuration from a file."""
-    # mock configuration
     mock_file_content = json.dumps(
         {
             'backend_config': {
@@ -155,10 +150,8 @@ def test_load_configuration(mock_open, config_manager):
 
     mock_open.return_value.__enter__.return_value.read.return_value = mock_file_content
 
-    # call the method on the mock config
     config = config_manager.load('dummy_path.json')
 
-    # check if the file was open for reading
     mock_open.assert_called_once_with('dummy_path.json')
 
     assert isinstance(config['backend_config'], BackendConfig)

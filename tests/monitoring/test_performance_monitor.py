@@ -1,14 +1,4 @@
-"""
-Comprehensive tests for the PerformanceMonitor module.
-
-Tests cover:
-- Initialization with different configuration sources
-- Metrics collection (system, container, VQE)
-- Export formats (JSON, Prometheus)
-- Threading behavior
-- Context management
-- Configuration priority system
-"""
+"""Tests for the PerformanceMonitor module."""
 
 import json
 import tempfile
@@ -127,27 +117,23 @@ class TestMetricsCollection:
         monitor = PerformanceMonitor(enabled=True, metrics_dir=temp_metrics_dir)
         snapshot = monitor.collect_metrics_snapshot()
 
-        # Verify top-level keys
         assert 'timestamp' in snapshot
         assert 'container_type' in snapshot
         assert 'experiment_context' in snapshot
         assert 'system' in snapshot
         assert 'container' in snapshot
 
-        # Verify system metrics structure
         system = snapshot['system']
         assert 'cpu' in system
         assert 'memory' in system
         assert 'disk_io' in system
         assert 'network_io' in system
 
-        # Verify CPU metrics
         cpu = system['cpu']
         assert 'percent' in cpu
         assert 'count' in cpu
         assert 'load_avg_1m' in cpu
 
-        # Verify memory metrics
         memory = system['memory']
         assert 'total' in memory
         assert 'used' in memory
@@ -177,6 +163,22 @@ class TestMetricsCollection:
 
         assert snapshot['experiment_context']['molecule_id'] == 0
         assert snapshot['experiment_context']['molecule_symbols'] == 'H2'
+
+    def test_container_metrics_skip_subprocess_without_docker(self, temp_metrics_dir):
+        """Test that a missing docker binary short-circuits before spawning a process."""
+        monitor = PerformanceMonitor(enabled=True, metrics_dir=temp_metrics_dir)
+
+        with (
+            patch(
+                'quantum_pipeline.monitoring.performance_monitor.shutil.which', return_value=None
+            ),
+            patch('quantum_pipeline.monitoring.performance_monitor.subprocess.run') as mock_run,
+        ):
+            container = monitor._collect_container_metrics()
+
+        assert not mock_run.called
+        assert container['docker_stats_available'] is False
+        assert 'container_name' in container
 
 
 class TestPrometheusExport:
@@ -287,40 +289,8 @@ class TestPrometheusExport:
 class TestJSONExport:
     """Test JSON export functionality."""
 
-    def test_json_export_creates_file(self, temp_metrics_dir):
-        """Test that JSON export creates a file."""
-        monitor = PerformanceMonitor(
-            enabled=True, export_format=['json'], metrics_dir=temp_metrics_dir
-        )
-
-        snapshot = monitor.collect_metrics_snapshot()
-        monitor._export_json(snapshot)
-
-        # Check that at least one JSON file was created
-        json_files = list(temp_metrics_dir.glob('*.json'))
-        assert len(json_files) > 0
-
-    def test_json_export_valid_structure(self, temp_metrics_dir):
-        """Test that exported JSON has valid structure."""
-        monitor = PerformanceMonitor(
-            enabled=True, export_format=['json'], metrics_dir=temp_metrics_dir
-        )
-
-        snapshot = monitor.collect_metrics_snapshot()
-        monitor._export_json(snapshot)
-
-        # Read the JSON file
-        json_files = list(temp_metrics_dir.glob('*.json'))
-        with open(json_files[0]) as f:
-            data = json.load(f)
-
-        # Verify structure
-        assert 'timestamp' in data
-        assert 'container_type' in data
-        assert 'system' in data
-
     def test_json_export_system_only(self, temp_metrics_dir):
-        """Test JSON export of system metrics only."""
+        """System-only export lands in a single system_metrics_*.jsonl file."""
         monitor = PerformanceMonitor(
             enabled=True, export_format=['json'], metrics_dir=temp_metrics_dir
         )
@@ -334,9 +304,30 @@ class TestJSONExport:
 
         monitor._export_json_system_only(metrics)
 
-        # Check file was created
-        json_files = list(temp_metrics_dir.glob('system_metrics_*.json'))
+        json_files = list(temp_metrics_dir.glob('system_metrics_*.jsonl'))
         assert len(json_files) > 0
+
+    def test_json_export_appends_one_line_per_tick(self, temp_metrics_dir):
+        """Test that repeated exports append lines to a single file."""
+        monitor = PerformanceMonitor(
+            enabled=True, export_format=['json'], metrics_dir=temp_metrics_dir
+        )
+
+        metrics = {
+            'timestamp': '2025-01-01T00:00:00',
+            'container_type': 'test',
+            'system': {'cpu': {'percent': 50.0}},
+            'container': {},
+        }
+
+        monitor._export_json_system_only(metrics)
+        monitor._export_json_system_only(metrics)
+
+        json_files = list(temp_metrics_dir.glob('system_metrics_*.jsonl'))
+        assert len(json_files) == 1
+        lines = json_files[0].read_text().splitlines()
+        assert len(lines) == 2
+        assert all(json.loads(line) == metrics for line in lines)
 
 
 class TestMonitoringThread:
@@ -550,10 +541,8 @@ class TestPerformanceMonitorIntegration:
         )
 
         with monitor:
-            # Set context
             monitor.set_experiment_context(molecule_id=0)
 
-            # Collect snapshot
             snapshot = monitor.collect_metrics_snapshot()
             assert snapshot is not None
 
@@ -561,5 +550,5 @@ class TestPerformanceMonitorIntegration:
             time.sleep(0.3)
 
         # After context exit, check that system metrics were collected
-        system_json_files = list(temp_metrics_dir.glob('system_metrics_*.json'))
+        system_json_files = list(temp_metrics_dir.glob('system_metrics_*.jsonl'))
         assert len(system_json_files) >= 1

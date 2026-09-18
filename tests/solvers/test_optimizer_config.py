@@ -136,7 +136,7 @@ class TestCOBYLAConfig:
         options = config.get_options(num_parameters=5)
 
         assert options['disp'] is False
-        assert options['maxiter'] == 1000  # default
+        assert options['maxiter'] == 1000
 
     def test_get_minimize_tol_with_convergence(self):
         """Test get_minimize_tol returns convergence_threshold."""
@@ -177,7 +177,6 @@ class TestCOBYLAConfig:
     def test_validate_parameters_no_max_iterations(self):
         """Test validate_parameters with no max_iterations set."""
         config = COBYLAConfig()
-        # Should not raise any exception
         config.validate_parameters(num_parameters=10)
 
 
@@ -212,7 +211,7 @@ class TestSLSQPConfig:
         config = SLSQPConfig()
         options = config.get_options(num_parameters=8)
 
-        assert options['maxiter'] == 100  # default
+        assert options['maxiter'] == 100
 
     def test_get_minimize_tol_with_max_iterations(self):
         """Test get_minimize_tol returns None when max_iterations is set."""
@@ -306,14 +305,11 @@ class TestOptimizerConfigFactory:
             def validate_parameters(self, num_parameters: int):
                 pass
 
-        # Register new optimizer
         OptimizerConfigFactory.register_optimizer('CUSTOM', CustomConfig)
 
-        # Test it can be created
         config = OptimizerConfigFactory.create_config('CUSTOM')
         assert isinstance(config, CustomConfig)
 
-        # Test it appears in supported optimizers
         assert 'CUSTOM' in OptimizerConfigFactory.get_supported_optimizers()
 
     def test_create_config_no_parameters(self):
@@ -428,7 +424,6 @@ class TestOptimizerConfigAbstractBase:
             def validate_parameters(self, num_parameters: int):
                 pass
 
-        # Should be able to instantiate with one parameter
         config = ConcreteConfig(max_iterations=10)
         assert config.max_iterations == 10
         assert config.convergence_threshold is None
@@ -448,7 +443,6 @@ class TestOptimizerConfigAbstractBase:
             def validate_parameters(self, num_parameters: int):
                 pass
 
-        # Should raise error with both parameters
         with pytest.raises(ValueError, match='mutually exclusive'):
             ConcreteConfig(max_iterations=10, convergence_threshold=0.01)
 
@@ -475,7 +469,6 @@ class TestOptimizerConfigIntegration:
         options = config.get_options(num_parameters)
         minimize_tol = config.get_minimize_tol()
 
-        # Basic assertions that should be true for all optimizers
         assert isinstance(options, dict)
         assert 'disp' in options
         assert options['disp'] is False
@@ -501,7 +494,6 @@ class TestOptimizerConfigIntegration:
         options = config.get_options(num_parameters)
         minimize_tol = config.get_minimize_tol()
 
-        # Basic assertions
         assert isinstance(options, dict)
         assert 'disp' in options
         assert options['disp'] is False

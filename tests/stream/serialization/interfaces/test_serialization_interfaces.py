@@ -23,8 +23,6 @@ from quantum_pipeline.structures.vqe_observation import (
 
 
 class MockSchemaRegistry:
-    """Mock schema registry for testing."""
-
     def __init__(self):
         self.schemas = {}
         self.id_cache = {}
@@ -36,12 +34,10 @@ class MockSchemaRegistry:
 
     def save_schema(self, schema_name, schema):
         self.schemas[schema_name] = schema
-        self.id_cache[schema_name] = 123  # Mock schema ID
+        self.id_cache[schema_name] = 123
 
 
 class TestAvroInterfaceBase(unittest.TestCase):
-    """Test the base class for Avro serializers."""
-
     def setUp(self):
         self.registry = MockSchemaRegistry()
 
@@ -67,38 +63,30 @@ class TestAvroInterfaceBase(unittest.TestCase):
         self.interface = ConcreteAvroInterface(self.registry)
 
     def test_convert_to_primitives_numpy_int(self):
-        """Test conversion of numpy integers to Python native types."""
-        # test int32
         result = self.interface._convert_to_primitives(np.int32(42))
         self.assertEqual(result, 42)
         self.assertIsInstance(result, int)
 
-        # test int64
         result = self.interface._convert_to_primitives(np.int64(42))
         self.assertEqual(result, 42)
         self.assertIsInstance(result, int)
 
     def test_convert_to_primitives_numpy_float(self):
-        """Test conversion of numpy floats to Python native types."""
-        # test float32
         result = self.interface._convert_to_primitives(np.float32(3.14))
         self.assertAlmostEqual(result, 3.14, places=6)
         self.assertIsInstance(result, float)
 
-        # test float64
         result = self.interface._convert_to_primitives(np.float64(3.14))
         self.assertAlmostEqual(result, 3.14)
         self.assertIsInstance(result, float)
 
     def test_convert_to_primitives_ndarray(self):
-        """Test conversion of numpy array to Python list."""
         arr = np.array([1, 2, 3])
         result = self.interface._convert_to_primitives(arr)
         self.assertEqual(result, [1, 2, 3])
         self.assertIsInstance(result, list)
 
     def test_convert_to_primitives_nested_structures(self):
-        """Test conversion of nested structures with numpy types."""
         data = {
             'array': np.array([1, 2, 3]),
             'integer': np.int64(42),
@@ -116,59 +104,98 @@ class TestAvroInterfaceBase(unittest.TestCase):
         self.assertEqual(result['nested']['array'], [4, 5, 6])
 
     def test_convert_to_numpy(self):
-        """Test conversion of Python lists to numpy arrays."""
         data = [1, 2, 3]
         result = self.interface._convert_to_numpy(data)
         self.assertTrue(np.array_equal(result, np.array([1, 2, 3])))
 
     def test_to_avro_bytes(self):
-        """Test conversion of object to Avro binary format."""
         test_obj = Mock()
         test_obj.value = 42
+        # ConcreteAvroInterface never registers its schema, so seed the id the way a
+        # successful registry publish would.
+        self.registry.id_cache[self.interface.SCHEMA_NAME] = 123
 
         result = self.interface.to_avro_bytes(test_obj)
 
-        # verify if bytes were returned
         self.assertIsInstance(result, bytes)
+        self.assertEqual(result[:5], b'\x00\x00\x00\x00\x7b')
+
+    def test_to_avro_bytes_without_cached_id_raises(self):
+        """A payload without the Confluent header is undecodable downstream, so an
+        unregistered schema must fail loudly instead of producing a broken message."""
+        test_obj = Mock()
+        test_obj.value = 42
+
+        with self.assertRaises(KeyError):
+            self.interface.to_avro_bytes(test_obj)
 
     def test_from_avro_bytes(self):
-        """Test conversion from Avro binary format to object."""
         # confluent schema registry header
         test_bytes = b'\x00\x00\x00\x00{'
 
-        # mock result from the deserialize
         mock_result = Mock()
         mock_result.value = 42
 
-        # patch the deserialize method, schema parse, and datum reader
         with (
             patch.object(self.interface, 'deserialize', return_value=mock_result),
             patch('avro.schema.parse'),
             patch('avro.io.DatumReader.read', return_value={'value': 42}),
         ):
-            # check the result
             result = self.interface.from_avro_bytes(test_bytes)
             self.assertEqual(result.value, 42)
 
-            # check if correct argument was passed
             self.interface.deserialize.assert_called_once_with({'value': 42})
 
     def test_from_avro_bytes_invalid_magic(self):
-        """Test error handling with invalid magic byte."""
         test_bytes = b'\x01\x00\x00\x00{'
 
         with self.assertRaises(ValueError):
             self.interface.from_avro_bytes(test_bytes)
 
 
-class TestVQEProcessInterface(unittest.TestCase):
-    """Test the VQE Process interface."""
+class TestSchemaRegistrationGuard(unittest.TestCase):
+    """_register_schema short-circuits on id_cache, so a failed publish is retried on the
+    next message and the Confluent header appears once the registry comes back up."""
 
+    def test_failed_registration_is_retried_on_next_message(self):
+        registry = MockSchemaRegistry()
+        # a rejected POST leaves id_cache empty, which is what the guard keys on
+        registry.save_schema = Mock()
+        interface = VQEProcessInterface(registry)
+        process = VQEProcess(
+            iteration=0,
+            parameters=np.array([0.1, 0.2, 0.3]),
+            result=np.float64(-74.0),
+            std=np.float64(0.02),
+        )
+
+        for _ in range(2):
+            with self.assertRaises(KeyError):
+                interface.to_avro_bytes(process)
+
+        self.assertEqual(registry.save_schema.call_count, 2)
+        self.assertEqual(registry.id_cache, {})
+
+    def test_composite_schema_registers_each_subschema_once(self):
+        registry = MockSchemaRegistry()
+        registry.save_schema = Mock(wraps=registry.save_schema)
+        interface = VQEDecoratedResultInterface(registry)
+
+        self.assertIsInstance(interface.schema, dict)
+        self.assertIsInstance(interface.schema, dict)
+
+        self.assertEqual(registry.save_schema.call_count, 5)
+        self.assertEqual(
+            sorted(registry.id_cache),
+            ['experiment.vqe', 'vqe_initial', 'vqe_molecule', 'vqe_process', 'vqe_result'],
+        )
+
+
+class TestVQEProcessInterface(unittest.TestCase):
     def setUp(self):
         self.registry = MockSchemaRegistry()
         self.interface = VQEProcessInterface(self.registry)
 
-        # Create test fixture
         self.vqe_process = VQEProcess(
             iteration=5,
             parameters=np.array([0.1, 0.2, 0.3]),
@@ -177,7 +204,6 @@ class TestVQEProcessInterface(unittest.TestCase):
         )
 
     def test_schema(self):
-        """Test schema generation."""
         schema = self.interface.schema
 
         self.assertIsInstance(schema, dict)
@@ -185,7 +211,6 @@ class TestVQEProcessInterface(unittest.TestCase):
         self.assertEqual(len(schema['fields']), 7)
 
     def test_serialize(self):
-        """Test serialization of VQEProcess."""
         serialized = self.interface.serialize(self.vqe_process)
 
         self.assertEqual(serialized['iteration'], 5)
@@ -201,7 +226,6 @@ class TestVQEProcessInterface(unittest.TestCase):
         self.assertIsInstance(serialized['std'], float)
 
     def test_serialize_with_derived_fields(self):
-        """Test serialization of VQEProcess with derived ML features."""
         proc = VQEProcess(
             iteration=2,
             parameters=np.array([0.4, 0.5, 0.6]),
@@ -219,7 +243,6 @@ class TestVQEProcessInterface(unittest.TestCase):
         self.assertIsInstance(serialized['energy_delta'], float)
 
     def test_deserialize(self):
-        """Test deserialization of VQEProcess."""
         data = {'iteration': 5, 'parameters': [0.1, 0.2, 0.3], 'result': -74.5, 'std': 0.01}
 
         deserialized = self.interface.deserialize(data)
@@ -233,7 +256,6 @@ class TestVQEProcessInterface(unittest.TestCase):
         self.assertIsNone(deserialized.cumulative_min_energy)
 
     def test_deserialize_with_derived_fields(self):
-        """Test deserialization of VQEProcess with derived ML features."""
         data = {
             'iteration': 3,
             'parameters': [0.1, 0.2],
@@ -250,7 +272,6 @@ class TestVQEProcessInterface(unittest.TestCase):
         self.assertEqual(deserialized.cumulative_min_energy, np.float64(-75.0))
 
     def test_roundtrip(self):
-        """Test round-trip serialization and deserialization."""
         serialized = self.interface.serialize(self.vqe_process)
         deserialized = self.interface.deserialize(serialized)
 
@@ -261,7 +282,6 @@ class TestVQEProcessInterface(unittest.TestCase):
         self.assertIsNone(deserialized.energy_delta)
 
     def test_roundtrip_with_derived_fields(self):
-        """Test round-trip with derived ML features populated."""
         proc = VQEProcess(
             iteration=2,
             parameters=np.array([0.4, 0.5]),
@@ -280,13 +300,10 @@ class TestVQEProcessInterface(unittest.TestCase):
 
 
 class TestVQEInitialDataInterface(unittest.TestCase):
-    """Test the VQE Initial Data interface."""
-
     def setUp(self):
         self.registry = MockSchemaRegistry()
         self.interface = VQEInitialDataInterface(self.registry)
 
-        # Create test fixture with mock circuit
         mock_circuit = MagicMock(spec=QuantumCircuit)
         mock_circuit.__str__.return_value = 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];'
 
@@ -304,7 +321,6 @@ class TestVQEInitialDataInterface(unittest.TestCase):
         )
 
     def test_schema(self):
-        """Test schema generation."""
         schema = self.interface.schema
 
         self.assertIsInstance(schema, dict)
@@ -316,7 +332,6 @@ class TestVQEInitialDataInterface(unittest.TestCase):
         self.assertIn('exact_estimator', field_names)
 
     def test_serialize_hamiltonian(self):
-        """Test serialization of Hamiltonian terms."""
         hamiltonian = np.array([('ZZ', complex(1.0, 0.0)), ('X', complex(0.5, 0.5))])
         serialized = self.interface._serialize_hamiltonian(hamiltonian)
 
@@ -329,7 +344,6 @@ class TestVQEInitialDataInterface(unittest.TestCase):
         self.assertEqual(serialized[1]['coefficients']['imaginary'], 0.5)
 
     def test_deserialize_hamiltonian(self):
-        """Test deserialization of Hamiltonian terms."""
         data = [
             {'label': 'ZZ', 'coefficients': {'real': 1.0, 'imaginary': 0.0}},
             {'label': 'X', 'coefficients': {'real': 0.5, 'imaginary': 0.5}},
@@ -344,7 +358,6 @@ class TestVQEInitialDataInterface(unittest.TestCase):
 
     @patch('quantum_pipeline.stream.serialization.interfaces.vqe.dumps')
     def test_serialize(self, mock_dumps):
-        """Test serialization of VQEInitialData."""
         mock_dumps.return_value = 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];'
 
         serialized = self.interface.serialize(self.vqe_initial_data)
@@ -362,7 +375,6 @@ class TestVQEInitialDataInterface(unittest.TestCase):
 
     @patch('quantum_pipeline.stream.serialization.interfaces.vqe.dumps')
     def test_serialize_with_seed(self, mock_dumps):
-        """Test serialization of VQEInitialData with seed."""
         mock_dumps.return_value = 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];'
         self.vqe_initial_data.seed = 42
 
@@ -373,7 +385,6 @@ class TestVQEInitialDataInterface(unittest.TestCase):
 
     @patch('quantum_pipeline.stream.serialization.interfaces.vqe.loads')
     def test_deserialize(self, mock_loads):
-        """Test deserialization of VQEInitialData."""
         mock_circuit = MagicMock(spec=QuantumCircuit)
         mock_loads.return_value = mock_circuit
 
@@ -409,7 +420,6 @@ class TestVQEInitialDataInterface(unittest.TestCase):
 
     @patch('quantum_pipeline.stream.serialization.interfaces.vqe.loads')
     def test_deserialize_with_seed(self, mock_loads):
-        """Test deserialization of VQEInitialData with seed field."""
         mock_circuit = MagicMock(spec=QuantumCircuit)
         mock_loads.return_value = mock_circuit
 
@@ -435,7 +445,6 @@ class TestVQEInitialDataInterface(unittest.TestCase):
 
     @patch('quantum_pipeline.stream.serialization.interfaces.vqe.dumps')
     def test_serialize_includes_ansatz_name(self, mock_dumps):
-        """Test that serialization includes ansatz_name field."""
         mock_dumps.return_value = 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];'
         self.vqe_initial_data.ansatz_name = 'RealAmplitudes'
 
@@ -445,7 +454,6 @@ class TestVQEInitialDataInterface(unittest.TestCase):
 
     @patch('quantum_pipeline.stream.serialization.interfaces.vqe.loads')
     def test_deserialize_with_ansatz_name(self, mock_loads):
-        """Test deserialization of VQEInitialData with ansatz_name field."""
         mock_circuit = MagicMock(spec=QuantumCircuit)
         mock_loads.return_value = mock_circuit
 
@@ -497,8 +505,6 @@ class TestVQEInitialDataInterface(unittest.TestCase):
 
 
 class TestMoleculeInfoInterface(unittest.TestCase):
-    """Test the MoleculeInfo interface."""
-
     def setUp(self):
         self.registry = MockSchemaRegistry()
         self.interface = MoleculeInfoInterface(self.registry)
@@ -513,7 +519,6 @@ class TestMoleculeInfoInterface(unittest.TestCase):
         )
 
     def test_schema(self):
-        """Test schema generation."""
         schema = self.interface.schema
 
         self.assertIsInstance(schema, dict)
@@ -521,7 +526,6 @@ class TestMoleculeInfoInterface(unittest.TestCase):
         self.assertEqual(len(schema['fields']), 1)
 
     def test_serialize(self):
-        """Test serialization of MoleculeInfo."""
         serialized = self.interface.serialize(self.molecule)
 
         self.assertEqual(serialized['molecule_data']['symbols'], ['H', 'H'])
@@ -534,7 +538,6 @@ class TestMoleculeInfoInterface(unittest.TestCase):
         self.assertEqual(serialized['molecule_data']['masses'], [1.0, 1.0])
 
     def test_deserialize(self):
-        """Test deserialization of MoleculeInfo."""
         data = {
             'molecule_data': {
                 'symbols': ['H', 'H'],
@@ -556,11 +559,11 @@ class TestMoleculeInfoInterface(unittest.TestCase):
         self.assertTrue(np.array_equal(deserialized.masses, [1.0, 1.0]))
 
     def test_deserialize_flattened_coords(self):
-        """Test deserialization of MoleculeInfo with flattened coordinates."""
+        """Avro can deliver coords flattened; deserialize must reshape them back to (n_atoms, 3)."""
         data = {
             'molecule_data': {
                 'symbols': ['H', 'H'],
-                'coords': [0.0, 0.0, 0.0, 0.0, 0.0, 0.74],  # flattened cords
+                'coords': [0.0, 0.0, 0.0, 0.0, 0.0, 0.74],
                 'multiplicity': 1,
                 'charge': 0,
                 'units': 'angstrom',
@@ -571,7 +574,7 @@ class TestMoleculeInfoInterface(unittest.TestCase):
         deserialized = self.interface.deserialize(data)
 
         self.assertEqual(deserialized.symbols, ['H', 'H'])
-        self.assertEqual(len(deserialized.coords), 2)  # expectes reshaped coords
+        self.assertEqual(len(deserialized.coords), 2)
         self.assertEqual(deserialized.multiplicity, 1)
         self.assertEqual(deserialized.charge, 0)
         self.assertEqual(deserialized.units, DistanceUnit.ANGSTROM)
@@ -579,8 +582,6 @@ class TestMoleculeInfoInterface(unittest.TestCase):
 
 
 class TestVQEResultInterface(unittest.TestCase):
-    """Test the VQE Result interface."""
-
     def setUp(self):
         self.registry = MockSchemaRegistry()
         self.interface = VQEResultInterface(self.registry)
@@ -636,7 +637,6 @@ class TestVQEResultInterface(unittest.TestCase):
         self.patch_process.stop()
 
     def test_schema(self):
-        """Test schema generation."""
         schema = self.interface.schema
 
         self.assertIsInstance(schema, dict)
@@ -647,7 +647,6 @@ class TestVQEResultInterface(unittest.TestCase):
             self.assertIn(field, field_names)
 
     def test_serialize(self):
-        """Test serialization of VQEResult."""
         serialized = self.interface.serialize(self.vqe_result)
 
         self.assertEqual(serialized['initial_data'], {'mock': 'initial_data'})
@@ -665,7 +664,6 @@ class TestVQEResultInterface(unittest.TestCase):
         self.assertEqual(self.mock_process.call_count, 2)
 
     def test_serialize_with_ml_fields(self):
-        """Test serialization of VQEResult with ML-required fields populated."""
         self.vqe_result.nuclear_repulsion_energy = np.float64(0.7199)
         self.vqe_result.success = True
         self.vqe_result.nfev = 150
@@ -683,7 +681,6 @@ class TestVQEResultInterface(unittest.TestCase):
         self.assertIsInstance(serialized['nit'], int)
 
     def test_deserialize(self):
-        """Test deserialization of VQEResult."""
         with (
             patch.object(
                 self.interface.initial_data_interface, 'deserialize'
@@ -723,7 +720,6 @@ class TestVQEResultInterface(unittest.TestCase):
             self.assertEqual(mock_process_deserialize.call_count, 2)
 
     def test_deserialize_with_ml_fields(self):
-        """Test deserialization of VQEResult with ML-required fields."""
         with (
             patch.object(self.interface.initial_data_interface, 'deserialize') as mock_initial_d,
             patch.object(self.interface.process_interface, 'deserialize') as mock_process_d,
@@ -782,8 +778,6 @@ class TestVQEResultInterface(unittest.TestCase):
 
 
 class TestVQEDecoratedResultInterface(unittest.TestCase):
-    """Test the VQE Decorated Result interface."""
-
     def setUp(self):
         self.registry = MockSchemaRegistry()
         self.interface = VQEDecoratedResultInterface(self.registry)
@@ -816,17 +810,15 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
         self.patch_molecule.stop()
 
     def test_schema(self):
-        """Test schema generation."""
         schema = self.interface.schema
 
         self.assertIsInstance(schema, dict)
         self.assertEqual(schema['name'], 'VQEDecoratedResult')
         self.assertEqual(
             len(schema['fields']), 10
-        )  # Updated for performance_start and performance_end fields
+        )  # 8 core fields + performance_start/performance_end
 
     def test_serialize(self):
-        """Test serialization of VQEDecoratedResult."""
         serialized = self.interface.serialize(self.vqe_decorated_result)
 
         self.assertEqual(serialized['vqe_result'], {'mock': 'vqe_result'})
@@ -842,8 +834,6 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
         self.mock_molecule.assert_called_once_with(self.vqe_decorated_result.molecule)
 
     def test_serialize_with_performance_data(self):
-        """Test serialization of VQEDecoratedResult with performance monitoring data."""
-        # Add performance data to the test object
         performance_start = {
             'timestamp': '2024-01-01T12:00:00',
             'system': {'cpu': {'percent': 25.5}, 'memory': {'used': 1024 * 1024 * 100}},
@@ -864,7 +854,6 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
         self.assertIsNotNone(serialized['performance_start'])
         self.assertIsNotNone(serialized['performance_end'])
 
-        # Verify the JSON strings can be parsed back
         import json
 
         deserialized_start = json.loads(serialized['performance_start'])
@@ -875,18 +864,15 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
         self.assertEqual(deserialized_start['gpu'][0]['utilization_gpu'], 80.0)
 
     def test_serialize_with_none_performance_data(self):
-        """Test serialization of VQEDecoratedResult with None performance data."""
         self.vqe_decorated_result.performance_start = None
         self.vqe_decorated_result.performance_end = None
 
         serialized = self.interface.serialize(self.vqe_decorated_result)
 
-        # Check that None values are preserved
         self.assertIsNone(serialized['performance_start'])
         self.assertIsNone(serialized['performance_end'])
 
     def test_deserialize(self):
-        """Test deserialization of VQEDecoratedResult."""
         with (
             patch.object(
                 self.interface.result_interface, 'deserialize'
@@ -924,7 +910,6 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
             mock_molecule_deserialize.assert_called_once_with({'mock': 'molecule'})
 
     def test_deserialize_with_performance_data(self):
-        """Test deserialization of VQEDecoratedResult with performance monitoring data."""
         import json
 
         performance_start = {
@@ -964,7 +949,6 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
             deserialized = self.interface.deserialize(data)
 
-            # Check that performance data is properly deserialized
             self.assertIsNotNone(deserialized.performance_start)
             self.assertIsNotNone(deserialized.performance_end)
             self.assertEqual(deserialized.performance_start['system']['cpu']['percent'], 25.5)
@@ -972,7 +956,6 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
             self.assertEqual(deserialized.performance_start['gpu'][0]['utilization_gpu'], 80.0)
 
     def test_deserialize_with_none_performance_data(self):
-        """Test deserialization of VQEDecoratedResult with None performance data."""
         with (
             patch.object(
                 self.interface.result_interface, 'deserialize'
@@ -999,12 +982,10 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
             deserialized = self.interface.deserialize(data)
 
-            # Check that None values are preserved
             self.assertIsNone(deserialized.performance_start)
             self.assertIsNone(deserialized.performance_end)
 
     def test_to_avro_bytes(self):
-        """Test conversion to Avro binary format."""
         mock_data = {
             'vqe_result': {
                 'initial_data': {
@@ -1062,11 +1043,9 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
             self.assertIsInstance(result, bytes)
 
     def test_from_avro_bytes_with_valid_confluent_header(self):
-        """Test conversion from Avro binary format with valid Confluent header."""
         # header (magic byte + schema ID)
         test_bytes = b'\x00\x00\x00\x00{data}'
 
-        # structured schema
         dummy_data = {
             'vqe_result': {
                 'initial_data': {
@@ -1117,7 +1096,6 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
             'molecule_id': 1,
         }
 
-        # patched deserialize method, schema parse, and datum reader
         with (
             patch.object(self.interface, 'deserialize') as mock_deserialize,
             patch('avro.schema.parse'),
@@ -1127,26 +1105,18 @@ class TestVQEDecoratedResultInterface(unittest.TestCase):
 
             result = self.interface.from_avro_bytes(test_bytes)
 
-            # verify whether the method was called with the dummy data
             mock_deserialize.assert_called_once_with(dummy_data)
 
-            # verify if everything aligns
             self.assertEqual(result, self.vqe_decorated_result)
 
 
 class TestEndToEndSerialization(unittest.TestCase):
-    """End-to-end tests for serialization and deserialization."""
-
     def setUp(self):
         self.registry = MockSchemaRegistry()
 
-        # Create test fixture for complete VQEDecoratedResult
-
-        # 1. Create a quantum circuit for ansatz
         mock_circuit = MagicMock(spec=QuantumCircuit)
         mock_circuit.__str__.return_value = 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];'
 
-        # 2. Create VQEInitialData
         initial_data = VQEInitialData(
             backend='fake_backend',
             num_qubits=2,
@@ -1160,7 +1130,6 @@ class TestEndToEndSerialization(unittest.TestCase):
             default_shots=1024,
         )
 
-        # 3. Create VQEProcess objects for iteration list
         process1 = VQEProcess(
             iteration=0,
             parameters=np.array([0.1, 0.2, 0.3]),
@@ -1175,7 +1144,6 @@ class TestEndToEndSerialization(unittest.TestCase):
             std=np.float64(0.01),
         )
 
-        # 4. Create VQEResult
         vqe_result = VQEResult(
             initial_data=initial_data,
             iteration_list=[process1, process2],
@@ -1185,7 +1153,6 @@ class TestEndToEndSerialization(unittest.TestCase):
             minimization_time=np.float64(10.5),
         )
 
-        # 5. Create MoleculeInfo
         molecule = MoleculeInfo(
             symbols=['H', 'H'],
             coords=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
@@ -1195,7 +1162,6 @@ class TestEndToEndSerialization(unittest.TestCase):
             masses=np.array([1.0, 1.0]),
         )
 
-        # 6. Create VQEDecoratedResult
         self.vqe_decorated_result = VQEDecoratedResult(
             vqe_result=vqe_result,
             molecule=molecule,
@@ -1207,7 +1173,6 @@ class TestEndToEndSerialization(unittest.TestCase):
             molecule_id=1,
         )
 
-        # Create interfaces
         self.process_interface = VQEProcessInterface(self.registry)
         self.initial_data_interface = VQEInitialDataInterface(self.registry)
         self.result_interface = VQEResultInterface(self.registry)
@@ -1217,18 +1182,12 @@ class TestEndToEndSerialization(unittest.TestCase):
     @patch('qiskit.qasm3.dumps')
     @patch('qiskit.qasm3.loads')
     def test_end_to_end_vqe_process(self, mock_loads, mock_dumps):
-        """Test serialization/deserialization of VQEProcess."""
-
-        # get vqe process object
         process = self.vqe_decorated_result.vqe_result.iteration_list[0]
 
-        # serialize
         serialized_dict = self.process_interface.serialize(process)
 
-        # deserialize back to the object
         deserialized_obj = self.process_interface.deserialize(serialized_dict)
 
-        # ensure everything is the same
         self.assertEqual(deserialized_obj.iteration, process.iteration)
         self.assertTrue(np.array_equal(deserialized_obj.parameters, process.parameters))
         self.assertEqual(deserialized_obj.result, process.result)
@@ -1237,16 +1196,11 @@ class TestEndToEndSerialization(unittest.TestCase):
     @patch('qiskit.qasm3.dumps')
     @patch('qiskit.qasm3.loads')
     def test_end_to_end_molecule_info(self, mock_loads, mock_dumps):
-        """Test serialization/deserialization of MoleculeInfo."""
-
-        # get molecule object
         molecule = self.vqe_decorated_result.molecule
 
-        # serialize -> deserialize
         serialized_dict = self.molecule_interface.serialize(molecule)
         deserialized_obj = self.molecule_interface.deserialize(serialized_dict)
 
-        # ensure reconstructed correctly
         self.assertEqual(deserialized_obj.symbols, molecule.symbols)
         self.assertEqual(deserialized_obj.coords, molecule.coords)
         self.assertEqual(deserialized_obj.multiplicity, molecule.multiplicity)
@@ -1263,35 +1217,27 @@ class TestEndToEndSerialization(unittest.TestCase):
     def test_end_to_end_decorated_result_avro_bytes(
         self, mock_read, mock_write, mock_decoder, mock_encoder, mock_loads, mock_dumps
     ):
-        """Test round-trip serialization of VQEDecoratedResult to and from Avro bytes."""
 
-        # setup mocks
         mock_dumps.return_value = 'OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], q[1];'
         mock_loads.return_value = self.vqe_decorated_result.vqe_result.initial_data.ansatz
 
-        # mock avro serialization/deserialization (just return the object)
         def side_effect_write(obj, encoder):
             return obj
 
-        # reader should return the original, serialized form
         def side_effect_read(decoder):
             return self.decorated_result_interface.serialize(self.vqe_decorated_result)
 
-        # assign write/read side effects to mocks
         mock_write.side_effect = side_effect_write
         mock_read.side_effect = side_effect_read
 
-        # serialize and ensure bytes were produced
         avro_bytes = self.decorated_result_interface.to_avro_bytes(self.vqe_decorated_result)
         self.assertIsInstance(avro_bytes, bytes)
 
         with patch('avro.schema.parse'):
-            # deserialize and mock schema parsing to avoid validation
-            # and check if we get the original object back
+            # avro.schema.parse is patched out: the mocked payload would fail real validation.
             deserialized_obj = self.decorated_result_interface.from_avro_bytes(avro_bytes)
             self.assertIsInstance(deserialized_obj, VQEDecoratedResult)
 
-            # confirm each mock was called appropriately
             mock_dumps.assert_called()
             mock_write.assert_called()
             mock_read.assert_called()

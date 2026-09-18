@@ -21,10 +21,6 @@ from testcontainers.kafka import KafkaContainer  # noqa: E402
 from quantum_pipeline.configs.module.producer import ProducerConfig  # noqa: E402
 from quantum_pipeline.configs.module.security import SecurityConfig  # noqa: E402
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture(scope='session')
 def kafka_container():
@@ -53,13 +49,14 @@ def producer_config(bootstrap_server):
 def mock_schema_registry():
     """Provide a mock SchemaRegistry so tests don't need a real registry."""
     registry = MagicMock()
-    registry.id_cache = {}
+    # to_avro_bytes refuses to emit a headerless payload, so the Confluent id must be present
+    registry.id_cache = {'experiment.vqe': 1}
     registry.schema_cache = {}
     registry.is_schema_registry_available.return_value = False
     registry.registry_schema_existence = {}
     # Force serializer interfaces to use their fallback inline schemas
     registry.get_schema.side_effect = FileNotFoundError('mocked: no schema')
-    registry.save_schema = MagicMock()  # no-op
+    registry.save_schema = MagicMock()
     return registry
 
 
@@ -72,11 +69,6 @@ def _make_consumer(bootstrap_server, topic, **kwargs):
         consumer_timeout_ms=10_000,
         **kwargs,
     )
-
-
-# ---------------------------------------------------------------------------
-# Helpers: realistic VQE data builders
-# ---------------------------------------------------------------------------
 
 
 def _build_vqe_decorated_result():
@@ -150,11 +142,6 @@ def _build_vqe_decorated_result():
     )
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.integration
 class TestKafkaContainerIntegration:
     """Integration tests using a real Kafka broker via testcontainers."""
@@ -176,13 +163,11 @@ class TestKafkaContainerIntegration:
         topic = 'test-raw-bytes'
         payload = b'hello-quantum-pipeline'
 
-        # Produce
         kp = KafkaProducer(bootstrap_servers=bootstrap_server)
         kp.send(topic, payload).get(timeout=10)
         kp.flush()
         kp.close()
 
-        # Consume
         consumer = _make_consumer(bootstrap_server, topic)
         messages = [msg.value for msg in consumer]
         consumer.close()
@@ -201,17 +186,15 @@ class TestKafkaContainerIntegration:
 
             producer = VQEKafkaProducer(producer_config)
 
-            # Serialize using the producer's serializer (no registry header since id_cache is empty)
+            # Serialize using the producer's serializer (Confluent header from id_cache)
             avro_bytes = producer.serializer.to_avro_bytes(result)
             assert isinstance(avro_bytes, bytes)
             assert len(avro_bytes) > 0
 
-            # Produce the serialized bytes through the underlying kafka-python producer
             expected_topic = producer_config.topic
             producer.producer.send(expected_topic, avro_bytes).get(timeout=10)
             producer.producer.flush()
 
-            # Consume and verify
             consumer = _make_consumer(bootstrap_server, expected_topic)
             messages = [msg.value for msg in consumer]
             consumer.close()
@@ -246,12 +229,10 @@ class TestKafkaContainerIntegration:
 
             with VQEKafkaProducer(producer_config) as producer:
                 assert producer.producer is not None
-                # send a trivial message to confirm the producer is functional
                 producer.producer.send(producer_config.topic, b'ctx-mgr-test').get(timeout=10)
                 producer.producer.flush()
 
-            # After exiting the context, the underlying producer should be closed
-            # (kafka-python sets _closed to True)
+            # kafka-python marks a closed producer via the private _closed flag
             assert producer.producer._closed
 
     def test_topic_creation(self, bootstrap_server):
@@ -281,7 +262,6 @@ class TestKafkaContainerIntegration:
             producer = VQEKafkaProducer(producer_config)
             assert producer.producer is not None
 
-            # close() should not raise
             producer.close()
             assert producer.producer._closed
 

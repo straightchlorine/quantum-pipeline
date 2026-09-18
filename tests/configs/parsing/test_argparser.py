@@ -25,7 +25,6 @@ def test_ssl_basic_configuration_with_mock_dir(argparser, monkeypatch):
 
     Uses monkeypatch to mock os.path.isdir to always return True.
     """
-    # ensures isdir always returns True
     monkeypatch.setattr(os.path, 'isdir', lambda path: True)
 
     args = argparser.parser.parse_args(
@@ -148,7 +147,7 @@ def test_gpu_argument(argparser):
 
 
 def test_ssl_argument(argparser):
-    """Test the gpu enable argument."""
+    """Test SSL argument with password."""
     args = argparser.parser.parse_args(
         ['--file', 'molecule.json', '--ssl', '--ssl-password', 'password']
     )
@@ -163,9 +162,44 @@ def test_noise_argument(argparser):
 
 
 def test_noise_disable_argument(argparser):
-    """Test the noise enable argument."""
+    """Test that noise is None by default."""
     args = argparser.parser.parse_args(['--file', 'molecule.json'])
     assert args.noise is None
+
+
+def test_exact_with_noise_requires_density_matrix(argparser):
+    """--exact + --noise on a sampling method reports zero variance on sampled values."""
+    args = argparser.parser.parse_args(
+        ['--file', 'molecule.json', '--exact', '--noise', 'ibm_brisbane']
+    )
+    with pytest.raises(SystemExit):
+        argparser._validate_args(args)
+
+
+def test_exact_with_noise_allowed_on_density_matrix(argparser):
+    """density_matrix evaluates the noisy expectation value exactly, so the combination is fine."""
+    args = argparser.parser.parse_args(
+        [
+            '--file',
+            'molecule.json',
+            '--exact',
+            '--noise',
+            'ibm_brisbane',
+            '--simulation-method',
+            'density_matrix',
+        ]
+    )
+    argparser._validate_args(args)
+
+    assert args.exact is True
+
+
+def test_exact_without_noise_keeps_default_method(argparser):
+    """--exact alone stays valid on the default simulation method."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--exact'])
+    argparser._validate_args(args)
+
+    assert args.exact is True
 
 
 def test_ansatz_reps_argument(argparser):
@@ -175,7 +209,7 @@ def test_ansatz_reps_argument(argparser):
 
 
 def test_local_backend_flag(argparser):
-    """Test the --local flag for using a local backend."""
+    """--ibm is store_false, so args.ibm is the 'run locally' flag and passing --ibm clears it."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--ibm'])
     assert not args.ibm
 
@@ -474,10 +508,29 @@ def test_dump_configuration(mock_file, argparser):
 
 
 def test_load_configuration(argparser):
-    args = argparser.parser.parse_args(['--file', 'molecule.json', '--dump'])
+    """A dumped configuration must override the argparse defaults when reloaded."""
+    args = argparser.parser.parse_args(
+        [
+            '--file',
+            'molecule.json',
+            '--dump',
+            '--basis',
+            'cc-pvdz',
+            '--optimizer',
+            'COBYLA',
+            '--ansatz-reps',
+            '7',
+        ]
+    )
     cfg_manager = ConfigurationManager()
     dump_config = cfg_manager.get_config(args)
+    assert (dump_config['basis'], dump_config['optimizer'], dump_config['ansatz_reps']) == (
+        'cc-pvdz',
+        'COBYLA',
+        7,
+    )
 
+    # second run passes only defaults, so anything non-default can only come from the file
     args = argparser.parser.parse_args(
         [
             '--file',
@@ -488,7 +541,10 @@ def test_load_configuration(argparser):
     )
     load_config = cfg_manager.get_config(args)
 
-    # ensure the dump and load configurations are the same
+    assert load_config['basis'] == 'cc-pvdz'
+    assert load_config['optimizer'] == 'COBYLA'
+    assert load_config['ansatz_reps'] == 7
+
     dump_config['dump'], load_config['dump'] = None, None
     dump_config['load'], load_config['load'] = None, None
 

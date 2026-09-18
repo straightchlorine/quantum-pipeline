@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -158,17 +160,19 @@ class TestExtractFeaturesAtFraction:
             extract_features_at_fraction(df_bad, 0.5)
 
     def test_single_step_does_not_crash(self) -> None:
-        df = pd.DataFrame({
-            'experiment_id': ['exp1'],
-            'iteration_step': [0],
-            'energy': [-1.0],
-            'molecule_name': ['H2'],
-            'num_qubits': [4],
-            'optimizer': ['COBYLA'],
-            'basis_set': ['sto-3g'],
-            'ansatz_reps': [2],
-            'final_energy': [-1.1],
-        })
+        df = pd.DataFrame(
+            {
+                'experiment_id': ['exp1'],
+                'iteration_step': [0],
+                'energy': [-1.0],
+                'molecule_name': ['H2'],
+                'num_qubits': [4],
+                'optimizer': ['COBYLA'],
+                'basis_set': ['sto-3g'],
+                'ansatz_reps': [2],
+                'final_energy': [-1.1],
+            }
+        )
         df_feat = extract_features_at_fraction(df, 1.0)
         assert len(df_feat) == 1
 
@@ -238,9 +242,7 @@ class TestEnergyEstimatorFitEvaluate:
         """More trajectory information should generally improve energy prediction."""
         _, results = estimator_results
         xgb_results = {
-            r.completion_frac: r.mae
-            for r in results.results
-            if r.model_name == 'XGBoost'
+            r.completion_frac: r.mae for r in results.results if r.model_name == 'XGBoost'
         }
         # 75% should not be worse than 25% (allow small tolerance)
         if 0.25 in xgb_results and 0.75 in xgb_results:
@@ -364,3 +366,43 @@ class TestEvaluationResult:
     def test_best_on_empty_returns_none(self) -> None:
         results = EnergyEstimatorResults()
         assert results.best() is None
+
+
+# ---------------------------------------------------------------------------
+# MLflow logging
+# ---------------------------------------------------------------------------
+
+
+class TestLogToMlflow:
+    def test_metric_keys_are_stable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Metric names are consumed by existing MLflow runs, so they must not drift."""
+        logged: dict[str, float] = {}
+
+        class FakeTracker:
+            def run(self, *args: object, **kwargs: object) -> nullcontext[None]:
+                return nullcontext()
+
+            def log_metrics(self, metrics: dict[str, float]) -> None:
+                logged.update(metrics)
+
+        monkeypatch.setattr('quantum_pipeline.ml.tracking.tracker', FakeTracker())
+
+        est = EnergyEstimator(use_mlflow=True)
+        est._log_to_mlflow(
+            0.5,
+            {
+                'Ridge': {'mae': 1.0, 'rmse': 2.0, 'r2': 0.5},
+                'XGBoost': {'mae': 0.1, 'rmse': 0.2, 'r2': 0.9},
+            },
+        )
+
+        assert set(logged) == {
+            'ridge_mae',
+            'ridge_rmse',
+            'ridge_r2',
+            'xgb_mae',
+            'xgb_rmse',
+            'xgb_r2',
+        }
+        assert logged['xgb_mae'] == 0.1
+        assert logged['ridge_r2'] == 0.5

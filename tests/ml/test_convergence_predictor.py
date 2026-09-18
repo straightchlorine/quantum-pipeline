@@ -42,7 +42,9 @@ def fitted_predictor(medium_traj: pd.DataFrame) -> ConvergencePredictor:
 
 
 @pytest.fixture(scope='module')
-def predictor_results(medium_traj: pd.DataFrame) -> tuple[ConvergencePredictor, ConvergencePredictorResults]:
+def predictor_results(
+    medium_traj: pd.DataFrame,
+) -> tuple[ConvergencePredictor, ConvergencePredictorResults]:
     """Predictor and results from the single training run."""
     predictor = ConvergencePredictor(horizons=[10, 20])
     results = predictor.fit_evaluate(medium_traj)
@@ -173,7 +175,12 @@ class TestComputeHorizonFeatures:
 
     def test_run_level_features_present(self, small_traj: pd.DataFrame) -> None:
         df_feat = compute_horizon_features(small_traj, k=10)
-        for col in ('num_qubits', 'init_strategy_random', 'qubit_x_random', 'mean_param_delta_norm'):
+        for col in (
+            'num_qubits',
+            'init_strategy_random',
+            'qubit_x_random',
+            'mean_param_delta_norm',
+        ):
             assert col in df_feat.columns, f'Missing run-level feature: {col}'
 
     def test_init_strategy_random_encoding(self, small_traj: pd.DataFrame) -> None:
@@ -212,17 +219,19 @@ class TestComputeHorizonFeatures:
             assert f'energy_delta_k{i}' in df_feat.columns
 
     def test_single_iteration_does_not_crash(self) -> None:
-        df = pd.DataFrame({
-            'run_id': ['r1'],
-            'iteration_step': [1],
-            'energy': [-1.0],
-            'molecule_name': ['H2'],
-            'num_qubits': [4],
-            'optimizer': ['COBYLA'],
-            'basis_set': ['sto-3g'],
-            'init_strategy': ['random'],
-            'converged': [1],
-        })
+        df = pd.DataFrame(
+            {
+                'run_id': ['r1'],
+                'iteration_step': [1],
+                'energy': [-1.0],
+                'molecule_name': ['H2'],
+                'num_qubits': [4],
+                'optimizer': ['COBYLA'],
+                'basis_set': ['sto-3g'],
+                'init_strategy': ['random'],
+                'converged': [1],
+            }
+        )
         df_feat = compute_horizon_features(df, k=1)
         assert len(df_feat) == 1
 

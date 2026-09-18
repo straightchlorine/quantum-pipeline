@@ -8,6 +8,7 @@ Covers new and fixed fields added in QUA-18:
 - deduplication of vqe_iterations on (experiment_id, iteration_step)
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -47,6 +48,8 @@ pytestmark = pytest.mark.skipif(
 def spark():
     """Session-scoped SparkSession for all Spark extraction tests."""
     from pyspark.sql import SparkSession
+
+    os.environ.setdefault('PYSPARK_PYTHON', sys.executable)
 
     session = (
         SparkSession.builder.master('local[1]')
@@ -234,7 +237,6 @@ def sample_df(spark):
 
 @pytest.fixture(scope='session')
 def transformed(sample_df):
-    """Run transform_quantum_data once for all transform tests."""
     return transform_quantum_data(sample_df)
 
 

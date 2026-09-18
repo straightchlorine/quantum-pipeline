@@ -39,18 +39,15 @@ class TestArgparserVQEIntegration:
         parser = QuantumPipelineArgParser()
         config_manager = ConfigurationManager()
 
-        # Simulate argparse with max_iterations only
         test_args = ['--file', 'molecule.json', '--max-iterations', '5']
 
         with patch('sys.argv', ['quantum_pipeline.py', *test_args]):
             args = parser.parser.parse_args(test_args)
             config = config_manager.get_config(args)
 
-        # Verify config has correct values
         assert config['max_iterations'] == 5
         assert config['convergence'] is False
 
-        # Create VQE solver with config values
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -60,7 +57,6 @@ class TestArgparserVQEIntegration:
             ansatz_reps=2,
         )
 
-        # Verify VQE solver configuration
         assert solver.max_iterations == 5
         assert solver.convergence_threshold is None
         assert solver.optimizer == 'L-BFGS-B'  # Default
@@ -132,7 +128,6 @@ class TestArgparserVQEIntegration:
         assert solver.convergence_threshold == 1e-6
         assert solver.optimizer == 'COBYLA'
 
-        # Test priority logic
         both_specified = solver.convergence_threshold and solver.max_iterations
         assert both_specified, 'Both parameters should be specified'
 
@@ -141,7 +136,6 @@ class TestArgparserVQEIntegration:
         parser = QuantumPipelineArgParser()
         config_manager = ConfigurationManager()
 
-        # Test with edge case values
         test_cases = [
             (['--file', 'molecule.json', '--max-iterations', '0'], 0, None),
             (['--file', 'molecule.json', '--max-iterations', '1'], 1, None),
@@ -193,7 +187,6 @@ class TestArgparserVQEIntegration:
             ansatz_reps=2,
         )
 
-        # Test the L-BFGS-B specific logic
         should_disable_convergence = solver.optimizer == 'L-BFGS-B' and solver.max_iterations
         assert should_disable_convergence, 'L-BFGS-B should disable default convergence criteria'
 
@@ -229,13 +222,11 @@ class TestArgparserVQEIntegration:
             args = parser.parser.parse_args(test_args)
             config = config_manager.get_config(args)
 
-        # Verify config preservation
         assert config['max_iterations'] == original_values['max_iterations']
         assert config['threshold'] == original_values['threshold']
         assert config['optimizer'] == original_values['optimizer']
         assert config['convergence'] is True
 
-        # Verify VQE solver gets correct values
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -257,14 +248,12 @@ class TestInputValidationRobustness:
         """Test handling of extreme values."""
         parser = QuantumPipelineArgParser()
 
-        # Test very large max_iterations
         large_value = str(sys.maxsize)
         args = parser.parser.parse_args(
             ['--file', 'molecule.json', '--max-iterations', large_value]
         )
         assert args.max_iterations == sys.maxsize
 
-        # Test very small threshold
         small_threshold = '1e-300'
         args = parser.parser.parse_args(
             ['--file', 'molecule.json', '--threshold', small_threshold]
@@ -295,7 +284,6 @@ class TestInputValidationRobustness:
             args = parser.parser.parse_args(test_args)
             config = config_manager.get_config(args)
 
-        # Verify types
         assert isinstance(config['max_iterations'], int)
         assert isinstance(config['threshold'], float)
         assert isinstance(config['optimizer'], str)
@@ -312,7 +300,6 @@ class TestInputValidationRobustness:
             args = parser.parser.parse_args(test_args)
             config = config_manager.get_config(args)
 
-        # Verify default types
         assert isinstance(config['max_iterations'], int)
         assert isinstance(config['threshold'], float)
         assert isinstance(config['optimizer'], str)

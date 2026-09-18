@@ -14,9 +14,7 @@ from testcontainers.kafka import KafkaContainer
 
 from quantum_pipeline.utils.schema_registry import SchemaRegistry
 
-# ---------------------------------------------------------------------------
 # Minimal valid Avro schema used across tests
-# ---------------------------------------------------------------------------
 TEST_SCHEMA = {
     'type': 'record',
     'name': 'VQEProcess',
@@ -29,9 +27,6 @@ TEST_SCHEMA = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Container fixtures (session-scoped for speed)
-# ---------------------------------------------------------------------------
 @pytest.fixture(scope='session')
 def docker_network():
     """Create a shared Docker network for inter-container communication."""
@@ -48,7 +43,6 @@ def kafka_container(docker_network):
     """Start a Kafka container for the entire test session."""
     kafka = KafkaContainer('confluentinc/cp-kafka:7.6.0')
     kafka.start()
-    # Connect Kafka to the shared network for inter-container communication
     docker_network.connect(kafka.get_wrapped_container().id)
     yield kafka
     kafka.stop()
@@ -61,7 +55,6 @@ def schema_registry_container(kafka_container, docker_network):
     The Schema Registry connects to Kafka's internal BROKER listener (port 9092)
     via the shared Docker network, not the host-mapped PLAINTEXT listener.
     """
-    # Get Kafka's internal IP address on the shared network
     kafka_wrapper = kafka_container.get_wrapped_container()
     kafka_wrapper.reload()  # refresh attrs after network connect
     kafka_internal_host = kafka_wrapper.attrs['NetworkSettings']['Networks']['test-network-sr'][
@@ -81,7 +74,6 @@ def schema_registry_container(kafka_container, docker_network):
     sr.with_env('SCHEMA_REGISTRY_LISTENERS', 'http://0.0.0.0:8081')
     sr.with_exposed_ports(8081)
     sr.start()
-    # Connect Schema Registry to the same network
     docker_network.connect(sr.get_wrapped_container().id)
     wait_for_logs(sr, 'Server started', timeout=60)
     yield sr
@@ -110,9 +102,6 @@ def schema_registry(schema_registry_url, monkeypatch):
     return SchemaRegistry()
 
 
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
 def _register_schema(base_url: str, subject: str, schema_dict: dict) -> requests.Response:
     """Register an Avro schema directly via the REST API."""
     return requests.post(
@@ -123,9 +112,6 @@ def _register_schema(base_url: str, subject: str, schema_dict: dict) -> requests
     )
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 @pytest.mark.integration
 class TestSchemaRegistryContainer:
     """Tests that exercise SchemaRegistry against real containers."""
@@ -163,12 +149,10 @@ class TestSchemaRegistryContainer:
         subject = 'test_caching'
         _register_schema(schema_registry_url, subject, TEST_SCHEMA)
 
-        # First call - populates cache
         result1 = schema_registry._get_schema_from_registry(subject)
         assert result1 is not None
         assert subject in schema_registry.schema_cache
 
-        # Second call - verify cache is populated (content unchanged)
         cached = schema_registry.schema_cache[subject]
         result2 = schema_registry._get_schema_from_cache(subject)
         assert result2 is not None
@@ -192,7 +176,6 @@ class TestSchemaRegistryContainer:
         resp_v2 = _register_schema(schema_registry_url, subject, v2_schema)
         assert resp_v2.status_code == 200
 
-        # Fetch latest
         resp = requests.get(
             f'{schema_registry_url}/subjects/{subject}-value/versions/latest',
             timeout=10,
@@ -216,7 +199,6 @@ class TestSchemaRegistryContainer:
         subject = 'test_save_real'
         schema_registry.register_schema(subject, TEST_SCHEMA)
 
-        # Verify it landed in the registry
         resp = requests.get(
             f'{schema_registry_url}/subjects/{subject}-value/versions/latest',
             timeout=10,
@@ -225,5 +207,4 @@ class TestSchemaRegistryContainer:
         saved = json.loads(resp.json()['schema'])
         assert saved['name'] == TEST_SCHEMA['name']
 
-        # Verify schema is in memory cache
         assert subject in schema_registry.schema_cache

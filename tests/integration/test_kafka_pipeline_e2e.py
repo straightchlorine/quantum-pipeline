@@ -26,10 +26,6 @@ from quantum_pipeline.structures.vqe_observation import (  # noqa: E402
     VQEResult,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _make_consumer(bootstrap_servers, topic, **kwargs):
     """Create a KafkaConsumer with sensible test defaults."""
@@ -150,11 +146,6 @@ def e2e_producer(producer_config, pipeline_env):
     producer.close()
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.integration
 class TestKafkaPipelineE2E:
     """End-to-end tests exercising Kafka + Schema Registry via testcontainers."""
@@ -170,23 +161,19 @@ class TestKafkaPipelineE2E:
         result = _build_decorated_result()
         topic = producer_config.topic
 
-        # Serialize via the producer's serializer
         avro_bytes = e2e_producer.serializer.to_avro_bytes(result)
         assert isinstance(avro_bytes, bytes)
         assert len(avro_bytes) > 0
 
-        # Produce
         e2e_producer.producer.send(topic, avro_bytes).get(timeout=10)
         e2e_producer.producer.flush()
 
-        # Consume
         consumer = _make_consumer(kafka_bootstrap_servers, topic)
         messages = [msg.value for msg in consumer]
         consumer.close()
 
         assert avro_bytes in messages
 
-        # Deserialize the consumed bytes
         consumed_bytes = messages[messages.index(avro_bytes)]
 
         # The bytes include the Confluent wire format header (magic + schema ID)
@@ -196,10 +183,8 @@ class TestKafkaPipelineE2E:
             schema_id = int.from_bytes(consumed_bytes[1:5], byteorder='big')
             assert schema_id > 0, 'Schema ID should be positive'
 
-            # Deserialize using the interface
             deserialized = e2e_producer.serializer.from_avro_bytes(consumed_bytes)
 
-            # Verify key fields match
             assert deserialized.basis_set == result.basis_set
             assert deserialized.molecule_id == result.molecule_id
             assert float(deserialized.total_time) == pytest.approx(float(result.total_time))
@@ -209,7 +194,6 @@ class TestKafkaPipelineE2E:
             )
             assert float(deserialized.mapping_time) == pytest.approx(float(result.mapping_time))
 
-            # Verify nested VQEResult fields
             assert float(deserialized.vqe_result.minimum) == pytest.approx(
                 float(result.vqe_result.minimum)
             )
@@ -222,13 +206,11 @@ class TestKafkaPipelineE2E:
                 atol=1e-10,
             )
 
-            # Verify VQEProcess iteration
             orig_proc = result.vqe_result.iteration_list[0]
             deser_proc = deserialized.vqe_result.iteration_list[0]
             assert deser_proc.iteration == orig_proc.iteration
             assert float(deser_proc.result) == pytest.approx(float(orig_proc.result))
 
-            # Verify molecule info
             assert list(deserialized.molecule.symbols) == list(result.molecule.symbols)
             assert deserialized.molecule.charge == result.molecule.charge
             assert deserialized.molecule.multiplicity == result.molecule.multiplicity
@@ -245,7 +227,6 @@ class TestKafkaPipelineE2E:
         # Serialize (triggers schema registration via the interface property)
         e2e_producer.serializer.to_avro_bytes(result)
 
-        # Query the Schema Registry REST API directly to verify registration
         schema_name = e2e_producer.serializer.SCHEMA_NAME
         resp = requests.get(
             f'{sr_url}/subjects/{schema_name}-value/versions/latest',
@@ -261,7 +242,6 @@ class TestKafkaPipelineE2E:
         assert 'id' in body
         assert isinstance(body['id'], int)
 
-        # The registered schema should be a valid VQEDecoratedResult schema
         registered_schema = json.loads(body['schema'])
         assert registered_schema['name'] == 'VQEDecoratedResult'
         assert registered_schema['type'] == 'record'
@@ -300,7 +280,6 @@ class TestKafkaPipelineE2E:
 
         e2e_producer.producer.flush()
 
-        # Consume all messages
         consumer = _make_consumer(kafka_bootstrap_servers, topic)
         received = [msg.value for msg in consumer]
         consumer.close()
@@ -328,7 +307,6 @@ class TestKafkaPipelineE2E:
                     f'Message {i}: iteration count mismatch'
                 )
 
-        # Verify all sent bytes were received
         for b in sent_bytes:
             assert b in received
 
@@ -340,7 +318,6 @@ class TestKafkaPipelineE2E:
         sr_url = pipeline_env['schema_registry_url']
         subject = 'test_compat_check'
 
-        # Register base schema (VQEProcess-like)
         base_schema = {
             'type': 'record',
             'name': 'VQEProcessCompat',
@@ -385,7 +362,6 @@ class TestKafkaPipelineE2E:
         evolved_id = resp2.json()['id']
         assert evolved_id != base_id, 'Evolved schema should get a different ID'
 
-        # Verify both versions exist
         versions_resp = requests.get(
             f'{sr_url}/subjects/{subject}-value/versions',
             timeout=10,
@@ -394,7 +370,6 @@ class TestKafkaPipelineE2E:
         versions = versions_resp.json()
         assert len(versions) == 2, f'Expected 2 versions, got {versions}'
 
-        # Verify latest is the evolved schema
         latest_resp = requests.get(
             f'{sr_url}/subjects/{subject}-value/versions/latest',
             timeout=10,
@@ -436,7 +411,6 @@ class TestKafkaPipelineE2E:
             performance_end=perf_end,
         )
 
-        # Verify performance delta calculation works
         delta = result.get_performance_delta()
         assert delta['cpu_usage_delta'] == pytest.approx(50.0)
         assert delta['container_type'] == 'docker'
@@ -444,19 +418,16 @@ class TestKafkaPipelineE2E:
 
         topic = 'test-perf-data'
 
-        # Serialize and produce
         avro_bytes = e2e_producer.serializer.to_avro_bytes(result)
         e2e_producer.producer.send(topic, avro_bytes).get(timeout=10)
         e2e_producer.producer.flush()
 
-        # Consume
         consumer = _make_consumer(kafka_bootstrap_servers, topic)
         messages = [msg.value for msg in consumer]
         consumer.close()
 
         assert avro_bytes in messages
 
-        # Deserialize and verify performance data survives the round trip
         schema_name = e2e_producer.serializer.SCHEMA_NAME
         if e2e_producer.registry.id_cache.get(schema_name):
             consumed = messages[messages.index(avro_bytes)]
@@ -468,7 +439,6 @@ class TestKafkaPipelineE2E:
             assert deserialized.performance_start['container_type'] == 'docker'
             assert deserialized.performance_end['system']['cpu']['percent'] == 75.0
 
-            # Verify the deserialized result also computes the correct delta
             deser_delta = deserialized.get_performance_delta()
             assert deser_delta['cpu_usage_delta'] == pytest.approx(50.0)
             assert deser_delta['container_type'] == 'docker'
