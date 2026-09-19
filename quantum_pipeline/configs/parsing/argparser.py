@@ -11,10 +11,7 @@ from quantum_pipeline.utils.logger import get_logger
 
 
 class QuantumPipelineArgParser:
-    """Class for handling command line argument parsing for quantum pipeline."""
-
     def __init__(self):
-        """Initialize the parser with default configuration."""
         self.logger = get_logger('Argparser')
 
         self.initialize_simulation_environment()
@@ -26,28 +23,24 @@ class QuantumPipelineArgParser:
         self._add_arguments()
 
     def initialize_simulation_environment(self):
-        """Ensure required directories and configurations are in place."""
         ensure_dir_exists(settings.GEN_DIR)
         ensure_dir_exists(settings.GRAPH_DIR)
         ensure_dir_exists(settings.REPORT_DIR)
         ensure_dir_exists(settings.RUN_CONFIGS)
 
     def _create_optimizer_help_text(self) -> str:
-        """Create detailed help text for optimizer options."""
         help_text = 'Available optimizers:\n'
         for optimizer, description in settings.SUPPORTED_OPTIMIZERS.items():
             help_text += f'|  {optimizer}: {description} |'
         return help_text
 
     def _create_simulation_method_help_text(self) -> str:
-        """Create detailed help text for simulation methods."""
         help_text = 'Available simulation methods:\n'
         for method, description in settings.SIMULATION_METHODS.items():
             help_text += f'|  {method}: {description} |\n'
         return help_text.strip()
 
     def _add_arguments(self):
-        """Add all argument groups and their arguments to the parser."""
         self._add_required_arguments()
         self._add_simulation_config()
         self._add_vqe_parameters()
@@ -58,7 +51,6 @@ class QuantumPipelineArgParser:
         self._add_security_options()
 
     def _add_required_arguments(self):
-        """Add required arguments to the parser."""
         self.parser.add_argument(
             '-f', '--file', required=True, help='Path to molecule data file (JSON)'
         )
@@ -71,7 +63,6 @@ class QuantumPipelineArgParser:
         )
 
     def _add_simulation_config(self):
-        """Add simulation configuration arguments."""
         sim_group = self.parser.add_argument_group('Simulation Configuration')
         sim_group.add_argument(
             '-b',
@@ -109,7 +100,6 @@ class QuantumPipelineArgParser:
         )
 
     def _add_kafka_config(self):
-        """Add simulation configuration arguments."""
         kafka_group = self.parser.add_argument_group('Kafka Configuration')
         kafka_group.add_argument(
             '--kafka', action='store_true', help='Enable streaming results to Apache Kafka'
@@ -158,7 +148,6 @@ class QuantumPipelineArgParser:
         )
 
     def _add_vqe_parameters(self):
-        """Add VQE-specific parameters."""
         vqe_group = self.parser.add_argument_group('VQE Parameters')
         vqe_group.add_argument(
             '--max-iterations',
@@ -200,7 +189,6 @@ class QuantumPipelineArgParser:
         )
 
     def _add_output_logging(self):
-        """Add output and logging related arguments."""
         output_group = self.parser.add_argument_group('Output and Logging')
         output_group.add_argument(
             '--output-dir', default=settings.GEN_DIR, help='Directory to store output files'
@@ -218,7 +206,6 @@ class QuantumPipelineArgParser:
         return shots
 
     def _add_backend_options(self):
-        """Add advanced backend configuration options."""
         backend_group = self.parser.add_argument_group('Advanced Backend Options')
         backend_group.add_argument(
             '--shots',
@@ -254,7 +241,6 @@ class QuantumPipelineArgParser:
         raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
 
     def _add_additional_features(self):
-        """Add additional feature arguments."""
         additional_group = self.parser.add_argument_group('Additional Features')
         additional_group.add_argument(
             '--report', action='store_true', help='Generate a PDF report after simulation'
@@ -405,7 +391,6 @@ class QuantumPipelineArgParser:
         )
 
     def _validate_args(self, args: argparse.Namespace) -> None:
-        """Validate parsed arguments."""
         settings.LOG_LEVEL = getattr(logging, args.log_level)
 
         if args.dump and args.load:
@@ -416,6 +401,13 @@ class QuantumPipelineArgParser:
 
         if args.convergence and args.threshold is None:
             self.parser.error('--threshold must be set if --convergence is enabled.')
+
+        if args.exact and args.noise and args.simulation_method != 'density_matrix':
+            self.parser.error(
+                '--exact with --noise requires --simulation-method density_matrix. '
+                'Other methods sample the noise model shot by shot, so the run is no '
+                'longer exact even though it reports zero variance.'
+            )
 
         gpu_only_methods = {'tensor_network'}
         if not args.gpu and args.simulation_method in gpu_only_methods:
@@ -485,13 +477,11 @@ class QuantumPipelineArgParser:
                         self.parser.error('Cannot use PLAIN/SCRAM options with GSSAPI')
 
     def parse_args(self) -> argparse.Namespace:
-        """Parse and validate command line arguments."""
         args = self.parser.parse_args()
         self._validate_args(args)
         return args
 
     def get_config(self) -> dict[str, Any]:
-        """Get the configuration from the parsed arguments."""
         config_manager = ConfigurationManager()
         args = self.parse_args()
         return config_manager.get_config(args)

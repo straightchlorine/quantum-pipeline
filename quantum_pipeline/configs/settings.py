@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 SUPPORTED_OPTIMIZERS = {
@@ -36,7 +37,7 @@ SIMULATION_METHODS = {
     'tensor_network': 'GPU-accelerated tensor-network simulation using cuTensorNet APIs.',
 }
 
-SCHEMA_REGISTRY_URL = 'http://schema-registry:8081'
+SCHEMA_REGISTRY_URL = os.getenv('SCHEMA_REGISTRY_URL', 'http://schema-registry:8081')
 
 LOG_LEVEL = logging.DEBUG
 GEN_DIR = 'gen'
@@ -65,9 +66,9 @@ ANSATZ = 'ansatz'
 ANSATZ_DECOMPOSED_PLOT_DIR = Path(GRAPH_DIR, 'ansatz_decomposed')
 ANSATZ_DECOMPOSED = 'ansatz_decomposed'
 
-# Performance Monitoring Settings
-MONITORING_ENABLED = False  # Global toggle
+# performance monitoring
+MONITORING_ENABLED = False  # global toggle
 MONITORING_METRICS_DIR = Path(GEN_DIR, 'performance_metrics')
 MONITORING_INTERVAL = 10  # seconds
 PUSHGATEWAY_URL = 'http://localhost:9091'
-MONITORING_EXPORT_FORMAT = ['prometheus']  # Export formats
+MONITORING_EXPORT_FORMAT = ['prometheus']  # export formats

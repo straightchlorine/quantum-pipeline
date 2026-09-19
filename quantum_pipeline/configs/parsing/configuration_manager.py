@@ -41,14 +41,10 @@ def _redact_sensitive(data: Any, _depth: int = 0) -> Any:
 
 
 class ConfigurationManager:
-    """Class for managing application configurations."""
-
     def __init__(self):
         self.logger = get_logger(self.__class__.__name__)
 
     def create_kafka_config(self, args: argparse.Namespace) -> ProducerConfig:
-        """Create Kafka configuration from arguments."""
-
         security_dict = {
             'ssl': args.ssl,
             'sasl_ssl': args.sasl_ssl,
@@ -91,7 +87,6 @@ class ConfigurationManager:
         )
 
     def create_backend_config(self, args: argparse.Namespace) -> BackendConfig:
-        """Create Backend configuration from arguments."""
         return BackendConfig.from_dict(
             {
                 'local': args.ibm,
@@ -106,8 +101,6 @@ class ConfigurationManager:
         )
 
     def dump(self, args: argparse.Namespace, config: dict[str, Any]):
-        """Dump the configurations for debugging or logging."""
-
         self.logger.debug('Dumping configuration into the file...')
 
         # create a copy thats JSON serializable
@@ -123,7 +116,6 @@ class ConfigurationManager:
             if k in config_dict.get('kafka_config', {}):
                 config_dict.pop(k)
 
-        #  create a filename
         file_name = Path(args.file).stem
         basis_set = args.basis
         optimizer = args.optimizer
@@ -145,7 +137,6 @@ class ConfigurationManager:
         self.logger.debug(f'Configurations:\n\n{_redact_sensitive(config_dict)}\n')
 
     def load(self, file_path: str) -> dict[str, Any]:
-        """Load the configurations from a JSON file."""
         try:
             self.logger.debug(f'Loading configuration from:\n\n{file_path}\n')
             with open(file_path) as file:
@@ -155,7 +146,6 @@ class ConfigurationManager:
             backend_config = BackendConfig.from_dict(config_dict['backend_config'])
             kafka_config = ProducerConfig.from_dict(config_dict['kafka_config'])
 
-            # build full dictionary
             config_dict['backend_config'] = backend_config
             config_dict['kafka_config'] = kafka_config
 
@@ -171,17 +161,14 @@ class ConfigurationManager:
             raise
 
     def get_config(self, args: argparse.Namespace) -> dict[str, Any]:
-        """Convert parsed arguments dynamically into a dictionary."""
-
-        if args.load:
-            self.load(args.load)
-
-        # create a dictionary from the parsed arguments
         config_dict = {key: value for key, value in vars(args).items() if key != 'local'}
         config_dict['kafka_config'] = self.create_kafka_config(args)
         config_dict['backend_config'] = self.create_backend_config(args)
 
-        # Initialize performance monitoring if enabled via command line
+        # a loaded file wins over every CLI value
+        if args.load:
+            config_dict.update(self.load(args.load))
+
         if hasattr(args, 'enable_performance_monitoring') and args.enable_performance_monitoring:
             self.logger.info('Initializing performance monitoring from command line arguments')
             export_formats = getattr(args, 'performance_export_format', 'both')
