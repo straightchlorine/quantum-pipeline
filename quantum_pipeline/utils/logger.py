@@ -4,7 +4,7 @@ from quantum_pipeline.configs import settings
 
 
 def get_logger(name: str):
-    """Set up and return a logger without duplicate handlers."""
+    """Return a logger, attaching the handler only once so records are not emitted twice."""
     logger = logging.getLogger(name)
 
     if not logger.hasHandlers():
