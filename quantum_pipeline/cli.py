@@ -17,10 +17,16 @@ def execute_simulation(**kwargs):
     if apply_threshold:
         threshold = kwargs['threshold']
         logger.info(f'Applying convergence threshold {threshold} during minimization')
-        if max_iterations == DEFAULTS['max_iterations']:
-            max_iterations = None
+        if max_iterations != DEFAULTS['max_iterations']:
+            logger.warning(
+                f'--max-iterations {max_iterations} ignored: --convergence takes precedence.'
+            )
+        # convergence is prioritized over the max iter
+        # raising mid run removed
+        max_iterations = None
 
-    if os.getenv('KAFKA_SERVERS', None):
+    # kafka_config is None unless --kafka is set, so the env override needs the guard.
+    if kwargs['kafka'] and kwargs['kafka_config'] is not None and os.getenv('KAFKA_SERVERS'):
         kwargs['kafka_config'].servers = os.getenv('KAFKA_SERVERS')
 
     runner = VQERunner(
