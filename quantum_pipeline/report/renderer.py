@@ -99,6 +99,8 @@ class PDFRenderer:
         Returns:
             float: Updated vertical position.
         """
+        # table sizes itself from its content and ignores the bounds given
+        # to wrap(), so (0, 0) returns the natural size
         table_width, table_height = table.wrap(0, 0)
         table_x = (letter[0] - table_width) / 2
         table.drawOn(canvas_obj, table_x, y_position - table_height)
