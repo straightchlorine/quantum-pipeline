@@ -7,8 +7,6 @@ from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
 
 @dataclass
 class VQEInitialData:
-    """Dataclass for storing VQE initial data."""
-
     backend: str
     num_qubits: int
     hamiltonian: np.ndarray
@@ -27,8 +25,6 @@ class VQEInitialData:
 
 @dataclass
 class VQEProcess:
-    """Dataclass for storing VQE process data."""
-
     iteration: int
     parameters: np.ndarray
     result: np.float64
@@ -40,8 +36,6 @@ class VQEProcess:
 
 @dataclass
 class VQEResult:
-    """Dataclass for storing VQE result data."""
-
     initial_data: VQEInitialData
     iteration_list: list[VQEProcess]
     minimum: np.float64
@@ -63,8 +57,6 @@ class VQEResult:
 
 @dataclass
 class VQEDecoratedResult:
-    """Dataclass for storing VQE result data with additional information."""
-
     vqe_result: VQEResult
     molecule: MoleculeInfo
     basis_set: str
@@ -74,7 +66,7 @@ class VQEDecoratedResult:
     total_time: np.float64
     molecule_id: int
 
-    # Optional performance monitoring data
+    # performance monitoring data (optional)
     performance_start: dict | None = None
     performance_end: dict | None = None
 
@@ -86,24 +78,24 @@ class VQEDecoratedResult:
         try:
             delta = {}
 
-            # System performance deltas
+            # system performance
             start_sys = self.performance_start.get('system', {})
             end_sys = self.performance_end.get('system', {})
 
-            # CPU metrics
+            # cpu metrics
             start_cpu = start_sys.get('cpu', {})
             end_cpu = end_sys.get('cpu', {})
             if start_cpu.get('percent') is not None and end_cpu.get('percent') is not None:
                 delta['cpu_usage_delta'] = end_cpu['percent'] - start_cpu['percent']
 
-            # Memory metrics
+            # memory metrics
             start_mem = start_sys.get('memory', {})
             end_mem = end_sys.get('memory', {})
             if start_mem.get('used') is not None and end_mem.get('used') is not None:
                 delta['memory_usage_delta'] = end_mem['used'] - start_mem['used']
                 delta['memory_usage_delta_gb'] = delta['memory_usage_delta'] / (1024**3)
 
-            # GPU metrics (if available)
+            # gpu metrics
             start_gpu = self.performance_start.get('gpu', [])
             end_gpu = self.performance_end.get('gpu', [])
             if start_gpu and end_gpu:
@@ -120,7 +112,7 @@ class VQEDecoratedResult:
                 if gpu_deltas:
                     delta['gpu_deltas'] = gpu_deltas
 
-            # Add VQE timing context
+            # vqe timing
             delta['vqe_total_time'] = float(self.total_time)
             delta['container_type'] = self.performance_start.get('container_type', 'unknown')
 
