@@ -66,7 +66,6 @@ class KafkaSecurity:
     def _configure_gssapi_sasl(self, sasl_config: dict[str, Any]) -> None:
         """Configure GSSAPI (Kerberos) SASL settings.
 
-
         Args:
             sasl_config: SASL configuration dictionary to update
         """
@@ -77,7 +76,7 @@ class KafkaSecurity:
             sasl_config['sasl_kerberos_domain_name'] = opts.sasl_kerberos_domain_name
 
     def _get_sasl_config(self) -> dict[str, Any]:
-        """Generate SASL configuration parameters.
+        """Generate SASL configuration with protocol and mechanism validation.
 
         Returns:
             SASL configuration
@@ -108,7 +107,7 @@ class KafkaSecurity:
     def build_security_config(self) -> dict[str, Any]:
         """Build security configuration for Kafka connection.
 
-        Returns
+        Returns:
             Security configuration parameters
 
         Raises:
