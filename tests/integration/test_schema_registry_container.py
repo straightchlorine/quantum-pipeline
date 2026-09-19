@@ -149,14 +149,12 @@ class TestSchemaRegistryContainer:
         subject = 'test_caching'
         _register_schema(schema_registry_url, subject, TEST_SCHEMA)
 
-        result1 = schema_registry._get_schema_from_registry(subject)
+        result1 = schema_registry.fetch_schema_from_upstream(subject)
         assert result1 is not None
-        assert subject in schema_registry.schema_cache
+        assert subject in schema_registry.cache
 
-        cached = schema_registry.schema_cache[subject]
-        result2 = schema_registry._get_schema_from_cache(subject)
-        assert result2 is not None
-        assert json.loads(cached) if isinstance(cached, str) else cached == result2
+        result2 = schema_registry.fetch_schema_from_cache(subject)
+        assert result2 == result1
 
     def test_schema_versioning(self, schema_registry_url):
         """Register v1, then v2 (with an extra field); latest must be v2."""
@@ -190,7 +188,7 @@ class TestSchemaRegistryContainer:
         subject = 'test_get_real'
         _register_schema(schema_registry_url, subject, TEST_SCHEMA)
 
-        result = schema_registry.get_schema(subject)
+        result = json.loads(schema_registry.get_schema(subject))
         assert result['name'] == TEST_SCHEMA['name']
         assert result['type'] == 'record'
 
@@ -207,4 +205,4 @@ class TestSchemaRegistryContainer:
         saved = json.loads(resp.json()['schema'])
         assert saved['name'] == TEST_SCHEMA['name']
 
-        assert subject in schema_registry.schema_cache
+        assert subject in schema_registry.cache

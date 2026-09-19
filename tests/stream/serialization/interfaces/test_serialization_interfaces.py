@@ -1,6 +1,8 @@
+import json
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
+import avro.schema
 import numpy as np
 from qiskit.circuit import QuantumCircuit
 from qiskit_nature.second_q.formats.molecule_info import MoleculeInfo
@@ -20,21 +22,29 @@ from quantum_pipeline.structures.vqe_observation import (
     VQEProcess,
     VQEResult,
 )
+from quantum_pipeline.utils.schema_registry import SchemaRecord
 
 
 class MockSchemaRegistry:
+    """Stand-in for SchemaRegistry: same cache/register_schema/serialize_schema contract,
+    minus the network calls. `_publish` is the seam tests override to simulate a failed
+    registry POST (id stays None, so `register_schema` retries on the next call)."""
+
     def __init__(self):
-        self.schemas = {}
-        self.id_cache = {}
+        self.cache: dict[str, SchemaRecord] = {}
 
-    def get_schema(self, schema_name):
-        if schema_name not in self.schemas:
-            raise FileNotFoundError(f'Schema {schema_name} not found')
-        return self.schemas[schema_name]
+    def serialize_schema(self, schema):
+        return avro.schema.parse(json.dumps(schema) if isinstance(schema, dict) else schema)
 
-    def save_schema(self, schema_name, schema):
-        self.schemas[schema_name] = schema
-        self.id_cache[schema_name] = 123
+    def register_schema(self, schema_name, schema_dict):
+        cached = self.cache.get(schema_name)
+        if cached is not None and cached.id is not None:
+            return
+        new_id = self._publish(schema_name, schema_dict)
+        self.cache[schema_name] = SchemaRecord(id=new_id, schema=json.dumps(schema_dict))
+
+    def _publish(self, schema_name, schema_dict):
+        return 123
 
 
 class TestAvroInterfaceBase(unittest.TestCase):
@@ -113,7 +123,9 @@ class TestAvroInterfaceBase(unittest.TestCase):
         test_obj.value = 42
         # ConcreteAvroInterface never registers its schema, so seed the id the way a
         # successful registry publish would.
-        self.registry.id_cache[self.interface.SCHEMA_NAME] = 123
+        self.registry.cache[self.interface.SCHEMA_NAME] = SchemaRecord(
+            id=123, schema=json.dumps(self.interface.schema)
+        )
 
         result = self.interface.to_avro_bytes(test_obj)
 
@@ -154,13 +166,14 @@ class TestAvroInterfaceBase(unittest.TestCase):
 
 
 class TestSchemaRegistrationGuard(unittest.TestCase):
-    """_register_schema short-circuits on id_cache, so a failed publish is retried on the
-    next message and the Confluent header appears once the registry comes back up."""
+    """register_schema short-circuits once a schema's id is cached, so a failed publish
+    is retried on the next message and the Confluent header appears once the registry
+    comes back up."""
 
     def test_failed_registration_is_retried_on_next_message(self):
         registry = MockSchemaRegistry()
-        # a rejected POST leaves id_cache empty, which is what the guard keys on
-        registry.save_schema = Mock()
+        # a rejected POST leaves the cached id at None, which is what the guard keys on
+        registry._publish = Mock(return_value=None)
         interface = VQEProcessInterface(registry)
         process = VQEProcess(
             iteration=0,
@@ -173,20 +186,20 @@ class TestSchemaRegistrationGuard(unittest.TestCase):
             with self.assertRaises(KeyError):
                 interface.to_avro_bytes(process)
 
-        self.assertEqual(registry.save_schema.call_count, 2)
-        self.assertEqual(registry.id_cache, {})
+        self.assertEqual(registry._publish.call_count, 2)
+        self.assertIsNone(registry.cache[interface.SCHEMA_NAME].id)
 
     def test_composite_schema_registers_each_subschema_once(self):
         registry = MockSchemaRegistry()
-        registry.save_schema = Mock(wraps=registry.save_schema)
+        registry._publish = Mock(wraps=registry._publish)
         interface = VQEDecoratedResultInterface(registry)
 
         self.assertIsInstance(interface.schema, dict)
         self.assertIsInstance(interface.schema, dict)
 
-        self.assertEqual(registry.save_schema.call_count, 5)
+        self.assertEqual(registry._publish.call_count, 5)
         self.assertEqual(
-            sorted(registry.id_cache),
+            sorted(registry.cache),
             ['experiment.vqe', 'vqe_initial', 'vqe_molecule', 'vqe_process', 'vqe_result'],
         )
 

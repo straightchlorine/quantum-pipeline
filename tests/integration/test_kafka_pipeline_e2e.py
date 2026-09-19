@@ -178,7 +178,8 @@ class TestKafkaPipelineE2E:
 
         # The bytes include the Confluent wire format header (magic + schema ID)
         # if the schema was registered. Verify the header is present.
-        if e2e_producer.registry.id_cache.get(e2e_producer.serializer.SCHEMA_NAME):
+        cached = e2e_producer.registry.cache.get(e2e_producer.serializer.SCHEMA_NAME)
+        if cached is not None and cached.id is not None:
             assert consumed_bytes[0:1] == b'\x00', 'Missing Confluent magic byte'
             schema_id = int.from_bytes(consumed_bytes[1:5], byteorder='big')
             assert schema_id > 0, 'Schema ID should be positive'
@@ -290,7 +291,8 @@ class TestKafkaPipelineE2E:
 
         # Verify each message can be deserialized if the Confluent header is present
         schema_name = e2e_producer.serializer.SCHEMA_NAME
-        if e2e_producer.registry.id_cache.get(schema_name):
+        cached = e2e_producer.registry.cache.get(schema_name)
+        if cached is not None and cached.id is not None:
             for i, (config, consumed) in enumerate(zip(test_configs, received, strict=False)):
                 deserialized = e2e_producer.serializer.from_avro_bytes(consumed)
                 assert deserialized.basis_set == config['basis_set'], (
@@ -429,7 +431,8 @@ class TestKafkaPipelineE2E:
         assert avro_bytes in messages
 
         schema_name = e2e_producer.serializer.SCHEMA_NAME
-        if e2e_producer.registry.id_cache.get(schema_name):
+        cached = e2e_producer.registry.cache.get(schema_name)
+        if cached is not None and cached.id is not None:
             consumed = messages[messages.index(avro_bytes)]
             deserialized = e2e_producer.serializer.from_avro_bytes(consumed)
 

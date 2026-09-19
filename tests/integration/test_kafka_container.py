@@ -5,8 +5,10 @@ via testcontainers. Schema Registry interactions are mocked since those
 are covered separately in test_schema_registry_container.py.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 
+import avro.schema
 import numpy as np
 import pytest
 
@@ -20,6 +22,7 @@ from testcontainers.kafka import KafkaContainer  # noqa: E402
 
 from quantum_pipeline.configs.module.producer import ProducerConfig  # noqa: E402
 from quantum_pipeline.configs.module.security import SecurityConfig  # noqa: E402
+from quantum_pipeline.utils.schema_registry import SchemaRecord  # noqa: E402
 
 
 @pytest.fixture(scope='session')
@@ -50,13 +53,12 @@ def mock_schema_registry():
     """Provide a mock SchemaRegistry so tests don't need a real registry."""
     registry = MagicMock()
     # to_avro_bytes refuses to emit a headerless payload, so the Confluent id must be present
-    registry.id_cache = {'experiment.vqe': 1}
-    registry.schema_cache = {}
-    registry.is_schema_registry_available.return_value = False
-    registry.registry_schema_existence = {}
-    # Force serializer interfaces to use their fallback inline schemas
-    registry.get_schema.side_effect = FileNotFoundError('mocked: no schema')
-    registry.save_schema = MagicMock()
+    registry.cache = {'experiment.vqe': SchemaRecord(id=1, schema='')}
+    registry.is_upstream_up.return_value = False
+    registry.serialize_schema.side_effect = lambda schema: avro.schema.parse(
+        json.dumps(schema) if isinstance(schema, dict) else schema
+    )
+    registry.register_schema = MagicMock()
     return registry
 
 
