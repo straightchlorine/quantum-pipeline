@@ -10,7 +10,9 @@ import pytest
 
 from quantum_pipeline.monitoring.performance_monitor import (
     PerformanceMonitor,
+    build_vqe_exposition,
     collect_performance_snapshot,
+    derive_vqe_ratios,
     get_performance_monitor,
     init_performance_monitoring,
     is_monitoring_enabled,
@@ -184,7 +186,7 @@ class TestMetricsCollection:
 class TestPrometheusExport:
     """Test Prometheus export functionality."""
 
-    def test_convert_vqe_to_prometheus_format(self, temp_metrics_dir):
+    def test_build_vqe_exposition_format(self, temp_metrics_dir):
         """Test conversion of VQE data to Prometheus format."""
         monitor = PerformanceMonitor(enabled=True, metrics_dir=temp_metrics_dir)
 
@@ -207,7 +209,7 @@ class TestPrometheusExport:
             'hf_deviation_score': 99.2,
         }
 
-        prometheus_output = monitor._convert_vqe_to_prometheus(vqe_data)
+        prometheus_output = build_vqe_exposition(vqe_data, monitor.container_type)
 
         # Verify it's a non-empty string
         assert isinstance(prometheus_output, str)
@@ -242,7 +244,7 @@ class TestPrometheusExport:
         }
 
         # Should not raise an exception
-        prometheus_output = monitor._convert_vqe_to_prometheus(vqe_data)
+        prometheus_output = build_vqe_exposition(vqe_data, monitor.container_type)
         assert isinstance(prometheus_output, str)
 
     @patch('requests.post')
@@ -286,6 +288,55 @@ class TestPrometheusExport:
         assert not mock_post.called
 
 
+class TestDerivedVQERatios:
+    """Ratios must be omitted rather than published with a wrong value."""
+
+    def test_ratios_computed_from_complete_data(self):
+        ratios = derive_vqe_ratios(
+            {
+                'vqe_time': 32.0,
+                'total_time': 40.0,
+                'iterations_count': 160,
+                'hamiltonian_time': 6.0,
+                'mapping_time': 2.0,
+            }
+        )
+
+        assert ratios['iterations_per_second'] == pytest.approx(5.0)
+        assert ratios['time_per_iteration'] == pytest.approx(0.2)
+        assert ratios['overhead_ratio'] == pytest.approx(0.25)
+        assert ratios['efficiency'] == pytest.approx(0.8)
+        assert ratios['setup_ratio'] == pytest.approx(0.2)
+
+    def test_setup_ratio_omitted_when_total_time_missing(self):
+        """Previously emitted a bogus 0 instead of skipping the sample."""
+        ratios = derive_vqe_ratios(
+            {'vqe_time': 32.0, 'hamiltonian_time': 6.0, 'mapping_time': 2.0}
+        )
+
+        assert 'setup_ratio' not in ratios
+
+    def test_zero_vqe_time_does_not_produce_ratios(self):
+        """A fast-path run with vqe_time == 0 must not divide by zero."""
+        ratios = derive_vqe_ratios({'vqe_time': 0.0, 'total_time': 5.0, 'iterations_count': 10})
+
+        assert 'iterations_per_second' not in ratios
+        assert 'time_per_iteration' not in ratios
+        assert 'overhead_ratio' not in ratios
+        assert 'efficiency' not in ratios
+
+    def test_zero_valued_metrics_are_still_published(self):
+        """A genuine 0.0 timing is data, not a missing value."""
+        exposition = build_vqe_exposition({'vqe_time': 0.0, 'molecule_symbols': 'H2'}, 'CPU')
+
+        assert 'qp_vqe_vqe_time' in exposition
+
+    def test_label_values_are_escaped(self):
+        exposition = build_vqe_exposition({'optimizer': 'a"b\\c', 'total_time': 1.0}, 'CPU')
+
+        assert r'optimizer="a\"b\\c"' in exposition
+
+
 class TestJSONExport:
     """Test JSON export functionality."""
 
@@ -302,7 +353,7 @@ class TestJSONExport:
             'container': {},
         }
 
-        monitor._export_json_system_only(metrics)
+        monitor.export_system_json(metrics)
 
         json_files = list(temp_metrics_dir.glob('system_metrics_*.jsonl'))
         assert len(json_files) > 0
@@ -320,8 +371,8 @@ class TestJSONExport:
             'container': {},
         }
 
-        monitor._export_json_system_only(metrics)
-        monitor._export_json_system_only(metrics)
+        monitor.export_system_json(metrics)
+        monitor.export_system_json(metrics)
 
         json_files = list(temp_metrics_dir.glob('system_metrics_*.jsonl'))
         assert len(json_files) == 1
@@ -346,9 +397,9 @@ class TestMonitoringThread:
         assert monitor.monitoring_thread.is_alive()
 
         # Clean up
-        monitor.stop_monitoring_thread()
+        monitor.stop_monitoring()
 
-    def test_stop_monitoring_thread(self, temp_metrics_dir):
+    def test_stop_monitoring(self, temp_metrics_dir):
         """Test stopping the monitoring thread."""
         monitor = PerformanceMonitor(
             enabled=True, collection_interval=1, metrics_dir=temp_metrics_dir
@@ -357,7 +408,7 @@ class TestMonitoringThread:
         monitor.start_monitoring()
         assert monitor.monitoring_thread.is_alive()
 
-        monitor.stop_monitoring_thread()
+        monitor.stop_monitoring()
         monitor.monitoring_thread.join(timeout=1.0)
 
         # Verify thread stopped

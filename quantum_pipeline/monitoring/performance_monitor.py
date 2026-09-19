@@ -1,4 +1,8 @@
-"""Performance monitoring module for quantum pipeline thesis analysis."""
+"""Performance monitoring for quantum pipeline thesis analysis.
+
+Includes Prometheus exposition helpers as well as the PerformanceMonitor class.
+Helpers don't need the monitor instance.
+"""
 
 import json
 import os
@@ -6,6 +10,7 @@ import shutil
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,27 +21,162 @@ import requests
 from quantum_pipeline.configs import settings
 from quantum_pipeline.utils.logger import get_logger
 
-_ENV_MAP = {
-    'enabled': 'MONITORING_ENABLED',
-    'collection_interval': 'MONITORING_INTERVAL',
-    'pushgateway_url': 'PUSHGATEWAY_URL',
-    'export_format': 'MONITORING_EXPORT_FORMAT',
+PUSH_TIMEOUT_S = 10
+DOCKER_TIMEOUT_S = 10
+PROMETHEUS_HEADERS = {'Content-Type': 'text/plain'}
+
+# VQE values published when present and numeric.
+VQE_METRIC_NAMES = (
+    'total_time',
+    'hamiltonian_time',
+    'mapping_time',
+    'vqe_time',
+    'minimum_energy',
+    'iterations_count',
+    'optimal_parameters_count',
+    'reference_energy',
+    'energy_error_hartree',
+    'energy_error_millihartree',
+    'hf_deviation_score',
+)
+
+VQE_LABEL_NAMES = (
+    'container_type',
+    'molecule_id',
+    'molecule_symbols',
+    'basis_set',
+    'optimizer',
+    'backend_type',
+)
+
+# (exposition name, snapshot section, key within that section)
+SYSTEM_METRIC_SOURCES = (
+    ('qp_sys_cpu_percent', 'cpu', 'percent'),
+    ('qp_sys_cpu_load_1m', 'cpu', 'load_avg_1m'),
+    ('qp_sys_memory_percent', 'memory', 'percent'),
+    ('qp_sys_memory_used_bytes', 'memory', 'used'),
+)
+
+
+def _parse_bool(raw: str) -> bool:
+    return raw.lower() in ('true', '1', 'yes', 'on')
+
+
+def _parse_list(raw: str) -> list[str]:
+    return raw.split(',') if raw else []
+
+
+# attribute -> (env var, also the settings attribute)
+_CONFIG: dict[str, tuple[str, Callable[[str], Any]]] = {
+    'enabled': ('MONITORING_ENABLED', _parse_bool),
+    'collection_interval': ('MONITORING_INTERVAL', int),
+    'pushgateway_url': ('PUSHGATEWAY_URL', str),
+    'export_format': ('MONITORING_EXPORT_FORMAT', _parse_list),
 }
+
+# Prometheus exposition format
+
+
+def escape_label(value: Any) -> str:
+    """Escape a value for use inside a Prometheus label: backslash, quote, newline."""
+    return str(value).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+
+
+def format_labels(pairs: dict[str, Any]) -> str:
+    """Render an ordered label set as `key="value",key="value"`."""
+    return ','.join(f'{key}="{escape_label(value)}"' for key, value in pairs.items())
+
+
+def format_sample(name: str, labels: str, value: Any) -> str:
+    """Render one exposition line."""
+    return f'{name}{{{labels}}} {value}'
+
+
+def as_number(value: Any) -> float | None:
+    """Return value as a float, or None when it is not a real number (bools excluded)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def as_divisor(value: Any) -> float | None:
+    """Return value as a float only when it is a number usable as a divisor."""
+    number = as_number(value)
+    return number if number is not None and number > 0 else None
+
+
+def derive_vqe_ratios(vqe_data: dict[str, Any]) -> dict[str, float]:
+    """Efficiency ratios computed from the raw VQE timings.
+
+    A ratio is emitted only when every input it needs is numeric and its divisor is
+    positive; otherwise it is omitted rather than reported as a misleading zero.
+    """
+    vqe_time = as_divisor(vqe_data.get('vqe_time'))
+    total_time = as_divisor(vqe_data.get('total_time'))
+    iterations = as_divisor(vqe_data.get('iterations_count'))
+    hamiltonian_time = as_number(vqe_data.get('hamiltonian_time'))
+    mapping_time = as_number(vqe_data.get('mapping_time'))
+
+    ratios: dict[str, float] = {}
+
+    if vqe_time and iterations:
+        ratios['iterations_per_second'] = iterations / vqe_time
+        ratios['time_per_iteration'] = vqe_time / iterations
+
+    if vqe_time and total_time:
+        # setup cost relative to computation, and the share of wall time spent in VQE
+        ratios['overhead_ratio'] = (total_time - vqe_time) / vqe_time
+        ratios['efficiency'] = vqe_time / total_time
+
+    if hamiltonian_time is not None and mapping_time is not None and total_time:
+        ratios['setup_ratio'] = (hamiltonian_time + mapping_time) / total_time
+
+    return ratios
+
+
+def build_vqe_exposition(vqe_data: dict[str, Any], default_container_type: str) -> str:
+    """Render VQE experiment data as Prometheus exposition text."""
+    defaults = dict.fromkeys(VQE_LABEL_NAMES, 'unknown') | {
+        'container_type': default_container_type
+    }
+    labels = format_labels({name: vqe_data.get(name, defaults[name]) for name in VQE_LABEL_NAMES})
+
+    lines = [
+        format_sample(f'qp_vqe_{name}', labels, vqe_data[name])
+        for name in VQE_METRIC_NAMES
+        if as_number(vqe_data.get(name)) is not None
+    ]
+    lines += [
+        format_sample(f'qp_vqe_{name}', labels, value)
+        for name, value in derive_vqe_ratios(vqe_data).items()
+    ]
+
+    return '\n'.join(lines) + '\n'
+
+
+def build_system_exposition(
+    system: dict[str, Any], container_type: str, uptime_seconds: float
+) -> str:
+    """Render a system metrics snapshot as Prometheus exposition text."""
+    labels = format_labels({'container_type': container_type})
+
+    lines = [
+        format_sample(name, labels, system[section][key])
+        for name, section, key in SYSTEM_METRIC_SOURCES
+        if system.get(section, {}).get(key) is not None
+    ]
+    lines.append(format_sample('qp_sys_uptime_seconds', labels, uptime_seconds))
+
+    return '\n'.join(lines) + '\n'
+
+
+def counter_fields(counters: Any, *names: str) -> dict[str, int]:
+    """Read psutil counter attributes, reporting zeros when unavailable on this platform."""
+    return {name: getattr(counters, name, 0) if counters else 0 for name in names}
 
 
 class PerformanceMonitor:
-    """
-    Modular performance monitoring system for quantum pipeline.
-
-    Features:
-    - System resource monitoring (CPU, Memory, I/O)
-    - GPU metrics collection (when available)
-    - Container-specific metrics
-    - Prometheus integration
-    - JSON export for analysis
-    - Thread-safe collection
-    - Configurable intervals
-    """
+    """Background collection of system and container metrics, exported to JSONL and Prometheus."""
 
     def __init__(
         self,
@@ -46,8 +186,10 @@ class PerformanceMonitor:
         export_format: list[str] | None = None,
         metrics_dir: Path | None = None,
     ):
-        """
-        Initialize performance monitor with configuration.
+        """Initialize the monitor.
+
+        Every setting resolves by priority: constructor argument > environment
+        variable > `settings.py` default.
 
         Args:
             enabled: Override for monitoring enabled state
@@ -58,80 +200,62 @@ class PerformanceMonitor:
         """
         self.logger = get_logger('PerformanceMonitor')
 
-        # Configuration priority: constructor > env vars > command line > settings.py
-        self.enabled = self._get_config_value('enabled', enabled, bool)
-        self.collection_interval = self._get_config_value(
-            'collection_interval', collection_interval, int
-        )
-        self.pushgateway_url = self._get_config_value('pushgateway_url', pushgateway_url, str)
-        self.export_format = self._get_config_value('export_format', export_format, list)
+        self.enabled = self._resolve_config('enabled', enabled)
+        self.collection_interval = self._resolve_config('collection_interval', collection_interval)
+        self.pushgateway_url = self._resolve_config('pushgateway_url', pushgateway_url)
+        self.export_format = self._resolve_config('export_format', export_format)
         self.metrics_dir = metrics_dir or settings.MONITORING_METRICS_DIR
 
-        # Runtime state
         self.monitoring_thread: threading.Thread | None = None
-        self.stop_monitoring = threading.Event()
         self.container_type = os.getenv('CONTAINER_TYPE', 'unknown')
         self.experiment_context: dict[str, Any] = {}
+
+        self._stop_event = threading.Event()
         self._context_lock = threading.Lock()
-        self._start_time = time.time()  # Track container start time for uptime
+        self._start_time = time.time()  # reference point for qp_sys_uptime_seconds
 
-        # Ensure metrics directory exists
-        if self.enabled:
-            self.metrics_dir.mkdir(parents=True, exist_ok=True)
-            self.logger.info(
-                f'Performance monitoring initialized - Container: {self.container_type}'
-            )
-            self.logger.info(f'Metrics directory: {self.metrics_dir}')
-            self.logger.info(f'Push gateway url: {self.pushgateway_url}')
-            self.logger.info(f'Collection interval: {self.collection_interval}s')
-        else:
+        if not self.enabled:
             self.logger.debug('Performance monitoring disabled')
+            return
 
-    def _get_config_value(self, key: str, override_value: Any, expected_type: type) -> Any:
-        """Get configuration value with priority: override > env > settings."""
+        self.metrics_dir.mkdir(parents=True, exist_ok=True)
+        self.logger.info(f'Performance monitoring initialized - Container: {self.container_type}')
+        self.logger.info(f'Metrics directory: {self.metrics_dir}')
+        self.logger.info(f'Push gateway url: {self.pushgateway_url}')
+        self.logger.info(f'Collection interval: {self.collection_interval}s')
 
-        # Priority 1: Override parameter
-        if override_value is not None:
-            return override_value
+    def _resolve_config(self, key: str, override: Any) -> Any:
+        """Resolve one setting: constructor override > environment > settings.py."""
+        if override is not None:
+            return override
 
-        # Priority 2: Environment variable
-        env_key = _ENV_MAP.get(key, f'MONITORING_{key.upper()}')
-        env_value = os.getenv(env_key)
-        if env_value is not None:
+        name, parse = _CONFIG[key]
+        raw = os.getenv(name)
+        if raw is not None:
             try:
-                if expected_type is bool:
-                    return env_value.lower() in ('true', '1', 'yes', 'on')
-                if expected_type is int:
-                    return int(env_value)
-                if expected_type is list:
-                    return env_value.split(',') if env_value else []
-                return env_value
+                return parse(raw)
             except (ValueError, AttributeError):
-                self.logger.warning(f'Invalid environment variable {env_key}={env_value}')
+                self.logger.warning(f'Invalid environment variable {name}={raw}')
 
-        # Priority 3: Settings.py defaults
-        settings_map = {
-            'enabled': settings.MONITORING_ENABLED,
-            'collection_interval': settings.MONITORING_INTERVAL,
-            'pushgateway_url': settings.PUSHGATEWAY_URL,
-            'export_format': settings.MONITORING_EXPORT_FORMAT,
-        }
-
-        return settings_map.get(key)
+        return getattr(settings, name)
 
     def is_enabled(self) -> bool:
         """Check if performance monitoring is enabled."""
         return bool(self.enabled)
 
     def set_experiment_context(self, **context):
-        """Set experiment context for correlation with metrics."""
-        if self.enabled:
-            with self._context_lock:
-                self.experiment_context.update(context)
-            self.logger.debug(f'Updated experiment context: {context}')
+        """Merge key/value pairs into the context attached to every snapshot."""
+        if not self.enabled:
+            return
+
+        with self._context_lock:
+            self.experiment_context.update(context)
+        self.logger.debug(f'Updated experiment context: {context}')
+
+    # lifecycle
 
     def start_monitoring(self):
-        """Start background monitoring thread."""
+        """Start the background collection thread."""
         if not self.enabled:
             self.logger.debug('Monitoring not enabled - skipping start')
             return
@@ -141,55 +265,76 @@ class PerformanceMonitor:
             return
 
         self.logger.info('Starting performance monitoring thread')
-        self.stop_monitoring.clear()
+        self._stop_event.clear()
+
+        # non-daemon: a tick in flight finishes writing before the process exits
         self.monitoring_thread = threading.Thread(
             target=self._monitoring_loop, name='PerformanceMonitor', daemon=False
         )
         self.monitoring_thread.start()
 
-    def export_metrics_immediate(self, additional_context: dict[str, Any] | None = None):
-        """Export current system metrics immediately (event-driven)."""
-        if not self.enabled:
-            return
-
-        try:
-            # Merge additional context if provided
-            if additional_context:
-                self.experiment_context.update(additional_context)
-
-            metrics = self.collect_metrics_snapshot()
-            if not metrics or 'error' in metrics:
-                return
-
-            # Export in all configured formats
-            if 'json' in self.export_format or 'both' in self.export_format:
-                self._export_json(metrics)
-
-            if 'prometheus' in self.export_format or 'both' in self.export_format:
-                self._export_prometheus(metrics)
-
-            self.logger.debug('Immediate metrics export completed')
-
-        except Exception as e:
-            self.logger.error(f'Failed to export immediate metrics: {e}')
-
-    def stop_monitoring_thread(self):
-        """Stop background monitoring thread."""
+    def stop_monitoring(self):
+        """Signal the background thread to stop and wait for it to finish."""
         if not self.enabled or not self.monitoring_thread:
             return
 
         self.logger.info('Stopping performance monitoring thread')
-        self.stop_monitoring.set()
-        if self.monitoring_thread.is_alive():
-            # Give it enough time to finish current collection + interval wait
-            timeout = self.collection_interval + 10
-            self.logger.debug(f'Waiting up to {timeout}s for monitoring thread to stop')
-            self.monitoring_thread.join(timeout=timeout)
+        self._stop_event.set()
+        if not self.monitoring_thread.is_alive():
+            return
 
-            if self.monitoring_thread.is_alive():
-                self.logger.warning(f'Monitoring thread did not stop within {timeout}s timeout')
-            else:
-                self.logger.info('Monitoring thread stopped successfully')
+        # allow the in-flight collection to finish before giving up
+        timeout = self.collection_interval + 10
+        self.logger.debug(f'Waiting up to {timeout}s for monitoring thread to stop')
+        self.monitoring_thread.join(timeout=timeout)
+
+        if self.monitoring_thread.is_alive():
+            self.logger.warning(f'Monitoring thread did not stop within {timeout}s timeout')
+        else:
+            self.logger.info('Monitoring thread stopped successfully')
+
+    def __enter__(self):
+        if self.enabled:
+            self.start_monitoring()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.enabled:
+            self.stop_monitoring()
+
+    def _monitoring_loop(self):
+        """Collect and export a snapshot every interval until stopped."""
+        self.logger.info(
+            f'System monitoring loop started (interval: {self.collection_interval}s) '
+            '- VQE metrics handled separately'
+        )
+
+        while not self._stop_event.is_set():
+            try:
+                metrics = self.collect_metrics_snapshot()
+                if 'error' in metrics or 'error' in metrics.get('system', {}):
+                    self.logger.debug('Skipping export: metrics collection reported an error')
+                else:
+                    self._export_system_metrics(metrics)
+            except Exception as e:
+                self.logger.error(f'Error in system monitoring loop: {e}')
+
+            if self._stop_event.wait(self.collection_interval):
+                break
+
+        self.logger.info('System monitoring loop stopped')
+
+    def _export_system_metrics(self, metrics: dict[str, Any]):
+        """Fan a snapshot out to every configured export format."""
+        formats = self.export_format or []
+
+        if 'json' in formats or 'both' in formats:
+            self.export_system_json(metrics)
+
+        if 'prometheus' in formats or 'both' in formats:
+            self.export_system_prometheus(metrics)
+
+    # collection
 
     def collect_metrics_snapshot(self) -> dict[str, Any]:
         """Collect a single snapshot of all metrics."""
@@ -199,6 +344,7 @@ class PerformanceMonitor:
         try:
             with self._context_lock:
                 context = self.experiment_context.copy()
+
             return {
                 'timestamp': datetime.now().isoformat(),
                 'container_type': self.container_type,
@@ -206,31 +352,25 @@ class PerformanceMonitor:
                 'system': self._collect_system_metrics(),
                 'container': self._collect_container_metrics(),
             }
-
         except Exception as e:
             self.logger.error(f'Failed to collect metrics snapshot: {e}')
             return {'error': str(e), 'timestamp': datetime.now().isoformat()}
 
     def _collect_system_metrics(self) -> dict[str, Any]:
-        """Collect system-level metrics."""
+        """Collect host CPU, memory and I/O metrics via psutil."""
         try:
-            # CPU metrics
-            cpu_percent = psutil.cpu_percent(interval=1.0)
-            cpu_count = psutil.cpu_count()
-            load_avg = os.getloadavg() if hasattr(os, 'getloadavg') else [0, 0, 0]
+            try:
+                load_avg = os.getloadavg()
+            except (AttributeError, OSError):
+                load_avg = (0.0, 0.0, 0.0)  # not available on every platform
 
-            # Memory metrics
             memory = psutil.virtual_memory()
             swap = psutil.swap_memory()
 
-            # I/O metrics
-            disk_io = psutil.disk_io_counters()
-            net_io = psutil.net_io_counters()
-
             return {
                 'cpu': {
-                    'percent': cpu_percent,
-                    'count': cpu_count,
+                    'percent': psutil.cpu_percent(interval=1.0),
+                    'count': psutil.cpu_count(),
                     'load_avg_1m': load_avg[0],
                     'load_avg_5m': load_avg[1],
                     'load_avg_15m': load_avg[2],
@@ -246,30 +386,35 @@ class PerformanceMonitor:
                     'used': swap.used,
                     'percent': swap.percent,
                 },
-                'disk_io': {
-                    'read_bytes': disk_io.read_bytes if disk_io else 0,
-                    'write_bytes': disk_io.write_bytes if disk_io else 0,
-                    'read_count': disk_io.read_count if disk_io else 0,
-                    'write_count': disk_io.write_count if disk_io else 0,
-                },
-                'network_io': {
-                    'bytes_sent': net_io.bytes_sent if net_io else 0,
-                    'bytes_recv': net_io.bytes_recv if net_io else 0,
-                    'packets_sent': net_io.packets_sent if net_io else 0,
-                    'packets_recv': net_io.packets_recv if net_io else 0,
-                },
+                'disk_io': counter_fields(
+                    psutil.disk_io_counters(),
+                    'read_bytes',
+                    'write_bytes',
+                    'read_count',
+                    'write_count',
+                ),
+                'network_io': counter_fields(
+                    psutil.net_io_counters(),
+                    'bytes_sent',
+                    'bytes_recv',
+                    'packets_sent',
+                    'packets_recv',
+                ),
             }
         except Exception as e:
             self.logger.error(f'Failed to collect system metrics: {e}')
             return {'error': str(e)}
 
     def _collect_container_metrics(self) -> dict[str, Any]:
-        """Collect Docker container-specific metrics."""
-        try:
-            container_name = os.getenv('HOSTNAME', 'unknown')
+        """Collect this container's row from `docker stats`, if docker is reachable."""
+        container_name = os.getenv('HOSTNAME', 'unknown')
+        unavailable = {'container_name': container_name, 'docker_stats_available': False}
 
-            # Try to get Docker stats
-            docker_executable = shutil.which('docker') or 'docker'
+        try:
+            docker_executable = shutil.which('docker')
+            if docker_executable is None:
+                return unavailable
+
             result = subprocess.run(  # noqa: S603
                 [
                     docker_executable,
@@ -279,395 +424,130 @@ class PerformanceMonitor:
                     'table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}',
                 ],
                 capture_output=True,
+                shell=False,
+                timeout=DOCKER_TIMEOUT_S,
                 text=True,
-                timeout=10,
             )
-
             if result.returncode != 0:
-                return {'container_name': container_name, 'docker_stats_available': False}
+                return unavailable
 
-            # Parse Docker stats output
             for line in result.stdout.split('\n'):
-                if container_name in line:
-                    parts = line.split('\t')
-                    if len(parts) >= 5:
-                        return {
-                            'container_name': container_name,
-                            'docker_stats_available': True,
-                            'cpu_percent': parts[1],
-                            'memory_usage': parts[2],
-                            'net_io': parts[3],
-                            'block_io': parts[4],
-                        }
+                parts = line.split('\t')
+                if container_name in line and len(parts) >= 5:
+                    return {
+                        'container_name': container_name,
+                        'docker_stats_available': True,
+                        'cpu_percent': parts[1],
+                        'memory_usage': parts[2],
+                        'net_io': parts[3],
+                        'block_io': parts[4],
+                    }
 
-            return {'container_name': container_name, 'docker_stats_available': False}
-
+            return unavailable
         except Exception as e:
-            return {'error': str(e), 'container_name': os.getenv('HOSTNAME', 'unknown')}
+            self.logger.warning(f'Failed to collect container metrics: {e}')
+            return {'error': str(e), 'container_name': container_name}
 
-    def _monitoring_loop(self):
-        """Background monitoring loop for system metrics only (CPU/Memory/GPU)."""
-        self.logger.info(
-            f'System monitoring loop started (interval: {self.collection_interval}s) - VQE metrics handled separately'
-        )
+    # export
 
-        while not self.stop_monitoring.is_set():
-            try:
-                # Collect only system and GPU metrics for background monitoring
-                with self._context_lock:
-                    context = self.experiment_context.copy()
-                metrics = {
-                    'timestamp': datetime.now().isoformat(),
-                    'container_type': self.container_type,
-                    'experiment_context': context,
-                    'system': self._collect_system_metrics(),
-                    'container': self._collect_container_metrics(),
-                }
-
-                if 'error' in metrics.get('system', {}):
-                    # Wait before continuing, but check stop event frequently
-                    if self.stop_monitoring.wait(self.collection_interval):
-                        break
-                    continue
-
-                # Export system metrics only
-                if 'json' in self.export_format or 'both' in self.export_format:
-                    self._export_json_system_only(metrics)
-
-                if 'prometheus' in self.export_format or 'both' in self.export_format:
-                    self._export_prometheus_system_only(metrics)
-
-            except Exception as e:
-                self.logger.error(f'Error in system monitoring loop: {e}')
-
-            # Wait for the collection interval, but break early if stop is signaled
-            if self.stop_monitoring.wait(self.collection_interval):
-                break
-
-        self.logger.info('System monitoring loop stopped')
-
-    def _export_json(self, metrics: dict[str, Any]):
-        """Export metrics to JSON file."""
+    def export_system_json(self, metrics: dict[str, Any]):
+        """Append a snapshot as one JSON line to the container's JSONL file."""
+        filepath = self.metrics_dir / f'system_metrics_{self.container_type.lower()}.jsonl'
         try:
-            timestamp = int(time.time())
-            filename = f'metrics_{self.container_type.lower()}_{timestamp}.json'
-            filepath = self.metrics_dir / filename
-
-            with open(filepath, 'w') as f:
-                json.dump(metrics, f, indent=2)
-
-        except Exception as e:
-            self.logger.error(f'Failed to export JSON metrics: {e}')
-
-    def _export_json_system_only(self, metrics: dict[str, Any]):
-        """Export system metrics only to JSON file."""
-        try:
-            timestamp = int(time.time())
-            filename = f'system_metrics_{self.container_type.lower()}_{timestamp}.json'
-            filepath = self.metrics_dir / filename
-
-            with open(filepath, 'w') as f:
-                json.dump(metrics, f, indent=2)
-
+            with open(filepath, 'a') as f:
+                f.write(json.dumps(metrics) + '\n')
         except Exception as e:
             self.logger.error(f'Failed to export system JSON metrics: {e}')
 
-    def _export_prometheus(self, metrics: dict[str, Any]):
-        """Export metrics to Prometheus PushGateway."""
-        try:
-            prometheus_metrics = self._convert_to_prometheus_format(metrics)
+    def export_system_prometheus(self, metrics: dict[str, Any]):
+        """Push a system snapshot to the PushGateway."""
+        if not self.pushgateway_url:
+            return
 
-            job_name = f'quantum-{self.container_type.lower()}'
-            url = f'{self.pushgateway_url}/metrics/job/{job_name}'
-
-            response = requests.post(
-                url, data=prometheus_metrics, headers={'Content-Type': 'text/plain'}, timeout=10
-            )
-
-            if response.status_code not in [200, 202]:
-                self.logger.warning(f'PushGateway returned status {response.status_code}')
-            else:
-                self.logger.debug(f'Metrics exported successfully (status {response.status_code})')
-
-        except Exception as e:
-            self.logger.error(f'Failed to export Prometheus metrics: {e}')
+        exposition = build_system_exposition(
+            metrics.get('system', {}), self.container_type, time.time() - self._start_time
+        )
+        job_name = f'qp-sys-{self.container_type.lower()}'
+        self._push(f'{self.pushgateway_url}/metrics/job/{job_name}', exposition, 'system metrics')
 
     def export_vqe_metrics_immediate(self, vqe_data: dict[str, Any]):
-        """Export VQE-specific metrics immediately to Prometheus with full context labels."""
+        """Push VQE metrics to the PushGateway now, outside the collection interval."""
         if not self.enabled or not self.pushgateway_url:
             return
 
+        exposition = build_vqe_exposition(vqe_data, self.container_type)
+        if not exposition.strip():
+            self.logger.warning('Empty metrics payload, skipping export')
+            return
+
+        self.logger.debug(f'VQE metrics payload: {exposition[:500]}...')
+
+        molecule = vqe_data.get('molecule_symbols', 'unknown')
+        optimizer = vqe_data.get('optimizer', 'unknown')
+        url = (
+            f'{self.pushgateway_url}/metrics/job/qp-vqe'
+            f'/container_type/{self.container_type}'
+            f'/molecule/{molecule}'
+            f'/optimizer/{optimizer}'
+        )
+        molecule_id = vqe_data.get('molecule_id', 'unknown')
+        self._push(url, exposition, f'VQE metrics for molecule {molecule_id}')
+
+    def _push(self, url: str, exposition: str, description: str):
+        """POST exposition text to the PushGateway. Never raises: monitoring is best-effort."""
         try:
-            prometheus_metrics = self._convert_vqe_to_prometheus(vqe_data)
-            if not prometheus_metrics:
-                self.logger.warning('Empty metrics payload, skipping export')
-                return
-
-            self.logger.debug(f'VQE metrics payload: {prometheus_metrics[:500]}...')
-
-            molecule = vqe_data.get('molecule_symbols', 'unknown')
-            optimizer = vqe_data.get('optimizer', 'unknown')
-            url = (
-                f'{self.pushgateway_url}/metrics/job/qp-vqe'
-                f'/container_type/{self.container_type}'
-                f'/molecule/{molecule}'
-                f'/optimizer/{optimizer}'
-            )
-
             response = requests.post(
-                url, data=prometheus_metrics, headers={'Content-Type': 'text/plain'}, timeout=10
+                url, data=exposition, headers=PROMETHEUS_HEADERS, timeout=PUSH_TIMEOUT_S
             )
-
-            if response.status_code in [200, 202]:
+            if response.status_code in (200, 202):
                 self.logger.debug(
-                    f'VQE metrics exported successfully for molecule {vqe_data.get("molecule_id", "unknown")} (status {response.status_code})'
+                    f'{description} exported successfully (status {response.status_code})'
                 )
             else:
                 self.logger.warning(
-                    f'PushGateway returned status {response.status_code} for VQE metrics. Response: {response.text}'
+                    f'PushGateway returned status {response.status_code} for {description}. '
+                    f'Response: {response.text}'
                 )
-
         except Exception as e:
-            self.logger.error(f'Failed to export VQE metrics to Prometheus: {e}')
-
-    def _export_prometheus_system_only(self, metrics: dict[str, Any]):
-        """Export system metrics only to Prometheus PushGateway."""
-        try:
-            prometheus_metrics = self._convert_system_to_prometheus_format(metrics)
-
-            job_name = f'qp-sys-{self.container_type.lower()}'
-            url = f'{self.pushgateway_url}/metrics/job/{job_name}'
-
-            response = requests.post(
-                url, data=prometheus_metrics, headers={'Content-Type': 'text/plain'}, timeout=10
-            )
-
-            if response.status_code not in [200, 202]:
-                self.logger.warning(
-                    f'PushGateway returned status {response.status_code} for system metrics'
-                )
-            else:
-                self.logger.debug(
-                    f'System metrics exported successfully (status {response.status_code})'
-                )
-
-        except Exception as e:
-            self.logger.error(f'Failed to export system metrics to Prometheus: {e}')
-
-    def _convert_to_prometheus_format(self, metrics: dict[str, Any]) -> str:
-        """Convert metrics dict to Prometheus exposition format."""
-        lines = []
-        try:
-            # System metrics
-            system = metrics.get('system', {})
-
-            # CPU metrics
-            cpu = system.get('cpu', {})
-            if cpu.get('percent') is not None:
-                lines.append(
-                    f'quantum_cpu_percent{{container_type="{self.container_type}"}} {cpu["percent"]}'
-                )
-            if cpu.get('load_avg_1m') is not None:
-                lines.append(
-                    f'quantum_cpu_load_1m{{container_type="{self.container_type}"}} {cpu["load_avg_1m"]}'
-                )
-
-            # Memory metrics
-            memory = system.get('memory', {})
-            if memory.get('percent') is not None:
-                lines.append(
-                    f'quantum_memory_percent{{container_type="{self.container_type}"}} {memory["percent"]}'
-                )
-            if memory.get('used') is not None:
-                lines.append(
-                    f'quantum_memory_used_bytes{{container_type="{self.container_type}"}} {memory["used"]}'
-                )
-
-            # Experiment context with enhanced labels
-            context = metrics.get('experiment_context', {})
-            molecule_id = context.get('molecule_id', 'unknown')
-            molecule_symbols = context.get('molecule_symbols', 'unknown')
-            basis_set = context.get('basis_set', 'unknown')
-            backend_type = context.get('backend_type', 'unknown')
-
-            for key, value in context.items():
-                if isinstance(value, (int, float)):
-                    lines.append(
-                        f'quantum_experiment_{key}{{container_type="{self.container_type}",molecule_id="{molecule_id}",molecule_symbols="{molecule_symbols}",basis_set="{basis_set}",backend_type="{backend_type}"}} {value}'
-                    )
-
-            return '\n'.join(lines) + '\n'  # PushGateway requires trailing newline
-
-        except Exception as e:
-            self.logger.error(f'Failed to convert metrics to Prometheus format: {e}')
-            return ''
-
-    def _convert_vqe_to_prometheus(self, vqe_data: dict[str, Any]) -> str:
-        """Convert VQE experiment data to Prometheus exposition format with full labels."""
-        lines = []
-        try:
-            # Extract and sanitize label values
-            container_type = str(vqe_data.get('container_type', self.container_type)).replace(
-                '"', '\\"'
-            )
-            molecule_id = str(vqe_data.get('molecule_id', 'unknown'))
-            molecule_symbols = str(vqe_data.get('molecule_symbols', 'unknown')).replace('"', '\\"')
-            basis_set = str(vqe_data.get('basis_set', 'unknown')).replace('"', '\\"')
-            optimizer = str(vqe_data.get('optimizer', 'unknown')).replace('"', '\\"')
-            backend_type = str(vqe_data.get('backend_type', 'unknown')).replace('"', '\\"')
-
-            # Create label string for consistency
-            labels = f'container_type="{container_type}",molecule_id="{molecule_id}",molecule_symbols="{molecule_symbols}",basis_set="{basis_set}",optimizer="{optimizer}",backend_type="{backend_type}"'
-
-            # VQE timing metrics
-            for metric_name in ['total_time', 'hamiltonian_time', 'mapping_time', 'vqe_time']:
-                value = vqe_data.get(metric_name)
-                if isinstance(value, (int, float)):
-                    lines.append(f'qp_vqe_{metric_name}{{{labels}}} {value}')
-
-            # VQE result metrics
-            for metric_name in ['minimum_energy', 'iterations_count', 'optimal_parameters_count']:
-                value = vqe_data.get(metric_name)
-                if isinstance(value, (int, float)):
-                    lines.append(f'qp_vqe_{metric_name}{{{labels}}} {value}')
-
-            # HF-deviation metrics
-            for metric_name in [
-                'reference_energy',
-                'energy_error_hartree',
-                'energy_error_millihartree',
-                'hf_deviation_score',
-            ]:
-                value = vqe_data.get(metric_name)
-                if isinstance(value, (int, float)):
-                    lines.append(f'qp_vqe_{metric_name}{{{labels}}} {value}')
-
-            # Calculate and add efficiency metrics from existing data
-            vqe_time = vqe_data.get('vqe_time')
-            total_time = vqe_data.get('total_time')
-            iterations_count = vqe_data.get('iterations_count')
-            hamiltonian_time = vqe_data.get('hamiltonian_time')
-            mapping_time = vqe_data.get('mapping_time')
-
-            if vqe_time and iterations_count and iterations_count > 0:
-                # Iterations per second
-                iterations_per_second = iterations_count / vqe_time
-                lines.append(f'qp_vqe_iterations_per_second{{{labels}}} {iterations_per_second}')
-
-                # Average time per iteration
-                time_per_iteration = vqe_time / iterations_count
-                lines.append(f'qp_vqe_time_per_iteration{{{labels}}} {time_per_iteration}')
-
-            if total_time and vqe_time and vqe_time > 0:
-                # Overhead ratio (setup time vs computation time)
-                overhead_time = total_time - vqe_time
-                overhead_ratio = overhead_time / vqe_time
-                lines.append(f'qp_vqe_overhead_ratio{{{labels}}} {overhead_ratio}')
-
-                # VQE efficiency (time spent in actual VQE vs total)
-                vqe_efficiency = vqe_time / total_time
-                lines.append(f'qp_vqe_efficiency{{{labels}}} {vqe_efficiency}')
-
-            if hamiltonian_time and mapping_time and vqe_time:
-                # Setup phase efficiency
-                setup_time = hamiltonian_time + mapping_time
-                setup_ratio = setup_time / total_time if total_time else 0
-                lines.append(f'qp_vqe_setup_ratio{{{labels}}} {setup_ratio}')
-
-            return '\n'.join(lines) + '\n'
-
-        except Exception as e:
-            self.logger.error(f'Failed to convert VQE data to Prometheus format: {e}')
-            return ''
-
-    def _convert_system_to_prometheus_format(self, metrics: dict[str, Any]) -> str:
-        """Convert system metrics to Prometheus exposition format."""
-        lines = []
-        try:
-            # System metrics
-            system = metrics.get('system', {})
-
-            # CPU metrics
-            cpu = system.get('cpu', {})
-            if cpu.get('percent') is not None:
-                lines.append(
-                    f'qp_sys_cpu_percent{{container_type="{self.container_type}"}} {cpu["percent"]}'
-                )
-            if cpu.get('load_avg_1m') is not None:
-                lines.append(
-                    f'qp_sys_cpu_load_1m{{container_type="{self.container_type}"}} {cpu["load_avg_1m"]}'
-                )
-
-            # Memory metrics
-            memory = system.get('memory', {})
-            if memory.get('percent') is not None:
-                lines.append(
-                    f'qp_sys_memory_percent{{container_type="{self.container_type}"}} {memory["percent"]}'
-                )
-            if memory.get('used') is not None:
-                lines.append(
-                    f'qp_sys_memory_used_bytes{{container_type="{self.container_type}"}} {memory["used"]}'
-                )
-
-            # Container uptime metric
-            uptime_seconds = time.time() - self._start_time
-            lines.append(
-                f'qp_sys_uptime_seconds{{container_type="{self.container_type}"}} {uptime_seconds}'
-            )
-
-            return '\n'.join(lines) + '\n'
-
-        except Exception as e:
-            self.logger.error(f'Failed to convert system metrics to Prometheus format: {e}')
-            return ''
-
-    def __enter__(self):
-        """Context manager entry."""
-        if self.enabled:
-            self.start_monitoring()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        if self.enabled:
-            self.stop_monitoring_thread()
+            self.logger.error(f'Failed to export {description} to Prometheus: {e}')
 
 
-# Global instance
+# --- global instance ---
 _global_monitor: PerformanceMonitor | None = None
 
 
 def get_performance_monitor(**kwargs) -> PerformanceMonitor:
-    """Get or create global performance monitor instance."""
+    """Get the global monitor, creating it from kwargs on first call."""
     global _global_monitor
 
     if _global_monitor is None:
         _global_monitor = PerformanceMonitor(**kwargs)
+    elif kwargs:
+        _global_monitor.logger.warning(
+            'Global performance monitor already exists - ignoring arguments: '
+            f'{sorted(kwargs)}. Use init_performance_monitoring() to reconfigure.'
+        )
 
     return _global_monitor
 
 
-def init_performance_monitoring(**kwargs):
-    """Initialize global performance monitoring."""
+def init_performance_monitoring(**kwargs) -> PerformanceMonitor:
+    """Replace the global monitor with a freshly configured one."""
     global _global_monitor
     _global_monitor = PerformanceMonitor(**kwargs)
     return _global_monitor
 
 
-# Helpers
 def is_monitoring_enabled() -> bool:
     """Check if performance monitoring is globally enabled."""
-    monitor = get_performance_monitor()
-    return monitor.is_enabled()
+    return get_performance_monitor().is_enabled()
 
 
 def collect_performance_snapshot() -> dict[str, Any]:
-    """Collect a performance metrics snapshot."""
-    monitor = get_performance_monitor()
-    return monitor.collect_metrics_snapshot()
+    """Collect a performance metrics snapshot from the global monitor."""
+    return get_performance_monitor().collect_metrics_snapshot()
 
 
 def set_experiment_context(**context):
-    """Set experiment context for performance correlation."""
-    monitor = get_performance_monitor()
-    monitor.set_experiment_context(**context)
+    """Set experiment context on the global monitor."""
+    get_performance_monitor().set_experiment_context(**context)
