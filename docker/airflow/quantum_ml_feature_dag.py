@@ -1,7 +1,7 @@
 """
 Airflow DAG: Quantum ML Feature Materialization
 
-Joins the 9 normalized Iceberg tables produced by quantum_feature_processing
+Joins the 5 normalized Iceberg tables produced by quantum_feature_processing
 into two ML-ready feature tables:
 
   - quantum_catalog.quantum_features.ml_iteration_features  (per-iteration)
