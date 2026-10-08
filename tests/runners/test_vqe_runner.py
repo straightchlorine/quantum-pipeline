@@ -674,6 +674,55 @@ class TestVQERunner:
             # The partial report is the point of continuing: it must survive the failure.
             mock_report.return_value.generate_report.assert_called_once()
 
+    def test_failed_molecule_and_undelivered_result_both_reported(
+        self, multiple_molecules_file, tmp_path, monkeypatch
+    ):
+        """A solver failure plus a spooled send failure surface in one KafkaProducerError."""
+        monkeypatch.setattr(
+            'quantum_pipeline.runners.vqe_runner.UNDELIVERED_DIR', tmp_path / 'undelivered'
+        )
+        with (
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
+            patch('quantum_pipeline.runners.vqe_runner.validate_basis_set'),
+            patch('quantum_pipeline.runners.vqe_runner.PySCFDriver.from_molecule') as mock_driver,
+            patch('quantum_pipeline.runners.vqe_runner.JordanWignerMapper'),
+            patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
+            patch('quantum_pipeline.runners.vqe_runner.VQEKafkaProducer') as mock_kafka,
+            patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
+        ):
+            mock_load.return_value = [Mock(symbols=['H', 'H']), Mock(symbols=['C', 'O'])]
+            mock_driver.return_value.run.return_value = Mock(
+                num_particles=(1, 1),
+                num_spatial_orbitals=2,
+                reference_energy=-1.117,
+                second_q_ops=Mock(return_value=[Mock()]),
+            )
+            mock_result = Mock(
+                minimum=-1.0,
+                total_energy=-1.0,
+                iteration_list=[0.5, -1.0],
+                optimal_parameters=[0.1],
+            )
+            mock_result.initial_data.optimizer = 'COBYLA'
+            mock_result.initial_data.ansatz_reps = 3
+            mock_solver.return_value.solve.side_effect = [RuntimeError('SCF'), mock_result]
+            mock_kafka.return_value.send_result.side_effect = KafkaProducerError('broker down')
+            mock_kafka.return_value.serializer.serialize.return_value = {'molecule_id': 1}
+            mock_timer.return_value.__enter__.return_value.elapsed = 0.5
+
+            runner = VQERunner(
+                filepath=str(multiple_molecules_file), basis_set='sto3g', kafka=True
+            )
+
+            with pytest.raises(
+                KafkaProducerError,
+                match=r'failed to stream.*Also: 1 of 2 molecules failed \(indices \[0\]\)',
+            ):
+                runner.run()
+
+            assert runner._failed == [0]
+            assert runner._undelivered == [1]
+
     def test_with_convergence_threshold(self, single_molecule_file):
         """Test with custom convergence threshold using a real file."""
         with (

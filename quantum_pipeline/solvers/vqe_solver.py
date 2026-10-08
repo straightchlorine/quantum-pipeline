@@ -1,10 +1,4 @@
-"""
-vqe_solver.py
-
-This module contains a function to solve a quantum operator using the
-Variational Quantum Eigensolver (VQE). The VQE algorithm combines quantum and
-classical optimization to find the minimum eigenvalue of a Hamiltonian.
-"""
+"""VQE solver: classical optimization loop over a parameterised ansatz to minimize <H>."""
 
 import numpy as np
 from qiskit.circuit.library import EfficientSU2, ExcitationPreserving, RealAmplitudes
@@ -17,6 +11,7 @@ from scipy.optimize import minimize
 
 from quantum_pipeline.circuits import HFData, build_hf_initial_state
 from quantum_pipeline.configs.constants import (
+    EP_HF_INIT_JITTER,
     EP_INIT_JITTER,
     HF_FIDELITY_THRESHOLD,
     HF_PRE_OPT_ATTEMPTS,
@@ -50,17 +45,17 @@ class VQESolver(Solver):
         qubit_op,
         backend_config: BackendConfig,
         max_iterations: int | None = 50,
-        optimizer='COBYLA',
-        ansatz_reps=3,
-        ansatz_type='EfficientSU2',
+        optimizer: str = 'COBYLA',
+        ansatz_reps: int = 3,
+        ansatz_type: str = 'EfficientSU2',
         default_shots: int | None = 1024,
-        convergence_threshold=None,
-        optimization_level=3,
-        seed=None,
-        init_strategy='random',
+        convergence_threshold: float | None = None,
+        optimization_level: int = 3,
+        seed: int | None = None,
+        init_strategy: str = 'random',
         hf_data: HFData | None = None,
         mapper: Mapper | None = None,
-    ):
+    ) -> None:
         super().__init__()
         self.qubit_op = qubit_op
         self.ansatz_reps = ansatz_reps
@@ -78,6 +73,7 @@ class VQESolver(Solver):
         self.init_strategy = init_strategy
         self.hf_data = hf_data
         self.mapper = mapper
+        self.effective_init_strategy = init_strategy
 
     def _optimize_circuits(self, ansatz, hamiltonian, backend):
         """Prepare ISA-compatible circuits and observables"""
@@ -93,43 +89,67 @@ class VQESolver(Solver):
         return ansatz_isa, hamiltonian_isa
 
     def _build_ansatz(self, n_qubits):
-        """Build the parameterised ansatz circuit for the given number of qubits.
+        """Build the parameterised circuit whose parameters the optimizer will tune.
 
-        Supported ansatz types
-        ----------------------
-        EfficientSU2 / RealAmplitudes
-            General-purpose circuits with no particle-number constraint.
-            Built as a plain circuit without a fixed initial state.
-            When init_strategy='hf', a separate pre-optimization step finds
-            parameters that make the circuit approximate the Hartree-Fock state.
+        Args:
+            n_qubits: Qubit count of the mapped Hamiltonian (`hamiltonian.num_qubits`
+                at the call site), one qubit per spin orbital under Jordan-Wigner.
 
-        ExcitationPreserving
-            A circuit built from XX+YY rotation gates. Only moves electrons,
-            so particle-number must be constant.
+        Returns:
+            An untranspiled Qiskit circuit; `solve` transpiles it for the backend.
 
-            Prepending the Heartree-Fock state as the circuit's `initial_state`.
-            This ensures that correct number of electrons resides in correct
-            orbitals before any gate runs - places cirtuit in the right sector
-            from the start.
+        Raises:
+            ValueError: If `ansatz_type` is ExcitationPreserving and `hf_data` or
+                `mapper` is missing. Without them the circuit has no Hartree-Fock
+                initial state, starts in the zero-electron sector, and no number of
+                `reps` can reach a state with the right electron count.
 
-            Initial parameters are a small jitter around zero (not exactly zero).
-            Zero params output exactly the HF reference, which is a stationary point
-            of the energy (Brillouin's theorem) where the optimizer stalls at HF; a
-            small perturbation breaks that point so it can descend into correlation.
-            See _compute_initial_parameters().
+        `EfficientSU2` and `RealAmplitudes` are generic rotation-plus-CX circuits with
+        no particle-number constraint. They are built bare, with no initial state.
 
-            entanglement='full' is required.
-                Adjacent-only (linear) gates just slide electrons between
-                neighbouring orbitals - a Slater determinant in, a Slater
-                determinant out. The best reachable state is HF, so the
-                correlation energy is unreachable regardless of reps.
+        Prepending the HF circuit does not help: the fixed CX layers clear it out
+        as soon as any rotation is non-zero. HF enters through the initial parameters,
+        for both circuits: `_compute_hf_initial_parameters` runs a
+        short search for parameters whose output has high fidelity with the HF state.
 
-                Non-adjacent (full) gates reach over intermediate qubits,
-                which introduces a many-body interaction under Jordan-Wigner.
-                That lets the circuit produce superpositions of configurations
-                and access the correlated states where the correlation energy lives.
+        `ExcitationPreserving` is built from RZ rotations and XX+YY two-qubit gates.
+        An XX+YY gate only moves an excitation between its two qubits, so the number
+        of set qubits never changes.
+        That is why it needs the HF state prepended as `initial_state`: it fixes
+        the electron count and places them in the lowest orbitals before any gate
+        runs - the circuit can never leave that sector.
+        `build_hf_initial_state` builds it with qiskit-nature's `HartreeFock`,
+        which knows the blocked alpha-then-beta orbital ordering of the mapper.
 
-            Raises ValueError if hf_data or mapper is not provided.
+        Its initial parameters are a seeded Gaussian jitter around zero, set in
+        `_compute_initial_parameters`; the width depends on `init_strategy`. `'hf'` uses
+        N(0, `EP_HF_INIT_JITTER`) = N(0, 0.01), `'random'` uses N(0, `EP_INIT_JITTER`) =
+        N(0, 0.5). The start is not exactly zero - there the circuit outputs the
+        HF state unchanged, and HF is a stationary point of the energy with respect to
+        single excitations (Brillouin's theorem): the gradient there is zero and an
+        optimizer started there has nothing to follow. That is why even the `hf` arm
+        carries a small jitter.
+        Measured on H2/sto3g: the `hf` arm starts within a few mHa of HF, but COBYLA then
+        stays within ~8 mHa of it; the `random` arm starts about 0.5 Ha above HF and
+        reaches the correlation energy in most seeds. `init_strategy` records the arm
+        that ran.
+
+        `entanglement='full'` is also needed. With gates only between neighbouring qubits,
+        every XX+YY gate is a rotation between two adjacent spin orbitals.
+
+        Under Jordan-Wigner the adjacent hopping term has no Z string, so the gate
+        is a one-body orbital rotation, and a product of orbital rotations maps
+        a Slater determinant to another Slater determinant.
+
+        The best such state is HF itself, so the correlation energy stays out of
+        reach at any `reps`. A gate between non-adjacent qubits is the same
+        hopping term dressed with the parity of the qubits in between, which is
+        a many-body operation; that is what lets the circuit build superpositions
+        of determinants.
+
+        An unknown `ansatz_type` falls back to `EfficientSU2` with a warning rather than
+        failing. The result record stores `ansatz_name=self.ansatz_type` verbatim, so a
+        typo produces rows labelled with a name that was never run.
         """
         if self.ansatz_type == 'ExcitationPreserving':
             if self.hf_data is None or self.mapper is None:
@@ -154,12 +174,12 @@ class VQESolver(Solver):
         return ansatze.get(self.ansatz_type, ansatze['EfficientSU2'])()
 
     def _compute_hf_initial_parameters(self, ansatz):
-        """Find EfficientSU2 parameters that prepare the HF state.
+        """Find parameters of a bare `EfficientSU2` or `RealAmplitudes` that prepare the HF state.
 
         Performs a short classical pre-optimization to find parameters where
         the ansatz output matches the HF state (maximizes state fidelity).
         This avoids the problem of prepending HF circuit + zero params, where
-        the fixed CX gates in EfficientSU2 destroy the HF state.
+        the fixed CX gates in both circuits destroy the HF state.
         """
         if self.hf_data is None or self.mapper is None:
             raise ValueError('HF data and mapper must be provided for HF parameter computation')
@@ -197,28 +217,43 @@ class VQESolver(Solver):
         return best_params
 
     def _compute_initial_parameters(self, ansatz):
-        """Compute initial ansatz parameters based on the configured strategy."""
+        """Compute initial ansatz parameters based on the configured strategy.
+
+        Sets `effective_init_strategy` to what actually produced the start point, and
+        `_build_init_data` stores that value, not the requested `init_strategy`:
+
+        - `'hf'` when the HF pre-optimization ran (`EfficientSU2`, `RealAmplitudes`),
+        - `'hf'` or `'random'` for `ExcitationPreserving`, as requested: HF reference state
+          plus a seeded N(0, `EP_HF_INIT_JITTER`) jitter for `'hf'` and N(0,
+          `EP_INIT_JITTER`) for `'random'`,
+        - `'random'` when `'hf'` was requested for the other ansatzes but `hf_data` or
+          `mapper` is missing (a warning is logged).
+        """
         param_num = ansatz.num_parameters
 
         # ExcitationPreserving prepends the HF circuit as initial_state (see _build_ansatz).
         if self.ansatz_type == 'ExcitationPreserving':
+            sigma = EP_HF_INIT_JITTER if self.init_strategy == 'hf' else EP_INIT_JITTER
+            self.effective_init_strategy = 'hf' if self.init_strategy == 'hf' else 'random'
             rng = np.random.default_rng(self.seed if self.seed is not None else 0)
             self.logger.info(
-                'ExcitationPreserving: small jitter around the HF reference for initial parameters'
+                'ExcitationPreserving: HF reference state plus N(0, %s) parameter jitter, '
+                'recorded as %s',
+                sigma,
+                self.effective_init_strategy,
             )
-            return EP_INIT_JITTER * rng.standard_normal(param_num)
+            return sigma * rng.standard_normal(param_num)
 
-        if self.init_strategy == 'hf' and self.ansatz_type != 'EfficientSU2':
+        self.effective_init_strategy = 'random'
+        if self.init_strategy == 'hf':
+            if self.hf_data is not None and self.mapper is not None:
+                self.logger.info('Computing HF-equivalent initial parameters...')
+                params = self._compute_hf_initial_parameters(ansatz)
+                self.effective_init_strategy = 'hf'
+                return params
             self.logger.warning(
-                f'HF parameter pre-optimization is only supported for EfficientSU2, not {self.ansatz_type}. '
-                'Falling back to random initialization.'
-            )
-        elif self.init_strategy == 'hf' and self.hf_data is not None and self.mapper is not None:
-            self.logger.info('Computing HF-equivalent initial parameters...')
-            return self._compute_hf_initial_parameters(ansatz)
-        elif self.init_strategy == 'hf' and (self.hf_data is None or self.mapper is None):
-            self.logger.warning(
-                'HF init strategy requested but no HF data/mapper available, falling back to random'
+                'HF init strategy requested but no HF data/mapper available, '
+                'falling back to random'
             )
 
         if self.seed is not None:
@@ -235,7 +270,6 @@ class VQESolver(Solver):
         return None
 
     def _log_total_energy(self, electronic_energy: float) -> None:
-        """Log total energy (electronic + nuclear repulsion) if nuclear repulsion is available."""
         if self._nuclear_repulsion is not None:
             total = electronic_energy + self._nuclear_repulsion
             self.logger.info(
@@ -248,11 +282,6 @@ class VQESolver(Solver):
 
         Keys on the raw per-iteration `result` (not `cumulative_min_energy`), so the
         returned step's energy and parameters are self-consistent.
-
-        Result is the lowest energy seen and parameters are exactly the ones
-        that produced it. Keying on the running cumulative minimum would pair
-        the global-min energy with whichever iteration's parameters happened
-        to be stored alongside it.
         """
         return min(self.vqe_process, key=lambda p: p.result)
 
@@ -270,7 +299,7 @@ class VQESolver(Solver):
         )
 
     def compute_energy(self, params, ansatz, hamiltonian, estimator):
-        """Return estimate of energy from estimator"""
+        """scipy objective callback: evaluate <H>, record the step, enforce the hard eval limit."""
 
         if self.max_iterations is not None and self.current_iter > self.max_iterations:
             best = self._best_step()
@@ -353,16 +382,17 @@ class VQESolver(Solver):
             noise_backend=self.backend_config.noise if self.backend_config.noise else 'undef',
             default_shots=self.default_shots,
             seed=self.seed,
-            init_strategy=self.init_strategy,
+            init_strategy=self.effective_init_strategy,
             ansatz_name=self.ansatz_type,
             exact_estimator=exact_estimator,
         )
 
     def _run_optimization(self, ansatz_isa, hamiltonian_isa, estimator, x0) -> VQEResult:
-        """Run the scipy optimization loop and return a VQEResult.
+        """Run scipy minimize; a hard-limit abort in compute_energy still yields a result.
 
-        Handles convergence-mode logging, the Timer-wrapped minimize call,
-        MaxFunctionEvalsReachedError early termination, and result construction.
+        Raises:
+            ValueError: If both `max_iterations` and `convergence_threshold` are set
+                (mutually exclusive, enforced by `OptimizerConfig`).
         """
         optimization_params, minimize_tol = get_optimizer_configuration(
             optimizer=self.optimizer,
@@ -375,12 +405,7 @@ class VQESolver(Solver):
         if minimize_tol is not None:
             self.logger.debug(f'Minimize tolerance: {minimize_tol}')
 
-        if self.convergence_threshold and self.max_iterations:
-            self.logger.info(
-                f'Starting VQE optimization with max iterations {self.max_iterations} taking priority over '
-                f'convergence threshold {self.convergence_threshold}'
-            )
-        elif self.convergence_threshold:
+        if self.convergence_threshold:
             self.logger.info(
                 f'Starting VQE optimization with convergence threshold {self.convergence_threshold}'
             )
@@ -480,9 +505,9 @@ class VQESolver(Solver):
         """Run the VQE simulation via Aer simulator.
 
         When default_shots is None, uses qiskit_aer.primitives.EstimatorV2 with
-        default_precision=0.0 (exact statevector expectation values, no shot noise).
-        Otherwise uses qiskit_ibm_runtime.EstimatorV2 in local mode with the
-        specified shot count.
+        default_precision=0.0: exact expectation values, no shot noise. A noise model on
+        the backend still applies. Otherwise uses qiskit_ibm_runtime.EstimatorV2 in local
+        mode with the specified shot count.
         """
         x0, ansatz_isa, hamiltonian_isa = self._prepare_circuit(backend)
 
@@ -490,8 +515,13 @@ class VQESolver(Solver):
         self._build_init_data(backend.name, ansatz_isa, hamiltonian_isa, x0, exact_estimator=exact)
 
         if exact:
-            estimator = AerEstimatorV2(options={'default_precision': 0.0})
-            self.logger.info('Using exact Aer estimator (default_precision=0.0, no shot noise).')
+            # from_backend, not AerEstimatorV2(): the bare constructor spins up its own
+            # default AerSimulator and would drop the configured method, noise model and GPU.
+            estimator = AerEstimatorV2.from_backend(backend, options={'default_precision': 0.0})
+            self.logger.info(
+                f'Using exact Aer estimator on {backend.name} '
+                '(default_precision=0.0, no shot noise).'
+            )
         else:
             estimator = EstimatorV2(mode=backend)
             estimator.options.default_shots = self.default_shots

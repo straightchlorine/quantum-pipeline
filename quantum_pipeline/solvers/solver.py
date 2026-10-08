@@ -22,7 +22,7 @@ class Solver(ABC):
 
     @abstractmethod
     def solve(self) -> VQEResult:
-        """Run the quantum solver and return the result. Subclasses must implement this."""
+        """Run the quantum solver and return the result."""
         ...
 
     def supported_optimizers_prompt(self):
@@ -55,13 +55,10 @@ class Solver(ABC):
         return channel, instance, token
 
     def _get_service(self):
-        """Authenticates and connects to the IBM Quantum platform.
-
-        Returns:
-            QiskitRuntimeService: Connected IBM Quantum service instance.
+        """Authenticate and connect to the IBM Quantum platform.
 
         Raises:
-            RuntimeError: If authentication or connection fails.
+            RuntimeError: If the environment credentials are invalid or the connection fails.
         """
         self.logger.info('Authenticating with IBM Quantum platform...')
         try:

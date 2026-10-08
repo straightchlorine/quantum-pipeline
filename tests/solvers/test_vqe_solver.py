@@ -783,6 +783,115 @@ class TestVQESolverHFInit:
         )
         assert init_data.initial_parameters is not None
         assert len(init_data.initial_parameters) > 0
+        assert init_data.init_strategy == 'random'
+
+    @staticmethod
+    def _init_data_after_compute(solver, num_parameters=16):
+        """Helper: run _compute_initial_parameters, then _build_init_data, return the record."""
+        mock_ansatz = MagicMock()
+        mock_ansatz.num_parameters = num_parameters
+        x0 = solver._compute_initial_parameters(mock_ansatz)
+        mock_hamiltonian_isa = MagicMock()
+        mock_hamiltonian_isa.num_qubits = 4
+        mock_hamiltonian_isa.to_list.return_value = []
+        solver._build_init_data('aer_simulator', mock_ansatz, mock_hamiltonian_isa, x0)
+        return solver.init_data
+
+    def test_real_amplitudes_hf_runs_pre_optimization(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='RealAmplitudes',
+            init_strategy='hf',
+            hf_data=hf_data,
+            mapper=MagicMock(),
+        )
+        hf_params = np.full(16, 0.5)
+        with patch.object(
+            solver, '_compute_hf_initial_parameters', return_value=hf_params
+        ) as mock_hf:
+            init_data = self._init_data_after_compute(solver)
+        mock_hf.assert_called_once()
+        np.testing.assert_array_equal(init_data.initial_parameters, hf_params)
+        assert init_data.init_strategy == 'hf'
+        assert init_data.ansatz_name == 'RealAmplitudes'
+
+    def test_efficient_su2_hf_without_hf_data_records_random(
+        self, mock_backend_config, sample_hamiltonian, caplog
+    ):
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='EfficientSU2',
+            init_strategy='hf',
+            hf_data=None,
+            mapper=None,
+            seed=42,
+        )
+        solver.logger.propagate = True
+        with (
+            caplog.at_level('WARNING'),
+            patch.object(solver, '_compute_hf_initial_parameters') as mock_hf,
+        ):
+            init_data = self._init_data_after_compute(solver)
+        mock_hf.assert_not_called()
+        assert 'falling back to random' in caplog.text
+        assert init_data.init_strategy == 'random'
+        assert solver.init_strategy == 'hf'
+
+    def test_excitation_preserving_records_random(self, mock_backend_config, sample_hamiltonian):
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='ExcitationPreserving',
+            init_strategy='random',
+            hf_data=hf_data,
+            mapper=MagicMock(),
+        )
+        init_data = self._init_data_after_compute(solver)
+        assert init_data.init_strategy == 'random'
+        mock_ansatz = MagicMock()
+        mock_ansatz.num_parameters = 200
+        assert np.std(solver._compute_initial_parameters(mock_ansatz)) > 0.3
+
+    def test_excitation_preserving_hf_uses_small_jitter(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='ExcitationPreserving',
+            init_strategy='hf',
+            seed=1,
+            hf_data=HFData(num_particles=(1, 1), num_spatial_orbitals=2),
+            mapper=MagicMock(),
+        )
+        mock_ansatz = MagicMock()
+        mock_ansatz.num_parameters = 12
+        params = solver._compute_initial_parameters(mock_ansatz)
+        assert 0 < np.max(np.abs(params)) < 0.1
+        assert solver.effective_init_strategy == 'hf'
+
+    def test_effective_init_strategy_defaults_to_requested(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian, backend_config=mock_backend_config, init_strategy='hf'
+        )
+        assert solver.effective_init_strategy == 'hf'
+
+    def test_old_efficient_su2_only_warning_is_gone(self):
+        from pathlib import Path
+
+        import quantum_pipeline.solvers.vqe_solver as vqe_solver_module
+
+        assert (
+            'only supported for EfficientSU2' not in Path(vqe_solver_module.__file__).read_text()
+        )
 
     def test_build_ansatz_is_plain_esu2(self, mock_backend_config, sample_hamiltonian):
         """Test that _build_ansatz always builds a plain EfficientSU2 (no HF circuit prepend)."""
