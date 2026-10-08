@@ -1,34 +1,13 @@
-"""ML utilities for experiment tracking and model development."""
+"""ML utilities for VQE outcome prediction.
 
-from quantum_pipeline.ml.convergence_predictor import (
-    ConvergencePredictor,
-    ConvergencePredictorResults,
-    FoldResult,
-    compute_horizon_features,
-)
-from quantum_pipeline.ml.convergence_predictor import (
-    generate_synthetic_trajectories as generate_convergence_trajectories,
-)
-from quantum_pipeline.ml.energy_estimator import (
-    EnergyEstimator,
-    EnergyEstimatorResults,
-    EvaluationResult,
-    extract_features_at_fraction,
-    generate_synthetic_trajectories,
-)
-from quantum_pipeline.ml.tracking import ExperimentTracker, tracker
+Requires `pdm install -G ml`.
 
-__all__ = [
-    'ConvergencePredictor',
-    'ConvergencePredictorResults',
-    'EnergyEstimator',
-    'EnergyEstimatorResults',
-    'EvaluationResult',
-    'ExperimentTracker',
-    'FoldResult',
-    'compute_horizon_features',
-    'extract_features_at_fraction',
-    'generate_convergence_trajectories',
-    'generate_synthetic_trajectories',
-    'tracker',
-]
+Import from the submodules:
+- `schema` for the input contract shared by both models,
+- `energy_estimator` and `convergence_predictor` for the models themselves,
+- `preprocessing` for the shared feature transformer,
+- `tracking` for MLflow.
+
+Both predictors ship a `generate_synthetic_trajectories`; they emit different feature
+columns for their own models over the same `schema` contract.
+"""
