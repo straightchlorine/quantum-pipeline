@@ -211,7 +211,7 @@ on `AvroInterfaceBase`:
 
 1. Parses the schema dict into an Avro schema object
 2. Writes the Confluent header (magic byte + 4-byte schema ID from the
-   registry's `id_cache`)
+   registry's cached `SchemaRecord.id`)
 3. Serializes the object using `DatumWriter` and `BinaryEncoder`
 
 **Consumer side** - depends on the connector:
