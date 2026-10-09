@@ -53,7 +53,7 @@ sequenceDiagram
     Note over VQERunner: Track vqe_time
 
     VQESolver->>VQERunner: Return VQEResult
-    VQERunner->>VQERunner: _collect_accuracy_metrics()
+    VQERunner->>VQERunner: _collect_hf_deviation_metrics()
     VQERunner->>VQERunner: _build_metrics_data()
     Note over VQERunner: Calculate total_time
 
@@ -67,7 +67,7 @@ sequenceDiagram
 | Method | What it does |
 |--------|-------------|
 | [`_process_molecule()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L289) | Full VQE execution for a single molecule  |
-| [`_collect_accuracy_metrics()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L228) | Compares VQE energy against HF reference |
+| [`_collect_hf_deviation_metrics()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L228) | Compares VQE energy against the HF reference; values are None when no reference exists |
 | [`_build_metrics_data()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L266) | Constructs the metrics dict for Prometheus export |
 | [`_stream_result()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L371) | Sends a decorated VQE result to Kafka |
 
@@ -77,7 +77,7 @@ sequenceDiagram
 - **Timing**: hamiltonian construction, Jordan-Wigner mapping, VQE optimization, total wall time
 - **Molecule info**: atomic symbols, coordinates, charge, multiplicity, basis set
 - **System metrics**: CPU usage, memory consumption (exported to Prometheus)
-- **Accuracy**: HF reference energy comparison, error in millihartree, accuracy score
+- **Accuracy**: HF reference energy comparison, error in millihartree, HF deviation score
 
 The result structure is documented in [Serialization - Schema Structure](serialization.md#schema-structure).
 
@@ -104,7 +104,7 @@ graph LR
 
 **VQE metrics**: `qp_vqe_total_time`, `qp_vqe_hamiltonian_time`, `qp_vqe_mapping_time`, `qp_vqe_vqe_time`, `qp_vqe_minimum_energy`, `qp_vqe_iterations_count`, `qp_vqe_optimal_parameters_count`
 
-**Accuracy metrics**: `qp_vqe_reference_energy`, `qp_vqe_energy_error_hartree`, `qp_vqe_energy_error_millihartree`, `qp_vqe_accuracy_score`
+**HF reference metrics**: `qp_vqe_reference_energy`, `qp_vqe_energy_error_hartree`, `qp_vqe_energy_error_millihartree`, `qp_vqe_hf_deviation_score`
 
 **Derived**: `qp_vqe_iterations_per_second`, `qp_vqe_time_per_iteration`, `qp_vqe_overhead_ratio`, `qp_vqe_efficiency`, `qp_vqe_setup_ratio`
 
