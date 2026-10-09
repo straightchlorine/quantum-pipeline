@@ -1,3 +1,7 @@
+---
+description: Import the bundled Grafana dashboard and read its panels for VQE performance, accuracy, GPU, system, data platform and databases.
+---
+
 # Grafana Dashboards
 
 Grafana provides the visualization layer for monitoring simulations. The repository includes a pre-built

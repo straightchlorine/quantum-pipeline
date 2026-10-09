@@ -1,10 +1,11 @@
 ---
 title: Basis Sets
+description: Compare the STO-3G, 6-31G and cc-pVDZ basis sets by accuracy, qubit count and cost, with a guide to choosing one.
 ---
 
 # Basis Sets
 
-A basis set defines the mathematical functions used to approximate molecular orbitals in quantum chemistry calculations. For VQE simulations, the basis set governs the number of qubits required under the [Jordan-Wigner transformation](https://docs.quantum.ibm.com/api/qiskit-nature/qiskit_nature.second_q.mappers.JordanWignerMapper) - one qubit per spin orbital, so twice the number of basis functions - establishing a trade-off between accuracy and computational cost. [Mathematical Foundations](mathematical-foundations.md#from-basis-functions-to-qubits) covers that counting and what basis truncation costs in energy. This page describes the three basis sets supported by the project and provides guidance on their selection.
+A basis set defines the mathematical functions used to approximate molecular orbitals in quantum chemistry calculations. For VQE simulations, the basis set governs the number of qubits required under the [Jordan-Wigner transformation](https://docs.quantum.ibm.com/api/qiskit-nature/qiskit_nature.second_q.mappers.JordanWignerMapper) - one qubit per spin orbital, so twice the number of basis functions - establishing a trade-off between accuracy and computational cost. <!-- TODO: once mathematical-foundations.md is reviewed, restore: [Mathematical Foundations](mathematical-foundations.md#from-basis-functions-to-qubits) covers that counting and what basis truncation costs in energy. -->This page describes the three basis sets supported by the project and provides guidance on their selection.
 
 ## Supported Basis Sets
 
@@ -112,7 +113,7 @@ The basis set is passed to the PySCF driver in
 [`VQERunner.provide_hamiltonian()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py).
 The same call extracts the Hartree-Fock reference data - particle count, spatial orbitals, HF energy, nuclear repulsion energy - which the pipeline uses in three places. The first is the report of the run's deviation from the Hartree-Fock reference. The second is the initial state that the `ExcitationPreserving` ansatz structurally requires. The third is the parameter pre-optimization under `--init-strategy hf`. See [Ansatz Construction](vqe-algorithm.md#ansatz-construction) for which ansatz needs which.
 
-Because the reference is the Hartree-Fock energy in the same basis, the reported deviation cancels basis-set error and reflects ansatz and optimizer quality. It does not measure accuracy against the true ground state, so it cannot be read across basis sets as a quality comparison ([Chemical accuracy](mathematical-foundations.md#chemical-accuracy)).
+Because the reference is the Hartree-Fock energy in the same basis, the reported deviation cancels basis-set error and reflects ansatz and optimizer quality. It does not measure accuracy against the true ground state, so it cannot be read across basis sets as a quality comparison. <!-- TODO: restore ([Chemical accuracy](mathematical-foundations.md#chemical-accuracy)) -->
 
 Additional basis sets supported by PySCF (e.g., cc-pVTZ, aug-cc-pVDZ, 6-311++G**) can be added by extending the
 [`SUPPORTED_BASIS_SETS`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py)

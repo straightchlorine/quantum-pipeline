@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {#- the 404 page has a page object without a source file -#}
+  {% set real_page = page and page.file and page.url != "404.html" %}
+  {% if real_page %}
+    {% set site = config.site_url | trim("/") ~ "/" %}
+    {% set is_home = page.is_homepage %}
+    {% set person = "https://piotrkrzysztof.dev/#piotr" %}
+    {#- mirrors Material's <title> logic -#}
+    {% set t = page.meta.title or (page.title if not is_home) %}
+    {% set og_title = t ~ " - " ~ config.site_name if t else config.site_name %}
+    {% set og_desc = page.meta.description if page.meta.description else config.site_description %}
+    {% set og_image = site ~ "assets/images/social/" ~ (page.file.src_uri | replace(".md", ".png")) %}
+    <meta property="og:locale" content="en_US">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": {{ (site ~ "#website") | tojson }},
+          "name": {{ config.site_name | tojson }},
+          "url": {{ site | tojson }},
+          "description": {{ config.site_description | tojson }},
+          "inLanguage": "en",
+          "author": { "@id": {{ person | tojson }} }
+        },
+        {
+          "@type": "Person",
+          "@id": {{ person | tojson }},
+          "name": "Piotr Krzysztof Lis",
+          "alternateName": "Piotr Krzysztof",
+          "url": "https://piotrkrzysztof.dev",
+          "sameAs": ["https://github.com/straightchlorine", "https://codeberg.org/piotrkrzysztof", "https://pypi.org/user/straightchlorine", "https://hub.docker.com/u/straightchlorine", "https://www.linkedin.com/in/straightchlorine"]
+        },
+        {
+          "@type": "SoftwareSourceCode",
+          "@id": {{ (config.repo_url ~ "#code") | tojson }},
+          "name": {{ config.site_name | tojson }},
+          "codeRepository": {{ config.repo_url | tojson }},
+          "programmingLanguage": "Python",
+          "license": "https://opensource.org/licenses/MIT",
+          "author": { "@id": {{ person | tojson }} }
+        },
+        {
+          "@type": {{ ("WebPage" if is_home else "TechArticle") | tojson }},
+          "@id": {{ page.canonical_url | tojson }},
+          "url": {{ page.canonical_url | tojson }},
+          "name": {{ og_title | tojson }},
+          "description": {{ og_desc | tojson }},
+          "inLanguage": "en",
+          "image": {{ og_image | tojson }},
+          {%- if page.meta.git_revision_date_localized_raw_iso_date %}
+          "dateModified": {{ page.meta.git_revision_date_localized_raw_iso_date | tojson }},
+          {%- endif %}
+          "isPartOf": { "@id": {{ (site ~ "#website") | tojson }} },
+          "about": { "@id": {{ (config.repo_url ~ "#code") | tojson }} },
+          "author": { "@id": {{ person | tojson }} }
+        }
+      ]
+    }
+    </script>
+  {% endif %}
+{% endblock %}

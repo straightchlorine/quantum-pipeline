@@ -1,3 +1,7 @@
+---
+description: "Every quantum-pipeline CLI flag explained: simulation, VQE, backend, Kafka and monitoring options, with defaults and precedence rules."
+---
+
 # Configuration Reference
 
 Complete reference for all CLI flags accepted by `quantum-pipeline`.

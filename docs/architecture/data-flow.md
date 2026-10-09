@@ -1,3 +1,7 @@
+---
+description: Follow VQE results from molecule input through Kafka streaming and Spark batch jobs to Iceberg analytics tables and ML features.
+---
+
 # Data Flow Architecture
 
 Data flow throughout the pipeline. From molecule specification to ML features

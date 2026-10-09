@@ -1,3 +1,8 @@
+---
+title: VQE simulation pipeline for molecules
+description: Open-source framework for estimating molecular ground-state energies with VQE, with Kafka streaming, Spark ML features and GPU support.
+---
+
 # Quantum Pipeline
 
 <p align="center">

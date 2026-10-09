@@ -1,3 +1,7 @@
+---
+description: Pick a Qiskit Aer simulation method (statevector, density matrix, MPS, tensor network) by accuracy, memory use and GPU support.
+---
+
 # Simulation Methods
 
 Guide to the Qiskit Aer simulation backends available in Quantum Pipeline for quantum circuit execution.

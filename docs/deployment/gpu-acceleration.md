@@ -1,3 +1,7 @@
+---
+description: "Set up NVIDIA GPU simulation with Qiskit Aer CUDA: prerequisites, CUDA_ARCH build argument, Docker GPU access and speedups."
+---
+
 # GPU Acceleration
 
 Quantum Pipeline uses NVIDIA GPUs through Qiskit Aer's CUDA backend to

@@ -1,3 +1,7 @@
+---
+description: Complete reference of .env settings for Quantum Pipeline, Kafka, Garage, Airflow, Spark, MLflow, monitoring and Docker builds.
+---
+
 # Environment Variables
 
 The project is configured through environment variables defined in a `.env` file

@@ -1,3 +1,7 @@
+---
+description: Run your first VQE simulation on the H2 molecule, read the output, and try convergence-based stopping, GPU and Kafka streaming.
+---
+
 # Quick Start
 
 Run a VQE simulation for the H\(_2\) molecule in a few steps.

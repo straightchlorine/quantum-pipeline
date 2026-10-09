@@ -1,3 +1,7 @@
+---
+description: How VQE results are encoded with Avro, registered in Schema Registry and sent through Kafka, including schemas and evolution rules.
+---
+
 # Serialization
 
 How VQE results are serialized, transmitted through Kafka, and stored.

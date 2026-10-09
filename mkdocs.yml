@@ -11,8 +11,8 @@ copyright: Copyright &copy; 2025-2026 Piotr Krzysztof Lis
 
 theme:
   name: material
+  custom_dir: overrides
   palette:
-    # Light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: indigo
@@ -20,7 +20,6 @@ theme:
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-    # Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: indigo
@@ -41,6 +40,8 @@ theme:
     - search.suggest
     - search.highlight
     - search.share
+    - content.action.edit
+    - content.action.view
     - content.code.copy
     - content.code.annotate
     - content.tabs.link
@@ -61,7 +62,13 @@ theme:
 plugins:
   - search:
       lang: en
-  # - privacy: {}
+  - social
+  - privacy:
+      assets_exclude:
+        - qp-docs.codextechnologies.org/*
+        - img.shields.io/*
+        # MathJax loads fonts and components relative to its own URL
+        - unpkg.com/mathjax@*
   - panzoom:
   - git-revision-date-localized:
       enable_creation_date: true
@@ -119,15 +126,12 @@ extra:
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/quantum-pipeline/
 
-  version:
-    provider: mike
-
 extra_css:
   - stylesheets/extra.css
 
 extra_javascript:
   - javascripts/mathjax.js
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+  - https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js
 
 nav:
   - Home: index.md

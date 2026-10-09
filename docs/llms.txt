@@ -1,0 +1,46 @@
+# Quantum Pipeline
+
+> Extensible framework for running quantum algorithms (VQE) for ground-state energy estimation, backed by a modern data stack.
+
+Quantum Pipeline simulates molecules with the Variational Quantum Eigensolver using Qiskit, and streams the results through Kafka, Spark, Airflow, and Iceberg into ML feature tables. It runs from the PyPI package, a single Docker container, or a full Docker Compose platform.
+
+## Docs
+
+- [Home](https://docs.qp.piotrkrzysztof.dev/): Overview of the framework and its documentation
+- [Installation](https://docs.qp.piotrkrzysztof.dev/getting-started/installation/): Install from source, with requirements and optional GPU support
+- [Quick Start](https://docs.qp.piotrkrzysztof.dev/getting-started/quick-start/): Run a first VQE simulation for H2 in a few steps
+- [Basic Usage](https://docs.qp.piotrkrzysztof.dev/getting-started/basic-usage/): The quantum-pipeline command and its options
+- [Usage Overview](https://docs.qp.piotrkrzysztof.dev/usage/): Configuring and running VQE simulations
+- [Configuration](https://docs.qp.piotrkrzysztof.dev/usage/configuration/): Reference for all CLI flags and how defaults are overridden
+- [Optimizers](https://docs.qp.piotrkrzysztof.dev/usage/optimizers/): Classical optimizers available for VQE parameter optimization
+- [Simulation Methods](https://docs.qp.piotrkrzysztof.dev/usage/simulation-methods/): Qiskit Aer simulation backends and methods
+- [Examples](https://docs.qp.piotrkrzysztof.dev/usage/examples/): Example workflows from a simple simulation to full data pipeline integration
+- [Architecture Overview](https://docs.qp.piotrkrzysztof.dev/architecture/): How the components fit together
+- [System Design](https://docs.qp.piotrkrzysztof.dev/architecture/system-design/): Component-by-component breakdown of the stack
+- [Data Flow](https://docs.qp.piotrkrzysztof.dev/architecture/data-flow/): From molecule specification to ML features in Apache Iceberg tables
+- [Serialization](https://docs.qp.piotrkrzysztof.dev/architecture/serialization/): How VQE results are serialized with Avro, sent through Kafka, and stored
+- [Data Platform Overview](https://docs.qp.piotrkrzysztof.dev/data-platform/): Processing and storing VQE results as ML feature tables
+- [Kafka Streaming](https://docs.qp.piotrkrzysztof.dev/data-platform/kafka-streaming/): Real-time ingestion of VQE results with Apache Kafka
+- [Spark Processing](https://docs.qp.piotrkrzysztof.dev/data-platform/spark-processing/): Batch transformation of raw results into ML feature tables with Apache Spark
+- [Airflow Orchestration](https://docs.qp.piotrkrzysztof.dev/data-platform/airflow-orchestration/): Apache Airflow DAGs that orchestrate the data pipeline
+- [Iceberg Storage](https://docs.qp.piotrkrzysztof.dev/data-platform/iceberg-storage/): Apache Iceberg feature tables on S3-compatible storage
+- [Deployment Overview](https://docs.qp.piotrkrzysztof.dev/deployment/): Three ways to run: PyPI package, single Docker container, or full Docker Compose platform
+- [Docker Basics](https://docs.qp.piotrkrzysztof.dev/deployment/docker-basics/): Docker images for CPU and GPU workloads, Spark and Airflow
+- [Docker Compose](https://docs.qp.piotrkrzysztof.dev/deployment/docker-compose/): Running the full platform as Docker Compose services
+- [GPU Acceleration](https://docs.qp.piotrkrzysztof.dev/deployment/gpu-acceleration/): NVIDIA GPU setup through Qiskit Aer's CUDA backend
+- [Environment Variables](https://docs.qp.piotrkrzysztof.dev/deployment/environment-variables/): Configuration through the .env file
+- [Monitoring Overview](https://docs.qp.piotrkrzysztof.dev/monitoring/): Prometheus and Grafana visibility into VQE runs
+- [Performance Metrics](https://docs.qp.piotrkrzysztof.dev/monitoring/performance-metrics/): System, VQE execution, and batch progress metrics
+- [Grafana Dashboards](https://docs.qp.piotrkrzysztof.dev/monitoring/grafana-dashboards/): The pre-built dashboard for batch progress, VQE performance, and accuracy
+- [Scientific Overview](https://docs.qp.piotrkrzysztof.dev/scientific/): Quantum chemistry background and the electronic structure problem
+- [VQE Algorithm](https://docs.qp.piotrkrzysztof.dev/scientific/vqe-algorithm/): The Variational Quantum Eigensolver for ground-state energies
+- [Basis Sets](https://docs.qp.piotrkrzysztof.dev/scientific/basis-sets/): How basis sets determine the qubit count under the Jordan-Wigner transform
+- [Benchmarking](https://docs.qp.piotrkrzysztof.dev/scientific/benchmarking/): GPU speedup, convergence, and energy results from the engineering thesis experiments
+- [Changelog](https://docs.qp.piotrkrzysztof.dev/changelog/): Release notes starting from version 1.4.0
+- [Troubleshooting](https://docs.qp.piotrkrzysztof.dev/reference/troubleshooting/): Solutions to common install, configuration, and runtime problems
+- [FAQ](https://docs.qp.piotrkrzysztof.dev/reference/faq/): Answers to common questions by topic
+
+## Optional
+
+- [GitHub repository](https://github.com/straightchlorine/quantum-pipeline): Source code and issues
+- [PyPI package](https://pypi.org/project/quantum-pipeline/): Released versions

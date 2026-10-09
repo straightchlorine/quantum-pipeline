@@ -1,3 +1,7 @@
+---
+description: Fixes for common install, simulation, GPU, Kafka and pipeline errors, each listed as symptom, cause and solution.
+---
+
 # Troubleshooting
 
 This page provides solutions to common issues encountered when installing, configuring, and running the Quantum Pipeline. Problems are organized by category, each following a consistent **Symptom / Cause / Solution** format.

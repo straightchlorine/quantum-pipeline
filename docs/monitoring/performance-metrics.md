@@ -1,3 +1,7 @@
+---
+description: Reference for the qp_sys, qp_vqe and qp_batch Prometheus metrics exported during VQE runs, with types, units and labels.
+---
+
 # Performance Metrics
 
 The simulation module collects metrics during VQE simulation execution, organized into three categories: system metrics, VQE execution metrics, and batch progress metrics. All metrics are exported by [`performance_monitor.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/monitoring/performance_monitor.py).

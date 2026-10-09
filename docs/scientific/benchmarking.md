@@ -1,5 +1,6 @@
 ---
 title: Benchmarking Results
+description: "Thesis and v2.0.0 benchmark results for VQE: GPU speedups, convergence behavior, energy accuracy and known limitations."
 ---
 
 # Benchmarking Results

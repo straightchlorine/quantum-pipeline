@@ -1,3 +1,7 @@
+---
+description: "Step-by-step Docker Compose setup of the full platform: simulation, Kafka, Spark, Airflow, storage and monitoring, with verification."
+---
+
 # Docker Compose Deployment
 
 The full platform runs as a set of Docker containers managed by Docker Compose.
