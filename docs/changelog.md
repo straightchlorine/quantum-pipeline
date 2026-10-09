@@ -11,7 +11,6 @@ For earlier versions, see the [GitHub releases](https://github.com/straightchlor
 
 ---
 
-<!-- TODO(2.2.0): verify release link once the GitHub/Codeberg release is published -->
 ## [2.2.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.2.0)
 
 ### Breaking changes
