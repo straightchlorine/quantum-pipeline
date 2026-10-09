@@ -107,7 +107,7 @@ class Solver(ABC):
 
                 backend = AerSimulator(
                     method=self.backend_config.simulation_method,
-                    **self.backend_config.gpu_opts,
+                    **(self.backend_config.gpu_opts or {}),
                     noise_model=noise_model if noise_model else None,
                 )
             else:
