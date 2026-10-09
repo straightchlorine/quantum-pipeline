@@ -1264,12 +1264,12 @@
             "type": "prometheus",
             "uid": "eewnvr188581sa"
           },
-          "expr": "qp_vqe_accuracy_score{molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
+          "expr": "qp_vqe_hf_deviation_score{molecule_symbols=~\"$molecule\",optimizer=~\"$optimizer\"}",
           "legendFormat": "{{molecule_symbols}} / {{optimizer}}",
           "refId": "A"
         }
       ],
-      "title": "Accuracy Score",
+      "title": "HF-Deviation Score",
       "type": "bargauge",
       "description": "Log-scale score (0-100) measuring VQE energy vs Hartree-Fock baseline. Higher = closer to HF. Useful for comparing optimizers and init strategies on the same molecule. Score of ~94 means 1 mHa difference from HF."
     },
