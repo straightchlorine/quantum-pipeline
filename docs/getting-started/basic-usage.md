@@ -125,11 +125,7 @@ The `--simulation-method` flag selects the Aer simulator backend:
 | `statevector` | Dense statevector simulation (default) |
 | `automatic` | Aer selects the best method based on circuit and noise model |
 | `density_matrix` | Dense density matrix, for noisy circuits |
-| `stabilizer` | Clifford stabilizer simulator |
-| `extended_stabilizer` | Approximate Clifford+T simulator |
 | `matrix_product_state` | Tensor-network MPS, lower memory for large circuits |
-| `unitary` | Computes the unitary matrix (no measurement) |
-| `superop` | Dense superoperator matrix |
 | `tensor_network` | GPU-only, requires cuTensorNet |
 
 `tensor_network` requires the `--gpu` flag.

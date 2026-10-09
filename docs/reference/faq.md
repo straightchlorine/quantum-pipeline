@@ -111,8 +111,6 @@ Click on any question to expand the answer.
     - **CG** - conjugate gradient
     - **TNC** - truncated Newton with bounds
 
-    Additional optimizers (Newton-CG, COBYQA, trust-constr, dogleg,
-    trust-ncg, trust-exact, trust-krylov) are available but not tested.
     See the [Optimizers](../usage/optimizers.md) page for a comparison.
 
 ??? question "What basis set should I use?"

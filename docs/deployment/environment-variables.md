@@ -27,7 +27,7 @@ chmod 600 .env
 | Variable | Default | Description |
 |---|---|---|
 | `LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`. |
-| `SIMULATION_METHOD` | `statevector` | Qiskit Aer simulation method: `statevector`, `density_matrix`, `automatic`, `stabilizer`, `unitary`, `extended_stabilizer`, `matrix_product_state`, `superop`, `tensor_network`. |
+| `SIMULATION_METHOD` | `statevector` | Qiskit Aer simulation method: `statevector`, `density_matrix`, `automatic`, `matrix_product_state`, `tensor_network`. |
 | `CONTAINER_TYPE` | `unknown` | Label identifying the container hardware config (e.g. `CPU`, `GPU_GTX1060_6GB`). Set in Docker Compose per service, read by the performance monitor and VQE runner for tagging results. |
 
 ### IBM Quantum (Optional)

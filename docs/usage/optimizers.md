@@ -103,18 +103,12 @@ GenericConfig behavior:
 - `convergence_threshold` set: uses optimizer's default `maxiter`, passes threshold as `tol`
 - Neither set: uses optimizer's default `maxiter`
 
-## Unconfigured Optimizers
+## Other Optimizers
 
-These are listed in
-[`settings.SUPPORTED_OPTIMIZERS`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L4)
-and accepted by the CLI, but have no entries in `OptimizerConfigFactory`.
-Selecting one raises a `ValueError` at runtime:
-
-`Newton-CG`, `trust-constr`, `trust-ncg`, `trust-exact`, `trust-krylov`,
-`dogleg`, `COBYQA`, `custom`
-
-To use one, register it via `OptimizerConfigFactory.register_optimizer()` with
-a custom `OptimizerConfig` subclass or a lambda wrapping `GenericConfig`.
+Only the eight optimizers above are offered by the CLI. Other scipy methods
+can be added with `OptimizerConfigFactory.register_optimizer()` and a custom
+`OptimizerConfig` subclass or a lambda wrapping `GenericConfig`, plus an entry
+in `settings.SUPPORTED_OPTIMIZERS`.
 
 ## Summary
 

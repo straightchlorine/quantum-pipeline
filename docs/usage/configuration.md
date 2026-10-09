@@ -230,7 +230,7 @@ at the cost of transpile time. Default: `3`.
 
 ### `--gpu`
 
-Enable GPU acceleration. Works with `statevector`, `density_matrix`, `unitary`,
+Enable GPU acceleration. Works with `statevector`, `density_matrix`,
 and `tensor_network` simulation methods. GPU options (device, cuStateVec,
 memory limits) are configured in
 [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
@@ -245,11 +245,7 @@ Aer backend simulation method. Default: `statevector`. See
 | `automatic` | Partial | Varies | Varies |
 | `statevector` | Yes | High | Exact |
 | `density_matrix` | Yes | Very high | Exact |
-| `stabilizer` | No | Low | Exact (Clifford only) |
-| `extended_stabilizer` | No | Medium | Approximate |
 | `matrix_product_state` | No | Low | Approximate |
-| `unitary` | Yes | Very high | Exact |
-| `superop` | No | Extreme | Exact |
 | `tensor_network` | Yes (required) | Medium | Exact |
 
 ### `--noise`
