@@ -45,7 +45,7 @@ def sample_args():
     args.timeout = 10
 
     # Backend related args
-    args.ibm = False
+    args.ibm = True
     args.min_qubits = 5
     args.optimization_level = 1
     args.gpu = False
@@ -200,3 +200,16 @@ def test_get_config_regular(config_manager, sample_args):
     assert config['topic'] == 'test-topic'
     assert config['basis'] == 'STO-3G'
     assert config['optimizer'] == 'COBYLA'
+
+
+def test_dump_file_name_marks_local_backend(config_manager, sample_args, tmp_path, monkeypatch):
+    from quantum_pipeline.configs import settings
+
+    monkeypatch.setattr(settings, 'RUN_CONFIGS', tmp_path)
+    sample_args.ibm = False
+    config_manager.dump(sample_args, {})
+    assert '-local-' in config_manager.config_path.name
+
+    sample_args.ibm = True
+    config_manager.dump(sample_args, {})
+    assert '-api-' in config_manager.config_path.name

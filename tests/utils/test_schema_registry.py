@@ -4,6 +4,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from avro.errors import SchemaParseException
 
 from quantum_pipeline.utils.schema_registry import SchemaRegistry
 
@@ -72,7 +73,7 @@ class TestSerializeSchema:
 
     def test_serialize_invalid_json_raises_error(self, schema_registry):
         """Test that an invalid JSON string raises an error."""
-        with pytest.raises(Exception):
+        with pytest.raises(SchemaParseException):
             schema_registry.serialize_schema('not valid json {')
 
 

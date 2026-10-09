@@ -425,7 +425,7 @@ class TestVQEEdgeCases:
         self, sample_hamiltonian, mock_backend_config
     ):
         """Test that only L-BFGS-B gets special convergence handling."""
-        optimizers = ['COBYLA', 'L-BFGS-B', 'COBYQA']
+        optimizers = ['COBYLA', 'L-BFGS-B', 'SLSQP']
 
         for optimizer in optimizers:
             solver = VQESolver(

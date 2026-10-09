@@ -137,7 +137,6 @@ class TestArgparserVQEIntegration:
         config_manager = ConfigurationManager()
 
         test_cases = [
-            (['--file', 'molecule.json', '--max-iterations', '0'], 0, None),
             (['--file', 'molecule.json', '--max-iterations', '1'], 1, None),
             (['--file', 'molecule.json', '--convergence', '--threshold', '0'], 100, 0.0),
             (['--file', 'molecule.json', '--convergence', '--threshold', '1e-20'], 100, 1e-20),
@@ -204,7 +203,7 @@ class TestArgparserVQEIntegration:
         parser = QuantumPipelineArgParser()
         config_manager = ConfigurationManager()
 
-        original_values = {'max_iterations': 42, 'threshold': 1.5e-7, 'optimizer': 'COBYQA'}
+        original_values = {'max_iterations': 42, 'threshold': 1.5e-7, 'optimizer': 'SLSQP'}
 
         test_args = [
             '--file',

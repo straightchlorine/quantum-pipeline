@@ -277,6 +277,20 @@ class TestPrometheusExport:
         assert call_args[1]['headers']['Content-Type'] == 'text/plain'
 
     @patch('requests.post')
+    def test_export_vqe_metrics_json_format_skips_pushgateway(self, mock_post, temp_metrics_dir):
+        """Test VQE metrics are not pushed when the export format excludes prometheus."""
+        monitor = PerformanceMonitor(
+            enabled=True,
+            pushgateway_url='http://test:9091',
+            metrics_dir=temp_metrics_dir,
+            export_format=['json'],
+        )
+
+        monitor.export_vqe_metrics_immediate({'total_time': 45.23, 'molecule_symbols': 'H2'})
+
+        assert not mock_post.called
+
+    @patch('requests.post')
     def test_export_vqe_metrics_disabled_monitoring(self, mock_post, temp_metrics_dir):
         """Test that VQE metrics are not exported when monitoring is disabled."""
         monitor = PerformanceMonitor(enabled=False, metrics_dir=temp_metrics_dir)

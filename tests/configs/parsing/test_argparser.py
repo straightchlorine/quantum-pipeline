@@ -36,6 +36,59 @@ def test_ssl_basic_configuration_with_mock_dir(argparser, monkeypatch):
     assert args.ssl_dir == './secrets/'
 
 
+def test_ssl_individual_files_without_ssl_dir(argparser, monkeypatch):
+    """Test --ssl falls back to the individual files when the default dir is missing."""
+    monkeypatch.setattr(os.path, 'isdir', lambda path: False)
+    args = argparser.parser.parse_args(
+        [
+            '--file',
+            'molecule.json',
+            '--kafka',
+            '--ssl',
+            '--ssl-cafile',
+            'ca.pem',
+            '--ssl-certfile',
+            'cert.pem',
+            '--ssl-keyfile',
+            'key.pem',
+        ]
+    )
+    argparser._validate_args(args)
+    assert args.ssl_cafile == 'ca.pem'
+
+
+def test_ssl_missing_dir_and_files_is_clean_error(argparser, monkeypatch):
+    """Test --ssl with neither a dir nor files exits via parser.error."""
+    monkeypatch.setattr(os.path, 'isdir', lambda path: False)
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--kafka', '--ssl'])
+    with pytest.raises(SystemExit):
+        argparser._validate_args(args)
+
+
+def test_unsupported_optimizer_rejected(argparser):
+    """Test optimizers without an OptimizerConfigFactory entry are not accepted."""
+    with pytest.raises(SystemExit):
+        argparser.parser.parse_args(['--file', 'molecule.json', '--optimizer', 'COBYQA'])
+
+
+def test_optimizer_choices_match_factory(argparser):
+    """Test every --optimizer choice has an OptimizerConfigFactory entry."""
+    from quantum_pipeline.configs import settings
+    from quantum_pipeline.solvers.optimizer_config import OptimizerConfigFactory
+
+    assert set(settings.SUPPORTED_OPTIMIZERS) == set(
+        OptimizerConfigFactory.get_supported_optimizers()
+    )
+
+
+def test_unsupported_simulation_method_rejected(argparser):
+    """Test Aer methods that cannot run a parameterized circuit are not accepted."""
+    with pytest.raises(SystemExit):
+        argparser.parser.parse_args(
+            ['--file', 'molecule.json', '--simulation-method', 'stabilizer']
+        )
+
+
 def test_ssl_with_password(argparser):
     """Test SSL configuration with password."""
     args = argparser.parser.parse_args(
@@ -208,10 +261,9 @@ def test_ansatz_reps_argument(argparser):
     assert args.ansatz_reps == 3
 
 
-def test_local_backend_flag(argparser):
-    """--ibm is store_false, so args.ibm is the 'run locally' flag and passing --ibm clears it."""
-    args = argparser.parser.parse_args(['--file', 'molecule.json', '--ibm'])
-    assert not args.ibm
+def test_ibm_backend_flag(argparser):
+    assert not argparser.parser.parse_args(['--file', 'molecule.json']).ibm
+    assert argparser.parser.parse_args(['--file', 'molecule.json', '--ibm']).ibm
 
 
 def test_kafka_arguments(argparser):
@@ -279,14 +331,14 @@ class TestArgparserEdgeCases:
     """Test edge cases and input validation for argparser."""
 
     def test_max_iterations_zero(self, argparser):
-        """Test max_iterations with zero value."""
-        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '0'])
-        assert args.max_iterations == 0
+        """Test max_iterations rejects zero."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '0'])
 
     def test_max_iterations_negative(self, argparser):
-        """Test max_iterations with negative value."""
-        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '-5'])
-        assert args.max_iterations == -5
+        """Test max_iterations rejects negative values."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '-5'])
 
     def test_max_iterations_very_large(self, argparser):
         """Test max_iterations with very large value."""
@@ -380,7 +432,7 @@ class TestArgparserEdgeCases:
 
     def test_optimizer_valid_choices(self, argparser):
         """Test optimizer with all valid choices."""
-        valid_optimizers = ['COBYLA', 'L-BFGS-B', 'COBYQA']  # Use actual supported optimizers
+        valid_optimizers = ['COBYLA', 'L-BFGS-B', 'SLSQP']  # Use actual supported optimizers
 
         for optimizer in valid_optimizers:
             args = argparser.parser.parse_args(
