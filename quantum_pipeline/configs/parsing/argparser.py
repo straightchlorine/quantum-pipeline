@@ -88,8 +88,7 @@ class QuantumPipelineArgParser:
         )
         sim_group.add_argument(
             '--ibm',
-            action='store_false',
-            default=DEFAULTS['backend']['local'],
+            action='store_true',
             help='Using IBM Quantum backend for simulation (otherwise local Aer simulator is used.)',
         )
         sim_group.add_argument(
@@ -151,7 +150,7 @@ class QuantumPipelineArgParser:
         vqe_group = self.parser.add_argument_group('VQE Parameters')
         vqe_group.add_argument(
             '--max-iterations',
-            type=int,
+            type=self.positive_int,
             default=DEFAULTS['max_iterations'],
             help='Maximum number of VQE iterations',
         )
@@ -200,6 +199,11 @@ class QuantumPipelineArgParser:
             help='Set the logging level',
         )
 
+    def positive_int(self, value):
+        if int(value) <= 0:
+            raise argparse.ArgumentTypeError(f'{value} is not a positive integer')
+        return int(value)
+
     def shots(self, shots):
         if int(shots) <= 0:
             raise argparse.ArgumentTypeError(f'shots:{shots} is not a valid number')
@@ -229,11 +233,6 @@ class QuantumPipelineArgParser:
             default=DEFAULTS['backend']['optimization_level'],
             help='Circuit optimization level',
         )
-
-    def ensure_dir(self, path):
-        if os.path.isdir(path):
-            return True
-        raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
 
     def ensure_file(self, path):
         if os.path.isfile(path):
@@ -396,7 +395,7 @@ class QuantumPipelineArgParser:
         if args.dump and args.load:
             self.parser.error('--dump and --load cannot be used together.')
 
-        if args.min_qubits is not None and args.ibm:
+        if args.min_qubits is not None and not args.ibm:
             self.parser.error('--min-qubits can only be used if --ibm is selected.')
 
         if args.convergence and args.threshold is None:
@@ -426,7 +425,7 @@ class QuantumPipelineArgParser:
             self.parser.error('--kafka must be enabled when using SSL authentication')
 
         if args.ssl:
-            if args.ssl_dir is not None and self.ensure_dir(args.ssl_dir):
+            if args.ssl_dir is not None and os.path.isdir(args.ssl_dir):
                 individual_files = [
                     args.ssl_cafile,
                     args.ssl_certfile,

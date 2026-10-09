@@ -89,7 +89,7 @@ class ConfigurationManager:
     def create_backend_config(self, args: argparse.Namespace) -> BackendConfig:
         return BackendConfig.from_dict(
             {
-                'local': args.ibm,
+                'local': not args.ibm,
                 'min_num_qubits': args.min_qubits,
                 'optimization_level': args.optimization_level,
                 'filters': None,
@@ -161,7 +161,7 @@ class ConfigurationManager:
             raise
 
     def get_config(self, args: argparse.Namespace) -> dict[str, Any]:
-        config_dict = {key: value for key, value in vars(args).items() if key != 'local'}
+        config_dict = dict(vars(args))
         config_dict['kafka_config'] = self.create_kafka_config(args)
         config_dict['backend_config'] = self.create_backend_config(args)
 
