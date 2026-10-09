@@ -1,11 +1,8 @@
 name: Publish GPU Image
 
-# Manual-only: the GPU image is ~11 GB compressed and compiles qiskit-aer
-# from source (~1-2 h uncached on a standard runner).
-#
-# Use `just docker-release-gpu` locally.
-
 on:
+  push:
+    tags: ["[0-9]+.[0-9]+.[0-9]+"]
   workflow_dispatch:
     inputs:
       version:
@@ -53,6 +50,9 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           VERSION="$INPUT_VERSION"
+          if [ -z "$VERSION" ] && [ "$GITHUB_REF_TYPE" = tag ]; then
+            VERSION="$GITHUB_REF_NAME"
+          fi
           if [ -z "$VERSION" ]; then
             VERSION=$(git describe --tags --abbrev=0 origin/master)
           fi
@@ -112,7 +112,7 @@ jobs:
           file: ./docker/Dockerfile.gpu
           push: true
           build-args: |
-            CUDA_ARCH=${{ inputs.cuda_arch }}
+            CUDA_ARCH=${{ inputs.cuda_arch || '8.6' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ env.GHCR_IMAGE }}:buildcache-gpu
