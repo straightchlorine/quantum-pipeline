@@ -1,5 +1,6 @@
 ---
 title: Variational Quantum Eigensolver
+description: "How VQE estimates ground-state energies: ansatz choices, random versus Hartree-Fock initialization, and observed convergence."
 ---
 
 # Variational Quantum Eigensolver

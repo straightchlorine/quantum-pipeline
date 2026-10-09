@@ -1,3 +1,7 @@
+---
+description: "Worked command-line examples: single and batch molecules, GPU runs, Kafka streaming, saved configs, Python API and ansatz comparisons."
+---
+
 # Examples
 
 Usage examples for common Quantum Pipeline workflows, from simple simulations to full data pipeline integration.

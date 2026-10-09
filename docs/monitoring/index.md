@@ -1,3 +1,8 @@
+---
+title: Monitoring Overview
+description: How Prometheus and Grafana track VQE performance, batch progress, resource use and pipeline health during simulations.
+---
+
 # Monitoring
 
 Prometheus and Grafana can provide visibility into VQE performance, batch

@@ -1,3 +1,7 @@
+---
+description: "Component-by-component design of the stack: VQE runner, Kafka, Garage storage, Airflow DAGs and incremental processing."
+---
+
 # System Design
 
 Component-by-component breakdown of the stack.

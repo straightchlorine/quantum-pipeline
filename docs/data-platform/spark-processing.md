@@ -1,3 +1,7 @@
+---
+description: "How Spark turns raw VQE results into feature tables: cluster setup, configuration, the 11 output tables and incremental runs."
+---
+
 # Spark Processing
 
 Apache Spark 4.0.2 transforms raw VQE simulation results into structured ML

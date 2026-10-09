@@ -1,3 +1,7 @@
+---
+description: Compare the classical optimizers available for VQE parameter tuning, their settings, and how to control iteration limits and convergence.
+---
+
 # Optimizers
 
 Guide to the classical optimizers available for VQE parameter optimization.

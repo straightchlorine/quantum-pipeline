@@ -1,3 +1,7 @@
+---
+description: Answers to frequent questions about installing, running and deploying Quantum Pipeline, its data platform, monitoring and speed.
+---
+
 # Frequently Asked Questions
 
 This page addresses the most common questions about the Quantum Pipeline, organized by topic.

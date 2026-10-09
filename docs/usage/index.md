@@ -1,3 +1,8 @@
+---
+title: Usage Overview
+description: Guide to configuring and running VQE simulations with the quantum-pipeline CLI, from flags and defaults to optimizers and backends.
+---
+
 # Usage
 
 This section covers configuring and running VQE simulations with the Quantum

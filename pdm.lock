@@ -5,7 +5,7 @@
 groups = ["default", "dev", "docs", "ml"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.1"
-content_hash = "sha256:96f88fd8738f5a1816dac5eda34709a30461ca61587cfc102de60a44dd6ea42f"
+content_hash = "sha256:83edcf23f62fe31f204399cbe73fbdcc6a63b59eb58b4e8a8417c97406bab43c"
 
 [[metadata.targets]]
 requires_python = ">=3.12,<3.13"
@@ -315,6 +315,38 @@ files = [
 ]
 
 [[package]]
+name = "cairocffi"
+version = "1.7.1"
+requires_python = ">=3.8"
+summary = "cffi-based cairo bindings for Python"
+groups = ["docs"]
+dependencies = [
+    "cffi>=1.1.0",
+]
+files = [
+    {file = "cairocffi-1.7.1-py3-none-any.whl", hash = "sha256:9803a0e11f6c962f3b0ae2ec8ba6ae45e957a146a004697a1ac1bbf16b073b3f"},
+    {file = "cairocffi-1.7.1.tar.gz", hash = "sha256:2e48ee864884ec4a3a34bfa8c9ab9999f688286eb714a15a43ec9d068c36557b"},
+]
+
+[[package]]
+name = "cairosvg"
+version = "2.9.1"
+requires_python = ">=3.10"
+summary = "A Simple SVG Converter based on Cairo"
+groups = ["docs"]
+dependencies = [
+    "cairocffi",
+    "cssselect2",
+    "defusedxml",
+    "pillow",
+    "tinycss2",
+]
+files = [
+    {file = "cairosvg-2.9.1-py3-none-any.whl", hash = "sha256:f91c5628e834be024a0ed4544d76261cd84016a4c73bcdf26c386495825c05a1"},
+    {file = "cairosvg-2.9.1.tar.gz", hash = "sha256:861bc28ad97ce4f537d50eb3d6ee97a7afcccec9c61ac25c4e7d073fe409aec7"},
+]
+
+[[package]]
 name = "certifi"
 version = "2026.2.25"
 requires_python = ">=3.7"
@@ -330,8 +362,7 @@ name = "cffi"
 version = "2.0.0"
 requires_python = ">=3.9"
 summary = "Foreign Function Interface for Python calling C code."
-groups = ["default", "ml"]
-marker = "platform_python_implementation != \"PyPy\" or implementation_name == \"pypy\" or python_version < \"3.14\""
+groups = ["default", "docs", "ml"]
 dependencies = [
     "pycparser; implementation_name != \"PyPy\"",
 ]
@@ -550,6 +581,21 @@ files = [
 ]
 
 [[package]]
+name = "cssselect2"
+version = "0.10.1"
+requires_python = ">=3.10"
+summary = "CSS selectors for Python ElementTree"
+groups = ["docs"]
+dependencies = [
+    "tinycss2",
+    "webencodings",
+]
+files = [
+    {file = "cssselect2-0.10.1-py3-none-any.whl", hash = "sha256:25cc4494d55985d6a6da359be48da6ce98c28dcbafa2314c383ace3fc32ec868"},
+    {file = "cssselect2-0.10.1.tar.gz", hash = "sha256:83b0d820ef589dabaf693289b647c2f5b410f76d285f56deba911ffa75a7b9d1"},
+]
+
+[[package]]
 name = "cycler"
 version = "0.12.1"
 requires_python = ">=3.8"
@@ -607,7 +653,7 @@ name = "defusedxml"
 version = "0.7.1"
 requires_python = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 summary = "XML bomb protection for Python stdlib modules"
-groups = ["ml"]
+groups = ["docs", "ml"]
 files = [
     {file = "defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61"},
     {file = "defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69"},
@@ -1690,7 +1736,7 @@ files = [
 
 [[package]]
 name = "mkdocs-material"
-version = "9.7.6"
+version = "9.7.7"
 requires_python = ">=3.8"
 summary = "Documentation that simply works"
 groups = ["docs"]
@@ -1708,8 +1754,8 @@ dependencies = [
     "requests>=2.30",
 ]
 files = [
-    {file = "mkdocs_material-9.7.6-py3-none-any.whl", hash = "sha256:71b84353921b8ea1ba84fe11c50912cc512da8fe0881038fcc9a0761c0e635ba"},
-    {file = "mkdocs_material-9.7.6.tar.gz", hash = "sha256:00bdde50574f776d328b1862fe65daeaf581ec309bd150f7bff345a098c64a69"},
+    {file = "mkdocs_material-9.7.7-py3-none-any.whl", hash = "sha256:8ea9bb1737a5b524a5f9dcf2e1b4ebda8274ae3008aa7845720a97083bef708f"},
+    {file = "mkdocs_material-9.7.7.tar.gz", hash = "sha256:c0649c065b1b0512d60aad8c10f947f8e455284475239b364b610f2deb4d0855"},
 ]
 
 [[package]]
@@ -1721,6 +1767,23 @@ groups = ["docs"]
 files = [
     {file = "mkdocs_material_extensions-1.3.1-py3-none-any.whl", hash = "sha256:adff8b62700b25cb77b53358dad940f3ef973dd6db797907c49e3c2ef3ab4e31"},
     {file = "mkdocs_material_extensions-1.3.1.tar.gz", hash = "sha256:10c9511cea88f568257f960358a467d12b970e1f7b2c0e5fb2bb48cab1928443"},
+]
+
+[[package]]
+name = "mkdocs-material"
+version = "9.7.7"
+extras = ["imaging"]
+requires_python = ">=3.8"
+summary = "Documentation that simply works"
+groups = ["docs"]
+dependencies = [
+    "cairosvg>=2.6",
+    "mkdocs-material==9.7.7",
+    "pillow>=10.2",
+]
+files = [
+    {file = "mkdocs_material-9.7.7-py3-none-any.whl", hash = "sha256:8ea9bb1737a5b524a5f9dcf2e1b4ebda8274ae3008aa7845720a97083bef708f"},
+    {file = "mkdocs_material-9.7.7.tar.gz", hash = "sha256:c0649c065b1b0512d60aad8c10f947f8e455284475239b364b610f2deb4d0855"},
 ]
 
 [[package]]
@@ -2188,7 +2251,7 @@ name = "pillow"
 version = "12.1.1"
 requires_python = ">=3.10"
 summary = "Python Imaging Library (fork)"
-groups = ["default", "ml"]
+groups = ["default", "docs", "ml"]
 files = [
     {file = "pillow-12.1.1-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:ab323b787d6e18b3d91a72fc99b1a2c28651e4358749842b8f8dfacd28ef2052"},
     {file = "pillow-12.1.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:adebb5bee0f0af4909c30db0d890c773d1a92ffe83da908e2e9e720f8edf3984"},
@@ -2407,8 +2470,8 @@ name = "pycparser"
 version = "3.0"
 requires_python = ">=3.10"
 summary = "C parser in Python"
-groups = ["default", "ml"]
-marker = "platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\" or implementation_name == \"pypy\" or python_version < \"3.14\" and implementation_name != \"PyPy\""
+groups = ["default", "docs", "ml"]
+marker = "implementation_name != \"PyPy\""
 files = [
     {file = "pycparser-3.0-py3-none-any.whl", hash = "sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"},
     {file = "pycparser-3.0.tar.gz", hash = "sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29"},
@@ -3406,7 +3469,7 @@ name = "tinycss2"
 version = "1.4.0"
 requires_python = ">=3.8"
 summary = "A tiny CSS parser"
-groups = ["ml"]
+groups = ["docs", "ml"]
 dependencies = [
     "webencodings>=0.4",
 ]
@@ -3580,7 +3643,7 @@ files = [
 name = "webencodings"
 version = "0.5.1"
 summary = "Character encoding aliases for legacy web content"
-groups = ["ml"]
+groups = ["docs", "ml"]
 files = [
     {file = "webencodings-0.5.1-py2.py3-none-any.whl", hash = "sha256:a0af1213f3c2226497a97e2b3aa01a7e4bee4f403f95be16fc9acd2947514a78"},
     {file = "webencodings-0.5.1.tar.gz", hash = "sha256:b36a1c245f2d304965eb4e0a82848379241dc04b865afcc4aab16748587e1923"},

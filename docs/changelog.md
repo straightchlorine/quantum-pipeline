@@ -1,5 +1,6 @@
 ---
 title: Changelog
+description: "Release notes for Quantum Pipeline: breaking changes, new features, fixes and maintenance."
 ---
 
 # Changelog

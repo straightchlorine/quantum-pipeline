@@ -1,3 +1,7 @@
+---
+description: Iceberg catalog, S3A and Garage storage setup, partitioning, snapshot tagging and table maintenance for VQE feature tables.
+---
+
 # Iceberg Storage
 
 Apache Iceberg provides the table format for feature tables, with Garage

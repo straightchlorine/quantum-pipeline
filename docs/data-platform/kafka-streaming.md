@@ -1,3 +1,7 @@
+---
+description: Kafka topic design, KRaft cluster, Schema Registry, producer settings and the Redpanda Connect S3 sink for VQE result streaming.
+---
+
 # Kafka Streaming
 
 Apache Kafka 4.2.0 handles real-time ingestion of VQE simulation results,

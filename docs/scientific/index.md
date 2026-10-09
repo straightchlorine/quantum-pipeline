@@ -1,3 +1,8 @@
+---
+title: Scientific Background Overview
+description: Background on electronic structure and VQE, with entry points to the algorithm, basis set and benchmarking pages.
+---
+
 # Scientific Background
 
 Quantum chemistry simulation is a promising near-term application of quantum

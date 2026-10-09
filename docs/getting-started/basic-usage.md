@@ -1,3 +1,7 @@
+---
+description: CLI syntax, common workflows, config files, ansatz and initialization choices, output layout and log levels.
+---
+
 # Basic Usage
 
 ## CLI syntax

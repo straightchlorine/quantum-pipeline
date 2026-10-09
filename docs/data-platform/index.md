@@ -1,3 +1,8 @@
+---
+title: Data Platform Overview
+description: Overview of the data platform that turns streamed VQE results into analytics-ready ML feature tables with Kafka, Spark and Iceberg.
+---
+
 # Data Platform
 
 Processes, transforms, and stores VQE simulation results into analytics-ready

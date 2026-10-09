@@ -1,3 +1,7 @@
+---
+description: Airflow services, shared config modules and the DAGs that schedule Spark feature processing and ML jobs for the VQE data pipeline.
+---
+
 # Airflow Orchestration
 
 Apache Airflow 3.1.8 orchestrates the data pipeline through four DAGs. The

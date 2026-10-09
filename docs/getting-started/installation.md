@@ -1,3 +1,7 @@
+---
+description: Install Quantum Pipeline from PyPI, from source with PDM or pip, or in Docker, and check the Python 3.12 and GPU requirements.
+---
+
 # Installation
 
 ## Prerequisites
