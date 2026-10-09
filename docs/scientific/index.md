@@ -59,3 +59,16 @@ Limitations are noted in
 | \(E_0\) | Ground-state energy |
 | Ha | Hartree (atomic unit of energy) |
 | \(n\) | Number of qubits |
+| \(K\) | Number of basis functions (spatial orbitals) |
+| \(N = 2K\) | Number of spin orbitals; equals \(n\) under Jordan-Wigner |
+| \(N_e\) | Number of electrons |
+| \(\mathbf{R}_A, Z_A\) | Position and charge of nucleus \(A\) |
+| \(\hat{a}_p^\dagger, \hat{a}_p\) | Fermionic creation and annihilation operators for spin orbital \(p\) |
+| \(h_{pq}, h_{pqrs}\) | One- and two-electron integrals |
+| \(E_{NN}\) | Nuclear repulsion energy (additive constant) |
+| \(E_{\text{HF}}\) | Hartree-Fock energy |
+| \(E_{\text{corr}}\) | Correlation energy, \(E_{\text{exact}} - E_{\text{HF}}\) |
+| \(U(\theta)\) | Parameterized ansatz circuit |
+| \(m\) | Number of variational parameters |
+| \(\hat{P}_j, c_j\) | Pauli string and its Hamiltonian coefficient |
+| \(M\) | Number of measurement shots |

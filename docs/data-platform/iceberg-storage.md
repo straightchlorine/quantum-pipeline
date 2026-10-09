@@ -4,6 +4,12 @@ Apache Iceberg provides the table format for feature tables, with Garage
 (v2.2.0) as the S3-compatible storage backend. Together they deliver ACID
 transactions, time-travel queries, schema evolution, and snapshot management.
 
+For the base tables, schema evolution means that a new column in the data is
+added to the table automatically, with NULL in the old rows. Tables created
+before this change reject such an append, and the two ML tables need a rebuild
+after any schema change (see
+[Spark Processing - Write semantics](spark-processing.md#write-semantics)).
+
 For how Iceberg and Garage fit into the overall architecture, see
 [System Design](../architecture/system-design.md#garage-storage).
 
@@ -97,12 +103,13 @@ s3a://features/warehouse/
 
 ## Snapshot Tagging
 
-Each Spark write creates a new snapshot, tagged with a version identifier from
-the processing batch ID. This enables reproducible ML training by referencing
-a specific snapshot tag.
+Each write to a base feature table creates a new snapshot, tagged with a
+version identifier from the processing batch ID. A tag lets you read the table
+as it was at that run, and keeps its snapshot from being removed by snapshot
+expiry. The two ML tables are not tagged.
 
-Tagging is done in
-[`process_incremental_data()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py#L190).
+Tagging is done by
+[`quantum_incremental_processing.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py).
 Initial writes use `v_{batch_id}` tags; incremental appends use
 `v_incr_{batch_id}`.
 
@@ -167,13 +174,18 @@ Partitioning is set for expected query patterns:
 | `vqe_iterations` | `processing_date`, `basis_set`, `backend` | Iteration analysis with backend filtering |
 | `iteration_parameters` | `processing_date`, `basis_set` | Per-iteration parameter tracking |
 | `hamiltonian_terms` | `processing_date`, `basis_set`, `backend` | Hamiltonian structure analysis |
+| `ml_iteration_features` | `processing_date` | Per-iteration ML features, loaded by date |
+| `ml_run_summary` | `processing_date`, `basis_set` | Per-run ML features, filtered by basis set |
 
 Iceberg uses partition metadata to skip irrelevant data files at query time,
 reducing I/O for partition-filtered queries.
 
 ## Processing Metadata Table
 
-An audit table tracks all processing runs:
+An audit table tracks all processing runs of the base-table job. One row is
+written per run and topic. The arrays hold one entry for each of the 9 base
+tables, in the same order. A table that received no new rows has the version
+`no_changes` and a count of 0.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -181,9 +193,9 @@ An audit table tracks all processing runs:
 | `processing_name` | string | Processing job name |
 | `processing_timestamp` | timestamp | When the batch was processed |
 | `processing_date` | date | Processing date |
-| `table_names` | array&lt;string&gt; | Tables written in this batch |
+| `table_names` | array&lt;string&gt; | Base tables handled in this batch |
 | `table_versions` | array&lt;string&gt; | Snapshot tags for each table |
-| `record_counts` | array&lt;bigint&gt; | Records written per table |
+| `record_counts` | array&lt;bigint&gt; | New records written per table |
 | `source_data_info` | string | Source data description |
 
 ## Table Maintenance

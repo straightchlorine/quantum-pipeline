@@ -10,12 +10,17 @@ title: Benchmarking Results
     version 1.4 of the pipeline. Since then, the project has gone through a
     significant rewrite toward v2.0.0: batched execution via Airflow DAGs,
     Hartree-Fock initialization, a new monitoring stack, Garage replacing MinIO,
-    and other infrastructure changes. The VQE algorithm itself is unchanged
-    (same Qiskit Aer statevector backend), so the GPU speedup numbers and
-    convergence behavior remain valid. The v2.0.0 verification table (H2/HeH+
-    results) is from the current codebase. Infrastructure details from the
-    thesis - MinIO, simpler Airflow DAGs, the old Grafana setup - no longer
-    reflect the current deployment.
+    and other infrastructure changes. The simulation path behind the timings is
+    unchanged (the same Qiskit Aer statevector backend), so the GPU speedup
+    numbers and convergence behavior should still be representative, but they
+    have not been re-run. Some of the surrounding
+    algorithm has moved since: exact expectation values became available as an
+    alternative to shot sampling, seeding was made to reach both the simulator
+    and the transpiler, the reported minimum became the best evaluated step, and
+    the ExcitationPreserving ansatz was reconfigured. The v2.0.0 verification
+    table (H2/HeH+ results) predates that last change. Infrastructure details
+    from the thesis - MinIO, simpler Airflow DAGs, the old Grafana setup - no
+    longer reflect the current deployment.
 
 This page presents VQE benchmarking results from two sources: thesis experiments
 (v1.x, random initialization, L-BFGS-B only) and v2.0.0 verification runs
@@ -38,7 +43,7 @@ Three hardware configurations were used in the thesis experiments:
 
 All configurations operated within a containerized Docker environment using the
 `nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04` base image (since updated to CUDA 12.6 in the current
-[Dockerfile.gpu](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.gpu#L1)).
+[Dockerfile.gpu](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.gpu)).
 
 ### Simulation Parameters (Thesis)
 
@@ -55,9 +60,9 @@ experiments:
 | Parameter initialization | Random uniform \([0, 2\pi]\) |
 
 Only L-BFGS-B was tested in the thesis. The pipeline lists
-[16 optimizers](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L4),
+[16 optimizers](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py),
 of which 8 are wired through the
-[optimizer config factory](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L218)
+[optimizer config factory](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py)
 (three with dedicated configuration classes: L-BFGS-B, COBYLA, SLSQP).
 Selecting one of the others raises an error. See
 [Optimizers](../usage/optimizers.md) for details.
@@ -70,7 +75,7 @@ The v2.0.0 verification runs tested broader combinations:
 |-----------|---------------|
 | Basis sets | STO-3G, 6-31G |
 | Optimizers | COBYLA, L-BFGS-B, SLSQP, Nelder-Mead, Powell, BFGS |
-| Ansatze | EfficientSU2, RealAmplitudes, ExcitationPreserving |
+| Ansatze | EfficientSU2, RealAmplitudes, ExcitationPreserving (pre-2.1.0 configuration) |
 | Initialization | Random, Hartree-Fock |
 | Simulation | Aer statevector (CPU), seed 42 |
 | Default reps | 2 (unless noted) |
@@ -83,8 +88,11 @@ The system was assessed on the following metrics:
 - **Total simulation time** - elapsed time from initialization to convergence
 - **Iterations to convergence** - number of optimizer iterations required
 - **Cost function value** - final ground-state energy in Hartree (Ha)
-- **Energy error** - difference between the VQE result and the PySCF
-  Hartree-Fock reference energy, reported in both Hartree and millihartree
+- **Energy error** - signed difference between the VQE total energy and the
+  PySCF Hartree-Fock reference energy in the same basis, reported in both
+  Hartree and millihartree. Sharing a basis cancels basis-set error, so this
+  measures ansatz and optimizer quality; it is a deviation from Hartree-Fock,
+  not accuracy against the true ground state.
 
 ## Molecules Tested
 
@@ -151,10 +159,16 @@ runs, COBYLA outperformed L-BFGS-B and Nelder-Mead. Among HF-init runs, all
 three optimizers produced similar results, suggesting that good initialization
 reduces sensitivity to optimizer choice.
 
-**Ansatz type affects results.** The ExcitationPreserving run (Powell, random
-init) reached only -0.005 Ha for H\(_2\). This is likely due to the combination of
-a poorly suited optimizer (Powell) and limited iterations (30) rather than a
-fundamental ansatz limitation, but it has not been investigated further.
+**The ExcitationPreserving row is obsolete.** That run (Powell, random init)
+reached only -0.005 Ha for H\(_2\), and the cause has since been identified: the
+circuit was built without a Hartree-Fock initial state and with adjacent-only
+entanglement, which confines it to a sector that cannot contain the molecular
+ground state. Version 2.1.0 changed both - the Hartree-Fock determinant is now
+prepended and entanglement is all-to-all. On H\(_2\) in quick checks the ansatz
+then reached chemical accuracy; it has not been benchmarked across the molecule
+set. The table has not been re-run since, so the number above says nothing about
+the current ansatz. See
+[ExcitationPreserving](vqe-algorithm.md#excitationpreserving).
 
 ## Thesis Optimization Behavior
 
@@ -427,9 +441,10 @@ should be considered when interpreting the findings:
    system size (1.0 for H\(_2\) vs. 0.993 for H\(_2\)O), which may limit its benefit
    for larger systems.
 
-2. **HF init restricted to EfficientSU2.** The Hartree-Fock pre-optimization
-   is only implemented for EfficientSU2. RealAmplitudes and
-   ExcitationPreserving fall back to random initialization.
+2. **HF pre-optimization and ExcitationPreserving.** The fidelity-maximizing
+   pre-optimization behind `--init-strategy hf` covers EfficientSU2 and
+   RealAmplitudes. ExcitationPreserving is a separate case - it always starts from the
+   Hartree-Fock determinant, so `hf` only narrows the jitter on its parameters.
 
 3. **Limited cc-pVDZ data.** The cc-pVDZ experiments were conducted only for
    H\(_2\) due to computational constraints. Extending these experiments to
@@ -453,8 +468,9 @@ address the identified limitations directly.
 - **Broader HF init validation** - extending HF initialization testing to
   larger molecules and cc-pVDZ to understand where fidelity degradation
   becomes a practical limitation.
-- **HF init for other ansatze** - extending the pre-optimization to support
-  RealAmplitudes and ExcitationPreserving.
+- **Re-running the ansatz comparison** - the ExcitationPreserving figures in the
+  verification table predate its 2.1.0 rework and need to be measured again
+  across molecules, basis sets, and repetition counts.
 - **Adaptive ansatze (ADAPT-VQE)** - dynamically growing the circuit to reduce
   barren plateau effects and avoid unphysical states (Grimsley et al. 2019).
 - **Systematic multi-optimizer benchmarking** - leveraging the existing

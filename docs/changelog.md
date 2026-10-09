@@ -29,7 +29,7 @@ energy.
 Full entanglement is required because adjacent-only gates can only
 slide electrons between neighbouring orbitals (a Slater determinant in, a
 Slater determinant out). It leaves the correlated states unreachable. With
-these changes it reaches chemical accuracy and improves with more reps.
+these changes it reached chemical accuracy on H2 in quick checks and improved with more reps.
 
 Error is now raised when Hartree-Fock data is not provided, rather than
 silently producing a meaningless result.
@@ -76,9 +76,9 @@ run marked the higher-basis tiers as done and they were silently skipped.
 ### Kafka delivery
 
 A failed Kafka send is no longer dropped silently. Undelivered results are
-spooled to disk (`gen/undelivered/`) for later replay and the run exits
-non-zero, so a downed broker cannot discard computed output while the job
-still reports success.
+spooled to disk (`gen/undelivered/`) as JSON for manual re-submission and the
+run exits non-zero, so a downed broker cannot discard computed output while
+the job still reports success.
 
 ---
 
@@ -222,11 +222,12 @@ The random parameter initialization used in prior versions (uniform
 Version 1.4.0 adds `--init-strategy hf`, which attempts to start VQE
 from the classical Hartree-Fock solution instead.
 
-A naive implementation - prepending a HartreeFock circuit to EfficientSU2
-and setting all parameters to zero - turned out not to work. The fixed CX
-entangling gates in EfficientSU2 are not parameterized and always act,
-regardless of rotation angles. At zero parameters the rotation gates become
-identity, but the CX gates still scramble the HF state.
+Prepending a HartreeFock circuit to EfficientSU2 and setting all parameters to
+zero - turned out not to work. The fixed CX entangling gates in EfficientSU2
+are not parameterized and always act, regardless of rotation angles.
+
+At zero parameters the rotation gates become identity, but the CX gates still
+alter the HF state.
 
 The current approach runs a short classical pre-optimization that finds
 EfficientSU2 parameters which directly prepare the HF state through the

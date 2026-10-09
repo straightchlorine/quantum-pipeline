@@ -4,14 +4,14 @@ title: Basis Sets
 
 # Basis Sets
 
-A basis set defines the mathematical functions used to approximate molecular orbitals in quantum chemistry calculations. For VQE simulations, the basis set governs the number of qubits required under the [Jordan-Wigner transformation](https://docs.quantum.ibm.com/api/qiskit-nature/qiskit_nature.second_q.mappers.JordanWignerMapper), establishing a trade-off between accuracy and computational cost. This page describes the three basis sets supported by the project and provides guidance on their selection.
+A basis set defines the mathematical functions used to approximate molecular orbitals in quantum chemistry calculations. For VQE simulations, the basis set governs the number of qubits required under the [Jordan-Wigner transformation](https://docs.quantum.ibm.com/api/qiskit-nature/qiskit_nature.second_q.mappers.JordanWignerMapper) - one qubit per spin orbital, so twice the number of basis functions - establishing a trade-off between accuracy and computational cost. [Mathematical Foundations](mathematical-foundations.md#from-basis-functions-to-qubits) covers that counting and what basis truncation costs in energy. This page describes the three basis sets supported by the project and provides guidance on their selection.
 
 ## Supported Basis Sets
 
 The pipeline validates basis sets against a
-[fixed list in settings.py](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L23)
+[fixed list in settings.py](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py)
 before any simulation begins. Validation is handled by
-[`validate_basis_set()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/drivers/basis_sets.py#L10),
+[`validate_basis_set()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/drivers/basis_sets.py),
 which raises `ValueError` for unsupported basis sets.
 
 The three supported basis sets are `sto3g`, `6-31g`, and `cc-pvdz`.
@@ -64,7 +64,7 @@ The v2.0.0 verification runs included 6-31G tests on H\(_2\) and HeH\(^+\), prov
 | L-BFGS-B | HF | H\(_2\) | 50 | -1.857 | Good result |
 | L-BFGS-B | HF | HeH\(^+\) | 50 | -4.294 | Good result |
 
-The larger parameter space of 6-31G (8 qubits for H\(_2\), vs. 4 with STO-3G) makes random initialization unreliable. HF initialization is important for practical use of this basis set.
+The larger parameter space of 6-31G (8 qubits for H\(_2\), vs. 4 with STO-3G) made random initialization fail in these two L-BFGS-B runs. HF initialization reached a sensible energy in both. These runs used EfficientSU2.
 
 ## CC-pVDZ
 
@@ -109,11 +109,13 @@ When selecting a basis set, consider the following progression:
 ## Implementation Details
 
 The basis set is passed to the PySCF driver in
-[`VQERunner.provide_hamiltonian()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L158).
-The driver also extracts HF reference data (particle count, spatial orbitals, HF energy, nuclear repulsion energy) which is used for accuracy assessment and, when `--init-strategy hf` is set, for Hartree-Fock parameter initialization.
+[`VQERunner.provide_hamiltonian()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py).
+The same call extracts the Hartree-Fock reference data - particle count, spatial orbitals, HF energy, nuclear repulsion energy - which the pipeline uses in three places. The first is the report of the run's deviation from the Hartree-Fock reference. The second is the initial state that the `ExcitationPreserving` ansatz structurally requires. The third is the parameter pre-optimization under `--init-strategy hf`. See [Ansatz Construction](vqe-algorithm.md#ansatz-construction) for which ansatz needs which.
+
+Because the reference is the Hartree-Fock energy in the same basis, the reported deviation cancels basis-set error and reflects ansatz and optimizer quality. It does not measure accuracy against the true ground state, so it cannot be read across basis sets as a quality comparison ([Chemical accuracy](mathematical-foundations.md#chemical-accuracy)).
 
 Additional basis sets supported by PySCF (e.g., cc-pVTZ, aug-cc-pVDZ, 6-311++G**) can be added by extending the
-[`SUPPORTED_BASIS_SETS`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L23)
+[`SUPPORTED_BASIS_SETS`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py)
 list without modifying the core simulation logic.
 
 ## References

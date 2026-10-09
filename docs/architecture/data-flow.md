@@ -122,7 +122,7 @@ graph LR
 **DAG chain**:
 
 1. `quantum_feature_processing`: daily Spark job that reads raw data from Garage, transforms it into 9 normalized Iceberg tables
-2. `quantum_ml_feature_processing`: daily Spark job that joins normalized tables into 2 ML-ready feature tables (waits for upstream DAG via `ExternalTaskSensor`)
+2. `quantum_ml_feature_processing`: daily Spark job that joins 5 of the normalized tables into 2 ML-ready feature tables (waits for upstream DAG via `ExternalTaskSensor`)
 3. `r2_sync`: rclone sync of ML feature Parquet from Garage to Cloudflare R2. It runs on manual trigger by default, or on the schedule set in the `R2_SYNC_SCHEDULE` Airflow Variable, and gates itself behind an `ExternalTaskSensor` that waits for `quantum_ml_feature_processing` before a health check and the two sync tasks
 
 A fourth DAG, `vqe_batch_generation`, handles building simulation Docker images and running batch VQE generation (manual trigger only).
@@ -134,9 +134,9 @@ DAGs share configuration through
 ### Reading from Garage
 
 Spark reads files from Garage via S3A.
-[`read_experiments_by_topic()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py#L75)
+[`read_experiments_by_topic()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py)
 tries Avro first, then falls back to JSON, so it works with either connector's
-output. [`list_available_topics()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py#L47)
+output. [`list_available_topics()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py)
 discovers topic directories under the S3 bucket path.
 
 ### Feature Engineering
@@ -157,8 +157,9 @@ Spark transforms raw VQE results into **9 normalized feature tables**:
 | `iteration_parameters` | `parameter_id` | `processing_date`, `basis_set` |
 | `hamiltonian_terms` | `term_id` | `processing_date`, `basis_set`, `backend` |
 
-A second Spark job (`quantum_ml_feature_processing`) joins these into two
-ML-ready tables: `ml_iteration_features` (per-iteration feature vectors for
+A second Spark job (`quantum_ml_feature_processing`) joins five of these
+(`vqe_iterations`, `vqe_results`, `molecules`, `performance_metrics`,
+`ansatz_info`) into two ML-ready tables: `ml_iteration_features` (per-iteration feature vectors for
 convergence prediction) and `ml_run_summary` (per-run aggregates for energy
 estimation).
 
@@ -167,15 +168,14 @@ For full table schemas and column definitions, see
 
 ### Incremental Processing
 
-The pipeline uses append-only incremental processing to avoid reprocessing existing data.
+The pipeline is append-only. Each run gives every raw record an `experiment_id`,
+drops redelivered copies, and appends only the rows whose key is not in the table yet.
+Rows already in the table are never updated. Each write is tagged with a version
+and recorded in the `processing_metadata` table.
 
-**Logic** (in `process_incremental_data()`):
-
-1. If the target Iceberg table does not exist, create it with the full dataset.
-2. If the table exists, use `identify_new_records()` to left-join on key columns and find records not yet in the table.
-3. Only new records are appended to the table.
-4. Each write is tagged with a version: `v_{batch_id}` for initial loads, `v_incr_{batch_id}` for incremental appends.
-5. The `processing_metadata` table tracks all batch processing runs, including table names, versions, and record counts.
+The ML job applies the same idea per experiment: each ML table gets only the
+experiments it does not have yet. For details, see
+[Spark Processing](../data-platform/spark-processing.md#incremental-processing).
 
 
 ## Stage 4: Analytics Storage
@@ -255,7 +255,7 @@ sequenceDiagram
 
     Spark->>Garage: Read raw JSON files
     Spark->>Spark: Transform to 9 feature tables
-    Spark->>Spark: Incremental dedup via left-join
+    Spark->>Spark: Drop redelivered copies, anti-join on key columns
 
     Spark->>Iceberg: Write to quantum_catalog.quantum_features.*
     Iceberg->>Garage: Store Parquet + metadata
@@ -265,7 +265,7 @@ sequenceDiagram
 
     Note over Airflow: quantum_ml_feature_processing
     Airflow->>Spark: SparkSubmitOperator (ML features)
-    Spark->>Spark: Join normalized tables
+    Spark->>Spark: Join 5 normalized tables
     Spark->>Iceberg: Write ml_iteration_features + ml_run_summary
     Spark-->>Airflow: Task complete
 ```

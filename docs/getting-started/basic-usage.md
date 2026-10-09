@@ -94,12 +94,27 @@ Three ansatz types are supported: `EfficientSU2` (default), `RealAmplitudes`, an
 quantum-pipeline --file data/molecules.json --ansatz RealAmplitudes
 ```
 
-Two initialization strategies are available:
+The entanglement pattern is fixed per ansatz and is not a command-line option.
 
-| Strategy | Flag | Description |
-|----------|------|-------------|
-| Random | `--init-strategy random` | Uniform [0, 2pi]. Default, but can trap in local minima. |
-| Hartree-Fock | `--init-strategy hf` | Uses HF parameters as a starting point. More reliable convergence, especially with `cc-pvdz`. Only works with `EfficientSU2`. |
+Two initialization strategies are available, `--init-strategy random` (the
+default) and `--init-strategy hf`, but what they do depends on the ansatz:
+
+| Ansatz | Parameters start at | Effect of `--init-strategy hf` |
+|--------|---------------------|--------------------------------|
+| `EfficientSU2` | Uniform [0, 2pi) | Runs a pre-optimization that finds parameters reproducing the Hartree-Fock state |
+| `RealAmplitudes` | Uniform [0, 2pi) | Runs the same pre-optimization |
+| `ExcitationPreserving` | A small jitter off zero, applied on top of the Hartree-Fock determinant the circuit always starts from | Narrows the jitter (standard deviation 0.01 instead of 0.5); the Hartree-Fock reference is built into the circuit either way |
+
+For `EfficientSU2` and `RealAmplitudes`, `hf` falls back to random, with a
+warning, only when no Hartree-Fock data is available. What the strategies did in
+the runs so far is described under
+[`--init-strategy`](../usage/configuration.md#-init-strategy).
+
+`ExcitationPreserving` needs Hartree-Fock data to build its initial state; the
+CLI always supplies that from the PySCF driver, so only a programmatic run that
+omits it can fail. See
+[Ansatz Construction](../scientific/vqe-algorithm.md#ansatz-construction) for
+why each ansatz starts where it does.
 
 ## Simulation methods
 
@@ -222,7 +237,7 @@ quantum-pipeline \
 
 ## Python API
 
-The pipeline can also be used programmatically. The [`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L24)
+The pipeline can also be used programmatically. The [`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py)
 class accepts parameters similar to the CLI:
 
 ```python
@@ -248,7 +263,7 @@ for result in runner.run_results:
 The constructor defaults differ from the CLI: when you omit them it uses the
 `COBYLA` optimizer (CLI default is `L-BFGS-B`) and `ansatz_reps=3` (CLI default is
 2). Pass these explicitly to reproduce a CLI run. For the full constructor
-signature, see the [source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L27).
+signature, see the [source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py).
 
 ## Next steps
 
