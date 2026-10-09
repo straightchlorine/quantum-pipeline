@@ -10,6 +10,101 @@ For earlier versions, see the [GitHub releases](https://github.com/straightchlor
 
 ---
 
+<!-- TODO(2.2.0): verify release link once the GitHub/Codeberg release is published -->
+## [2.2.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.2.0)
+
+### Breaking changes
+
+Existing Iceberg tables must be rebuilt from fresh data. The Spark jobs now
+generate different experiment and child ids (see Data processing), so old and
+new rows cannot be mixed.
+
+The monitoring metric `qp_vqe_accuracy_score` is renamed to
+`qp_vqe_hf_deviation_score`. Custom Grafana dashboards and alert rules that
+reference the old name must be updated; the bundled ones already are.
+
+`to_avro_bytes` now raises `KeyError` when the schema has no registry id,
+instead of writing bytes without the Confluent header and logging a warning.
+`VQERunner` takes `kafka_config` and `backend_config` objects in place of the
+loose `kafka_*` and `backend_*` keyword arguments.
+
+### Configuration and CLI
+
+`--convergence` always overrides `--max-iterations`, with a warning when both
+are given. Values from a `--load` file override the CLI values.
+`KAFKA_SERVERS` is applied only with `--kafka`, `SCHEMA_REGISTRY_URL` is read
+from the environment, and the security config reads the `ssl_*` keys.
+
+A negative `--molecule-index` is rejected instead of silently selecting a
+molecule from the end of the file.
+
+`--optimizer` now lists only the eight optimizers that can run (L-BFGS-B,
+COBYLA, SLSQP, Nelder-Mead, Powell, BFGS, CG, TNC); the others failed after the
+molecule was loaded. `--simulation-method` no longer offers `stabilizer`,
+`extended_stabilizer`, `unitary` and `superop`, which cannot run a
+parameterized circuit. `--max-iterations` must be positive. `--ssl` uses the
+individual `--ssl-*` files when the `--ssl-dir` directory does not exist
+instead of failing with a traceback. `--dump` names the file `local` or `api`
+the right way round.
+
+### Simulation
+
+The stored `init_strategy` is the one that actually ran; `hf` falls back to
+random when Hartree-Fock data is missing. The `hf` initialization now also
+works for `RealAmplitudes`, and `ExcitationPreserving` has an `hf` arm (small
+jitter, 0.01) next to its `random` arm (0.5).
+
+`--exact` now honours the configured backend: noise model, simulation method
+and GPU. `--exact --noise` requires `--simulation-method density_matrix`.
+
+One failing molecule no longer aborts the batch. The remaining molecules run,
+and the run fails at the end with every failure reported. Reports are
+generated once after the loop rather than once per molecule. Metrics derived
+from the Hartree-Fock reference are now empty instead of 0 when no reference
+exists.
+
+### Data processing
+
+The Spark jobs build `experiment_id` as a sha256 over an explicit field list,
+so Avro and JSON inputs produce the same id. Child ids are positional
+(`_iter_N`, `_init_N`, `_opt_N`, `_term_N`) rather than hash buckets, and
+duplicates within a batch are removed. Appends merge schemas and skip rows
+whose keys already exist.
+
+The `exact_estimator` flag and `performance_start` timestamp are now carried
+through to the tables, and `mean_param_change` is fixed. The ML feature job
+checks each target table separately, so a crash between writes is repaired on
+the next run.
+
+### Monitoring
+
+`--performance-export-format json` no longer pushes VQE metrics to the
+PushGateway.
+
+`qp_vqe_hf_deviation_score` is a 0-100 log-scaled deviation from the
+Hartree-Fock reference. It is absent when the run has no reference. The
+dashboard and the alert rule use the new name.
+
+### ML package (experimental)
+
+`quantum_pipeline/ml/` was rewritten for ongoing thesis work. It is
+experimental, not part of the core simulation flow, and its API may change
+without notice.
+
+The package is split into `convergence` and `energy` subpackages with shared
+schema, model registry (XGBoost, RandomForest, LogisticRegression, Ridge),
+fitting and trajectory modules. The old `convergence_predictor`,
+`energy_estimator` and circuit feature modules are removed, and the package
+no longer re-exports the predictor, estimator or tracker.
+
+### Maintenance
+
+Type annotations were tightened, mypy passes and CI now runs it. The schema
+registry client was rewritten. Docs, code comments and the README were
+cleaned up.
+
+---
+
 ## [2.1.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.1.0)
 
 This version includes fixes for [issue #52](https://github.com/straightchlorine/quantum-pipeline/issues/52)
@@ -29,7 +124,7 @@ energy.
 Full entanglement is required because adjacent-only gates can only
 slide electrons between neighbouring orbitals (a Slater determinant in, a
 Slater determinant out). It leaves the correlated states unreachable. With
-these changes it reaches chemical accuracy and improves with more reps.
+these changes it reached chemical accuracy on H2 in quick checks and improved with more reps.
 
 Error is now raised when Hartree-Fock data is not provided, rather than
 silently producing a meaningless result.
@@ -76,9 +171,9 @@ run marked the higher-basis tiers as done and they were silently skipped.
 ### Kafka delivery
 
 A failed Kafka send is no longer dropped silently. Undelivered results are
-spooled to disk (`gen/undelivered/`) for later replay and the run exits
-non-zero, so a downed broker cannot discard computed output while the job
-still reports success.
+spooled to disk (`gen/undelivered/`) as JSON for manual re-submission and the
+run exits non-zero, so a downed broker cannot discard computed output while
+the job still reports success.
 
 ---
 
@@ -222,11 +317,12 @@ The random parameter initialization used in prior versions (uniform
 Version 1.4.0 adds `--init-strategy hf`, which attempts to start VQE
 from the classical Hartree-Fock solution instead.
 
-A naive implementation - prepending a HartreeFock circuit to EfficientSU2
-and setting all parameters to zero - turned out not to work. The fixed CX
-entangling gates in EfficientSU2 are not parameterized and always act,
-regardless of rotation angles. At zero parameters the rotation gates become
-identity, but the CX gates still scramble the HF state.
+Prepending a HartreeFock circuit to EfficientSU2 and setting all parameters to
+zero - turned out not to work. The fixed CX entangling gates in EfficientSU2
+are not parameterized and always act, regardless of rotation angles.
+
+At zero parameters the rotation gates become identity, but the CX gates still
+alter the HF state.
 
 The current approach runs a short classical pre-optimization that finds
 EfficientSU2 parameters which directly prepare the HF state through the

@@ -27,12 +27,10 @@ class TestVQERunner:
             ) as mock_driver,
             patch('quantum_pipeline.utils.timer.Timer') as mock_timer,
         ):
-            # mock molecule
             mock_molecule = Mock()
             mock_molecule.symbols = ['H', 'H']
             mock_load.return_value = [mock_molecule]
 
-            # mock driver
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
@@ -41,7 +39,6 @@ class TestVQERunner:
             mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
-            # mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.total_energy = -1.0
@@ -54,7 +51,6 @@ class TestVQERunner:
             mock_result.initial_data.ansatz = Mock()
             mock_solver.return_value.solve.return_value = mock_result
 
-            # mock timer
             mock_timer_context = MagicMock()
             mock_timer_context.__enter__.return_value = mock_timer_context
             mock_timer_context.elapsed = 0.5
@@ -194,7 +190,6 @@ class TestVQERunner:
             patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
             patch('quantum_pipeline.runners.vqe_runner.validate_basis_set') as mock_validate,
         ):
-            # mock values
             mock_molecule = Mock()
             mock_molecule.symbols = ['H', 'H']
             mock_load.return_value = [mock_molecule]
@@ -202,7 +197,6 @@ class TestVQERunner:
             runner = VQERunner(filepath=str(single_molecule_file), basis_set='sto3g')
             molecules = runner.load_molecules()
 
-            # check if mocks were called correctly
             mock_load.assert_called_once_with(str(single_molecule_file))
             mock_validate.assert_called_once_with('sto3g')
             assert molecules == [mock_molecule]
@@ -248,12 +242,10 @@ class TestVQERunner:
             patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
             patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
         ):
-            # mock molecule
             mock_molecule = Mock()
             mock_molecule.symbols = ['H', 'H']
             mock_load.return_value = [mock_molecule]
 
-            # mock driver
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
@@ -262,11 +254,9 @@ class TestVQERunner:
             mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
-            # mock mapper
             mock_qubit_op = Mock()
             mock_mapper.return_value.map.return_value = mock_qubit_op
 
-            # mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.total_energy = -1.0
@@ -279,26 +269,23 @@ class TestVQERunner:
             mock_result.initial_data.ansatz = Mock()
             mock_solver.return_value.solve.return_value = mock_result
 
-            # mock timer
             mock_timer_context = MagicMock()
             mock_timer_context.__enter__.return_value = mock_timer_context
             mock_timer_context.elapsed = 0.5
             mock_timer.return_value = mock_timer_context
 
-            # run the test
             runner = VQERunner(filepath=str(single_molecule_file), basis_set='sto3g')
             runner.run()
 
-            # see if molecules and the solver were loaded
             mock_load.assert_called_once()
             mock_solver.assert_called_once()
 
-            # check if results were returned and if timing data was set
             assert len(runner.run_results) == 1
-            assert isinstance(runner.run_results[0], VQEDecoratedResult)
-            assert runner.hamiltonian_time == 0.5
-            assert runner.mapping_time == 0.5
-            assert runner.vqe_time == 0.5
+            result = runner.run_results[0]
+            assert isinstance(result, VQEDecoratedResult)
+            assert result.hamiltonian_time == 0.5
+            assert result.mapping_time == 0.5
+            assert result.vqe_time == 0.5
 
     def test_run_with_molecule_index(self, multiple_molecules_file):
         """Test run() with molecule_index filters to a single molecule."""
@@ -389,12 +376,10 @@ class TestVQERunner:
             patch('quantum_pipeline.runners.vqe_runner.VQEKafkaProducer') as mock_kafka,
             patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
         ):
-            # mock molecules
             mock_molecule = Mock()
             mock_molecule.symbols = ['H', 'H']
             mock_load.return_value = [mock_molecule]
 
-            # mock driver
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
@@ -403,11 +388,9 @@ class TestVQERunner:
             mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
-            # mock mapper
             mock_qubit_op = Mock()
             mock_mapper.return_value.map.return_value = mock_qubit_op
 
-            # mock solver
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.total_energy = -1.0
@@ -420,19 +403,15 @@ class TestVQERunner:
             mock_result.initial_data.ansatz = Mock()
             mock_solver.return_value.solve.return_value = mock_result
 
-            # mock timer
             mock_timer_context = MagicMock()
             mock_timer_context.__enter__.return_value = mock_timer_context
             mock_timer_context.elapsed = 0.5
             mock_timer.return_value = mock_timer_context
 
-            # run the test
             runner = VQERunner(
                 filepath=str(single_molecule_file),
                 basis_set='sto3g',
                 kafka=True,
-                kafka_bootstrap_servers='localhost:9092',
-                kafka_topic='test_topic',
             )
             runner.run()
 
@@ -450,12 +429,10 @@ class TestVQERunner:
             patch('quantum_pipeline.runners.vqe_runner.VQEKafkaProducer') as mock_kafka,
             patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
         ):
-            # set up mock molecule
             mock_molecule = Mock()
             mock_molecule.symbols = ['H', 'H']
             mock_load.return_value = [mock_molecule]
 
-            # set up mock driver
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
@@ -464,11 +441,9 @@ class TestVQERunner:
             mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
-            # set up mock mapper
             mock_qubit_op = Mock()
             mock_mapper.return_value.map.return_value = mock_qubit_op
 
-            # set up mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.total_energy = -1.0
@@ -481,16 +456,13 @@ class TestVQERunner:
             mock_result.initial_data.ansatz = Mock()
             mock_solver.return_value.solve.return_value = mock_result
 
-            # set up mock timer
             mock_timer_context = MagicMock()
             mock_timer_context.__enter__.return_value = mock_timer_context
             mock_timer_context.elapsed = 0.5
             mock_timer.return_value = mock_timer_context
 
-            # simluating Kafka error
             mock_kafka.side_effect = KafkaError('Kafka connection error')
 
-            # run the test
             runner = VQERunner(filepath=str(single_molecule_file), basis_set='sto3g', kafka=True)
 
             # A failed send must NOT pass as success: run() exits non-zero so the job
@@ -513,12 +485,10 @@ class TestVQERunner:
             patch('quantum_pipeline.runners.vqe_runner.ReportGenerator') as mock_report,
             patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
         ):
-            # mock molecule
             mock_molecule = Mock()
             mock_molecule.symbols = ['H', 'H']
             mock_load.return_value = [mock_molecule]
 
-            # mock driver
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
@@ -527,11 +497,9 @@ class TestVQERunner:
             mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
-            # mock mapper
             mock_qubit_op = Mock()
             mock_mapper.return_value.map.return_value = mock_qubit_op
 
-            # mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.total_energy = -1.0
@@ -544,17 +512,14 @@ class TestVQERunner:
             mock_result.initial_data.ansatz = Mock()
             mock_solver.return_value.solve.return_value = mock_result
 
-            # mock timer
             mock_timer_context = MagicMock()
             mock_timer_context.__enter__.return_value = mock_timer_context
             mock_timer_context.elapsed = 0.5
             mock_timer.return_value = mock_timer_context
 
-            # start the runner
             runner = VQERunner(filepath=str(single_molecule_file), basis_set='sto3g', report=True)
             runner.run()
 
-            # check if report classes were called
             mock_report.return_value.add_header.assert_called()
             mock_report.return_value.add_molecule_plot.assert_called_once_with(mock_molecule)
             mock_report.return_value.generate_report.assert_called_once()
@@ -569,12 +534,10 @@ class TestVQERunner:
             patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
             patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
         ):
-            # mock molecule
             mock_molecule = Mock()
             mock_molecule.symbols = ['H', 'H']
             mock_load.return_value = [mock_molecule]
 
-            # mock driver
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
@@ -583,20 +546,16 @@ class TestVQERunner:
             mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
-            # mock mapper
             mock_qubit_op = Mock()
             mock_mapper.return_value.map.return_value = mock_qubit_op
 
-            # mock timer
             mock_timer_context = MagicMock()
             mock_timer_context.__enter__.return_value = mock_timer_context
             mock_timer_context.elapsed = 0.5
             mock_timer.return_value = mock_timer_context
 
-            # simulate runtime error
             mock_solver.return_value.solve.side_effect = RuntimeError('Convergence error')
 
-            # run the test
             runner = VQERunner(filepath=str(single_molecule_file), basis_set='sto3g')
 
             with pytest.raises(RuntimeError):
@@ -612,14 +571,12 @@ class TestVQERunner:
             patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
             patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
         ):
-            # two mock molecules
             molecule1 = Mock()
             molecule1.symbols = ['H', 'H']
             molecule2 = Mock()
             molecule2.symbols = ['C', 'O']
             mock_load.return_value = [molecule1, molecule2]
 
-            # mock driver
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
@@ -628,11 +585,9 @@ class TestVQERunner:
             mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
-            # mock mapper
             mock_qubit_op = Mock()
             mock_mapper.return_value.map.return_value = mock_qubit_op
 
-            # mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.total_energy = -1.0
@@ -645,23 +600,128 @@ class TestVQERunner:
             mock_result.initial_data.ansatz = Mock()
             mock_solver.return_value.solve.return_value = mock_result
 
-            # mock timer
             mock_timer_context = MagicMock()
             mock_timer_context.__enter__.return_value = mock_timer_context
             mock_timer_context.elapsed = 0.5
             mock_timer.return_value = mock_timer_context
 
-            # start the runner
             runner = VQERunner(filepath=str(multiple_molecules_file), basis_set='sto3g')
             runner.run()
 
-            # and see if solver was called twice
             assert mock_solver.call_count == 2
             assert len(runner.run_results) == 2
 
-            # check if molecules were processed
             mock_driver.assert_any_call(molecule1, basis='sto3g')
             mock_driver.assert_any_call(molecule2, basis='sto3g')
+
+    def test_failing_molecule_does_not_abort_the_batch(self, multiple_molecules_file):
+        """A molecule that raises is skipped, the rest still run, and run() exits non-zero."""
+        with (
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
+            patch('quantum_pipeline.runners.vqe_runner.validate_basis_set'),
+            patch('quantum_pipeline.runners.vqe_runner.PySCFDriver.from_molecule') as mock_driver,
+            patch('quantum_pipeline.runners.vqe_runner.JordanWignerMapper') as mock_mapper,
+            patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
+            patch('quantum_pipeline.runners.vqe_runner.ReportGenerator') as mock_report,
+            patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
+        ):
+            molecule1 = Mock()
+            molecule1.symbols = ['H', 'H']
+            molecule2 = Mock()
+            molecule2.symbols = ['C', 'O']
+            mock_load.return_value = [molecule1, molecule2]
+
+            mock_problem = Mock()
+            mock_problem.second_q_ops.return_value = [Mock()]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
+            mock_driver.return_value.run.return_value = mock_problem
+
+            mock_qubit_op = Mock()
+            mock_mapper.return_value.map.return_value = mock_qubit_op
+
+            mock_result = Mock()
+            mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
+            mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
+            mock_result.initial_data = Mock()
+            mock_result.initial_data.optimizer = 'COBYLA'
+            mock_result.initial_data.ansatz_reps = 3
+            mock_result.initial_data.hamiltonian = Mock()
+            mock_result.initial_data.ansatz = Mock()
+            mock_solver.return_value.solve.side_effect = [
+                RuntimeError('SCF did not converge'),
+                mock_result,
+            ]
+
+            mock_timer_context = MagicMock()
+            mock_timer_context.__enter__.return_value = mock_timer_context
+            mock_timer_context.elapsed = 0.5
+            mock_timer.return_value = mock_timer_context
+
+            runner = VQERunner(
+                filepath=str(multiple_molecules_file), basis_set='sto3g', report=True
+            )
+
+            with pytest.raises(RuntimeError, match=r'1 of 2 molecules failed \(indices \[0\]\)'):
+                runner.run()
+
+            assert mock_solver.return_value.solve.call_count == 2
+            assert runner._failed == [0]
+            assert len(runner.run_results) == 1
+            # The partial report is the point of continuing: it must survive the failure.
+            mock_report.return_value.generate_report.assert_called_once()
+
+    def test_failed_molecule_and_undelivered_result_both_reported(
+        self, multiple_molecules_file, tmp_path, monkeypatch
+    ):
+        """A solver failure plus a spooled send failure surface in one KafkaProducerError."""
+        monkeypatch.setattr(
+            'quantum_pipeline.runners.vqe_runner.UNDELIVERED_DIR', tmp_path / 'undelivered'
+        )
+        with (
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
+            patch('quantum_pipeline.runners.vqe_runner.validate_basis_set'),
+            patch('quantum_pipeline.runners.vqe_runner.PySCFDriver.from_molecule') as mock_driver,
+            patch('quantum_pipeline.runners.vqe_runner.JordanWignerMapper'),
+            patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
+            patch('quantum_pipeline.runners.vqe_runner.VQEKafkaProducer') as mock_kafka,
+            patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
+        ):
+            mock_load.return_value = [Mock(symbols=['H', 'H']), Mock(symbols=['C', 'O'])]
+            mock_driver.return_value.run.return_value = Mock(
+                num_particles=(1, 1),
+                num_spatial_orbitals=2,
+                reference_energy=-1.117,
+                second_q_ops=Mock(return_value=[Mock()]),
+            )
+            mock_result = Mock(
+                minimum=-1.0,
+                total_energy=-1.0,
+                iteration_list=[0.5, -1.0],
+                optimal_parameters=[0.1],
+            )
+            mock_result.initial_data.optimizer = 'COBYLA'
+            mock_result.initial_data.ansatz_reps = 3
+            mock_solver.return_value.solve.side_effect = [RuntimeError('SCF'), mock_result]
+            mock_kafka.return_value.send_result.side_effect = KafkaProducerError('broker down')
+            mock_kafka.return_value.serializer.serialize.return_value = {'molecule_id': 1}
+            mock_timer.return_value.__enter__.return_value.elapsed = 0.5
+
+            runner = VQERunner(
+                filepath=str(multiple_molecules_file), basis_set='sto3g', kafka=True
+            )
+
+            with pytest.raises(
+                KafkaProducerError,
+                match=r'failed to stream.*Also: 1 of 2 molecules failed \(indices \[0\]\)',
+            ):
+                runner.run()
+
+            assert runner._failed == [0]
+            assert runner._undelivered == [1]
 
     def test_with_convergence_threshold(self, single_molecule_file):
         """Test with custom convergence threshold using a real file."""
@@ -673,12 +733,10 @@ class TestVQERunner:
             patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
             patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
         ):
-            # mock molecule
             mock_molecule = Mock()
             mock_molecule.symbols = ['H', 'H']
             mock_load.return_value = [mock_molecule]
 
-            # mock driver
             mock_problem = Mock()
             mock_second_q_op = Mock()
             mock_problem.second_q_ops.return_value = [mock_second_q_op]
@@ -687,11 +745,9 @@ class TestVQERunner:
             mock_problem.reference_energy = -1.117
             mock_driver.return_value.run.return_value = mock_problem
 
-            # mock mapper
             mock_qubit_op = Mock()
             mock_mapper.return_value.map.return_value = mock_qubit_op
 
-            # mock solver results
             mock_result = Mock()
             mock_result.minimum = -1.0
             mock_result.total_energy = -1.0
@@ -704,19 +760,16 @@ class TestVQERunner:
             mock_result.initial_data.ansatz = Mock()
             mock_solver.return_value.solve.return_value = mock_result
 
-            # mock timer
             mock_timer_context = MagicMock()
             mock_timer_context.__enter__.return_value = mock_timer_context
             mock_timer_context.elapsed = 0.5
             mock_timer.return_value = mock_timer_context
 
-            # start the runner
             runner = VQERunner(
                 filepath=str(single_molecule_file), basis_set='sto3g', convergence_threshold=1e-6
             )
             runner.run()
 
-            # check if convergence threshold was passed correctly
             mock_solver.assert_called_once_with(
                 qubit_op=mock_qubit_op,
                 backend_config=runner.backend_config,
@@ -740,14 +793,11 @@ class TestVQERunner:
         with patch(
             'quantum_pipeline.runners.vqe_runner.BackendConfig.default_backend_config'
         ) as mock_default:
-            # mock return value
             mock_backend = Mock()
             mock_default.return_value = mock_backend
 
-            # call for defualt backend
             default_backend = VQERunner.default_backend()
 
-            # see if it was called and if the return value is correct
             mock_default.assert_called_once()
             assert default_backend == mock_backend
 
@@ -783,12 +833,25 @@ class TestStreamResultDeadLetter:
         assert spooled.exists()
         assert json.loads(spooled.read_text()) == {'molecule_id': 3, 'energy': -1.0}
 
-    def test_failed_send_without_producer_records_but_does_not_crash(self):
-        """Broker down at init (no serializer) still records the failure, no spool, no crash."""
+    def test_failed_send_without_producer_still_spools(self, tmp_path, monkeypatch):
+        """Broker down at init leaves no producer, but the result must still reach disk."""
+        monkeypatch.setattr(
+            'quantum_pipeline.runners.vqe_runner.UNDELIVERED_DIR', tmp_path / 'undelivered'
+        )
         runner = self._runner()
-        with patch(
-            'quantum_pipeline.runners.vqe_runner.VQEKafkaProducer',
-            side_effect=KafkaProducerError('no brokers'),
+        with (
+            patch(
+                'quantum_pipeline.runners.vqe_runner.VQEKafkaProducer',
+                side_effect=KafkaProducerError('no brokers'),
+            ),
+            patch(
+                'quantum_pipeline.runners.vqe_runner.VQEDecoratedResultInterface'
+            ) as mock_interface,
         ):
+            mock_interface.return_value.serialize.return_value = {'molecule_id': 0}
             assert runner._stream_result(Mock(), 0) is False
+
         assert runner._undelivered == [0]
+        assert runner._producer is None
+        spooled = tmp_path / 'undelivered' / 'molecule_0.json'
+        assert json.loads(spooled.read_text()) == {'molecule_id': 0}

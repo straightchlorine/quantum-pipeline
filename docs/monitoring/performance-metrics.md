@@ -33,7 +33,7 @@ VQE execution metrics are exported after each simulation completes. These includ
 | Iterations Count | `qp_vqe_iterations_count` | Gauge | Total optimizer iterations to convergence |
 | Optimal Parameters | `qp_vqe_optimal_parameters_count` | Gauge | Number of optimized variational parameters |
 
-### Accuracy Metrics (`qp_vqe_*`)
+### HF Reference Metrics (`qp_vqe_*`)
 
 These metrics compare VQE results against the Hartree-Fock (HF) reference
 energy computed by PySCF for each molecule. HF is an upper bound
@@ -44,9 +44,9 @@ approximation - a good VQE result will be at or below the HF energy.
 | Reference Energy | `qp_vqe_reference_energy` | Gauge | HF reference energy from PySCF (Ha) |
 | Energy Error (Ha) | `qp_vqe_energy_error_hartree` | Gauge | `VQE_total_energy - HF_energy` (Ha) |
 | Energy Error (mHa) | `qp_vqe_energy_error_millihartree` | Gauge | Same error in millihartree |
-| Accuracy Score | `qp_vqe_accuracy_score` | Gauge | Log-scaled score from 0 to 100 |
+| HF Deviation Score | `qp_vqe_hf_deviation_score` | Gauge | Log-scaled score from 0 to 100, absent without an HF reference |
 
-The accuracy score uses a logarithmic damping function:
+The HF deviation score uses a logarithmic damping function:
 `score = max(0, min(100, 100 * (1 - log10(|error_mHa| + 1) / 5)))`.
 A score of 100 means the VQE energy matches HF exactly. From the formula,
 ~1 mHa error (chemical accuracy) scores ~94, ~10 mHa scores ~79, and
@@ -117,11 +117,11 @@ qp_vqe_iterations_count{container_type, molecule_id, molecule_symbols, optimizer
 qp_vqe_minimum_energy{container_type, molecule_id, molecule_symbols, optimizer, backend_type, basis_set}
 qp_vqe_optimal_parameters_count{container_type, molecule_id, molecule_symbols, optimizer, backend_type, basis_set}
 
-# Scientific Accuracy Metrics
+# HF Reference Metrics
 qp_vqe_reference_energy{container_type, molecule_id, molecule_symbols, optimizer, backend_type, basis_set}
 qp_vqe_energy_error_hartree{container_type, molecule_id, molecule_symbols, optimizer, backend_type, basis_set}
 qp_vqe_energy_error_millihartree{container_type, molecule_id, molecule_symbols, optimizer, backend_type, basis_set}
-qp_vqe_accuracy_score{container_type, molecule_id, molecule_symbols, optimizer, backend_type, basis_set}
+qp_vqe_hf_deviation_score{container_type, molecule_id, molecule_symbols, optimizer, backend_type, basis_set}
 
 # Derived Efficiency Metrics
 qp_vqe_iterations_per_second{container_type, molecule_id, molecule_symbols, optimizer, backend_type, basis_set}

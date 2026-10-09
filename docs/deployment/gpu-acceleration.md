@@ -136,8 +136,6 @@ Not all Qiskit Aer simulation methods support GPU acceleration:
 | `statevector` | Yes | Full state vector simulation. Best for small-to-medium circuits. |
 | `density_matrix` | Yes | Density matrix simulation. Supports noise models. |
 | `tensor_network` | Yes (cuTensorNet) | Tensor network contraction. Requires cuQuantum. |
-| `stabilizer` | No | Clifford circuit simulation. CPU only. |
-| `unitary` | Yes | Full unitary matrix simulation. |
 
 For the thesis experiments, `statevector` was used exclusively as it provides the
 most direct benefit from GPU acceleration for VQE workloads. For the full comparison

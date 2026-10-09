@@ -26,7 +26,7 @@ def validate_molecule_data(data: list):
             raise ValueError(f'Missing required fields in: {molecule}')
 
 
-def load_molecule(file_path: str):
+def load_molecule(file_path: str) -> list[MoleculeInfo]:
     """Load molecule data from a file and return MoleculeInfo objects.
 
     Args:

@@ -72,7 +72,7 @@ class ReportGenerator:
     def add_complex_operator_coefficients_plot(
         self, qubit_op, symbols, title='Operator Coefficients'
     ):
-        """Add a operator coefficients plot in polar coordinates to the report."""
+        """Add an operator coefficients plot in polar coordinates to the report."""
         self.content_builder.add_complex_coeff_plot(qubit_op, symbols, title)
 
     def new_page(self):

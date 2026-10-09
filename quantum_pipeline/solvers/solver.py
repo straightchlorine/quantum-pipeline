@@ -7,6 +7,7 @@ from qiskit_ibm_runtime import QiskitRuntimeService
 
 from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.configs.settings import SUPPORTED_OPTIMIZERS
+from quantum_pipeline.structures.vqe_observation import VQEResult
 from quantum_pipeline.utils.logger import get_logger
 
 
@@ -20,8 +21,8 @@ class Solver(ABC):
         self.logger = get_logger(self.__class__.__name__)
 
     @abstractmethod
-    def solve(self):
-        """Run the quantum solver and return the result. Subclasses must implement this."""
+    def solve(self) -> VQEResult:
+        """Run the quantum solver and return the result."""
         ...
 
     def supported_optimizers_prompt(self):
@@ -54,13 +55,10 @@ class Solver(ABC):
         return channel, instance, token
 
     def _get_service(self):
-        """Authenticates and connects to the IBM Quantum platform.
-
-        Returns:
-            QiskitRuntimeService: Connected IBM Quantum service instance.
+        """Authenticate and connect to the IBM Quantum platform.
 
         Raises:
-            RuntimeError: If authentication or connection fails.
+            RuntimeError: If the environment credentials are invalid or the connection fails.
         """
         self.logger.info('Authenticating with IBM Quantum platform...')
         try:
@@ -109,7 +107,7 @@ class Solver(ABC):
 
                 backend = AerSimulator(
                     method=self.backend_config.simulation_method,
-                    **self.backend_config.gpu_opts,
+                    **(self.backend_config.gpu_opts or {}),
                     noise_model=noise_model if noise_model else None,
                 )
             else:

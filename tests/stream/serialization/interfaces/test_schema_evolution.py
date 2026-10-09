@@ -28,26 +28,24 @@ from quantum_pipeline.structures.vqe_observation import (
     VQEProcess,
     VQEResult,
 )
+from quantum_pipeline.utils.schema_registry import SchemaRecord
 
 
 class MockSchemaRegistry:
     def __init__(self):
-        self.schemas = {}
-        self.id_cache = {}
+        self.cache: dict[str, SchemaRecord] = {}
 
-    def get_schema(self, name):
-        if name not in self.schemas:
-            raise FileNotFoundError(f'Schema {name} not found')
-        return self.schemas[name]
+    def serialize_schema(self, schema):
+        return avro.schema.parse(json.dumps(schema) if isinstance(schema, dict) else schema)
 
-    def save_schema(self, name, schema):
-        self.schemas[name] = schema
-        self.id_cache[name] = 1
+    def register_schema(self, schema_name, schema_dict):
+        cached = self.cache.get(schema_name)
+        if cached is not None and cached.id is not None:
+            return
+        self.cache[schema_name] = SchemaRecord(id=1, schema=json.dumps(schema_dict))
 
 
-# ---------------------------------------------------------------------------
-# Old schemas (pre-QUA-15) — no ML fields
-# ---------------------------------------------------------------------------
+# Pre-QUA-15 writer schemas: no ML fields, used as the writer side of evolution reads.
 
 OLD_VQE_INITIAL_SCHEMA = {
     'type': 'record',
@@ -120,7 +118,6 @@ OLD_VQE_RESULT_SCHEMA = {
 
 
 def _avro_bytes(schema_dict: dict, record: dict) -> bytes:
-    """Write a single Avro record to bytes using the given schema."""
     parsed = avro.schema.parse(json.dumps(schema_dict))
     buf = io.BytesIO()
     encoder = BinaryEncoder(buf)
@@ -168,11 +165,9 @@ class TestVQEInitialDataSchemaEvolution(unittest.TestCase):
         old_bytes = _avro_bytes(OLD_VQE_INITIAL_SCHEMA, self._old_record())
         record = _read_avro_bytes(OLD_VQE_INITIAL_SCHEMA, self.new_schema, old_bytes)
 
-        # New fields should have their schema defaults
         self.assertIsNone(record.get('seed'))
-        # init_strategy default is 'random'
         self.assertEqual(record.get('init_strategy'), 'random')
-        # ansatz_name default is None (nullable)
+        # Avro's schema default is null; the 'EfficientSU2' fallback comes from deserialize().
         self.assertIsNone(record.get('ansatz_name'))
 
     @patch('quantum_pipeline.stream.serialization.interfaces.vqe.loads')

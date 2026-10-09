@@ -1,13 +1,8 @@
-"""
-optimizer_config.py
-
-This module provides a factory for creating optimizer-specific configurations
-for scipy.optimize.minimize. It handles the proper parameter mapping and
-validation for different optimizers used in VQE optimization.
-"""
+"""Factory for optimizer-specific scipy.optimize.minimize configurations used by VQE."""
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any, ClassVar
 
 from quantum_pipeline.configs.constants import (
@@ -23,7 +18,6 @@ class OptimizerConfig(ABC):
     def __init__(
         self, max_iterations: int | None = None, convergence_threshold: float | None = None
     ):
-        # Validate mutually exclusive parameters
         if max_iterations is not None and convergence_threshold is not None:
             raise ValueError(
                 'max_iterations and convergence_threshold are mutually exclusive. '
@@ -50,17 +44,15 @@ class OptimizerConfig(ABC):
 class LBFGSBConfig(OptimizerConfig):
     """Configuration for L-BFGS-B optimizer.
 
-    Simplified behavior:
-    - If max_iterations is set: Use it as the iteration limit (maxfun and maxiter)
-    - If convergence_threshold is set: Use it with high max iterations (15000) to let it converge
-    - If neither is set: Use defaults (15000 iterations, standard scipy tolerances)
+    `max_iterations` sets `maxiter`/`maxfun` with `ftol`/`gtol` at 1e-15 so the whole budget
+    is spent; `convergence_threshold` sets `ftol`/`gtol` under a high `maxiter` cap; with
+    neither, only `maxiter` is set and scipy tolerances apply.
     """
 
     def get_options(self, num_parameters: int) -> dict[str, Any]:
-        options = {'disp': False}
+        options: dict[str, Any] = {'disp': False}
 
         if self.max_iterations is not None:
-            # Mode: Strict iteration control
             # Set both maxfun and maxiter to prevent hanging.
             # Use tight tolerances to ensure the full iteration budget is used
             # (scipy's defaults would cause early stopping).
@@ -70,14 +62,12 @@ class LBFGSBConfig(OptimizerConfig):
             options['gtol'] = 1e-15
 
         elif self.convergence_threshold is not None:
-            # Mode: Convergence-based optimization
-            # Use high iteration limit to allow convergence
+            # Cap iterations high so ftol/gtol decide when to stop.
             options['maxiter'] = LBFGSB_DEFAULT_MAXITER
             options['ftol'] = self.convergence_threshold
             options['gtol'] = self.convergence_threshold
 
         else:
-            # Mode: Defaults
             options['maxiter'] = LBFGSB_DEFAULT_MAXITER
             # Let scipy use its default tolerances
 
@@ -94,19 +84,13 @@ class LBFGSBConfig(OptimizerConfig):
 class COBYLAConfig(OptimizerConfig):
     """Configuration for COBYLA optimizer.
 
-    Simplified behavior:
-    - If max_iterations is set: Use it as the iteration limit
-    - If convergence_threshold is set: Use it with default iterations (1000)
-    - If neither is set: Use scipy defaults (1000 iterations)
+    Only `maxiter` goes into the options; `convergence_threshold` is passed as scipy `tol`.
     """
 
     def get_options(self, num_parameters: int) -> dict[str, Any]:
-        if self.max_iterations is not None:
-            maxiter = self.max_iterations
-        elif self.convergence_threshold is not None:
-            maxiter = COBYLA_DEFAULT_MAXITER  # Default when using convergence
-        else:
-            maxiter = COBYLA_DEFAULT_MAXITER  # scipy default
+        maxiter = (
+            self.max_iterations if self.max_iterations is not None else COBYLA_DEFAULT_MAXITER
+        )
 
         return {
             'disp': False,
@@ -130,21 +114,14 @@ class COBYLAConfig(OptimizerConfig):
 class SLSQPConfig(OptimizerConfig):
     """Configuration for SLSQP optimizer.
 
-    Simplified behavior:
-    - If max_iterations is set: Use it as the iteration limit
-    - If convergence_threshold is set: Use it with default iterations (100)
-    - If neither is set: Use scipy defaults (100 iterations)
+    `maxiter` always goes into the options; `convergence_threshold` is set both as option
+    `ftol` and as scipy `tol`.
     """
 
     def get_options(self, num_parameters: int) -> dict[str, Any]:
-        if self.max_iterations is not None:
-            maxiter = self.max_iterations
-        elif self.convergence_threshold is not None:
-            maxiter = SLSQP_DEFAULT_MAXITER  # Default when using convergence
-        else:
-            maxiter = SLSQP_DEFAULT_MAXITER  # scipy default
+        maxiter = self.max_iterations if self.max_iterations is not None else SLSQP_DEFAULT_MAXITER
 
-        options = {'disp': False, 'maxiter': maxiter}
+        options: dict[str, Any] = {'disp': False, 'maxiter': maxiter}
 
         if self.convergence_threshold is not None:
             options['ftol'] = self.convergence_threshold
@@ -152,7 +129,6 @@ class SLSQPConfig(OptimizerConfig):
         return options
 
     def get_minimize_tol(self) -> float | None:
-        # SLSQP uses global tolerance when convergence_threshold is set
         return self.convergence_threshold
 
     def validate_parameters(self, num_parameters: int) -> None:
@@ -163,13 +139,10 @@ class SLSQPConfig(OptimizerConfig):
 class GenericConfig(OptimizerConfig):
     """Generic configuration for scipy optimizers not requiring custom logic.
 
-    Passes `maxiter` into the options dict and returns `convergence_threshold`
-    as the global `tol` argument for `scipy.optimize.minimize`.
-
-    Optimizer-specific default `maxiter values.
+    Sets `maxiter` (`maxfun` for TNC) from `max_iterations` or a per-optimizer default;
+    `convergence_threshold` is passed as scipy `tol`.
     """
 
-    # Research-backed default maxiter values per optimizer
     _DEFAULT_MAXITER: ClassVar[dict[str, int]] = {
         'Nelder-Mead': 5000,  # gradient-free simplex; slow - needs high budget
         'Powell': 10000,  # gradient-free conjugate-directions; one iter /approx n line searches
@@ -193,7 +166,6 @@ class GenericConfig(OptimizerConfig):
         self.optimizer_name = optimizer_name
 
     def _effective_maxiter(self) -> int:
-        """Return the effective maxiter for the options dict."""
         if self.max_iterations is not None:
             return self.max_iterations
         return self._DEFAULT_MAXITER.get(self.optimizer_name, 1000)
@@ -218,7 +190,7 @@ class GenericConfig(OptimizerConfig):
 class OptimizerConfigFactory:
     """Factory class for creating optimizer-specific configurations."""
 
-    _configs: ClassVar[dict] = {
+    _configs: ClassVar[dict[str, Callable[..., OptimizerConfig]]] = {
         'L-BFGS-B': LBFGSBConfig,
         'COBYLA': COBYLAConfig,
         'SLSQP': SLSQPConfig,
@@ -241,11 +213,8 @@ class OptimizerConfigFactory:
 
         Args:
             optimizer: Name of the optimizer ('L-BFGS-B', 'COBYLA', 'SLSQP', etc.)
-            max_iterations: Maximum number of iterations (takes priority over convergence)
+            max_iterations: Maximum number of iterations (mutually exclusive with convergence_threshold)
             convergence_threshold: Convergence threshold for optimization
-
-        Returns:
-            OptimizerConfig: Configured optimizer instance
 
         Raises:
             ValueError: If optimizer is not supported
@@ -263,12 +232,10 @@ class OptimizerConfigFactory:
 
     @classmethod
     def get_supported_optimizers(cls) -> list[str]:
-        """Get list of supported optimizers."""
         return list(cls._configs.keys())
 
     @classmethod
-    def register_optimizer(cls, name: str, config_class: type[OptimizerConfig]) -> None:
-        """Register a new optimizer configuration class."""
+    def register_optimizer(cls, name: str, config_class: Callable[..., OptimizerConfig]) -> None:
         cls._configs[name] = config_class
 
 
@@ -278,17 +245,14 @@ def get_optimizer_configuration(
     convergence_threshold: float | None = None,
     num_parameters: int = 0,
 ) -> tuple[dict[str, Any], float | None]:
-    """
-    Convenience function to get optimizer configuration.
+    """Return (options dict, scipy `tol`) for the given optimizer.
 
     Args:
-        optimizer: Name of the optimizer
-        max_iterations: Maximum number of iterations
-        convergence_threshold: Convergence threshold
-        num_parameters: Number of parameters being optimized
+        num_parameters: Only used to warn when a COBYLA budget is below `num_parameters + 2`.
 
-    Returns:
-        Tuple of (options_dict, minimize_tol)
+    Raises:
+        ValueError: If the optimizer is unsupported or both `max_iterations` and
+            `convergence_threshold` are set.
     """
     config = OptimizerConfigFactory.create_config(
         optimizer=optimizer,

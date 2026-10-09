@@ -120,17 +120,17 @@ Basis set for quantum chemistry calculations.
 
 ### `--ansatz`
 
-Ansatz circuit type for the parameterized quantum circuit.
+Ansatz circuit type for the parameterized quantum circuit. The entanglement
+pattern is fixed per ansatz and is not configurable.
 
-| Ansatz | Description |
-|--------|-------------|
-| `EfficientSU2` | General-purpose, supports all init strategies (default) |
-| `RealAmplitudes` | Real-valued rotations (Ry) only |
-| `ExcitationPreserving` | Preserves particle number |
+| Ansatz | Rotations | Entangling layer | Notes |
+|--------|-----------|------------------|-------|
+| `EfficientSU2` (default) | RY and RZ | CNOTs, reverse-linear | General-purpose; supports `--init-strategy hf` |
+| `RealAmplitudes` | RY only | CNOTs, reverse-linear | Half the parameters of `EfficientSU2`; reaches only states with real amplitudes; supports `--init-strategy hf` |
+| `ExcitationPreserving` | RZ | XX+YY rotations, all-to-all | Preserves particle number; starts from the Hartree-Fock determinant plus a parameter jitter (narrow for `--init-strategy hf`, wide for `random`) and fails without Hartree-Fock data |
 
-!!! warning "HF Initialization Compatibility"
-    `--init-strategy hf` only works with `EfficientSU2`. Other ansatze fall
-    back to random initialization with a warning.
+See [Ansatz Construction](../scientific/vqe-algorithm.md#ansatz-construction)
+for parameter counts and the reasoning behind each configuration.
 
 ### `--ansatz-reps` / `-ar`
 
@@ -175,7 +175,7 @@ runs until the energy change between iterations falls below `--threshold`
     (100), the entry point sets `max_iterations` to `None` and uses the
     threshold instead. Passing both non-default values raises a `ValueError` at
     the solver level via
-    [`OptimizerConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L27).
+    [`OptimizerConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py).
 
 ### `--optimizer`
 
@@ -187,15 +187,27 @@ handling. See [Optimizers](optimizers.md) for the full comparison.
 
 | Strategy | Description |
 |----------|-------------|
-| `random` | Uniform random in [0, 2pi] (default) |
-| `hf` | Hartree-Fock pre-optimized starting point |
+| `random` | Uniform random in [0, 2pi) (default) |
+| `hf` | Hartree-Fock pre-optimized starting point (`EfficientSU2`, `RealAmplitudes`); a narrower jitter for `ExcitationPreserving` |
 
-The `hf` strategy can reduce iterations by 30-40% and helps avoid local minima,
-especially with `cc-pvdz`. Only works with `EfficientSU2`.
+
+The flag applies to `EfficientSU2` and `RealAmplitudes`. Without Hartree-Fock
+data both log a warning and fall back to random, and the stored `init_strategy`
+then records `random`. For `ExcitationPreserving`, `hf` means a jitter of 0.01
+around the Hartree-Fock point and `random` a jitter of 0.5 inside the
+Hartree-Fock electron-number sector; both are recorded as requested.
+
+Measured on H\(_2\)/sto3g with COBYLA in convergence mode, seeds 1-3: `hf` ended
+0 to 8.5 mHa below Hartree-Fock and stayed on that plateau. `random` reached the
+correlated ground state (27 mHa below Hartree-Fock) in 2 of 3 seeds and a poor
+minimum in the third. See
+[Hartree-Fock Initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization).
 
 ### `--seed`
 
 Random seed for reproducible parameter initialization. Default: `None` (random).
+`ExcitationPreserving` falls back to a fixed seed when this flag is omitted, so
+its jitter is reproducible either way.
 
 ## Backend Flags
 
@@ -218,10 +230,10 @@ at the cost of transpile time. Default: `3`.
 
 ### `--gpu`
 
-Enable GPU acceleration. Works with `statevector`, `density_matrix`, `unitary`,
+Enable GPU acceleration. Works with `statevector`, `density_matrix`,
 and `tensor_network` simulation methods. GPU options (device, cuStateVec,
 memory limits) are configured in
-[`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py#L14).
+[`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
 
 ### `--simulation-method`
 
@@ -233,11 +245,7 @@ Aer backend simulation method. Default: `statevector`. See
 | `automatic` | Partial | Varies | Varies |
 | `statevector` | Yes | High | Exact |
 | `density_matrix` | Yes | Very high | Exact |
-| `stabilizer` | No | Low | Exact (Clifford only) |
-| `extended_stabilizer` | No | Medium | Approximate |
 | `matrix_product_state` | No | Low | Approximate |
-| `unitary` | Yes | Very high | Exact |
-| `superop` | No | Extreme | Exact |
 | `tensor_network` | Yes (required) | Medium | Exact |
 
 ### `--noise`
@@ -304,7 +312,7 @@ Prometheus PushGateway URL for metrics export.
 Export format: `json`, `prometheus`, or `both` (default).
 
 Monitoring defaults are also defined in
-[`settings.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L69):
+[`settings.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py):
 
 | Setting | Default |
 |---------|---------|
@@ -382,7 +390,7 @@ PLAIN/SCRAM credentials cannot be mixed with GSSAPI options.
 ## Validation Rules
 
 The
-[argument parser](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/parsing/argparser.py#L398)
+[argument parser](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/parsing/argparser.py)
 enforces these rules:
 
 | Rule | Condition |

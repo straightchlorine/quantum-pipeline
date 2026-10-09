@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 SUPPORTED_OPTIMIZERS = {
@@ -6,18 +7,10 @@ SUPPORTED_OPTIMIZERS = {
     'Powell': 'A directional set method for unconstrained optimization.',
     'CG': 'Non-linear conjugate gradient method for unconstrained optimization.',
     'BFGS': 'Quasi-Newton method using the Broyden-Fletcher-Goldfarb-Shanno algorithm.',
-    'Newton-CG': "Newton's method with conjugate gradient for unconstrained optimization.",
     'L-BFGS-B': 'Limited-memory BFGS with box constraints.',
     'TNC': 'Truncated Newton method for bound-constrained optimization.',
     'COBYLA': 'Constrained optimization by linear approximations.',
-    'COBYQA': 'Constrained optimization by quadratic approximations.',
     'SLSQP': 'Sequential Least Squares Programming for constrained optimization.',
-    'trust-constr': 'Trust-region method for constrained optimization.',
-    'dogleg': 'Dog-leg trust-region algorithm for unconstrained optimization.',
-    'trust-ncg': 'Trust-region Newton conjugate gradient method.',
-    'trust-exact': 'Exact trust-region optimization.',
-    'trust-krylov': 'Trust-region method with Krylov subspace solver.',
-    'custom': 'A user-provided callable object implementing the optimization method.',
 }
 
 SUPPORTED_BASIS_SETS = ['sto3g', '6-31g', 'cc-pvdz']
@@ -28,15 +21,11 @@ SIMULATION_METHODS = {
     'automatic': 'Default simulation method. Selects the best method based on the circuit and noise model.',
     'statevector': 'Dense statevector simulation. Supports ideal circuits and noisy circuit sampling.',
     'density_matrix': 'Dense density matrix simulation for noisy circuits with end-of-circuit measurements.',
-    'stabilizer': 'Efficient Clifford stabilizer state simulator for Clifford circuits and errors.',
-    'extended_stabilizer': 'Approximate simulator for Clifford + T circuits using ranked-stabilizer decomposition.',
     'matrix_product_state': 'Tensor-network statevector simulator using MPS representation with optional truncation.',
-    'unitary': 'Dense unitary matrix simulation. Computes the unitary matrix of the circuit (no measurement/noise).',
-    'superop': 'Dense superoperator matrix simulation for ideal/noisy circuits (supports reset but no measurement).',
     'tensor_network': 'GPU-accelerated tensor-network simulation using cuTensorNet APIs.',
 }
 
-SCHEMA_REGISTRY_URL = 'http://schema-registry:8081'
+SCHEMA_REGISTRY_URL = os.getenv('SCHEMA_REGISTRY_URL', 'http://schema-registry:8081')
 
 LOG_LEVEL = logging.DEBUG
 GEN_DIR = 'gen'
@@ -65,9 +54,9 @@ ANSATZ = 'ansatz'
 ANSATZ_DECOMPOSED_PLOT_DIR = Path(GRAPH_DIR, 'ansatz_decomposed')
 ANSATZ_DECOMPOSED = 'ansatz_decomposed'
 
-# Performance Monitoring Settings
-MONITORING_ENABLED = False  # Global toggle
+# performance monitoring
+MONITORING_ENABLED = False  # global toggle
 MONITORING_METRICS_DIR = Path(GEN_DIR, 'performance_metrics')
 MONITORING_INTERVAL = 10  # seconds
 PUSHGATEWAY_URL = 'http://localhost:9091'
-MONITORING_EXPORT_FORMAT = ['prometheus']  # Export formats
+MONITORING_EXPORT_FORMAT = ['prometheus']  # export formats

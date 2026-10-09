@@ -66,7 +66,7 @@ quantum-pipeline \
 
 GPU acceleration offloads statevector operations to the NVIDIA GPU. The `cc-pvdz` basis set provides higher accuracy but needs significantly more qubits (e.g. 48 for H\(_2\)O). Convergence mode runs until the energy change falls below the threshold.
 
-The `--init-strategy hf` flag pre-optimizes parameters using Hartree-Fock data, which helps avoid local minima that are common with `cc-pvdz`. This strategy only works with the `EfficientSU2` ansatz - using it with other ansatze falls back to random initialization.
+The `--init-strategy hf` flag pre-optimizes the parameters against Hartree-Fock data, so the optimizer starts from the Hartree-Fock state instead of a random point. Random starts ended in poor local minima in the thesis runs; the one measured comparison is under [`--init-strategy`](configuration.md#-init-strategy). This example leaves `--ansatz` at its default, `EfficientSU2`. See [Ansatz and Init Strategy Comparison](#ansatz-and-init-strategy-comparison) for what the flag does with the other two.
 
 !!! note "GPU performance"
     In thesis benchmarks (GTX 1060/1050 Ti, H\(_2\) molecule), GPU acceleration provided 1.7-4x speedup depending on basis set and circuit size. The `cc-pvdz` basis set generates many more qubits than `sto3g`, so ensure you have enough GPU memory (6+ GB recommended). For circuits exceeding GPU memory, consider `--simulation-method tensor_network`.
@@ -219,21 +219,33 @@ quantum-pipeline \
     --report
 ```
 
-The `--seed` flag ensures reproducible results across runs with the same configuration. The `--init-strategy hf` flag only works with `EfficientSU2` - using it with other ansatze falls back to random initialization. Use `--report` to generate convergence plots for visual comparison.
+With the same `--seed` and configuration, runs give the same results. Use `--report` to generate convergence plots for visual
+comparison.
 
-The three supported ansatze are:
+The commands above vary the ansatz and the strategy together rather than
+crossing them, because `--init-strategy hf` does something different for each
+ansatz:
 
-| Ansatz | Description |
-|--------|-------------|
-| `EfficientSU2` | Default. General-purpose with Ry and Rz rotation gates and CNOT entanglement. |
-| `RealAmplitudes` | Uses only real-valued Ry rotation gates. Suitable for Hamiltonians with real coefficients. |
-| `ExcitationPreserving` | Preserves particle number, which can be physically motivated for molecular systems. |
+| Ansatz | Entangling layer | Circuit starts from | Effect of `--init-strategy hf` |
+|--------|------------------|---------------------|--------------------------------|
+| `EfficientSU2` (default) | CNOTs, reverse-linear | All-zero state, parameters uniform [0, 2pi) | Pre-optimizes the parameters to reproduce the Hartree-Fock state |
+| `RealAmplitudes` | CNOTs, reverse-linear | All-zero state, parameters uniform [0, 2pi) | Runs the same pre-optimization |
+| `ExcitationPreserving` | XX+YY rotations, all-to-all | The Hartree-Fock determinant, prepended as a fixed initial state, with parameters jittered off zero | Narrows the jitter (0.01 instead of 0.5); the Hartree-Fock reference is in the circuit either way |
+
+`RealAmplitudes` keeps only the real-valued RY rotations, which halves the
+parameter count and suits Hamiltonians whose ground state has predominantly
+real coefficients. `ExcitationPreserving` conserves particle number, so the
+optimizer cannot wander into states with the wrong electron count, at the cost
+of a parameter count that grows quadratically in qubits. The entanglement
+pattern is fixed per ansatz and is not a command-line option. See
+[Ansatz Construction](../scientific/vqe-algorithm.md#ansatz-construction) for
+the full comparison and the reasoning behind each choice.
 
 ## Quick reference
 
 | Example | Use case | Key flags |
 |---------|----------|-----------|
-| [Simple H\(_2\)](#simple-h2-simulation) | Installation test | `--basis sto3g --max-iterations 50` |
+| [Simple H\(_2\)](#simple-h_2-simulation) | Installation test | `--basis sto3g --max-iterations 50` |
 | [Batch Processing](#multi-molecule-batch-processing) | Multi-molecule runs | `--report` |
 | [GPU Research](#gpu-accelerated-simulation) | High-accuracy GPU | `--gpu --basis cc-pvdz --init-strategy hf` |
 | [Data Pipeline](#full-data-pipeline-with-kafka) | Kafka streaming | `--kafka --servers kafka:9092` |

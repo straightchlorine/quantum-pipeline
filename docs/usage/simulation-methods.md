@@ -49,25 +49,6 @@ Dense density matrix simulation that represents the quantum state as a $2^n \tim
 !!! warning "Memory scaling"
     The density matrix requires quadratically more memory than statevector. This limits practical use to approximately 12-14 qubits on CPU. GPU acceleration helps with computation speed but does not change the memory scaling.
 
-### `stabilizer`
-
-Clifford simulator based on the stabilizer formalism. Efficiently simulates circuits composed entirely of Clifford gates (H, S, CNOT, CZ, etc.) in polynomial time, regardless of qubit count.
-
-- **GPU Support**: No
-- **Memory**: Low - polynomial in qubit count
-- **When to use**: Circuits containing only Clifford gates (testing, error correction)
-
-!!! warning "Clifford-only restriction"
-    The stabilizer method fails if the circuit contains non-Clifford gates (T, Rz, Ry, etc.). Since VQE ansatz circuits typically include rotation gates, this method is generally not suitable for VQE workloads.
-
-### `extended_stabilizer`
-
-An extension of the stabilizer method that can handle circuits with a small number of non-Clifford gates (primarily T gates). Decomposes the state into a sum of stabilizer states, with the number of terms growing exponentially with the number of T gates.
-
-- **GPU Support**: No
-- **Memory**: Medium (depends on T-gate count)
-- **When to use**: Near-Clifford circuits with few T gates
-
 ### `matrix_product_state`
 
 Tensor network simulation using the Matrix Product State (MPS) representation. MPS efficiently represents states with limited entanglement by decomposing the state vector into a chain of tensors. Scales well with qubit count for low-entanglement circuits.
@@ -77,22 +58,6 @@ Tensor network simulation using the Matrix Product State (MPS) representation. M
 - **When to use**: Large circuits with limited entanglement, memory-constrained environments
 
 By default MPS does not truncate the bond dimension, so results are exact. With truncation enabled (`matrix_product_state_max_bond_dimension` or `matrix_product_state_truncation_threshold`), it becomes an approximation that trades accuracy for memory. For highly entangled circuits (common in VQE), the bond dimension may need to grow exponentially without truncation, reducing the advantage over statevector.
-
-### `unitary`
-
-Computes and stores the full $2^n \times 2^n$ unitary matrix of the circuit. Primarily useful for verifying circuit implementations and studying small circuits.
-
-- **GPU Support**: Yes
-- **Memory**: $4^n \times 16$ bytes
-- **When to use**: Small circuits only (up to ~10 qubits), circuit verification
-
-### `superop`
-
-Superoperator simulation that represents quantum channels as matrices acting on vectorized density matrices. Useful for studying noise channels and quantum error processes.
-
-- **GPU Support**: No
-- **Memory**: $2^{4n} \times 16$ bytes - maps density matrices to density matrices
-- **When to use**: Noise channel analysis, quantum process tomography
 
 ### `tensor_network`
 
@@ -108,7 +73,6 @@ GPU-accelerated tensor network simulation using NVIDIA cuTensorNet from the cuQu
 |--------|-------------|--------------|
 | `statevector` | CUDA Thrust / cuStateVec | CUDA-capable GPU, qiskit-aer with GPU support |
 | `density_matrix` | CUDA Thrust | CUDA-capable GPU, qiskit-aer with GPU support |
-| `unitary` | CUDA Thrust | CUDA-capable GPU, qiskit-aer with GPU support |
 | `tensor_network` | cuTensorNet | CUDA-capable GPU, cuQuantum libraries |
 | `automatic` | Depends | May select a GPU-compatible method |
 

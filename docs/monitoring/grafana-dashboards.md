@@ -85,7 +85,7 @@ Monitors the scientific quality of simulation results.
 
 | Panel | Type | PromQL |
 |-------|------|--------|
-| Accuracy Score | Bar Gauge | `qp_vqe_accuracy_score{...}` |
+| HF Deviation Score | Bar Gauge | `qp_vqe_hf_deviation_score{...}` |
 | Reference Energy | Time Series | `qp_vqe_reference_energy{...}` |
 | Ground State Energy | Time Series | `qp_vqe_minimum_energy{...}` |
 | Energy Error (mHa) | Time Series | `qp_vqe_energy_error_millihartree{...}` |

@@ -27,12 +27,6 @@ class VQEKafkaProducer:
     """
 
     def __init__(self, config: ProducerConfig):
-        """Initialize the Kafka producer with given configuration.
-
-        Args:
-            config: Configuration for the Kafka producer.
-        """
-
         self.logger = get_logger(self.__class__.__name__)
 
         self.config = config
@@ -45,8 +39,6 @@ class VQEKafkaProducer:
         self._initialize_producer()
 
     def _initialize_producer(self) -> None:
-        """Initialize the Kafka producer with error handling."""
-
         try:
             security_config = self.security.build_security_config()
             self.producer = KafkaProducer(
@@ -64,7 +56,7 @@ class VQEKafkaProducer:
             raise KafkaProducerError(f'Failed to initialize producer: {e!s}') from e
 
     def _serialize_result(self, result: VQEDecoratedResult) -> bytes:
-        """Serialize the result.
+        """Serialize result to Avro binary format for Kafka transmission.
 
         Args:
             result: VQEDecoratedResult to be serialized.
@@ -83,7 +75,7 @@ class VQEKafkaProducer:
             raise KafkaProducerError(f'Serialization failed: {e!s}') from e
 
     def _send_with_retry(self, avro_bytes: bytes) -> bool:
-        """Send message with retry logic.
+        """Send with retries, sleeping between attempts.
 
         Args:
             avro_bytes: Avro bytes to send.
@@ -110,7 +102,8 @@ class VQEKafkaProducer:
         ) from last_error
 
     def _attempt_send(self, avro_bytes: bytes, attempt: int) -> KafkaError | None:
-        """Attempt a single send, returning the error if one occurred."""
+        if self.producer is None:
+            raise KafkaProducerError('Producer not initialized')
         try:
             record_metadata = self.producer.send(
                 self.config.topic,
@@ -133,7 +126,7 @@ class VQEKafkaProducer:
             raise KafkaProducerError(f'Send failed: {e!s}') from e
 
     def _send_and_flush(self, result):
-        """Serialize and sent the result and after that - flush.
+        """Serialize, send with retry, then flush the producer.
 
         Args:
             result: VQEDecoratedResult to be sent.
@@ -168,7 +161,6 @@ class VQEKafkaProducer:
             raise KafkaProducerError(f'Unexpected error during send: {e!s}') from e
 
     def close(self) -> None:
-        """Close the producer safely."""
         if self.producer:
             try:
                 self.producer.close()

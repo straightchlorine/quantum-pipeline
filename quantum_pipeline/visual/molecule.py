@@ -42,7 +42,7 @@ class MoleculePlotter:
         Initialize the plotter with figure size and legend marker size.
         """
         self.fig = plt.figure(figsize=figsize)
-        # subplot is dynamicaly typed, hinting to avoid errors later
+        # add_subplot is typed as returning a plain Axes; annotate to reach the 3D API.
         self.ax: Axes3D = self.fig.add_subplot(111, projection='3d')
         self.legend_marker_size = legend_marker_size
 
@@ -120,19 +120,16 @@ class MoleculePlotter:
         symbols = molecule.symbols
         masses = molecule.masses
 
-        # validate data
         self._validate_molecule(coords, symbols, masses)
 
-        # setup basic plot parameters
         self._setup_axes()
 
-        # calculate atom sizes with improved scaling
         sizes = self._calculate_atom_sizes(masses)
 
-        # plot unique atoms
         legend_elements = []
         processed_symbols = set()
 
+        # plot atoms, according to their sizes
         for _, symbol in enumerate(symbols):
             if symbol in processed_symbols:
                 continue
@@ -140,7 +137,6 @@ class MoleculePlotter:
             symbol_coords = coords[indices]
             symbol_color = self._get_atom_color(symbol)
 
-            # plot atoms
             self.ax.scatter(
                 symbol_coords[:, 0],
                 symbol_coords[:, 1],
@@ -167,7 +163,6 @@ class MoleculePlotter:
             )
             processed_symbols.add(symbol)
 
-            # Add atom labels
             for idx in indices:
                 text_color = self.get_text_color(symbol_color)
                 text = self.ax.text(

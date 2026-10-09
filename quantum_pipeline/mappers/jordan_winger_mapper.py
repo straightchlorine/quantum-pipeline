@@ -1,9 +1,8 @@
 """
 jordan_wigner_mapper.py
 
-This module defines a class for mapping fermionic operators to qubit operators
-using the Jordan-Wigner transformation. This transformation is used to represent
-fermionic systems on quantum computers.
+Module defines a class for mapping fermionic operators to qubit operators
+using the Jordan-Wigner transformation.
 """
 
 from qiskit.quantum_info import SparsePauliOp
@@ -13,10 +12,6 @@ from quantum_pipeline.mappers.mapper import Mapper
 
 
 class JordanWignerMapper(Mapper):
-    """
-    A wrapper for the Jordan-Wigner mapper provided by Qiskit Nature.
-    """
-
     def map(self, operator):
         """
         Maps a fermionic operator to a qubit operator.
@@ -33,11 +28,11 @@ class JordanWignerMapper(Mapper):
         if operator is None:
             raise ValueError('The input operator must not be None.')
 
-        # An empty operator has no orbitals to map.
+        # empty operator has no orbitals to map.
         if operator.register_length == 0:
             return SparsePauliOp([''], coeffs=[0j])
 
-        # Perform the Jordan-Wigner mapping
+        # run the mapper
         return JordanWignerMapperQiskit().map(operator)
 
     def get_qiskit_mapper(self):

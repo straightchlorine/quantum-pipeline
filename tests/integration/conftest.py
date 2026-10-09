@@ -36,7 +36,6 @@ def kafka_container(docker_network):
     """Start a single Kafka container shared across the entire test session."""
     kafka = KafkaContainer()
     kafka.start()
-    # Connect Kafka to the shared network for inter-container communication
     docker_network.connect(kafka.get_wrapped_container().id)
     yield kafka
     kafka.stop()
@@ -49,7 +48,6 @@ def schema_registry_container(kafka_container, docker_network):
     The Schema Registry connects to Kafka's internal BROKER listener (port 9092)
     via the shared Docker network, not the host-mapped PLAINTEXT listener.
     """
-    # Get Kafka's internal IP address on the shared network
     kafka_wrapper = kafka_container.get_wrapped_container()
     kafka_wrapper.reload()  # refresh attrs after network connect
     kafka_internal_host = kafka_wrapper.attrs['NetworkSettings']['Networks'][
@@ -69,7 +67,6 @@ def schema_registry_container(kafka_container, docker_network):
     sr.with_env('SCHEMA_REGISTRY_LISTENERS', 'http://0.0.0.0:8081')
     sr.with_exposed_ports(8081)
     sr.start()
-    # Connect Schema Registry to the same network
     docker_network.connect(sr.get_wrapped_container().id)
     wait_for_logs(sr, 'Server started', timeout=60)
     yield sr

@@ -2,7 +2,7 @@ import io
 import json
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 import avro.schema
 import numpy as np
@@ -24,8 +24,6 @@ T = TypeVar('T')
 
 
 class AvroInterfaceBase(ABC, Generic[T]):
-    """Base class for Avro serializers."""
-
     SCHEMA_NAME: str = ''
 
     def __init__(self, registry):
@@ -35,26 +33,23 @@ class AvroInterfaceBase(ABC, Generic[T]):
     @property
     @abstractmethod
     def schema(self) -> dict[str, Any]:
-        """Return Avro schema for the type."""
+        pass
 
     @abstractmethod
     def serialize(self, obj: T) -> dict[str, Any]:
-        """Convert object to Avro-compatible dictionary."""
+        pass
 
     @abstractmethod
     def deserialize(self, data: dict[str, Any]) -> T:
-        """Convert Avro-compatible dictionary to object."""
+        pass
 
     def _is_numpy_int(self, obj: Any) -> bool:
-        """Check if object is a numpy integer type."""
-        return isinstance(obj, int32 | int64)  # type: ignore
+        return isinstance(obj, int32 | int64)
 
     def _is_numpy_float(self, obj: Any) -> bool:
-        """Check if object is a numpy float type."""
-        return isinstance(obj, float32 | float64)  # type: ignore
+        return isinstance(obj, float32 | float64)
 
     def _convert_to_primitives(self, obj: Any) -> Any:
-        """Convert numpy types to Python native types."""
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         if self._is_numpy_int(obj):
@@ -68,62 +63,50 @@ class AvroInterfaceBase(ABC, Generic[T]):
         return obj
 
     def _convert_to_numpy(self, obj: Any) -> Any:
-        """Convert Python native types to numpy types."""
         if isinstance(obj, list):
             return np.array([self._convert_to_primitives(item) for item in obj])
         if hasattr(obj, 'tolist'):
             return obj.tolist()
         return obj
 
-    def _register_schema(self, schema_name: str, schema: dict[str, Any]) -> None:
-        """Register schema using register_schema if available, falling back to save_schema."""
-        register_fn = getattr(self.registry, 'register_schema', None) or getattr(
-            self.registry, 'save_schema', None
-        )
-        if register_fn is not None:
-            register_fn(schema_name, schema)
-
     def to_avro_bytes(self, obj: T) -> bytes:
-        """Convert object to Avro binary format."""
+        """Convert schema to avro bytes."""
         schema_name = self.SCHEMA_NAME
-        self.logger.debug(f'Serializing object with schema {schema_name}.')
-        schema = self.schema
 
-        parsed_schema = ''
-        if isinstance(schema, dict):
-            parsed_schema = avro.schema.parse(json.dumps(schema))
-            self.logger.debug(f'Parsed dict schema: {parsed_schema}')
-        elif isinstance(schema, str):
-            parsed_schema = avro.schema.parse(schema)
-            self.logger.debug(f'Parsed string schema: {parsed_schema}')
+        self.logger.debug(f'Serializing object with schema {schema_name}.')
+        parsed_schema = self.registry.serialize_schema(self.schema)
 
         writer = DatumWriter(parsed_schema)
         bytes_writer = io.BytesIO()
 
-        if self.registry.id_cache.get(schema_name, False):
+        cached = self.registry.cache.get(schema_name)
+        if cached is not None and cached.id is not None:
             self.logger.debug(
                 f'Writing Confluent Schema Registry header for schema {schema_name}.'
             )
+            # writing the magic bytes required for the schema registry
+            # it's the id of the schema converted to bytes
             bytes_writer.write(bytes([0]))
-            bytes_writer.write(self.registry.id_cache[schema_name].to_bytes(4, byteorder='big'))
+            bytes_writer.write(cached.id.to_bytes(4, byteorder='big'))
         else:
-            self.logger.warning(
-                'Unable to find id of the schema in the id cache. '
-                'Serializing without Confluent Schema Registry header.'
+            raise KeyError(
+                f'No Confluent schema "{schema_name}" cached: the Schema Registry at '
+                f'{getattr(self.registry, "url", "<unknown>")} is unreachable '
+                'or rejected the schema.'
             )
 
+        # enconding the final bytes
         encoder = BinaryEncoder(bytes_writer)
         writer.write(self.serialize(obj), encoder)
         return bytes_writer.getvalue()
 
     def from_avro_bytes(self, avro_bytes: bytes) -> T:
-        """Convert Avro binary format to object."""
         bytes_reader = io.BytesIO(avro_bytes)
 
         # read the magic byte
         magic_byte = bytes_reader.read(1)
         if magic_byte != bytes([0]):
-            raise ValueError(f'Invalid magic byte: {magic_byte}. Expected: {bytes([0])}')
+            raise ValueError(f'Invalid magic byte: {magic_byte!r}. Expected: {bytes([0])!r}')
 
         # read the schema id
         bytes_reader.read(4)
@@ -135,7 +118,7 @@ class AvroInterfaceBase(ABC, Generic[T]):
         )
         reader = DatumReader(parsed_schema)
         decoder = BinaryDecoder(bytes_reader)
-        return self.deserialize(reader.read(decoder))
+        return self.deserialize(cast('dict[str, Any]', reader.read(decoder)))
 
 
 class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
@@ -156,7 +139,7 @@ class VQEProcessInterface(AvroInterfaceBase[VQEProcess]):
                 {'name': 'cumulative_min_energy', 'type': ['null', 'double'], 'default': None},
             ],
         }
-        self._register_schema(self.SCHEMA_NAME, deepcopy(schema))
+        self.registry.register_schema(self.SCHEMA_NAME, deepcopy(schema))
         return schema
 
     def serialize(self, obj: VQEProcess) -> dict[str, Any]:
@@ -240,7 +223,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
                 {'name': 'exact_estimator', 'type': 'boolean', 'default': False},
             ],
         }
-        self._register_schema(self.SCHEMA_NAME, deepcopy(schema))
+        self.registry.register_schema(self.SCHEMA_NAME, deepcopy(schema))
         return schema
 
     def _serialize_hamiltonian(self, data: ndarray):
@@ -270,7 +253,7 @@ class VQEInitialDataInterface(AvroInterfaceBase[VQEInitialData]):
                 )
                 for term in data
             ],
-            dtype=object,  # maintain the orignal dtype
+            dtype=object,  # otherwise numpy coerces the (label, complex) tuples to strings
         )
 
     def serialize(self, obj: VQEInitialData) -> dict[str, Any]:
@@ -339,7 +322,7 @@ class VQEResultInterface(AvroInterfaceBase[VQEResult]):
                 {'name': 'nit', 'type': ['null', 'int'], 'default': None},
             ],
         }
-        self._register_schema(self.SCHEMA_NAME, deepcopy(schema))
+        self.registry.register_schema(self.SCHEMA_NAME, deepcopy(schema))
         return schema
 
     def serialize(self, obj: VQEResult) -> dict[str, Any]:
@@ -412,7 +395,7 @@ class MoleculeInfoInterface(AvroInterfaceBase[MoleculeInfo]):
                 }
             ],
         }
-        self._register_schema(self.SCHEMA_NAME, deepcopy(schema))
+        self.registry.register_schema(self.SCHEMA_NAME, deepcopy(schema))
         return schema
 
     def serialize(self, obj: MoleculeInfo) -> dict[str, Any]:
@@ -430,12 +413,11 @@ class MoleculeInfoInterface(AvroInterfaceBase[MoleculeInfo]):
     def deserialize(self, data: dict[str, Any]) -> MoleculeInfo:
         mol = data['molecule_data']
 
-        # coordinates to nested list if they're flattened
+        # nested; needs to be flattened
         coords = mol['coords']
         if not isinstance(coords[0], list):
             coords = np.array(coords).reshape(-1, 3).tolist()
 
-        # handle masses which might be None
         masses = mol.get('masses')
         if masses is not None:
             masses = self._convert_to_numpy(masses)
@@ -476,7 +458,7 @@ class VQEDecoratedResultInterface(AvroInterfaceBase[VQEDecoratedResult]):
                 {'name': 'performance_end', 'type': ['null', 'string'], 'default': None},
             ],
         }
-        self._register_schema(self.SCHEMA_NAME, deepcopy(schema))
+        self.registry.register_schema(self.SCHEMA_NAME, deepcopy(schema))
         return schema
 
     def serialize(self, obj: VQEDecoratedResult) -> dict[str, Any]:

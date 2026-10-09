@@ -14,7 +14,7 @@ Avro was treated as the end-to-end data format. In the current architecture:
   Redpanda Connect (default) decodes Avro via `schema_registry_decode` and
   writes JSON. Kafka Connect with `AvroConverter` writes Avro directly.
 - **Spark reads**: both formats.
-  [`read_experiments_by_topic()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py#L75)
+  [`read_experiments_by_topic()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py)
   tries Avro first, then falls back to JSON, so it works regardless of
   which connector produced the files.
 
@@ -25,8 +25,12 @@ or swap in the Kafka Connect alternative, which uses the Confluent S3 sink with
 `AvroConverter`. That path is an override compose file layered on top of the base
 stack; for the exact two-file invocation, see
 [Docker Compose - Confluent Kafka Connect](../deployment/docker-compose.md#alternative-confluent-kafka-connect).
-The Spark processing scripts handle both formats, so no downstream changes are
-needed.
+The Spark processing scripts read both formats, and a record gets the same
+`experiment_id` from either one: the id hashes an explicit, typed list of
+fields, not the inferred schema. The column types can still differ. JSON schema
+inference gives `bigint` where Avro has `int`, so an append into an existing
+table that was created from the other source can fail on the column type. Keep
+one connector per warehouse.
 
 For general Avro concepts, see the [Apache Avro specification](https://avro.apache.org/docs/current/specification/).
 
@@ -130,11 +134,12 @@ graph LR
 | `optimizer` | string | Optimizer name (e.g., `L-BFGS-B`) |
 | `ansatz` | string | QASM3 representation of ansatz circuit |
 | `noise_backend` | string | Noise model backend name; the sentinel string `undef` when no noise model is used |
-| `default_shots` | int | Number of measurement shots |
+| `default_shots` | int (nullable) | Number of measurement shots; NULL when the exact estimator is used |
 | `ansatz_reps` | int | Ansatz repetition count |
 | `init_strategy` | string (nullable) | `random` or `hf` |
 | `seed` | int (nullable) | Random seed if set |
 | `ansatz_name` | string (nullable) | Ansatz class name |
+| `exact_estimator` | boolean | Whether expectation values were exact (no shot noise); default `false` |
 
 ### VQEProcess (per-iteration)
 
@@ -206,7 +211,7 @@ on `AvroInterfaceBase`:
 
 1. Parses the schema dict into an Avro schema object
 2. Writes the Confluent header (magic byte + 4-byte schema ID from the
-   registry's `id_cache`)
+   registry's cached `SchemaRecord.id`)
 3. Serializes the object using `DatumWriter` and `BinaryEncoder`
 
 **Consumer side** - depends on the connector:

@@ -9,8 +9,6 @@ from quantum_pipeline.configs.defaults import DEFAULTS
 
 @dataclass
 class BackendConfig:
-    """Dataclass for storing backend filter."""
-
     local: bool | None
     gpu: bool | None
     optimization_level: int | None
@@ -21,12 +19,10 @@ class BackendConfig:
     noise: str | None
 
     def to_dict(self):
-        """Convert the dataclass to a dictionary."""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> 'BackendConfig':
-        """Create a BackendConfig instance from a dictionary."""
         return cls(
             local=data.get('local'),
             optimization_level=data.get('optimization_level'),
@@ -40,7 +36,6 @@ class BackendConfig:
 
     @classmethod
     def default_backend_config(cls) -> 'BackendConfig':
-        """Return the default backend configuration."""
         return cls(
             local=DEFAULTS['backend']['local'],
             optimization_level=DEFAULTS['backend']['optimization_level'],

@@ -125,11 +125,12 @@ class ReportContentBuilder:
 
     def add_convergence_plot(self, iterations: list[VQEProcess], symbols, max_points=100):
         """
-        Add a molecule visualization to the report.
+        Add energy convergence plot to the report.
 
         Args:
-            molecule (MoleculeInfo): Molecule to visualize.
-            plotter (MoleculePlotter, optional): Custom molecule plotter.
+            iterations: List of VQEProcess objects.
+            symbols: Identifier for plot naming.
+            max_points: Maximum number of points to display.
         """
         plot_path = EnergyPlotter(iterations, symbols, max_points).plot_convergence()
         self.append_plot_path(plot_path, self.report_config.convergence_size)

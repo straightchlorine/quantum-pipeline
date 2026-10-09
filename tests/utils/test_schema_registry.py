@@ -4,6 +4,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from avro.errors import SchemaParseException
 
 from quantum_pipeline.utils.schema_registry import SchemaRegistry
 
@@ -40,255 +41,199 @@ class TestSchemaRegistryInitialization:
     def test_registry_initialization(self, schema_registry):
         """Test that SchemaRegistry initializes correctly."""
         assert schema_registry is not None
-        assert schema_registry.schema_cache == {}
-        assert schema_registry.id_cache == {}
-        assert schema_registry.registry_schema_existence == {}
-        assert schema_registry.schema_registry_url is not None
+        assert schema_registry.cache == {}
+        assert schema_registry.url is not None
 
     def test_logger_creation(self, schema_registry):
         """Test that logger is created."""
         assert schema_registry.logger is not None
 
 
-class TestSchemaNormalization:
-    """Test schema normalization functionality."""
+class TestSerializeSchema:
+    """Test parsing schemas into Avro schema objects."""
 
-    def test_normalize_dict_schema(self, schema_registry, sample_schema):
-        """Test normalizing dictionary schema."""
-        normalized = schema_registry._normalize_schema(sample_schema)
-        assert isinstance(normalized, dict)
-        assert 'type' in normalized
-        assert normalized['type'] == 'record'
+    def test_serialize_dict_schema(self, schema_registry, sample_schema):
+        """Test parsing a dict schema."""
+        import avro.schema
 
-    def test_normalize_json_string_schema(self, schema_registry, sample_schema_json):
-        """Test normalizing JSON string schema."""
-        normalized = schema_registry._normalize_schema(sample_schema_json)
-        assert isinstance(normalized, dict)
-        assert 'type' in normalized
+        parsed = schema_registry.serialize_schema(sample_schema)
+        assert isinstance(parsed, avro.schema.Schema)
 
-    def test_normalize_preserves_content(self, schema_registry, sample_schema):
-        """Test that normalization preserves schema content."""
-        normalized = schema_registry._normalize_schema(sample_schema)
-        assert normalized['name'] == sample_schema['name']
-        assert len(normalized['fields']) == len(sample_schema['fields'])
+    def test_serialize_json_string_schema(self, schema_registry, sample_schema_json):
+        """Test parsing a JSON string schema."""
+        import avro.schema
 
-    def test_normalize_invalid_schema_raises_error(self, schema_registry):
-        """Test that invalid schema raises ValueError."""
-        with pytest.raises(ValueError):
-            schema_registry._normalize_schema(123)
+        parsed = schema_registry.serialize_schema(sample_schema_json)
+        assert isinstance(parsed, avro.schema.Schema)
 
-    def test_normalize_invalid_json_raises_error(self, schema_registry):
-        """Test that invalid JSON string raises error."""
-        with pytest.raises(json.JSONDecodeError):
-            schema_registry._normalize_schema('not valid json {')
+    def test_serialize_invalid_type_raises_error(self, schema_registry):
+        """Test that an unsupported schema type raises TypeError."""
+        with pytest.raises(TypeError):
+            schema_registry.serialize_schema(123)  # type: ignore[arg-type]
 
-    def test_normalize_empty_dict(self, schema_registry):
-        """Test normalizing empty dictionary."""
-        normalized = schema_registry._normalize_schema({})
-        assert normalized == {}
-
-    def test_normalize_complex_schema(self, schema_registry):
-        """Test normalizing complex schema with nested fields."""
-        complex_schema = {
-            'type': 'record',
-            'name': 'Complex',
-            'fields': [
-                {'name': 'id', 'type': 'int'},
-                {
-                    'name': 'nested',
-                    'type': {
-                        'type': 'record',
-                        'name': 'Nested',
-                        'fields': [
-                            {'name': 'field1', 'type': 'string'},
-                        ],
-                    },
-                },
-            ],
-        }
-        normalized = schema_registry._normalize_schema(complex_schema)
-        assert 'nested' in normalized['fields'][1]['name']
+    def test_serialize_invalid_json_raises_error(self, schema_registry):
+        """Test that an invalid JSON string raises an error."""
+        with pytest.raises(SchemaParseException):
+            schema_registry.serialize_schema('not valid json {')
 
 
-class TestRegistryAvailability:
-    """Test schema registry availability checking."""
+class TestUpstreamAvailability:
+    """Test schema registry upstream availability checking."""
 
-    def test_registry_available(self, schema_registry):
-        """Test when registry is available."""
+    def test_upstream_available(self, schema_registry):
+        """Test when the registry is available."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_get.return_value = mock_response
 
-            assert schema_registry.is_schema_registry_available() is True
+            assert schema_registry.is_upstream_up() is True
 
-    def test_registry_unavailable(self, schema_registry):
-        """Test when registry is unavailable."""
+    def test_upstream_unavailable(self, schema_registry):
+        """Test when the registry is unavailable."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
             mock_response = MagicMock()
             mock_response.status_code = 500
             mock_get.return_value = mock_response
 
-            assert schema_registry.is_schema_registry_available() is False
+            assert schema_registry.is_upstream_up() is False
 
-    def test_registry_connection_error(self, schema_registry):
+    def test_upstream_connection_error(self, schema_registry):
         """Test handling of connection errors."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
             import requests
 
             mock_get.side_effect = requests.RequestException('Connection refused')
 
-            assert schema_registry.is_schema_registry_available() is False
+            assert schema_registry.is_upstream_up() is False
 
-    def test_registry_timeout(self, schema_registry):
+    def test_upstream_timeout(self, schema_registry):
         """Test handling of timeout."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
             import requests
 
             mock_get.side_effect = requests.Timeout('Request timeout')
 
-            assert schema_registry.is_schema_registry_available() is False
+            assert schema_registry.is_upstream_up() is False
 
-    def test_registry_check_with_correct_url(self, schema_registry):
-        """Test that registry availability check uses correct URL."""
+    def test_upstream_check_uses_correct_url(self, schema_registry):
+        """Test that the availability check hits the /subjects endpoint."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_get.return_value = mock_response
 
-            schema_registry.is_schema_registry_available()
+            schema_registry.is_upstream_up()
             mock_get.assert_called_once()
             call_args = mock_get.call_args
             assert '/subjects' in call_args[0][0]
 
 
-class TestSchemaExistenceCheck:
-    """Test checking if schema exists in registry."""
+class TestGetSchema:
+    """Test fetching schemas through the cache/registry."""
 
-    def test_schema_exists_in_registry(self, schema_registry):
-        """Test when schema exists in registry."""
+    def test_get_schema_from_cache(self, schema_registry, sample_schema_json):
+        """Test that a cached schema is returned without hitting the registry."""
+        from quantum_pipeline.utils.schema_registry import SchemaRecord
+
+        schema_registry.cache['test-schema'] = SchemaRecord(id=1, schema=sample_schema_json)
+
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            # Mock registry availability
-            availability_response = MagicMock()
-            availability_response.status_code = 200
+            result = schema_registry.get_schema('test-schema')
+            assert result == sample_schema_json
+            mock_get.assert_not_called()
 
-            # Mock schema existence check
-            schema_response = MagicMock()
-            schema_response.status_code = 200
-
-            mock_get.side_effect = [availability_response, schema_response]
-
-            assert schema_registry.is_schema_in_registry('test-schema') is True
-
-    def test_schema_not_exists_in_registry(self, schema_registry):
-        """Test when schema doesn't exist in registry."""
+    def test_get_schema_from_upstream(self, schema_registry, sample_schema, sample_schema_json):
+        """Test fetching an uncached schema from the registry."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            # Mock registry availability
-            availability_response = MagicMock()
-            availability_response.status_code = 200
+            availability_response = MagicMock(status_code=200)
+            fetch_response = MagicMock(status_code=200)
+            fetch_response.json.return_value = {'id': 7, 'schema': sample_schema_json}
+            mock_get.side_effect = [availability_response, fetch_response]
 
-            # Mock schema not found
-            schema_response = MagicMock()
-            schema_response.status_code = 404
+            result = schema_registry.get_schema('test-schema')
+            assert json.loads(result) == sample_schema
+            assert schema_registry.cache['test-schema'].id == 7
 
-            mock_get.side_effect = [availability_response, schema_response]
-
-            assert schema_registry.is_schema_in_registry('nonexistent-schema') is False
-
-    def test_schema_existence_caching(self, schema_registry):
-        """Test that schema existence is cached."""
+    def test_get_schema_registry_down_raises(self, schema_registry):
+        """Test that an unreachable registry raises ConnectionError."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            # Mock responses
-            availability_response = MagicMock()
-            availability_response.status_code = 200
-            schema_response = MagicMock()
-            schema_response.status_code = 200
+            mock_get.return_value = MagicMock(status_code=500)
 
-            mock_get.side_effect = [availability_response, schema_response]
+            with pytest.raises(ConnectionError):
+                schema_registry.get_schema('test-schema')
 
-            # First call
-            result1 = schema_registry.is_schema_in_registry('test-schema')
-            # Second call (should use cache)
-            result2 = schema_registry.is_schema_in_registry('test-schema')
-
-            assert result1 is True
-            assert result2 is True
-            # Should only call requests.get twice (availability + first existence check)
-            assert mock_get.call_count == 2
-
-    def test_registry_unavailable_cached(self, schema_registry):
-        """Test that unavailable registry status is cached."""
+    def test_get_schema_not_found_raises(self, schema_registry):
+        """Test that a schema missing from cache and registry raises KeyError."""
         with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            # Mock unavailable registry
-            mock_response = MagicMock()
-            mock_response.status_code = 500
-            mock_get.return_value = mock_response
+            availability_response = MagicMock(status_code=200)
+            fetch_response = MagicMock(status_code=404)
+            mock_get.side_effect = [availability_response, fetch_response]
 
-            # First call
-            result1 = schema_registry.is_schema_in_registry('test-schema')
-            # Second call
-            result2 = schema_registry.is_schema_in_registry('test-schema')
-
-            assert result1 is False
-            assert result2 is False
-
-    def test_different_schemas_different_cache_entries(self, schema_registry):
-        """Test that different schemas have separate cache entries."""
-        with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            # Mock responses
-            availability_response = MagicMock()
-            availability_response.status_code = 200
-
-            schema1_response = MagicMock()
-            schema1_response.status_code = 200
-
-            schema2_response = MagicMock()
-            schema2_response.status_code = 404
-
-            mock_get.side_effect = [
-                availability_response,
-                schema1_response,
-                availability_response,
-                schema2_response,
-            ]
-
-            result1 = schema_registry.is_schema_in_registry('schema-a')
-            result2 = schema_registry.is_schema_in_registry('schema-b')
-
-            assert result1 is True
-            assert result2 is False
-            assert len(schema_registry.registry_schema_existence) == 2
+            with pytest.raises(KeyError):
+                schema_registry.get_schema('missing-schema')
 
 
-class TestErrorHandling:
-    """Test error handling in schema registry."""
+class TestRegisterSchema:
+    """Test validating, caching and publishing schemas."""
 
-    def test_json_decode_error_handling(self, schema_registry):
-        """Test handling of JSON decode errors."""
-        with pytest.raises(json.JSONDecodeError):
-            schema_registry._normalize_schema('{invalid json}')
+    def test_register_schema_caches_it(self, schema_registry, sample_schema):
+        """Test that registering a schema caches it, keyed by name."""
+        with patch.object(schema_registry, 'publish_schema') as mock_publish:
+            schema_registry.register_schema('test-schema', sample_schema)
 
-    def test_request_exception_handling(self, schema_registry):
-        """Test handling of request exceptions."""
-        with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-            import requests
+            assert 'test-schema' in schema_registry.cache
+            assert schema_registry.cache['test-schema'].id is None
+            mock_publish.assert_called_once_with('test-schema')
 
-            mock_get.side_effect = requests.RequestException('Network error')
+    def test_register_invalid_schema_raises(self, schema_registry):
+        """Test that an invalid Avro schema raises ValueError."""
+        with pytest.raises(ValueError):
+            schema_registry.register_schema('bad-schema', {'type': 'not-a-real-type'})
 
-            # Should not raise, should return False
-            result = schema_registry.is_schema_registry_available()
-            assert result is False
 
-    def test_http_error_status_codes(self, schema_registry):
-        """Test handling of various HTTP error status codes."""
-        for status_code in [400, 401, 403, 404, 500, 502, 503]:
-            with patch('quantum_pipeline.utils.schema_registry.requests.get') as mock_get:
-                availability_response = MagicMock()
-                availability_response.status_code = 200
-                error_response = MagicMock()
-                error_response.status_code = status_code
+class TestPublishSchema:
+    """Test publishing cached schemas to the registry."""
 
-                mock_get.side_effect = [availability_response, error_response]
+    def test_publish_schema_not_cached_returns_false(self, schema_registry):
+        """Test that publishing an uncached schema fails cleanly."""
+        assert schema_registry.publish_schema('missing-schema') is False
 
-                result = schema_registry.is_schema_in_registry('test-schema')
-                assert result is (status_code == 200)
+    def test_publish_schema_registry_down_returns_false(self, schema_registry, sample_schema):
+        """Test that publishing while the registry is down fails cleanly."""
+        from quantum_pipeline.utils.schema_registry import SchemaRecord
+
+        schema_registry.cache['test-schema'] = SchemaRecord(id=None, schema=json.dumps(sample_schema))
+
+        with patch.object(schema_registry, 'is_upstream_up', return_value=False):
+            assert schema_registry.publish_schema('test-schema') is False
+
+    def test_publish_schema_success(self, schema_registry, sample_schema):
+        """Test a successful publish sets the schema id from the response."""
+        from quantum_pipeline.utils.schema_registry import SchemaRecord
+
+        schema_registry.cache['test-schema'] = SchemaRecord(id=None, schema=json.dumps(sample_schema))
+
+        with (
+            patch.object(schema_registry, 'is_upstream_up', return_value=True),
+            patch('quantum_pipeline.utils.schema_registry.requests.post') as mock_post,
+        ):
+            mock_post.return_value = MagicMock(status_code=200)
+            mock_post.return_value.json.return_value = {'id': 42}
+
+            assert schema_registry.publish_schema('test-schema') is True
+            assert schema_registry.cache['test-schema'].id == 42
+
+    def test_publish_schema_rejected_returns_false(self, schema_registry, sample_schema):
+        """Test that a non-2xx response from the registry fails cleanly."""
+        from quantum_pipeline.utils.schema_registry import SchemaRecord
+
+        schema_registry.cache['test-schema'] = SchemaRecord(id=None, schema=json.dumps(sample_schema))
+
+        with (
+            patch.object(schema_registry, 'is_upstream_up', return_value=True),
+            patch('quantum_pipeline.utils.schema_registry.requests.post') as mock_post,
+        ):
+            mock_post.return_value = MagicMock(status_code=422, text='invalid schema')
+
+            assert schema_registry.publish_schema('test-schema') is False

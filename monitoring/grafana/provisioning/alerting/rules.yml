@@ -93,15 +93,17 @@ groups:
     folder: Quantum Pipeline
     interval: 1m
     rules:
+      # uid kept as-is on purpose: renaming it would make Grafana treat this as a new
+      # alert and drop its history/silences. Only the metric and title changed.
       - uid: qp-vqe-accuracy-degraded
-        title: VQE Accuracy Degraded
+        title: VQE HF-Deviation Degraded
         condition: C
         data:
           - refId: A
             relativeTimeRange: {from: 600, to: 0}
             datasourceUid: <PROMETHEUS_UID>
             model:
-              expr: qp_vqe_accuracy_score
+              expr: qp_vqe_hf_deviation_score
               intervalMs: 15000
               maxDataPoints: 43200
           - refId: C

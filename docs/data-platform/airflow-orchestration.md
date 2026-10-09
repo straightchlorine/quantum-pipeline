@@ -100,6 +100,10 @@ centralized S3 paths, Iceberg catalog names, ML parameters, and alert email.
 | `ML_TRAJECTORY_TAIL` | `10` | Final iterations for trajectory features |
 | `AIRFLOW_ALERT_EMAIL` | `quantum_alerts@example.com` | Email for DAG notifications |
 
+To change the ML window sizes, set `ML_ROLLING_WINDOW`, `ML_TRAJECTORY_HEAD` or
+`ML_TRAJECTORY_TAIL` on the Airflow worker container. The compose file does not
+set them, so the defaults apply.
+
 ### dag_defaults.py
 
 [Source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/common/dag_defaults.py) -
@@ -136,7 +140,9 @@ graph LR
 ## DAG 1: quantum_feature_processing
 
 Processes raw VQE data from Garage into 9 Iceberg feature tables via
-`SparkSubmitOperator`.
+`SparkSubmitOperator`. Each run re-reads all raw files and appends only rows
+that are not yet in the tables (see
+[Spark Processing - Incremental Processing](spark-processing.md#incremental-processing)).
 
 | Parameter | Value |
 |-----------|-------|
@@ -149,9 +155,12 @@ Processes raw VQE data from Garage into 9 Iceberg feature tables via
 
 ## DAG 2: quantum_ml_feature_processing
 
-Joins the 9 normalized Iceberg tables into two ML-ready feature tables:
-`ml_iteration_features` (per-iteration) and `ml_run_summary` (per-run
-aggregates). Waits for DAG 1 via `ExternalTaskSensor`.
+Joins 5 of the normalized Iceberg tables (`vqe_iterations`, `vqe_results`,
+`molecules`, `performance_metrics`, `ansatz_info`) into two ML-ready feature
+tables: `ml_iteration_features` (per-iteration) and `ml_run_summary` (per-run
+aggregates). Waits for DAG 1 via `ExternalTaskSensor`. The tables are
+append-only; see
+[Spark Processing - Write semantics](spark-processing.md#write-semantics).
 
 ```mermaid
 graph LR

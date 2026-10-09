@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 from qiskit.quantum_info import SparsePauliOp
+from qiskit_aer import AerSimulator
 from qiskit_aer.backends.aer_simulator import AerBackend
 
 from quantum_pipeline.circuits import HFData
@@ -14,7 +15,6 @@ from quantum_pipeline.structures.vqe_observation import VQEProcess, VQEResult
 
 @pytest.fixture
 def mock_backend_config():
-    """Create a mock BackendConfig for testing."""
     return BackendConfig(
         local=True,
         gpu=False,
@@ -29,13 +29,11 @@ def mock_backend_config():
 
 @pytest.fixture
 def sample_hamiltonian():
-    """Create a sample Hamiltonian for testing."""
     return SparsePauliOp.from_list([('IIII', 0.1), ('IIXI', 0.2), ('XIXI', 0.3)])
 
 
 @pytest.fixture
 def vqe_solver(mock_backend_config, sample_hamiltonian):
-    """Create a VQESolver instance for testing."""
     return VQESolver(
         qubit_op=sample_hamiltonian,
         backend_config=mock_backend_config,
@@ -46,7 +44,6 @@ def vqe_solver(mock_backend_config, sample_hamiltonian):
 
 
 def test_vqe_solver_initialization(vqe_solver, sample_hamiltonian, mock_backend_config):
-    """Test VQESolver initialization."""
     assert vqe_solver.qubit_op == sample_hamiltonian
     assert vqe_solver.backend_config == mock_backend_config
     assert vqe_solver.max_iterations == 10
@@ -57,22 +54,18 @@ def test_vqe_solver_initialization(vqe_solver, sample_hamiltonian, mock_backend_
 
 
 def test_compute_energy(vqe_solver):
-    """Test compute_energy method."""
-    # mocking the estimator
     mock_estimator = MagicMock()
     mock_result = MagicMock()
     mock_result.data.evs = [1.5]
     mock_result.data.stds = [0.1]
     mock_estimator.run.return_value.result.return_value = [mock_result]
 
-    # mock the ansatz and hamiltonian
     mock_ansatz = MagicMock()
     mock_hamiltonian = MagicMock()
 
-    # test params
     params = np.array([0.1, 0.2, 0.3])
 
-    # suppress logging output
+    # suppress debug logs to keep test output clean
     with patch.object(vqe_solver.logger, 'debug'):
         energy = vqe_solver.compute_energy(params, mock_ansatz, mock_hamiltonian, mock_estimator)
 
@@ -88,7 +81,6 @@ def test_compute_energy_derived_features(vqe_solver):
     mock_ansatz = MagicMock()
     mock_hamiltonian = MagicMock()
 
-    # Helper to create a mock estimator returning given energy/std
     def make_estimator(energy, std):
         mock_estimator = MagicMock()
         mock_result = MagicMock()
@@ -102,7 +94,6 @@ def test_compute_energy_derived_features(vqe_solver):
     params3 = np.array([1.0, 2.0, 3.0])
 
     with patch.object(vqe_solver.logger, 'debug'):
-        # Iteration 1: first iteration — deltas are None
         vqe_solver.compute_energy(
             params1, mock_ansatz, mock_hamiltonian, make_estimator(-1.0, 0.1)
         )
@@ -111,7 +102,6 @@ def test_compute_energy_derived_features(vqe_solver):
         assert p1.parameter_delta_norm is None
         assert p1.cumulative_min_energy == np.float64(-1.0)
 
-        # Iteration 2: energy improves
         vqe_solver.compute_energy(
             params2, mock_ansatz, mock_hamiltonian, make_estimator(-1.5, 0.05)
         )
@@ -121,7 +111,6 @@ def test_compute_energy_derived_features(vqe_solver):
         assert p2.parameter_delta_norm == pytest.approx(expected_norm)
         assert p2.cumulative_min_energy == np.float64(-1.5)
 
-        # Iteration 3: energy worsens — cumulative_min stays at -1.5
         vqe_solver.compute_energy(
             params3, mock_ansatz, mock_hamiltonian, make_estimator(-0.8, 0.2)
         )
@@ -133,26 +122,19 @@ def test_compute_energy_derived_features(vqe_solver):
 
 
 def test_optimize_circuits(vqe_solver):
-    """Test _optimize_circuits method."""
-    # mock backend and its target
     mock_backend = MagicMock()
     mock_backend.target = MagicMock()
 
-    # mock ansatz and hamiltonian
     mock_ansatz = MagicMock()
     mock_hamiltonian = MagicMock()
 
-    # mock circuit optimization via pass_manager
     with patch('quantum_pipeline.solvers.vqe_solver.generate_preset_pass_manager') as mock_pm:
-        # mock the pm instance
         mock_pass_manager = MagicMock()
         mock_pass_manager.run.return_value = mock_ansatz
         mock_pm.return_value = mock_pass_manager
 
-        # mock the apply layout method
         mock_hamiltonian.apply_layout.return_value = mock_hamiltonian
 
-        # call the method
         optimized_ansatz, _optimized_hamiltonian = vqe_solver._optimize_circuits(
             mock_ansatz, mock_hamiltonian, mock_backend
         )
@@ -167,19 +149,15 @@ def test_optimize_circuits(vqe_solver):
 
 
 def test_solve_via_aer(vqe_solver):
-    """Test solve method with Aer backend."""
     mock_backend = MagicMock(spec=AerBackend)
 
-    # patch the backend
     with (
         patch.object(vqe_solver, 'get_backend', return_value=mock_backend),
         patch.object(vqe_solver, 'via_aer') as mock_via_aer,
     ):
-        # assign mock result
         mock_result = MagicMock()
         mock_via_aer.return_value = mock_result
 
-        # call the solver
         result = vqe_solver.solve()
 
         vqe_solver.get_backend.assert_called_once()
@@ -188,19 +166,15 @@ def test_solve_via_aer(vqe_solver):
 
 
 def test_solve_via_ibmq(vqe_solver):
-    """Test solve method with IBMQ backend."""
     mock_backend = MagicMock()
 
-    # patch the get_backend to run via ibm quantum
     with (
         patch.object(vqe_solver, 'get_backend', return_value=mock_backend),
         patch.object(vqe_solver, 'via_ibmq') as mock_via_ibmq,
     ):
-        # mock result
         mock_result = MagicMock()
         mock_via_ibmq.return_value = mock_result
 
-        # call the solver
         result = vqe_solver.solve()
 
         vqe_solver.get_backend.assert_called_once()
@@ -209,7 +183,6 @@ def test_solve_via_ibmq(vqe_solver):
 
 
 def test_vqe_solver_custom_parameters(mock_backend_config, sample_hamiltonian):
-    """Test VQESolver with custom parameters."""
     custom_solver = VQESolver(
         qubit_op=sample_hamiltonian,
         backend_config=mock_backend_config,
@@ -232,16 +205,12 @@ def test_vqe_solver_custom_parameters(mock_backend_config, sample_hamiltonian):
 @pytest.mark.parametrize('backend_type', [AerBackend, MagicMock])
 def test_solve_method_result_type(vqe_solver, backend_type):
     """Test that solve method returns a VQEResult for different backend types."""
-    # mock backend
     mock_backend = MagicMock(spec=backend_type)
     mock_backend.name = 'test_backend'
 
-    # mock result of the solver
     mock_result = MagicMock(spec=VQEResult)
 
-    # patch get_backend to return the mock backend
     with patch.object(vqe_solver, 'get_backend', return_value=mock_backend):
-        # patch method based on backend type
         if backend_type == AerBackend:
             with patch.object(vqe_solver, 'via_aer', return_value=mock_result):
                 result = vqe_solver.solve()
@@ -249,22 +218,18 @@ def test_solve_method_result_type(vqe_solver, backend_type):
             with patch.object(vqe_solver, 'via_ibmq', return_value=mock_result):
                 result = vqe_solver.solve()
 
-        # verify if correct result was returned
         assert isinstance(result, VQEResult | MagicMock)
         assert result._spec_class == VQEResult
 
 
 class TestVQEConvergencePriority:
-    """Test suite for VQE convergence and max_iterations priority logic."""
-
     def test_max_iterations_priority_over_convergence(self):
         """Test that max_iterations takes priority when both are specified."""
-        # Test the logic directly without full VQE execution
+        # Restates the tol rule instead of driving VQESolver; the real selection lives in
+        # get_optimizer_configuration(), which rejects both limits at once.
         max_iterations = 5
         convergence_threshold = 1e-6
 
-        # Logic from VQE solver: tol should be None when both are specified
-        # tol = convergence_threshold if convergence_threshold and not max_iterations else None
         tol = convergence_threshold if convergence_threshold and not max_iterations else None
 
         assert tol is None, (
@@ -272,37 +237,30 @@ class TestVQEConvergencePriority:
         )
 
     def test_convergence_only_uses_tolerance(self):
-        """Test that convergence threshold is used when only convergence is specified."""
         max_iterations = None
         convergence_threshold = 1e-6
 
-        # Logic from VQE solver
         tol = convergence_threshold if convergence_threshold and not max_iterations else None
 
         assert tol == 1e-6, 'tol should be set when only convergence is specified'
 
     def test_max_iterations_only_no_tolerance(self):
-        """Test that no tolerance is used when only max_iterations is specified."""
         max_iterations = 10
         convergence_threshold = None
 
-        # Logic from VQE solver
         tol = convergence_threshold if convergence_threshold and not max_iterations else None
 
         assert tol is None, 'tol should be None when only max_iterations is specified'
 
     def test_neither_specified_no_tolerance(self):
-        """Test that no tolerance is used when neither is specified."""
         max_iterations = None
         convergence_threshold = None
 
-        # Logic from VQE solver
         tol = convergence_threshold if convergence_threshold and not max_iterations else None
 
         assert tol is None, 'tol should be None when neither is specified'
 
     def test_vqe_solver_initialization_with_both(self, sample_hamiltonian, mock_backend_config):
-        """Test that VQESolver can be initialized with both parameters."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -319,7 +277,6 @@ class TestVQEConvergencePriority:
     def test_vqe_solver_initialization_convergence_only(
         self, sample_hamiltonian, mock_backend_config
     ):
-        """Test that VQESolver can be initialized with only convergence threshold."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -335,7 +292,6 @@ class TestVQEConvergencePriority:
     def test_vqe_solver_initialization_max_iterations_only(
         self, sample_hamiltonian, mock_backend_config
     ):
-        """Test that VQESolver can be initialized with only max_iterations."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -365,11 +321,9 @@ class TestVQEConvergencePriority:
         assert minimize_tol is None
 
     def test_lbfgs_b_without_max_iterations(self):
-        """Test L-BFGS-B behavior when max_iterations is not specified."""
         optimizer = 'L-BFGS-B'
         max_iterations = None
 
-        # Should NOT disable early convergence when max_iterations is not set
         should_disable_early_convergence = optimizer == 'L-BFGS-B' and max_iterations
 
         assert not should_disable_early_convergence, (
@@ -378,10 +332,7 @@ class TestVQEConvergencePriority:
 
 
 class TestVQEEdgeCases:
-    """Test edge cases and boundary conditions for VQE solver."""
-
     def test_max_iterations_zero(self, sample_hamiltonian, mock_backend_config):
-        """Test VQESolver behavior with max_iterations=0."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -392,7 +343,6 @@ class TestVQEEdgeCases:
         assert solver.max_iterations == 0
 
     def test_max_iterations_negative(self, sample_hamiltonian, mock_backend_config):
-        """Test VQESolver behavior with negative max_iterations."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -403,7 +353,6 @@ class TestVQEEdgeCases:
         assert solver.max_iterations == -5
 
     def test_max_iterations_very_large(self, sample_hamiltonian, mock_backend_config):
-        """Test VQESolver behavior with very large max_iterations."""
         large_value = 999999
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
@@ -415,7 +364,6 @@ class TestVQEEdgeCases:
         assert solver.max_iterations == large_value
 
     def test_convergence_threshold_zero(self, sample_hamiltonian, mock_backend_config):
-        """Test VQESolver behavior with convergence_threshold=0."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -427,7 +375,6 @@ class TestVQEEdgeCases:
         assert solver.convergence_threshold == 0.0
 
     def test_convergence_threshold_negative(self, sample_hamiltonian, mock_backend_config):
-        """Test VQESolver behavior with negative convergence_threshold."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -439,7 +386,6 @@ class TestVQEEdgeCases:
         assert solver.convergence_threshold == -1e-6
 
     def test_convergence_threshold_very_small(self, sample_hamiltonian, mock_backend_config):
-        """Test VQESolver behavior with very small convergence_threshold."""
         tiny_threshold = 1e-20
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
@@ -452,7 +398,6 @@ class TestVQEEdgeCases:
         assert solver.convergence_threshold == tiny_threshold
 
     def test_lbfgs_b_with_max_iterations_one(self, sample_hamiltonian, mock_backend_config):
-        """Test L-BFGS-B behavior with max_iterations=1."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -461,12 +406,10 @@ class TestVQEEdgeCases:
             ansatz_reps=2,
         )
 
-        # Should still disable default convergence criteria
         should_disable = solver.optimizer == 'L-BFGS-B' and solver.max_iterations
         assert should_disable
 
     def test_cobyla_with_max_iterations_one(self, sample_hamiltonian, mock_backend_config):
-        """Test COBYLA behavior with max_iterations=1."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -475,7 +418,6 @@ class TestVQEEdgeCases:
             ansatz_reps=2,
         )
 
-        # COBYLA should not have special convergence handling
         should_disable = solver.optimizer == 'L-BFGS-B' and solver.max_iterations
         assert not should_disable
 
@@ -483,7 +425,7 @@ class TestVQEEdgeCases:
         self, sample_hamiltonian, mock_backend_config
     ):
         """Test that only L-BFGS-B gets special convergence handling."""
-        optimizers = ['COBYLA', 'L-BFGS-B', 'COBYQA']
+        optimizers = ['COBYLA', 'L-BFGS-B', 'SLSQP']
 
         for optimizer in optimizers:
             solver = VQESolver(
@@ -503,7 +445,6 @@ class TestVQEEdgeCases:
 
     def test_string_to_bool_edge_cases(self):
         """Test edge cases for convergence threshold truthiness."""
-        # Test various falsy values for convergence_threshold
         falsy_values = [None, 0, 0.0, False]
         truthy_values = [1e-6, 1e-20, -1e-6, 1, True]
 
@@ -547,11 +488,9 @@ class TestMaxFunctionEvalsReachedError:
 
     def test_compute_energy_raises_at_limit(self, vqe_solver):
         """Test that compute_energy raises MaxFunctionEvalsReachedError when limit is exceeded."""
-        # Simulate having already done max_iterations evaluations
         vqe_solver.max_iterations = 3
         vqe_solver.current_iter = 4  # one past the limit
 
-        # Populate vqe_process with mock data so min() works.
         # _best_step keys on `result` (raw energy), reporting that step's params/energy.
         mock_process = MagicMock()
         mock_process.result = -1.5
@@ -567,7 +506,6 @@ class TestMaxFunctionEvalsReachedError:
         np.testing.assert_array_equal(exc_info.value.best_params, np.array([0.1, 0.2]))
 
     def test_compute_energy_runs_within_limit(self, vqe_solver):
-        """Test that compute_energy runs normally when within the limit."""
         vqe_solver.max_iterations = 5
         vqe_solver.current_iter = 1
 
@@ -586,7 +524,6 @@ class TestMaxFunctionEvalsReachedError:
         assert vqe_solver.current_iter == 2
 
     def test_truncated_result_uses_best_energy(self, vqe_solver):
-        """Test that _make_truncated_result uses the best observed energy."""
         vqe_solver.init_data = MagicMock()
         vqe_solver.vqe_process = [MagicMock(), MagicMock()]
 
@@ -600,7 +537,6 @@ class TestMaxFunctionEvalsReachedError:
         assert result.maxcv is None
 
     def test_no_limit_when_max_iterations_none(self, mock_backend_config, sample_hamiltonian):
-        """Test that no hard limit is enforced when max_iterations is None."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -628,7 +564,6 @@ class TestVQESolverSeed:
     """Tests for seed-based reproducibility via VQESolver."""
 
     def test_seed_stored(self, mock_backend_config, sample_hamiltonian):
-        """Test that seed is stored on the solver."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -637,7 +572,6 @@ class TestVQESolverSeed:
         assert solver.seed == 42
 
     def test_seed_default_none(self, vqe_solver):
-        """Test that seed defaults to None."""
         assert vqe_solver.seed is None
 
     @staticmethod
@@ -684,7 +618,6 @@ class TestVQESolverSeed:
     def test_same_seed_produces_identical_params_via_aer(
         self, mock_backend_config, sample_hamiltonian
     ):
-        """Test that VQESolver.via_aer produces identical init params with the same seed."""
         params_1 = self._run_via_aer_and_get_init_params(
             sample_hamiltonian, mock_backend_config, seed=42
         )
@@ -696,7 +629,6 @@ class TestVQESolverSeed:
     def test_different_seeds_produce_different_params_via_aer(
         self, mock_backend_config, sample_hamiltonian
     ):
-        """Test that VQESolver.via_aer produces different init params with different seeds."""
         params_a = self._run_via_aer_and_get_init_params(
             sample_hamiltonian, mock_backend_config, seed=42
         )
@@ -706,9 +638,7 @@ class TestVQESolverSeed:
         assert not np.array_equal(params_a, params_b)
 
     def test_seed_stored_in_init_data(self, mock_backend_config, sample_hamiltonian):
-        """Test that the seed value is recorded in VQEInitialData."""
         self._run_via_aer_and_get_init_params(sample_hamiltonian, mock_backend_config, seed=42)
-        # Re-run to check init_data.seed field
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -748,14 +678,13 @@ class TestVQESolverSeed:
         assert solver.init_data.seed == 42
 
     def test_no_seed_produces_varying_params(self, mock_backend_config, sample_hamiltonian):
-        """Test that VQESolver.via_aer without seed produces different params across runs."""
         params_1 = self._run_via_aer_and_get_init_params(
             sample_hamiltonian, mock_backend_config, seed=None
         )
         params_2 = self._run_via_aer_and_get_init_params(
             sample_hamiltonian, mock_backend_config, seed=None
         )
-        # With no seed, params should almost certainly differ
+        # Unseeded RNG: identical draws are possible but vanishingly unlikely.
         assert not np.array_equal(params_1, params_2)
 
 
@@ -823,7 +752,6 @@ class TestVQESolverHFInit:
         return solver.init_data
 
     def test_init_strategy_stored_in_init_data(self, mock_backend_config, sample_hamiltonian):
-        """Test that init_strategy is recorded in VQEInitialData."""
         hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
         init_data = self._run_via_aer_and_get_init_params(
             sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data
@@ -831,14 +759,12 @@ class TestVQESolverHFInit:
         assert init_data.init_strategy == 'hf'
 
     def test_random_strategy_stored(self, mock_backend_config, sample_hamiltonian):
-        """Test that random strategy is recorded in VQEInitialData."""
         init_data = self._run_via_aer_and_get_init_params(
             sample_hamiltonian, mock_backend_config, init_strategy='random'
         )
         assert init_data.init_strategy == 'random'
 
     def test_hf_params_differ_from_random(self, mock_backend_config, sample_hamiltonian):
-        """Test that HF params differ from random params."""
         hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
         init_data_hf = self._run_via_aer_and_get_init_params(
             sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=hf_data, seed=42
@@ -855,9 +781,117 @@ class TestVQESolverHFInit:
         init_data = self._run_via_aer_and_get_init_params(
             sample_hamiltonian, mock_backend_config, init_strategy='hf', hf_data=None, seed=42
         )
-        # Should still produce params (random fallback), not crash
         assert init_data.initial_parameters is not None
         assert len(init_data.initial_parameters) > 0
+        assert init_data.init_strategy == 'random'
+
+    @staticmethod
+    def _init_data_after_compute(solver, num_parameters=16):
+        """Helper: run _compute_initial_parameters, then _build_init_data, return the record."""
+        mock_ansatz = MagicMock()
+        mock_ansatz.num_parameters = num_parameters
+        x0 = solver._compute_initial_parameters(mock_ansatz)
+        mock_hamiltonian_isa = MagicMock()
+        mock_hamiltonian_isa.num_qubits = 4
+        mock_hamiltonian_isa.to_list.return_value = []
+        solver._build_init_data('aer_simulator', mock_ansatz, mock_hamiltonian_isa, x0)
+        return solver.init_data
+
+    def test_real_amplitudes_hf_runs_pre_optimization(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='RealAmplitudes',
+            init_strategy='hf',
+            hf_data=hf_data,
+            mapper=MagicMock(),
+        )
+        hf_params = np.full(16, 0.5)
+        with patch.object(
+            solver, '_compute_hf_initial_parameters', return_value=hf_params
+        ) as mock_hf:
+            init_data = self._init_data_after_compute(solver)
+        mock_hf.assert_called_once()
+        np.testing.assert_array_equal(init_data.initial_parameters, hf_params)
+        assert init_data.init_strategy == 'hf'
+        assert init_data.ansatz_name == 'RealAmplitudes'
+
+    def test_efficient_su2_hf_without_hf_data_records_random(
+        self, mock_backend_config, sample_hamiltonian, caplog
+    ):
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='EfficientSU2',
+            init_strategy='hf',
+            hf_data=None,
+            mapper=None,
+            seed=42,
+        )
+        solver.logger.propagate = True
+        with (
+            caplog.at_level('WARNING'),
+            patch.object(solver, '_compute_hf_initial_parameters') as mock_hf,
+        ):
+            init_data = self._init_data_after_compute(solver)
+        mock_hf.assert_not_called()
+        assert 'falling back to random' in caplog.text
+        assert init_data.init_strategy == 'random'
+        assert solver.init_strategy == 'hf'
+
+    def test_excitation_preserving_records_random(self, mock_backend_config, sample_hamiltonian):
+        hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='ExcitationPreserving',
+            init_strategy='random',
+            hf_data=hf_data,
+            mapper=MagicMock(),
+        )
+        init_data = self._init_data_after_compute(solver)
+        assert init_data.init_strategy == 'random'
+        mock_ansatz = MagicMock()
+        mock_ansatz.num_parameters = 200
+        assert np.std(solver._compute_initial_parameters(mock_ansatz)) > 0.3
+
+    def test_excitation_preserving_hf_uses_small_jitter(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            ansatz_type='ExcitationPreserving',
+            init_strategy='hf',
+            seed=1,
+            hf_data=HFData(num_particles=(1, 1), num_spatial_orbitals=2),
+            mapper=MagicMock(),
+        )
+        mock_ansatz = MagicMock()
+        mock_ansatz.num_parameters = 12
+        params = solver._compute_initial_parameters(mock_ansatz)
+        assert 0 < np.max(np.abs(params)) < 0.1
+        assert solver.effective_init_strategy == 'hf'
+
+    def test_effective_init_strategy_defaults_to_requested(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian, backend_config=mock_backend_config, init_strategy='hf'
+        )
+        assert solver.effective_init_strategy == 'hf'
+
+    def test_old_efficient_su2_only_warning_is_gone(self):
+        from pathlib import Path
+
+        import quantum_pipeline.solvers.vqe_solver as vqe_solver_module
+
+        assert (
+            'only supported for EfficientSU2' not in Path(vqe_solver_module.__file__).read_text()
+        )
 
     def test_build_ansatz_is_plain_esu2(self, mock_backend_config, sample_hamiltonian):
         """Test that _build_ansatz always builds a plain EfficientSU2 (no HF circuit prepend)."""
@@ -891,10 +925,7 @@ class TestVQESolverHFInit:
 
 
 class TestAnsatzTypes:
-    """Tests for ansatz type selection in VQESolver."""
-
     def test_default_ansatz_type_is_efficient_su2(self, mock_backend_config, sample_hamiltonian):
-        """Test that default ansatz_type is EfficientSU2."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -902,7 +933,6 @@ class TestAnsatzTypes:
         assert solver.ansatz_type == 'EfficientSU2'
 
     def test_real_amplitudes_ansatz_type_stored(self, mock_backend_config, sample_hamiltonian):
-        """Test that RealAmplitudes ansatz_type is stored correctly."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -913,7 +943,6 @@ class TestAnsatzTypes:
     def test_excitation_preserving_ansatz_type_stored(
         self, mock_backend_config, sample_hamiltonian
     ):
-        """Test that ExcitationPreserving ansatz_type is stored correctly."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -934,7 +963,6 @@ class TestAnsatzTypes:
             mock_cls.assert_called_once_with(4, reps=2)
 
     def test_build_ansatz_real_amplitudes(self, mock_backend_config, sample_hamiltonian):
-        """Test that _build_ansatz builds RealAmplitudes when ansatz_type is RealAmplitudes."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -988,7 +1016,7 @@ class TestAnsatzTypes:
     def test_excitation_preserving_initial_params_zero_with_hf_data(
         self, mock_backend_config, sample_hamiltonian
     ):
-        """ExcitationPreserving + HF data → zero initial parameters (θ=0 is the HF state)."""
+        """ExcitationPreserving + HF data → params jittered around θ=0 (the HF state)."""
         hf_data = HFData(num_particles=(1, 1), num_spatial_orbitals=2)
         mock_mapper = MagicMock()
         solver = VQESolver(
@@ -1002,8 +1030,7 @@ class TestAnsatzTypes:
         mock_ansatz.num_parameters = 12
         params = solver._compute_initial_parameters(mock_ansatz)
         assert len(params) == 12
-        # Jitter around zero (not exactly zero): escapes the HF stationary point while
-        # staying near the HF reference — spread well under a full random [0, 2π] init.
+        # jitter ~N(0,sigma) to escape HF stationary point while staying near HF reference
         assert not np.all(params == 0.0)
         assert np.std(params) < 1.5
         assert np.all(np.abs(params) < 2 * np.pi)
@@ -1032,7 +1059,6 @@ class TestAnsatzTypes:
     def test_unknown_ansatz_type_falls_back_to_efficient_su2(
         self, mock_backend_config, sample_hamiltonian
     ):
-        """Test that unknown ansatz_type falls back to EfficientSU2."""
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=mock_backend_config,
@@ -1044,14 +1070,7 @@ class TestAnsatzTypes:
             mock_cls.assert_called_once_with(4, reps=1)
 
 
-# ---------------------------------------------------------------------------
-# Merged from test_vqe_solver_optimizer_config.py
-# ---------------------------------------------------------------------------
-
-
 class TestVQESolverOptimizerConfig:
-    """Test VQESolver integration with optimizer configuration classes."""
-
     def test_cobyla_max_iterations_only(self):
         """Test that COBYLA config uses only maxiter (no maxfun)."""
         options, minimize_tol = get_optimizer_configuration(
@@ -1060,18 +1079,17 @@ class TestVQESolverOptimizerConfig:
             num_parameters=160,
         )
 
-        # CRITICAL FIX: Should use only valid COBYLA parameters
         assert 'maxiter' in options
         assert options['maxiter'] == 5
         assert 'maxfun' not in options  # maxfun is not a valid COBYLA parameter
-        assert minimize_tol is None  # No convergence threshold specified
+        assert minimize_tol is None
 
     def test_lbfgsb_strict_max_iterations(self):
         """Test that L-BFGS-B uses only maxfun/maxiter for strict max_iterations mode."""
         options, minimize_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B',
             max_iterations=50,
-            convergence_threshold=None,  # Strict max_iterations mode
+            convergence_threshold=None,
             num_parameters=160,
         )
 
@@ -1084,7 +1102,7 @@ class TestVQESolverOptimizerConfig:
         assert minimize_tol is None
 
     def test_lbfgsb_with_convergence_threshold(self):
-        """Test L-BFGS-B with convergence threshold sets proper values."""
+        """L-BFGS-B maps convergence_threshold onto both ftol and gtol, not the global tol."""
         options, minimize_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B',
             max_iterations=None,
@@ -1092,7 +1110,6 @@ class TestVQESolverOptimizerConfig:
             num_parameters=160,
         )
 
-        # Should use the convergence threshold properly
         assert options['ftol'] == 0.01
         assert options['gtol'] == 0.01
         assert minimize_tol is None  # L-BFGS-B uses ftol/gtol, not global tol
@@ -1133,11 +1150,9 @@ class TestVQESolverOptimizerConfig:
                 num_parameters=160,
             )
 
-            # Still should return the requested configuration
             assert options['maxiter'] == 5
 
     def test_realistic_log_scenario_max_iterations(self):
-        """Test realistic scenario with max_iterations only."""
         # From logs: COBYLA with max_iterations=5, 160 parameters
         options, minimize_tol = get_optimizer_configuration(
             optimizer='COBYLA',
@@ -1145,71 +1160,53 @@ class TestVQESolverOptimizerConfig:
             num_parameters=160,
         )
 
-        # Verify the fix prevents the issues seen in logs:
-        # 1. Only valid COBYLA parameters (prevents warnings)
         assert 'maxiter' in options
         assert options['maxiter'] == 5
-        assert 'maxfun' not in options  # maxfun is not a valid COBYLA parameter
+        assert 'maxfun' not in options
         assert minimize_tol is None
 
     def test_realistic_log_scenario_convergence(self):
-        """Test realistic scenario with convergence_threshold only."""
         options, minimize_tol = get_optimizer_configuration(
             optimizer='COBYLA',
             convergence_threshold=0.1,
             num_parameters=160,
         )
 
-        # Only valid COBYLA parameters
         assert 'maxiter' in options
         assert options['maxiter'] == 1000  # Default
         assert 'maxfun' not in options
         assert minimize_tol == 0.1
 
     def test_all_supported_optimizers_work(self):
-        """Test that all supported optimizers have valid configurations."""
-
-        # Test only the core optimizers, not test-specific ones
         core_optimizers = ['L-BFGS-B', 'COBYLA', 'SLSQP']
 
         for optimizer in core_optimizers:
-            # Test with max_iterations only
             options, _minimize_tol = get_optimizer_configuration(
                 optimizer=optimizer,
                 max_iterations=50,
                 num_parameters=10,
             )
 
-            # Basic sanity checks
             assert isinstance(options, dict)
             assert 'maxiter' in options
             assert options['maxiter'] == 50
 
     def test_edge_cases(self):
-        """Test edge cases that could cause issues."""
-        # Very small max_iterations
         options, _ = get_optimizer_configuration(
             optimizer='COBYLA', max_iterations=1, num_parameters=10
         )
         assert options['maxiter'] == 1
 
-        # Very small convergence threshold
         options, minimize_tol = get_optimizer_configuration(
             optimizer='COBYLA', convergence_threshold=1e-10, num_parameters=10
         )
         assert minimize_tol == 1e-10
 
-        # No parameters specified (should use defaults)
         options, minimize_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B', num_parameters=10
         )
         assert 'maxiter' in options
         assert options['maxiter'] == 15000  # L-BFGS-B default
-
-
-# ---------------------------------------------------------------------------
-# Merged from test_vqe_solver_coverage.py
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -1271,7 +1268,6 @@ def _mock_minimize_result(success=True, fun=-1.0):
 
 
 def _mock_estimator():
-    """Return an estimator instance mock."""
     estimator_instance = MagicMock()
     mock_result = MagicMock()
     mock_result.data.evs = [np.float64(-0.5)]
@@ -1281,7 +1277,6 @@ def _mock_estimator():
 
 
 def _setup_aer_mocks(mock_su2, mock_pm_gen, mock_estimator_cls, hamiltonian):
-    """Shared mock wiring for via_aer tests."""
     mock_backend = MagicMock(spec=AerBackend)
     mock_backend.name = 'aer_simulator'
     mock_backend.target = MagicMock()
@@ -1309,7 +1304,6 @@ def _setup_aer_mocks(mock_su2, mock_pm_gen, mock_estimator_cls, hamiltonian):
 
 
 def _setup_ibmq_mocks(mock_su2, mock_pm_gen, mock_estimator_cls, mock_session_cls, hamiltonian):
-    """Shared mock wiring for via_ibmq tests."""
     mock_backend = MagicMock()
     mock_backend.name = 'ibm_kyoto'
     mock_backend.target = MagicMock()
@@ -1611,7 +1605,7 @@ class TestSolve:
 
 
 class TestExactEstimatorAndBestStep:
-    """Fix B: exact Aer estimator when default_shots=None; best-step result consistency."""
+    """Exact Aer estimator when default_shots=None; best-step result consistency."""
 
     @staticmethod
     def _mock_via_aer_result():
@@ -1637,8 +1631,33 @@ class TestExactEstimatorAndBestStep:
             patch('quantum_pipeline.solvers.vqe_solver.EstimatorV2') as mock_rt_est,
         ):
             solver.via_aer(mock_backend)
-            mock_aer_est.assert_called_once_with(options={'default_precision': 0.0})
+            mock_aer_est.from_backend.assert_called_once_with(
+                mock_backend, options={'default_precision': 0.0}
+            )
             mock_rt_est.assert_not_called()
+
+    def test_exact_estimator_runs_on_configured_backend(self, hamiltonian, backend_config):
+        """The exact estimator must adopt the configured simulator, not a default one.
+
+        Without from_backend the estimator silently ignores GPU device, simulation method,
+        seed and noise model, so an --exact --gpu run would execute on the CPU.
+        """
+        solver = _make_solver(hamiltonian, backend_config, default_shots=None)
+        backend = AerSimulator(method='statevector', seed_simulator=1234)
+
+        with (
+            patch.object(
+                solver, '_prepare_circuit', return_value=(np.zeros(2), MagicMock(), MagicMock())
+            ),
+            patch.object(solver, '_build_init_data'),
+            patch.object(
+                solver, '_run_optimization', return_value=self._mock_via_aer_result()
+            ) as mock_run,
+        ):
+            solver.via_aer(backend)
+
+        estimator = mock_run.call_args.args[2]
+        assert estimator._backend is backend
 
     def test_via_aer_uses_runtime_estimator_when_shots_set(self, hamiltonian, backend_config):
         """default_shots=64 → RuntimeEstimatorV2 in local mode."""
@@ -1696,10 +1715,8 @@ class TestExactEstimatorAndBestStep:
     ):
         """minimum and optimal_parameters come from the best VQEProcess, not the final iterate.
 
-        Proves the fix for the biased-minimum bug: the optimizer's final point
-        (res.fun, res.x) may not be the lowest energy seen. The result must report
-        the iteration that achieved the global minimum so energy and parameters
-        are self-consistent.
+        Pins the biased-minimum bug: the optimizer's final point (res.fun/res.x) may not be
+        the lowest energy seen, leaving energy and parameters inconsistent.
         """
         solver = _make_solver(hamiltonian, backend_config)
 
@@ -1900,20 +1917,13 @@ class TestMinimizeTolPropagation:
         assert call_kwargs['tol'] == tol_value
 
 
-# ---------------------------------------------------------------------------
-# Merged from test_vqe_solver_extended.py
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture
 def hamiltonian_2q():
-    """2-qubit test Hamiltonian."""
     return SparsePauliOp.from_list([('II', 0.1), ('IX', 0.2), ('XX', 0.3)])
 
 
 @pytest.fixture
 def hamiltonian_4q():
-    """4-qubit test Hamiltonian."""
     return SparsePauliOp.from_list(
         [
             ('IIII', 0.1),
@@ -1926,7 +1936,6 @@ def hamiltonian_4q():
 
 @pytest.fixture
 def hamiltonian_8q():
-    """8-qubit test Hamiltonian for larger molecules."""
     return SparsePauliOp.from_list(
         [
             ('I' * 8, 0.1),
@@ -1937,10 +1946,7 @@ def hamiltonian_8q():
 
 
 class TestVQESolverInitialization:
-    """Test VQESolver initialization with various parameters."""
-
     def test_default_parameters(self, hamiltonian_4q, backend_config):
-        """Test VQESolver with default parameters."""
         solver = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -1952,7 +1958,6 @@ class TestVQESolverInitialization:
         assert solver.current_iter == 1
 
     def test_custom_iterations(self, hamiltonian_4q, backend_config):
-        """Test VQESolver with custom max iterations."""
         for max_iter in [1, 5, 100, 1000]:
             solver = VQESolver(
                 qubit_op=hamiltonian_4q,
@@ -1963,7 +1968,6 @@ class TestVQESolverInitialization:
             assert solver.digits_iter == len(str(max_iter))
 
     def test_custom_optimizer(self, hamiltonian_4q, backend_config):
-        """Test VQESolver with different optimizers."""
         for opt in ['COBYLA', 'SPSA', 'Powell', 'CG']:
             solver = VQESolver(
                 qubit_op=hamiltonian_4q,
@@ -1973,7 +1977,6 @@ class TestVQESolverInitialization:
             assert solver.optimizer == opt
 
     def test_custom_ansatz_reps(self, hamiltonian_4q, backend_config):
-        """Test VQESolver with different ansatz repetitions."""
         for reps in [1, 2, 5, 10]:
             solver = VQESolver(
                 qubit_op=hamiltonian_4q,
@@ -1983,7 +1986,6 @@ class TestVQESolverInitialization:
             assert solver.ansatz_reps == reps
 
     def test_custom_shots(self, hamiltonian_4q, backend_config):
-        """Test VQESolver with different shot counts."""
         for shots in [100, 512, 1024, 4096, 8192]:
             solver = VQESolver(
                 qubit_op=hamiltonian_4q,
@@ -1993,7 +1995,6 @@ class TestVQESolverInitialization:
             assert solver.default_shots == shots
 
     def test_convergence_threshold_setting(self, hamiltonian_4q, backend_config):
-        """Test VQESolver with convergence threshold."""
         solver = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -2002,7 +2003,6 @@ class TestVQESolverInitialization:
         assert solver.convergence_threshold == 1e-6
 
     def test_optimization_level_setting(self, hamiltonian_4q, backend_config):
-        """Test VQESolver with different optimization levels."""
         for level in [0, 1, 2, 3]:
             solver = VQESolver(
                 qubit_op=hamiltonian_4q,
@@ -2013,11 +2013,8 @@ class TestVQESolverInitialization:
 
 
 class TestVQESolverComputeEnergy:
-    """Test compute_energy method with various scenarios."""
-
     @pytest.fixture
     def solver(self, hamiltonian_4q, backend_config):
-        """Create a VQESolver for energy computation tests."""
         return VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -2025,7 +2022,6 @@ class TestVQESolverComputeEnergy:
         )
 
     def test_single_energy_computation(self, solver):
-        """Test computing single energy value."""
         mock_estimator = MagicMock()
         mock_result = MagicMock()
         mock_result.data.evs = [1.5]
@@ -2041,7 +2037,6 @@ class TestVQESolverComputeEnergy:
         assert solver.current_iter == 2
 
     def test_sequential_energy_computations(self, solver):
-        """Test multiple sequential energy computations."""
         mock_estimator = MagicMock()
         energies = [1.5, 1.4, 1.2, 1.0, 0.9]
 
@@ -2061,7 +2056,6 @@ class TestVQESolverComputeEnergy:
         assert solver.current_iter == len(energies) + 1
 
     def test_energy_with_zero_std(self, solver):
-        """Test energy computation with zero standard deviation."""
         mock_estimator = MagicMock()
         mock_result = MagicMock()
         mock_result.data.evs = [0.5]
@@ -2076,7 +2070,6 @@ class TestVQESolverComputeEnergy:
         assert solver.vqe_process[0].std == 0.0
 
     def test_energy_with_large_std(self, solver):
-        """Test energy computation with large standard deviation."""
         mock_estimator = MagicMock()
         mock_result = MagicMock()
         mock_result.data.evs = [1.5]
@@ -2091,7 +2084,6 @@ class TestVQESolverComputeEnergy:
         assert solver.vqe_process[0].std == 0.5
 
     def test_energy_with_negative_value(self, solver):
-        """Test energy computation with negative energy values."""
         mock_estimator = MagicMock()
         mock_result = MagicMock()
         mock_result.data.evs = [-1.5]
@@ -2105,7 +2097,6 @@ class TestVQESolverComputeEnergy:
         assert energy == -1.5
 
     def test_parameter_storage(self, solver):
-        """Test that parameters are stored correctly."""
         mock_estimator = MagicMock()
         mock_result = MagicMock()
         mock_result.data.evs = [1.0]
@@ -2120,7 +2111,6 @@ class TestVQESolverComputeEnergy:
         np.testing.assert_array_almost_equal(stored_params, test_params)
 
     def test_iteration_counter_increment(self, solver):
-        """Test that iteration counter increments correctly."""
         mock_estimator = MagicMock()
         mock_result = MagicMock()
         mock_result.data.evs = [1.0]
@@ -2136,7 +2126,6 @@ class TestVQESolverComputeEnergy:
             assert solver.current_iter == i + 2
 
     def test_vqe_process_tracking(self, solver):
-        """Test VQEProcess tracking throughout optimization."""
         mock_estimator = MagicMock()
         energies = [2.0, 1.5, 1.0]
 
@@ -2158,10 +2147,7 @@ class TestVQESolverComputeEnergy:
 
 
 class TestVQESolverDifferentHamiltonians:
-    """Test VQESolver with different Hamiltonian sizes."""
-
     def test_2qubit_hamiltonian(self, hamiltonian_2q, backend_config):
-        """Test VQESolver with 2-qubit Hamiltonian."""
         solver = VQESolver(
             qubit_op=hamiltonian_2q,
             backend_config=backend_config,
@@ -2169,7 +2155,6 @@ class TestVQESolverDifferentHamiltonians:
         assert solver.qubit_op.num_qubits == 2
 
     def test_4qubit_hamiltonian(self, hamiltonian_4q, backend_config):
-        """Test VQESolver with 4-qubit Hamiltonian."""
         solver = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -2177,7 +2162,6 @@ class TestVQESolverDifferentHamiltonians:
         assert solver.qubit_op.num_qubits == 4
 
     def test_8qubit_hamiltonian(self, hamiltonian_8q, backend_config):
-        """Test VQESolver with 8-qubit Hamiltonian."""
         solver = VQESolver(
             qubit_op=hamiltonian_8q,
             backend_config=backend_config,
@@ -2185,9 +2169,7 @@ class TestVQESolverDifferentHamiltonians:
         assert solver.qubit_op.num_qubits == 8
 
     def test_solver_scales_with_hamiltonian_size(self, backend_config):
-        """Test that solver can handle various Hamiltonian sizes."""
         for num_qubits in [2, 4, 8, 12]:
-            # Create a simple Hamiltonian with identity and X on first qubit
             terms = [('X' + 'I' * (num_qubits - 1), 0.5)]
             ham = SparsePauliOp.from_list(terms)
 
@@ -2199,10 +2181,7 @@ class TestVQESolverDifferentHamiltonians:
 
 
 class TestVQESolverEdgeCasesExtended:
-    """Test VQESolver with edge cases and boundary conditions (extended)."""
-
     def test_single_iteration_solver(self, hamiltonian_4q, backend_config):
-        """Test solver with only 1 iteration."""
         solver = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -2212,7 +2191,6 @@ class TestVQESolverEdgeCasesExtended:
         assert solver.digits_iter == 1
 
     def test_very_large_iteration_count(self, hamiltonian_4q, backend_config):
-        """Test solver with very large iteration count."""
         solver = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -2222,7 +2200,6 @@ class TestVQESolverEdgeCasesExtended:
         assert solver.digits_iter == 6
 
     def test_zero_ansatz_reps(self, hamiltonian_4q, backend_config):
-        """Test solver with zero ansatz repetitions (minimal circuit)."""
         solver = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -2231,7 +2208,6 @@ class TestVQESolverEdgeCasesExtended:
         assert solver.ansatz_reps == 0
 
     def test_very_high_ansatz_reps(self, hamiltonian_4q, backend_config):
-        """Test solver with very deep ansatz."""
         solver = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -2240,7 +2216,6 @@ class TestVQESolverEdgeCasesExtended:
         assert solver.ansatz_reps == 50
 
     def test_very_small_threshold(self, hamiltonian_4q, backend_config):
-        """Test solver with very small convergence threshold."""
         solver = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -2249,7 +2224,6 @@ class TestVQESolverEdgeCasesExtended:
         assert solver.convergence_threshold == 1e-12
 
     def test_very_large_threshold(self, hamiltonian_4q, backend_config):
-        """Test solver with large convergence threshold."""
         solver = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -2259,10 +2233,7 @@ class TestVQESolverEdgeCasesExtended:
 
 
 class TestVQESolverConfiguration:
-    """Test VQESolver configuration propagation."""
-
     def test_backend_config_propagation(self, hamiltonian_4q, backend_config):
-        """Test that backend config is properly stored."""
         solver = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,
@@ -2272,7 +2243,6 @@ class TestVQESolverConfiguration:
         assert solver.backend_config.gpu is False
 
     def test_multiple_solver_instances(self, hamiltonian_4q, backend_config):
-        """Test that multiple solver instances are independent."""
         solver1 = VQESolver(
             qubit_op=hamiltonian_4q,
             backend_config=backend_config,

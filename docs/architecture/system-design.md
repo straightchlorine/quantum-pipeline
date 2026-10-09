@@ -53,7 +53,7 @@ sequenceDiagram
     Note over VQERunner: Track vqe_time
 
     VQESolver->>VQERunner: Return VQEResult
-    VQERunner->>VQERunner: _collect_accuracy_metrics()
+    VQERunner->>VQERunner: _collect_hf_deviation_metrics()
     VQERunner->>VQERunner: _build_metrics_data()
     Note over VQERunner: Calculate total_time
 
@@ -67,7 +67,7 @@ sequenceDiagram
 | Method | What it does |
 |--------|-------------|
 | [`_process_molecule()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L289) | Full VQE execution for a single molecule  |
-| [`_collect_accuracy_metrics()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L228) | Compares VQE energy against HF reference |
+| [`_collect_hf_deviation_metrics()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L228) | Compares VQE energy against the HF reference; values are None when no reference exists |
 | [`_build_metrics_data()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L266) | Constructs the metrics dict for Prometheus export |
 | [`_stream_result()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L371) | Sends a decorated VQE result to Kafka |
 
@@ -77,7 +77,7 @@ sequenceDiagram
 - **Timing**: hamiltonian construction, Jordan-Wigner mapping, VQE optimization, total wall time
 - **Molecule info**: atomic symbols, coordinates, charge, multiplicity, basis set
 - **System metrics**: CPU usage, memory consumption (exported to Prometheus)
-- **Accuracy**: HF reference energy comparison, error in millihartree, accuracy score
+- **Accuracy**: HF reference energy comparison, error in millihartree, HF deviation score
 
 The result structure is documented in [Serialization - Schema Structure](serialization.md#schema-structure).
 
@@ -104,7 +104,7 @@ graph LR
 
 **VQE metrics**: `qp_vqe_total_time`, `qp_vqe_hamiltonian_time`, `qp_vqe_mapping_time`, `qp_vqe_vqe_time`, `qp_vqe_minimum_energy`, `qp_vqe_iterations_count`, `qp_vqe_optimal_parameters_count`
 
-**Accuracy metrics**: `qp_vqe_reference_energy`, `qp_vqe_energy_error_hartree`, `qp_vqe_energy_error_millihartree`, `qp_vqe_accuracy_score`
+**HF reference metrics**: `qp_vqe_reference_energy`, `qp_vqe_energy_error_hartree`, `qp_vqe_energy_error_millihartree`, `qp_vqe_hf_deviation_score`
 
 **Derived**: `qp_vqe_iterations_per_second`, `qp_vqe_time_per_iteration`, `qp_vqe_overhead_ratio`, `qp_vqe_efficiency`, `qp_vqe_setup_ratio`
 
@@ -252,7 +252,7 @@ graph LR
 | DAG | Schedule | What it does | Source |
 |-----|----------|-------------|--------|
 | `quantum_feature_processing` | Daily | Reads raw data from Garage, transforms into 9 normalized Iceberg tables | [`quantum_processing_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py) |
-| `quantum_ml_feature_processing` | Daily | Joins normalized tables into 2 ML-ready feature tables. Waits for upstream via `ExternalTaskSensor` | [`quantum_ml_feature_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_ml_feature_dag.py) |
+| `quantum_ml_feature_processing` | Daily | Joins 5 of the normalized tables into 2 ML-ready feature tables. Waits for upstream via `ExternalTaskSensor` | [`quantum_ml_feature_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_ml_feature_dag.py) |
 | `vqe_batch_generation` | Manual | Builds Docker images, runs batch VQE generation script. Trigger conf: `{"tier": N}` | [`vqe_batch_generation_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/vqe_batch_generation_dag.py) |
 | `r2_sync` | Manual by default, or set the `R2_SYNC_SCHEDULE` Airflow Variable | Waits for `quantum_ml_feature_processing` via an `ExternalTaskSensor`, health-checks rclone, then syncs ML feature Parquet from Garage to Cloudflare R2 | [`r2_sync_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/r2_sync_dag.py) |
 
@@ -292,62 +292,26 @@ sequenceDiagram
 
 ## Incremental Processing
 
-Only new data is processed on each run. The Spark scripts use an anti-join on
-key columns to identify records not yet in the target Iceberg table, then
-append only those.
-
-```mermaid
-graph LR
-    RAW[(Garage<br/>Raw JSON)]
-    META[Iceberg Metadata]
-
-    subgraph "Spark"
-        FILTER[Identify new records]
-        PROC[Compute features]
-        FILTER -->|new only| PROC
-    end
-
-    FEAT[(Garage<br/>Feature tables)]
-
-    RAW -->|list files| FILTER
-    META -->|existing keys| FILTER
-    PROC --> FEAT
-    PROC -->|update snapshot| META
-
-    style FILTER fill:#ffe082,color:#000
-    style RAW fill:#90caf9,color:#0d47a1
-    style FEAT fill:#a5d6a7,color:#1b5e20
-    style META fill:#b39ddb,color:#311b92
-```
-
-The deduplication logic is in
-[`identify_new_records()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py#L134)
-and the write logic in
-[`process_incremental_data()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py#L190).
-Each write is tagged with a version (`v_{batch_id}` or `v_incr_{batch_id}`),
-enabling Iceberg time-travel queries.
+Every run re-reads all raw files and writes only rows that are not yet in the
+target Iceberg table. There is no file-level watermark. The steps, the
+identifiers and the write semantics are described once, in
+[Spark Processing](../data-platform/spark-processing.md#incremental-processing).
 
 ### Feature Tables {: #feature-tables-schema }
 
 The first Spark job
 ([`quantum_incremental_processing.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py))
-produces 9 normalized tables:
-
-| Table | Key Columns | Partition | Purpose |
-|---|---|---|---|
-| `molecules` | experiment_id, molecule_id | processing_date | Geometry, symbols, masses, charge |
-| `ansatz_info` | experiment_id, molecule_id | processing_date, basis_set | QASM circuit, repetitions |
-| `performance_metrics` | experiment_id, molecule_id, basis_set | processing_date, basis_set | Timing breakdown |
-| `vqe_results` | experiment_id, molecule_id, basis_set | processing_date, basis_set, backend | Energy, iterations, optimizer |
-| `initial_parameters` | parameter_id | processing_date, basis_set | Starting parameter values (exploded) |
-| `optimal_parameters` | parameter_id | processing_date, basis_set | Best parameter values (exploded) |
-| `vqe_iterations` | iteration_id | processing_date, basis_set, backend | Per-step energy + std |
-| `iteration_parameters` | parameter_id | processing_date, basis_set | Per-step parameter values (exploded) |
-| `hamiltonian_terms` | term_id | processing_date, basis_set, backend | Pauli terms with coefficients |
+produces 9 normalized tables. Their keys, partitioning and the `experiment_id`
+are described in
+[Spark Processing](../data-platform/spark-processing.md#base-feature-tables-9-tables).
 
 The second Spark job
 ([`quantum_ml_feature_processing.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_ml_feature_processing.py))
-joins these into 2 ML-ready tables:
+joins five of these (`vqe_iterations`, `vqe_results`, `molecules`,
+`performance_metrics`, `ansatz_info`) into 2 ML-ready tables. They are
+append-only and partitioned by `processing_date` (`ml_run_summary` also by
+`basis_set`); see
+[Spark Processing - ML Feature Tables](../data-platform/spark-processing.md#ml-feature-tables-2-tables):
 
 | Table | Purpose |
 |---|---|
@@ -375,11 +339,16 @@ Grafana dashboards at `http://grafana:3000`. For configuration details, see
 ## ML Modules
 
 The [`quantum_pipeline/ml/`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/ml)
-package contains ML modules that are not yet integrated into the core VQE flow:
+package is experimental and in development. It is not part of a normal run and
+is not integrated into the core VQE flow. It holds:
 
-- **convergence_predictor** - predicts whether a VQE run will converge based on early iteration features
-- **energy_estimator** - estimates final ground-state energy from partial optimization trajectories
+- **convergence** - predicts whether a VQE run will converge from the features of its first K iterations
+- **energy** - estimates the final ground-state energy from a partial optimization trajectory
+- **schema** - the input contract the two predictors share
 - **preprocessing** - feature extraction utilities for ML model training
 - **tracking** - MLflow experiment tracking integration
 
-These are intended for the next phase of the project (ML predictive model PoC).
+Both predictors read the `ml_iteration_features` table produced by the Airflow feature
+job, so they depend on a completed pipeline run rather than on the VQE solver directly.
+Installing them needs the optional `ml` dependency group; the rest of the package works
+without it. They are intended for the next phase of the project (ML predictive model PoC).

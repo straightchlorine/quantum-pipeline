@@ -90,7 +90,7 @@ nvidia-smi
 
 **Solution:**
 
-Run multiple simulations with different seeds, or use `--init-strategy hf` to start from the Hartree-Fock state. The HF strategy avoids the worst barren plateaus - for example, L-BFGS-B with random init on 6-31g can spend 1000+ iterations arriving at a positive energy for H2, while HF init reaches a good result in 50 iterations.
+Run multiple simulations with different seeds, or use `--init-strategy hf` to start from the Hartree-Fock state. In one H2/6-31g run with L-BFGS-B, random init spent over 1000 iterations and ended at a positive energy, while HF init reached -1.857 Ha in 50 iterations.
 
 ## Docker Issues
 
@@ -251,7 +251,7 @@ spark.driver.memory=2g
 
 Verify that the following Spark configuration values match your Garage setup:
 
-```python
+```properties
 spark.hadoop.fs.s3a.endpoint = http://garage:3901
 spark.hadoop.fs.s3a.access.key = <your-access-key>
 spark.hadoop.fs.s3a.secret.key = <your-secret-key>

@@ -111,38 +111,48 @@ Click on any question to expand the answer.
     - **CG** - conjugate gradient
     - **TNC** - truncated Newton with bounds
 
-    Additional optimizers (Newton-CG, COBYQA, trust-constr, dogleg,
-    trust-ncg, trust-exact, trust-krylov) are available but not tested.
     See the [Optimizers](../usage/optimizers.md) page for a comparison.
 
 ??? question "What basis set should I use?"
     Start with **sto3g** for rapid prototyping (fewest qubits, fastest execution). Use **cc-pvdz** for high-accuracy results (GPU speedup up to 4x). See [Basis Sets](../scientific/basis-sets.md) for a detailed comparison.
 
 ??? question "Which ansatz should I use?"
-    Three ansatze are available via the `--ansatz` flag:
+    Three ansatze are available via the `--ansatz` flag. Start with the
+    default unless you have a reason not to - it is the one the thesis
+    experiments and most of the verification runs used.
 
-    - **EfficientSU2** (default) - hardware-efficient with RY/RZ rotations and
-      CX entangling gates. Good general choice.
-    - **RealAmplitudes** - real-valued amplitude ansatz. Simpler circuit, fewer
-      parameters per layer.
-    - **ExcitationPreserving** - preserves particle number. Physically motivated
-      but more constrained.
+    | Ansatz | What it is | Where it starts |
+    |--------|------------|-----------------|
+    | **EfficientSU2** (default) | Hardware-efficient RY/RZ rotations with reverse-linear CNOT entanglement. The ansatz of the thesis experiments | All-zero state, parameters uniform [0, 2pi) - or a Hartree-Fock pre-optimization under `--init-strategy hf` |
+    | **RealAmplitudes** | RY rotations only, so half the parameters and only real amplitudes are reachable. Simpler circuit | All-zero state, parameters uniform [0, 2pi) - or the same pre-optimization under `--init-strategy hf` |
+    | **ExcitationPreserving** | XX+YY rotations with all-to-all entanglement, conserving particle number, at a parameter count that grows quadratically in qubits | The Hartree-Fock determinant, always prepended, with parameters jittered off zero |
 
-    Control the circuit depth with `--ansatz-reps` (default: 2). More repetitions
-    increase expressiveness at the cost of more parameters to optimize.
+    The entanglement pattern is fixed per ansatz and is not a command-line
+    option. Control the circuit depth with `--ansatz-reps` (default: 2). More
+    repetitions increase expressiveness at the cost of more parameters to
+    optimize. See
+    [Ansatz Construction](../scientific/vqe-algorithm.md#ansatz-construction)
+    for the full comparison.
 
 ??? question "What initialization strategies are available?"
     Two strategies are available via the `--init-strategy` flag:
 
     - **random** (default) - uniform random parameters in [0, 2pi). Simple but
       prone to local minima, especially for larger molecules or higher basis sets.
-    - **hf** (Hartree-Fock) - starts from a classically pre-optimized state that
-      approximates the Hartree-Fock solution through the chosen ansatz. Generally
-      converges faster and avoids barren plateaus, though pre-optimization fidelity
-      decreases for larger molecules.
+    - **hf** (Hartree-Fock) - runs a classical pre-optimization to find
+      parameters that prepare the Hartree-Fock state through the ansatz. The
+      pre-optimization fidelity decreases for larger molecules.
 
-    For data collection or benchmarking, running both strategies across multiple
-    seeds gives the most useful comparison.
+    The pre-optimization runs for `EfficientSU2` and `RealAmplitudes`. It falls
+    back to random, with a warning, only when no Hartree-Fock data is available.
+    `ExcitationPreserving` always begins from the Hartree-Fock determinant, so
+    for it `hf` only narrows the jitter on the parameters. What the strategies
+    did in the runs so far is on the
+    [`--init-strategy`](../usage/configuration.md#-init-strategy) page; see also
+    [Hartree-Fock Initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization).
+
+    For data collection or benchmarking, run both strategies across multiple
+    seeds.
 
 ??? question "Why do I get different results with the same --seed?"
     The `--seed` flag only controls the initial parameter values (the starting
@@ -217,9 +227,11 @@ Click on any question to expand the answer.
     New Avro schemas are registered in the Schema Registry and published to the `experiment.vqe` Kafka topic. Redpanda Connect (configured in `compose/redpanda-connect.yaml`) consumes from this topic and writes to Garage object storage, so multiple schema versions coexist without downtime. See [Kafka Streaming](../data-platform/kafka-streaming.md) for details.
 
 ??? question "What happens if Kafka goes down during a simulation?"
-    The Kafka producer is configured with [`retries: 3`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py#L38) and `acks: all` for
-    durability. If Kafka is temporarily unavailable, the producer will [retry
-    message delivery](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/kafka_interface.py#L101).
+    The producer retries failed deliveries and waits for full acknowledgement;
+    the settings are in
+    [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
+    If Kafka is temporarily unavailable, it will
+    [retry message delivery](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/kafka_interface.py).
 
     Simulation results are not lost as long as Kafka retains the messages
     (Kafka's default retention is 7 days unless overridden). Redpanda Connect
@@ -300,14 +312,15 @@ Click on any question to expand the answer.
     [Benchmarking](../scientific/benchmarking.md) for detailed results.
 
 ??? question "How do I speed up optimization?"
-    Try `--init-strategy hf` to start from a better initial point,
+    Try `--init-strategy hf` to start from a better initial point (with
+    `ExcitationPreserving` the flag only narrows the parameter jitter),
     increase `--ansatz-reps` for expressiveness, run multiple
     simulations to avoid local minima, use GPU acceleration, start with sto3g,
     and enable `--convergence` with a looser `--threshold` (e.g. `1e-4`) for
     faster results.
 
 ??? question "Why are my energy values different from reference literature?"
-    Common causes: random parameter initialization converging on local minima, limited ansatz expressiveness, or early termination from convergence tolerance. Run multiple simulations and select the best result, or try `--init-strategy hf` for a better starting point. See [Benchmarking](../scientific/benchmarking.md) for detailed analysis.
+    Common causes: random parameter initialization converging on local minima, limited ansatz expressiveness, or early termination from convergence tolerance. Run multiple simulations and select the best result, or try `--init-strategy hf` for a better starting point with `EfficientSU2` or `RealAmplitudes`. See [Benchmarking](../scientific/benchmarking.md) for detailed analysis.
 
 For issues not covered here, see the [Troubleshooting](troubleshooting.md) guide or
 open an issue on [GitHub](https://github.com/straightchlorine/quantum-pipeline).

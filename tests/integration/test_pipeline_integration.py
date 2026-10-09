@@ -27,10 +27,6 @@ from quantum_pipeline.structures.vqe_observation import (
 )
 from quantum_pipeline.utils.timer import Timer
 
-# ---------------------------------------------------------------------------
-# Shared fixtures
-# ---------------------------------------------------------------------------
-
 SAMPLE_MOLECULES_JSON = [
     {
         'symbols': ['H', 'H'],
@@ -67,11 +63,6 @@ def backend_config():
 def sample_hamiltonian():
     """A small 2-qubit Hamiltonian for integration tests."""
     return SparsePauliOp.from_list([('II', 1.0), ('IZ', 0.5), ('ZI', -0.3), ('ZZ', 0.2)])
-
-
-# ---------------------------------------------------------------------------
-# Stage 1: Config parsing → dict
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
@@ -119,11 +110,6 @@ class TestConfigParsingIntegration:
         assert solver.optimizer == 'COBYLA'
 
 
-# ---------------------------------------------------------------------------
-# Stage 2: Molecule loading + basis set validation
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.integration
 class TestMoleculeLoadingIntegration:
     """Molecule JSON → MoleculeInfo objects with basis-set validation."""
@@ -155,11 +141,6 @@ class TestMoleculeLoadingIntegration:
         assert len(molecules) >= 1
 
 
-# ---------------------------------------------------------------------------
-# Stage 3: Mapping (Jordan-Wigner)
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.integration
 class TestMappingIntegration:
     """JordanWignerMapper wraps qiskit-nature mapper correctly."""
@@ -182,11 +163,6 @@ class TestMappingIntegration:
             result = mapper.map(mock_fermionic)
 
         assert isinstance(result, SparsePauliOp)
-
-
-# ---------------------------------------------------------------------------
-# Stage 4: Solver creation and wiring
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
@@ -219,11 +195,6 @@ class TestSolverWiringIntegration:
         )
         assert solver.convergence_threshold == 1e-8
         assert solver.max_iterations == 20
-
-
-# ---------------------------------------------------------------------------
-# Stage 5: Result assembly (VQE result → DecoratedResult)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
@@ -276,11 +247,6 @@ class TestResultAssemblyIntegration:
         assert list(decorated.molecule.symbols) == ['H', 'H']
 
 
-# ---------------------------------------------------------------------------
-# Stage 6: Timer used across pipeline stages
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.integration
 class TestTimerPipelineIntegration:
     """Timer context manager wires correctly into multi-stage timing."""
@@ -306,18 +272,12 @@ class TestTimerPipelineIntegration:
         assert timer.elapsed >= 0
 
 
-# ---------------------------------------------------------------------------
-# End-to-end: config → load → validate → solver creation
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.integration
 class TestEndToEndWiring:
     """Config parsing through to solver construction (no quantum execution)."""
 
     def test_full_config_to_solver_pipeline(self, molecule_file, sample_hamiltonian):
         """Parse config → load molecules → validate basis → create solver."""
-        # 1. Parse config
         parser = QuantumPipelineArgParser()
         config_manager = ConfigurationManager()
         test_args = [
@@ -334,14 +294,11 @@ class TestEndToEndWiring:
             args = parser.parser.parse_args(test_args)
             config = config_manager.get_config(args)
 
-        # 2. Load molecules
         molecules = load_molecule(config['file'])
         assert len(molecules) == 1
 
-        # 3. Validate basis set
         validate_basis_set(config['basis'])
 
-        # 4. Create solver
         solver = VQESolver(
             qubit_op=sample_hamiltonian,
             backend_config=config['backend_config'],
@@ -373,7 +330,6 @@ class TestEndToEndWiring:
     def test_config_optimizer_choices_match_settings(self):
         """Argparser optimizer choices stay in sync with settings."""
         parser = QuantumPipelineArgParser()
-        # Find the optimizer action
         optimizer_action = None
         for action in parser.parser._actions:
             if hasattr(action, 'dest') and action.dest == 'optimizer':

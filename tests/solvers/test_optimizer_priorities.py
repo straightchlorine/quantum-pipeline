@@ -1,9 +1,5 @@
-"""
-test_optimizer_priorities.py
-
-Comprehensive tests for COBYLA and L-BFGS-B optimizer priority handling
-when both --max-iterations and --convergence are specified.
-"""
+"""COBYLA and L-BFGS-B option mapping: --max-iterations and --convergence are mutually
+exclusive, and each maps onto a different scipy option."""
 
 from unittest.mock import MagicMock, patch
 
@@ -17,7 +13,7 @@ from quantum_pipeline.solvers.optimizer_config import (
 
 
 class TestCOBYLAPriorities:
-    """Test COBYLA priority handling with max_iterations and convergence."""
+    """How COBYLA maps max_iterations and convergence_threshold onto scipy options."""
 
     def test_cobyla_max_iterations_only(self):
         """Test COBYLA with only max_iterations specified."""
@@ -26,7 +22,7 @@ class TestCOBYLAPriorities:
         minimize_tol = config.get_minimize_tol()
 
         assert options['maxiter'] == 20
-        assert minimize_tol is None  # No convergence threshold
+        assert minimize_tol is None
 
     def test_cobyla_convergence_only(self):
         """Test COBYLA with only convergence_threshold specified."""
@@ -34,7 +30,7 @@ class TestCOBYLAPriorities:
         options = config.get_options(num_parameters=10)
         minimize_tol = config.get_minimize_tol()
 
-        assert options['maxiter'] == 1000  # Default
+        assert options['maxiter'] == 1000
         assert minimize_tol == 0.01
 
     def test_cobyla_both_parameters_raises_error(self):
@@ -55,7 +51,6 @@ class TestCOBYLAPriorities:
         mock_logger_instance = MagicMock()
         mock_logger.return_value = mock_logger_instance
 
-        # Test case where max_iterations is too small
         config = COBYLAConfig(max_iterations=3)
         config.logger = mock_logger_instance
         config.validate_parameters(num_parameters=10)
@@ -105,7 +100,7 @@ class TestCOBYLAPriorities:
 
 
 class TestLBFGSBPriorities:
-    """Test L-BFGS-B priority handling with max_iterations and convergence."""
+    """How L-BFGS-B maps max_iterations and convergence_threshold onto scipy options."""
 
     def test_lbfgsb_max_iterations_only(self):
         """Test L-BFGS-B with only max_iterations specified."""
@@ -125,7 +120,7 @@ class TestLBFGSBPriorities:
         options = config.get_options(num_parameters=10)
         minimize_tol = config.get_minimize_tol()
 
-        assert options['maxiter'] == 15000  # Default
+        assert options['maxiter'] == 15000
         assert options['ftol'] == 0.005
         assert options['gtol'] == 0.005
         assert minimize_tol is None
@@ -155,7 +150,6 @@ class TestLBFGSBPriorities:
         config.logger = mock_logger_instance
         config.validate_parameters(num_parameters=10)
 
-        # Should warn about max_iterations <= 0
         mock_logger_instance.warning.assert_called_once()
         warning_msg = mock_logger_instance.warning.call_args[0][0]
         assert 'should be >= 1' in warning_msg
@@ -177,7 +171,7 @@ class TestLBFGSBPriorities:
             optimizer='L-BFGS-B', convergence_threshold=0.0001, num_parameters=160
         )
 
-        assert options['maxiter'] == 15000  # High default
+        assert options['maxiter'] == 15000
         assert options['ftol'] == 0.0001
         assert options['gtol'] == 0.0001
         assert minimize_tol is None
@@ -202,7 +196,6 @@ class TestOptimizerPriorityIntegration:
             optimizer=optimizer, max_iterations=max_iter, num_parameters=20
         )
 
-        # All optimizers should respect max_iterations
         assert options['maxiter'] == max_iter
 
         if optimizer == 'COBYLA':
@@ -244,21 +237,18 @@ class TestOptimizerPriorityIntegration:
         """Test and document the mutually exclusive behavior."""
         # max_iterations and convergence_threshold are mutually exclusive
 
-        # COBYLA example with max_iterations only
         cobyla_options, cobyla_tol = get_optimizer_configuration(
             optimizer='COBYLA', max_iterations=25, num_parameters=10
         )
         assert cobyla_options['maxiter'] == 25
         assert cobyla_tol is None
 
-        # COBYLA example with convergence_threshold only
         cobyla_options, cobyla_tol = get_optimizer_configuration(
             optimizer='COBYLA', convergence_threshold=0.02, num_parameters=10
         )
-        assert cobyla_options['maxiter'] == 1000  # Default
+        assert cobyla_options['maxiter'] == 1000
         assert cobyla_tol == 0.02
 
-        # L-BFGS-B example with max_iterations only
         lbfgsb_options, _lbfgsb_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B', max_iterations=100, num_parameters=50
         )
@@ -266,24 +256,21 @@ class TestOptimizerPriorityIntegration:
         assert lbfgsb_options['ftol'] == 1e-15
         assert lbfgsb_options['gtol'] == 1e-15
 
-        # L-BFGS-B example with convergence_threshold only
         lbfgsb_options, _lbfgsb_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B', convergence_threshold=0.001, num_parameters=50
         )
-        assert lbfgsb_options['maxiter'] == 15000  # High default
+        assert lbfgsb_options['maxiter'] == 15000
         assert lbfgsb_options['ftol'] == 0.001
         assert lbfgsb_options['gtol'] == 0.001
 
     def test_edge_cases_mutually_exclusive(self):
         """Test edge cases with mutually exclusive parameters."""
-        # Very small max_iterations only
         options, minimize_tol = get_optimizer_configuration(
             optimizer='COBYLA', max_iterations=2, num_parameters=5
         )
         assert options['maxiter'] == 2
         assert minimize_tol is None
 
-        # Very tight convergence only
         options, minimize_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B', convergence_threshold=1e-12, num_parameters=10
         )
@@ -305,7 +292,7 @@ class TestOptimizerPriorityIntegration:
         options, minimize_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B', convergence_threshold=1e-6, num_parameters=160
         )
-        assert options['maxiter'] == 15000  # High default for convergence
+        assert options['maxiter'] == 15000
         assert options['ftol'] == 1e-6
         assert options['gtol'] == 1e-6
         assert minimize_tol is None
@@ -320,7 +307,6 @@ class TestOptimizerPriorityIntegration:
     def test_no_parameters_vs_single_parameter(self):
         """Test difference between no parameters and single parameter specified."""
 
-        # No parameters - should use defaults
         no_params_options, no_params_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B', num_parameters=10
         )
@@ -336,7 +322,6 @@ class TestOptimizerPriorityIntegration:
         assert max_iter_options['gtol'] == 1e-15
         assert max_iter_tol is None
 
-        # convergence_threshold only - should use default iterations
         conv_options, conv_tol = get_optimizer_configuration(
             optimizer='L-BFGS-B', convergence_threshold=0.01, num_parameters=10
         )
@@ -353,14 +338,13 @@ class TestOptimizerPriorityIntegration:
             optimizer='COBYLA', max_iterations=20, num_parameters=10
         )
         assert options['maxiter'] == 20
-        assert tol is None  # No convergence threshold
+        assert tol is None
 
         # Example 2: "Stop only when converged"
         options, tol = get_optimizer_configuration(
             optimizer='COBYLA',
-            # No max_iterations
             convergence_threshold=0.01,
             num_parameters=10,
         )
-        assert options['maxiter'] == 1000  # Default, very high
-        assert tol == 0.01  # Will stop when converged
+        assert options['maxiter'] == 1000
+        assert tol == 0.01

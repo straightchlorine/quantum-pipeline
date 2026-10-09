@@ -25,7 +25,6 @@ def test_ssl_basic_configuration_with_mock_dir(argparser, monkeypatch):
 
     Uses monkeypatch to mock os.path.isdir to always return True.
     """
-    # ensures isdir always returns True
     monkeypatch.setattr(os.path, 'isdir', lambda path: True)
 
     args = argparser.parser.parse_args(
@@ -35,6 +34,59 @@ def test_ssl_basic_configuration_with_mock_dir(argparser, monkeypatch):
 
     assert args.ssl is True
     assert args.ssl_dir == './secrets/'
+
+
+def test_ssl_individual_files_without_ssl_dir(argparser, monkeypatch):
+    """Test --ssl falls back to the individual files when the default dir is missing."""
+    monkeypatch.setattr(os.path, 'isdir', lambda path: False)
+    args = argparser.parser.parse_args(
+        [
+            '--file',
+            'molecule.json',
+            '--kafka',
+            '--ssl',
+            '--ssl-cafile',
+            'ca.pem',
+            '--ssl-certfile',
+            'cert.pem',
+            '--ssl-keyfile',
+            'key.pem',
+        ]
+    )
+    argparser._validate_args(args)
+    assert args.ssl_cafile == 'ca.pem'
+
+
+def test_ssl_missing_dir_and_files_is_clean_error(argparser, monkeypatch):
+    """Test --ssl with neither a dir nor files exits via parser.error."""
+    monkeypatch.setattr(os.path, 'isdir', lambda path: False)
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--kafka', '--ssl'])
+    with pytest.raises(SystemExit):
+        argparser._validate_args(args)
+
+
+def test_unsupported_optimizer_rejected(argparser):
+    """Test optimizers without an OptimizerConfigFactory entry are not accepted."""
+    with pytest.raises(SystemExit):
+        argparser.parser.parse_args(['--file', 'molecule.json', '--optimizer', 'COBYQA'])
+
+
+def test_optimizer_choices_match_factory(argparser):
+    """Test every --optimizer choice has an OptimizerConfigFactory entry."""
+    from quantum_pipeline.configs import settings
+    from quantum_pipeline.solvers.optimizer_config import OptimizerConfigFactory
+
+    assert set(settings.SUPPORTED_OPTIMIZERS) == set(
+        OptimizerConfigFactory.get_supported_optimizers()
+    )
+
+
+def test_unsupported_simulation_method_rejected(argparser):
+    """Test Aer methods that cannot run a parameterized circuit are not accepted."""
+    with pytest.raises(SystemExit):
+        argparser.parser.parse_args(
+            ['--file', 'molecule.json', '--simulation-method', 'stabilizer']
+        )
 
 
 def test_ssl_with_password(argparser):
@@ -148,7 +200,7 @@ def test_gpu_argument(argparser):
 
 
 def test_ssl_argument(argparser):
-    """Test the gpu enable argument."""
+    """Test SSL argument with password."""
     args = argparser.parser.parse_args(
         ['--file', 'molecule.json', '--ssl', '--ssl-password', 'password']
     )
@@ -163,9 +215,44 @@ def test_noise_argument(argparser):
 
 
 def test_noise_disable_argument(argparser):
-    """Test the noise enable argument."""
+    """Test that noise is None by default."""
     args = argparser.parser.parse_args(['--file', 'molecule.json'])
     assert args.noise is None
+
+
+def test_exact_with_noise_requires_density_matrix(argparser):
+    """--exact + --noise on a sampling method reports zero variance on sampled values."""
+    args = argparser.parser.parse_args(
+        ['--file', 'molecule.json', '--exact', '--noise', 'ibm_brisbane']
+    )
+    with pytest.raises(SystemExit):
+        argparser._validate_args(args)
+
+
+def test_exact_with_noise_allowed_on_density_matrix(argparser):
+    """density_matrix evaluates the noisy expectation value exactly, so the combination is fine."""
+    args = argparser.parser.parse_args(
+        [
+            '--file',
+            'molecule.json',
+            '--exact',
+            '--noise',
+            'ibm_brisbane',
+            '--simulation-method',
+            'density_matrix',
+        ]
+    )
+    argparser._validate_args(args)
+
+    assert args.exact is True
+
+
+def test_exact_without_noise_keeps_default_method(argparser):
+    """--exact alone stays valid on the default simulation method."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--exact'])
+    argparser._validate_args(args)
+
+    assert args.exact is True
 
 
 def test_ansatz_reps_argument(argparser):
@@ -174,10 +261,9 @@ def test_ansatz_reps_argument(argparser):
     assert args.ansatz_reps == 3
 
 
-def test_local_backend_flag(argparser):
-    """Test the --local flag for using a local backend."""
-    args = argparser.parser.parse_args(['--file', 'molecule.json', '--ibm'])
-    assert not args.ibm
+def test_ibm_backend_flag(argparser):
+    assert not argparser.parser.parse_args(['--file', 'molecule.json']).ibm
+    assert argparser.parser.parse_args(['--file', 'molecule.json', '--ibm']).ibm
 
 
 def test_kafka_arguments(argparser):
@@ -245,14 +331,14 @@ class TestArgparserEdgeCases:
     """Test edge cases and input validation for argparser."""
 
     def test_max_iterations_zero(self, argparser):
-        """Test max_iterations with zero value."""
-        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '0'])
-        assert args.max_iterations == 0
+        """Test max_iterations rejects zero."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '0'])
 
     def test_max_iterations_negative(self, argparser):
-        """Test max_iterations with negative value."""
-        args = argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '-5'])
-        assert args.max_iterations == -5
+        """Test max_iterations rejects negative values."""
+        with pytest.raises(SystemExit):
+            argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '-5'])
 
     def test_max_iterations_very_large(self, argparser):
         """Test max_iterations with very large value."""
@@ -346,7 +432,7 @@ class TestArgparserEdgeCases:
 
     def test_optimizer_valid_choices(self, argparser):
         """Test optimizer with all valid choices."""
-        valid_optimizers = ['COBYLA', 'L-BFGS-B', 'COBYQA']  # Use actual supported optimizers
+        valid_optimizers = ['COBYLA', 'L-BFGS-B', 'SLSQP']  # Use actual supported optimizers
 
         for optimizer in valid_optimizers:
             args = argparser.parser.parse_args(
@@ -474,10 +560,29 @@ def test_dump_configuration(mock_file, argparser):
 
 
 def test_load_configuration(argparser):
-    args = argparser.parser.parse_args(['--file', 'molecule.json', '--dump'])
+    """A dumped configuration must override the argparse defaults when reloaded."""
+    args = argparser.parser.parse_args(
+        [
+            '--file',
+            'molecule.json',
+            '--dump',
+            '--basis',
+            'cc-pvdz',
+            '--optimizer',
+            'COBYLA',
+            '--ansatz-reps',
+            '7',
+        ]
+    )
     cfg_manager = ConfigurationManager()
     dump_config = cfg_manager.get_config(args)
+    assert (dump_config['basis'], dump_config['optimizer'], dump_config['ansatz_reps']) == (
+        'cc-pvdz',
+        'COBYLA',
+        7,
+    )
 
+    # second run passes only defaults, so anything non-default can only come from the file
     args = argparser.parser.parse_args(
         [
             '--file',
@@ -488,7 +593,10 @@ def test_load_configuration(argparser):
     )
     load_config = cfg_manager.get_config(args)
 
-    # ensure the dump and load configurations are the same
+    assert load_config['basis'] == 'cc-pvdz'
+    assert load_config['optimizer'] == 'COBYLA'
+    assert load_config['ansatz_reps'] == 7
+
     dump_config['dump'], load_config['dump'] = None, None
     dump_config['load'], load_config['load'] = None, None
 

@@ -1,9 +1,3 @@
-"""
-operator_viewer.py
-
-This module visualizes the coefficients of qubit operators.
-"""
-
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,10 +9,7 @@ matplotlib.use('Agg')
 
 
 class OperatorViewer:
-    """Utility class to visualize qubit operator coefficients.
-
-    That also included their real and imaginary parts, and their magnitudes
-    """
+    """Visualizes qubit operator coefficients with real, imaginary, and magnitude components."""
 
     @staticmethod
     def plot_operator_coefficients(
@@ -29,8 +20,10 @@ class OperatorViewer:
         max_terms=50,
     ):
         """
-        Visualizes the coefficients of the qubit operator as a bar plot,
-        filtering out negligible terms and supporting dynamic subsampling.
+        Visualizes the coefficients of the qubit operator as a bar plot.
+
+        Filters out negligible terms and applies dynamic subsampling, depending
+        on the threshold.
 
         Args:
             qubit_op: Qiskit's PauliSumOp or similar operator.
@@ -42,22 +35,19 @@ class OperatorViewer:
         Returns:
             str: Path to the saved plot.
         """
-        # convert coefficients to a list
         terms = qubit_op
         operators = [term[0] for term in terms]
         coefficients = [term[1] for term in terms]
 
-        # separate real and imaginary parts
         real_parts = [coeff.real for coeff in coefficients]
         imag_parts = [coeff.imag for coeff in coefficients]
 
-        # filter out insignificant terms (smaller than threshold)
+        # filter out insignificant terms (smaller than a threshold)
         significant_indices = [i for i, coeff in enumerate(coefficients) if abs(coeff) > threshold]
         filtered_real_parts = [real_parts[i] for i in significant_indices]
         filtered_imag_parts = [imag_parts[i] for i in significant_indices]
         filtered_operators = [operators[i] for i in significant_indices]
 
-        # group up filtered out terms
         other_real = sum(
             real_parts[i] for i in range(len(real_parts)) if i not in significant_indices
         )
@@ -70,17 +60,16 @@ class OperatorViewer:
             filtered_imag_parts.append(other_imag)
             filtered_operators.append('Other')
 
-        # displayed terms must be limited to make the plot readable
+        # displayed terms limited to make the plot readable
         if len(filtered_operators) > max_terms:
             indices = np.linspace(0, len(filtered_operators) - 1, max_terms, dtype=int)
             filtered_real_parts = [filtered_real_parts[i] for i in indices]
             filtered_imag_parts = [filtered_imag_parts[i] for i in indices]
             filtered_operators = [filtered_operators[i] for i in indices]
 
-        # create the figure
         fig, ax = plt.subplots(figsize=(14, 8))
 
-        # bar plot
+        # bar plot (qubit coefficients)
         indices = np.arange(len(filtered_operators))
         bar_width = 0.4
         ax.barh(
@@ -100,7 +89,7 @@ class OperatorViewer:
             alpha=0.7,
         )
 
-        # set the title and labels
+        # labels, titles and the legend
         ax.set_title(title, fontsize=14)
         ax.set_xlabel('Coefficient Value', fontsize=12)
         ax.set_ylabel('Term Index / Label', fontsize=12)
@@ -109,7 +98,6 @@ class OperatorViewer:
         ax.grid(axis='x', linestyle='--', alpha=0.7)
         ax.legend(fontsize=10)
 
-        # set layout and save the plot
         plt.tight_layout()
         plot_path = save_plot(
             plt,
@@ -130,8 +118,10 @@ class OperatorViewer:
         max_terms=50,
     ):
         """
-        Visualizes the coefficients of the qubit operator in polar coordinates,
-        filtering out negligible terms and supporting dynamic subsampling.
+        Visualizes the coefficients of the qubit operator in polar coordinates.
+
+        Filters out negligible terms and applies dynamic subsampling, depending
+        on the threshold.
 
         Args:
             qubit_op: Qiskit's PauliSumOp or similar operator.
@@ -144,22 +134,19 @@ class OperatorViewer:
             str: Path to the saved plot.
         """
 
-        # terms and operators to lists
         terms = qubit_op
         operators = [term[0] for term in terms]
         coefficients = [term[1] for term in terms]
 
-        # calculate magnitudes and phases
         magnitudes = np.abs(coefficients)
         phases = np.angle(coefficients)
 
-        # filter out insignificant terms
+        # filter and group insignificant terms (smaller than the threshold)
         significant_indices = [i for i, mag in enumerate(magnitudes) if mag > threshold]
         filtered_magnitudes = [magnitudes[i] for i in significant_indices]
         filtered_phases = [phases[i] for i in significant_indices]
         filtered_operators = [operators[i] for i in significant_indices]
 
-        # group up the insignificant terms
         insignificant_phases = [
             phases[i] for i in range(len(phases)) if i not in significant_indices
         ]
@@ -167,7 +154,8 @@ class OperatorViewer:
             magnitudes[i] for i in range(len(magnitudes)) if i not in significant_indices
         )
 
-        # no phase equivalent to 0
+        # np.mean([]) returns NaN and warns; the 0 is never plotted - an empty
+        # list also means other_magnitude is 0 and the 'Other' bar is skipped below.
         other_phase = np.mean(insignificant_phases) if insignificant_phases else 0
 
         if other_magnitude > 0:
@@ -175,14 +163,13 @@ class OperatorViewer:
             filtered_phases.append(other_phase)
             filtered_operators.append('Other')
 
-        # limit the displayed terms
+        # limit the terms
         if len(filtered_operators) > max_terms:
             indices = np.linspace(0, len(filtered_operators) - 1, max_terms, dtype=int)
             filtered_magnitudes = [filtered_magnitudes[i] for i in indices]
             filtered_phases = [filtered_phases[i] for i in indices]
             filtered_operators = [filtered_operators[i] for i in indices]
 
-        # Create the figure
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10))
 
         # magnitude plot
@@ -204,7 +191,6 @@ class OperatorViewer:
         ax2.set_xticklabels(filtered_operators, rotation=90, fontsize=8)
         ax2.grid(axis='y', linestyle='--', alpha=0.7)
 
-        # adjust layout and save
         plt.tight_layout()
         plot_path = save_plot(
             plt,

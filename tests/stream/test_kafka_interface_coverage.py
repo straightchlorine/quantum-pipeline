@@ -14,14 +14,9 @@ from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.stream.kafka_interface import KafkaProducerError, VQEKafkaProducer
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 def mock_config():
-    """Minimal mock ProducerConfig for unit tests."""
     cfg = Mock(spec=ProducerConfig)
     cfg.servers = ['localhost:9092']
     cfg.topic = 'test_topic'
@@ -68,18 +63,10 @@ def producer(mock_config):
 
 @pytest.fixture
 def mock_result():
-    """Mock VQEDecoratedResult."""
     return Mock(spec=VQEDecoratedResult)
 
 
-# ---------------------------------------------------------------------------
-# Initialization
-# ---------------------------------------------------------------------------
-
-
 class TestInitialization:
-    """Test producer initialization error paths."""
-
     def test_no_brokers_raises_custom_error(self, mock_config):
         with (
             patch(
@@ -127,14 +114,7 @@ class TestInitialization:
                 VQEKafkaProducer(mock_config)
 
 
-# ---------------------------------------------------------------------------
-# Serialization
-# ---------------------------------------------------------------------------
-
-
 class TestSerialization:
-    """Test _serialize_result paths."""
-
     def test_serialize_delegates_to_serializer(self, producer, mock_result):
         producer.serializer.to_avro_bytes.return_value = b'\x00\x01'
         result = producer._serialize_result(mock_result)
@@ -147,14 +127,7 @@ class TestSerialization:
             producer._serialize_result(mock_result)
 
 
-# ---------------------------------------------------------------------------
-# Retry logic
-# ---------------------------------------------------------------------------
-
-
 class TestSendWithRetry:
-    """Test _send_with_retry paths."""
-
     def _make_metadata(self, topic='t', partition=0, offset=1):
         m = Mock()
         m.topic = topic
@@ -180,14 +153,9 @@ class TestSendWithRetry:
         bad_future.get.side_effect = KafkaError('transient')
 
         producer.producer.send.side_effect = [bad_future, good_future]
-        # The first call raises via future.get, second succeeds
-        # Actually, send returns the future, then .get() raises
-        # We need send to return the future objects
         producer.producer.send.side_effect = None
         producer.producer.send.return_value = bad_future
 
-        # First attempt fails, should retry
-        # On second attempt, return good future
         call_count = 0
 
         def send_side_effect(*args, **kwargs):
@@ -205,7 +173,6 @@ class TestSendWithRetry:
 
     @patch('quantum_pipeline.stream.kafka_interface.sleep')
     def test_send_exhausts_retries_raises(self, mock_sleep, producer):
-        """After exhausting retries, should raise KafkaProducerError."""
         bad_future = Mock()
         bad_future.get.side_effect = KafkaError('persistent failure')
         producer.producer.send.return_value = bad_future
@@ -221,18 +188,10 @@ class TestSendWithRetry:
 
         with pytest.raises(KafkaProducerError):
             producer._send_with_retry(b'data')
-        # Should only attempt once
         assert producer.producer.send.call_count == 1
 
 
-# ---------------------------------------------------------------------------
-# send_result orchestration
-# ---------------------------------------------------------------------------
-
-
 class TestSendResult:
-    """Test the public send_result method."""
-
     def test_producer_not_initialized_raises(self, producer, mock_result):
         producer.producer = None
         with pytest.raises(KafkaProducerError):
@@ -259,18 +218,11 @@ class TestSendResult:
             producer.send_result(mock_result)
 
 
-# ---------------------------------------------------------------------------
-# Close / context manager
-# ---------------------------------------------------------------------------
-
-
 class TestCloseAndContextManager:
-    """Test close() and __enter__/__exit__."""
-
     def test_close_when_no_producer(self, producer):
         """close() with producer=None should be a no-op."""
         producer.producer = None
-        producer.close()  # should not raise
+        producer.close()
 
     def test_close_error_raises(self, producer):
         producer.producer.close.side_effect = Exception('socket error')

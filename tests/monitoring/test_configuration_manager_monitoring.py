@@ -1,9 +1,4 @@
-"""
-Tests for configuration manager's performance monitoring initialization.
-
-Tests verify that the configuration manager properly initializes monitoring
-when --enable-performance-monitoring is passed via command line arguments.
-"""
+"""Tests for configuration manager's performance monitoring initialization."""
 
 import tempfile
 from pathlib import Path
@@ -169,7 +164,6 @@ class TestConfigurationManagerMonitoringInit:
         with caplog.at_level('INFO'):
             config_manager.get_config(args)
 
-        # Check that initialization was logged
         assert any(
             'Initializing performance monitoring' in record.message for record in caplog.records
         )
@@ -186,7 +180,6 @@ class TestConfigurationManagerMonitoringInit:
         parser = QuantumPipelineArgParser()
         args = parser.parse_args()
 
-        # Monitoring flag should be False by default
         assert hasattr(args, 'enable_performance_monitoring')
         assert args.enable_performance_monitoring is False
 
@@ -212,7 +205,6 @@ class TestConfigurationManagerMonitoringInit:
         parser = QuantumPipelineArgParser()
         config = parser.get_config()
 
-        # Verify monitoring settings in config
         assert 'enable_performance_monitoring' in config
         assert config['enable_performance_monitoring'] is True
         assert 'performance_interval' in config
