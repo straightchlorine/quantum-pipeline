@@ -475,6 +475,10 @@ class PerformanceMonitor:
         if not self.enabled or not self.pushgateway_url:
             return
 
+        formats = self.export_format or []
+        if 'prometheus' not in formats and 'both' not in formats:
+            return
+
         exposition = build_vqe_exposition(vqe_data, self.container_type)
         if not exposition.strip():
             self.logger.warning('Empty metrics payload, skipping export')
