@@ -1,0 +1,13 @@
+# Trivy ignore file — accepted, non-applicable, or out-of-scope findings.
+#
+# Every Trivy step in .github/workflows also sets `ignore-unfixed: true`, which
+# already drops CVEs with no upstream fix. Only fixable-but-deliberately-accepted
+# CVEs belong here, each justified. IDs are global (apply to every image).
+# Review on every base-image bump.
+
+# --- Apache Derby (bundled inside the pyspark wheel) ---
+# CVE-2022-46337 is an LDAP-auth bypass in Derby's *network server*. This
+# pipeline uses Spark as an embedded local engine only; the Derby network
+# server and its LDAP auth path are never started. Revisit if a Hive metastore
+# backed by Derby is ever introduced.
+CVE-2022-46337

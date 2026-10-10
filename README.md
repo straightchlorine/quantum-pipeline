@@ -16,7 +16,7 @@ to keep every iteration it takes to get there.
 
 </div>
 
-## How it fits together
+## Architecture
 
 ```mermaid
 graph LR
@@ -30,7 +30,7 @@ graph LR
 
     subgraph platform["data platform (docker compose, optional)"]
         K[Kafka<br/>one Avro message per finished run] --> S[Spark jobs<br/>scheduled by Airflow] --> I[(Iceberg tables<br/>on Garage)]
-        I --> ML[ML module (in progress)<br/>predict convergence from the first K steps]
+        I --> ML["ML module<br/>predict convergence from the first K steps"]
     end
 
     VQE -->|result with all iterations| K
