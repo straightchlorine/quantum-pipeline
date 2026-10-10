@@ -1,4 +1,14 @@
-FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
+# =============================================================================
+# Build stage: full CUDA toolchain (devel base) to compile qiskit-aer for GPU.
+# Nothing here ships: build-essential, *-dev packages, linux-libc-dev kernel
+# headers and aer's build tooling stay out of the final image and its scans.
+# =============================================================================
+
+# CUDA toolkit both stages are built on. It must not exceed what the host driver
+# supports (`nvidia-smi` prints the driver's max); CUDA 13 also drops Pascal.
+ARG CUDA_VERSION="12.6.3"
+
+FROM nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu24.04 AS builder
 
 # default: Ampere (RTX 30xx). Override for your GPU:
 #   docker build --build-arg CUDA_ARCH="6.1" .   # Pascal (GTX 10xx)
@@ -6,6 +16,10 @@ FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
 #   docker build --build-arg CUDA_ARCH="8.9" .   # Ada Lovelace (RTX 40xx)
 ARG CUDA_ARCH="8.6"
 ARG AER_VERSION="0.17.2"
+
+# CUDA libraries aer links against: needed to build it, and at run time it finds
+# them inside the env through its RPATH
+ARG CUDA_WHEELS="nvidia-cuda-runtime-cu12 nvidia-cublas-cu12 nvidia-cusolver-cu12 nvidia-cusparse-cu12 cuquantum-cu12"
 
 WORKDIR /usr/src/quantum_pipeline
 
@@ -26,27 +40,29 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -
 ENV PATH="/opt/conda/bin:$PATH"
 ENV CONDA_AUTO_UPDATE_CONDA=false
 
+# aerbuild compiles the wheel and is thrown away; qenv is the env that ships
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
     conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r && \
+    conda create -y -n aerbuild python=3.12.9 && \
     conda create -y -n qenv python=3.12.9 && conda clean -afy
 
 SHELL ["/bin/bash", "-c"]
-RUN echo "conda activate qenv" >> ~/.bashrc
-ENV CONDA_DEFAULT_ENV=qenv
-ENV CONDA_PREFIX=/opt/conda/envs/qenv
-ENV PATH="${CONDA_PREFIX}/bin:$PATH"
 
-RUN ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 ${CONDA_PREFIX}/lib/libstdc++.so.6
+# conda's bundled libstdc++ is older than the system one aer needs
+RUN for env in aerbuild qenv; do \
+      ln -sf /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /opt/conda/envs/$env/lib/libstdc++.so.6; \
+    done
 
-# install qiskit-aer deps, then build from source with GPU support
-RUN pip install qiskit-aer && pip uninstall -y qiskit-aer
-RUN pip install nvidia-cuda-runtime-cu12 nvidia-cublas-cu12 nvidia-cusolver-cu12 nvidia-cusparse-cu12 cuquantum-cu12 pybind11
+# build qiskit-aer from source with GPU support, in aerbuild
+ENV PATH="/opt/conda/envs/aerbuild/bin:$PATH"
+RUN pip install --no-cache-dir qiskit-aer && pip uninstall -y qiskit-aer
+RUN pip install --no-cache-dir ${CUDA_WHEELS} pybind11
 
-RUN git clone --depth 1 --branch ${AER_VERSION} https://github.com/Qiskit/qiskit-aer && \
-    pip install -r qiskit-aer/requirements-dev.txt && \
-    rm -rf qiskit-aer/_skbuild
+RUN git clone --depth 1 --branch ${AER_VERSION} https://github.com/Qiskit/qiskit-aer /tmp/qiskit-aer && \
+    pip install --no-cache-dir -r /tmp/qiskit-aer/requirements-dev.txt && \
+    rm -rf /tmp/qiskit-aer/_skbuild
 
-WORKDIR /usr/src/quantum_pipeline/qiskit-aer
+WORKDIR /tmp/qiskit-aer
 RUN python ./setup.py bdist_wheel -- \
     -DAER_THRUST_BACKEND=CUDA \
     -DAER_CUDA_ARCH="${CUDA_ARCH}" \
@@ -55,13 +71,51 @@ RUN python ./setup.py bdist_wheel -- \
     -DAER_MPI=false \
     --
 
-WORKDIR /usr/src/quantum_pipeline
-RUN rm -rf static && mkdir -p static && mv ./qiskit-aer/dist/* ./static && rm -rf ./qiskit-aer
-# conan is a build-only dep for aer's C++ compilation - remove to avoid urllib3 conflict noise
-RUN pip uninstall -y conan
+# install the package into qenv, then replace PyPI's CPU-only aer with the GPU wheel
+ENV CONDA_DEFAULT_ENV=qenv
+ENV CONDA_PREFIX=/opt/conda/envs/qenv
+ENV PATH="${CONDA_PREFIX}/bin:$PATH"
 
+WORKDIR /usr/src/quantum_pipeline
 COPY . .
-RUN pip install --no-cache-dir .
-RUN find ./static -name "*.whl" -type f -exec pip install --force-reinstall --no-deps {} \;
+RUN pip install --no-cache-dir ${CUDA_WHEELS} . && \
+    pip install --no-cache-dir --force-reinstall --no-deps /tmp/qiskit-aer/dist/*.whl
+
+# =============================================================================
+# Runtime stage: CUDA *runtime* base (no compilers, no headers).
+# Carries only qenv (python + qiskit + GPU aer wheel + the pip-installed nvidia
+# CUDA libs) and the application source. The GPU math libraries travel inside
+# the env via the nvidia-*-cu12 wheels, so the runtime base only needs the
+# shared C/Fortran libs qiskit-aer links against.
+# =============================================================================
+FROM nvidia/cuda:${CUDA_VERSION}-cudnn-runtime-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# upgrade: NVIDIA rebuilds the base less often than Ubuntu ships security fixes
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    libopenblas0 liblapack3 libgomp1 tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+# CUDA's forward-compat libcuda is datacenter-only: on GeForce it makes cuInit
+# fail (error 804) and Aer finds no GPU. Without it the driver's own libcuda is
+# used. Set "false" only for a datacenter GPU whose driver is older than CUDA_VERSION.
+ARG STRIP_CUDA_COMPAT="true"
+RUN if [ "$STRIP_CUDA_COMPAT" = "true" ]; then \
+      rm -rf /usr/local/cuda/compat /usr/local/cuda-*/compat \
+      && rm -f /etc/ld.so.conf.d/*compat* \
+      && ldconfig; \
+    fi
+
+# same path as in the builder: the env's shebangs and prefix are absolute
+COPY --from=builder /opt/conda/envs/qenv /opt/conda/envs/qenv
+WORKDIR /usr/src/quantum_pipeline
+COPY --from=builder /usr/src/quantum_pipeline /usr/src/quantum_pipeline
+
+ENV CONDA_DEFAULT_ENV=qenv
+ENV CONDA_PREFIX=/opt/conda/envs/qenv
+ENV PATH="${CONDA_PREFIX}/bin:$PATH"
 
 ENTRYPOINT ["python", "-m", "quantum_pipeline"]
