@@ -16,7 +16,7 @@ to keep every iteration it takes to get there.
 
 </div>
 
-## How it fits together
+## Architecture
 
 ```mermaid
 graph LR

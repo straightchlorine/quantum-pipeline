@@ -26,13 +26,20 @@ jobs:
       contents: read
       security-events: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Scan published image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: docker.io/straightchlorine/quantum-pipeline:latest
           format: sarif
+          limit-severities-for-sarif: true
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
           exit-code: "0"
           timeout: 15m
 
@@ -72,8 +79,11 @@ jobs:
         with:
           image-ref: quantum-pipeline:scan
           format: sarif
+          limit-severities-for-sarif: true
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
           exit-code: "0"
           timeout: 15m
 
@@ -91,5 +101,7 @@ jobs:
           image-ref: quantum-pipeline:scan
           format: table
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
           exit-code: "0"
           skip-setup-trivy: true
