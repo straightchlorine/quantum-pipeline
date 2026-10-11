@@ -68,7 +68,7 @@ jobs:
       - name: Free disk space
         uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
         with:
-          tool-cache: true
+          preinstalled-runtimes: true
           android: true
           dotnet: true
           haskell: true
@@ -163,6 +163,7 @@ jobs:
           image: ${{ env.GHCR_IMAGE }}@${{ needs.build-gpu-image.outputs.digest }}
           format: spdx-json
           artifact-name: quantum-pipeline-${{ needs.build-gpu-image.outputs.version }}-gpu.spdx.json
+          upload-release-assets: false
           registry-username: ${{ github.actor }}
           registry-password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -179,6 +180,31 @@ jobs:
         with:
           subject-name: index.docker.io/${{ github.repository }}
           subject-digest: ${{ needs.build-gpu-image.outputs.digest }}
+
+  # The release is created by publish.yml on the same tag push.
+  # Since it's usually before this image finishes; wait for it, then attach.
+  attach-sbom:
+    needs: [build-gpu-image, sign-and-attest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Retrieve the GPU image SBOM
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: quantum-pipeline-${{ needs.build-gpu-image.outputs.version }}-gpu.spdx.json
+          path: sbom/
+
+      - name: Attach to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build-gpu-image.outputs.version }}
+        run: |
+          for i in $(seq 1 30); do
+            gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
+            echo "release $VERSION not created yet (attempt $i/30)"; sleep 30
+          done
+          gh release upload "$VERSION" --repo "$GITHUB_REPOSITORY" --clobber sbom/*
 
   scan-gpu-image:
     needs: [build-gpu-image]
