@@ -1,8 +1,6 @@
-# Exclude everything by default
 *
 
-# Include only what the simulation image build needs:
-#   COPY . .  ->  pip install .  (needs package + pyproject.toml)
+# include what the images copy
 !quantum_pipeline/
 !data/
 !pyproject.toml

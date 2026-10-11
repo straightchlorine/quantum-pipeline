@@ -1,12 +1,24 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-trixie@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp/build
+COPY pyproject.toml ./
+RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml', 'rb'))['project']['dependencies']))" \
+      > requirements.txt && \
+    pip install --no-cache-dir -r requirements.txt
+
+COPY README.md LICENSE ./
+COPY quantum_pipeline ./quantum_pipeline
+
+RUN pip install --no-cache-dir --no-deps . && pip uninstall -y pip && rm -rf /tmp/build
+
+ENV PYTHONUNBUFFERED=1 \
+    MPLCONFIGDIR=/tmp/matplotlib
+
+# ensuring files written to gen/ and run_configs/ can be ran by --user
 WORKDIR /usr/src/quantum_pipeline
-
-RUN apt-get update \
-      && apt-get install -y git \
-      && rm -rf /var/lib/apt/lists/*
-
-COPY . .
-RUN pip install --no-cache-dir .
+COPY data ./data
+RUN chmod 1777 .
 
 ENTRYPOINT ["python", "-m", "quantum_pipeline"]

@@ -1,4 +1,15 @@
 #!/bin/bash
+# Generates a CA, a client/broker certificate, a Java keystore and truststore,
+# and the *_creds password files the apache/kafka image reads from /etc/kafka/secrets.
+#
+# Interactive by default. Every prompt can be skipped by setting an environment
+# variable (or putting it in ./.env):
+#   HOSTNAMES              comma-separated DNS names for the certificate (e.g. kafka,localhost)
+#   CERTIFICATE_PASSWORD   CA key password
+#   KEYSTORE_PASSWORD      keystore (and key) password
+#   TRUSTSTORE_PASSWORD    truststore password
+#   CLIENT_PASSWORD        password of the temporary PKCS12 export
+#   OUTPUT_DIR             where to write everything (default ./secrets)
 set -e
 
 # -------------------------------
@@ -21,7 +32,7 @@ command -v keytool >/dev/null 2>&1 || { echo "Error: keytool is not installed." 
 # -------------------------------
 # Set output directory for secrets
 # -------------------------------
-OUTPUT_DIR="./secrets"
+OUTPUT_DIR="${OUTPUT_DIR:-./secrets}"
 if [ ! -d "$OUTPUT_DIR" ]; then
     echo "Creating output directory at $OUTPUT_DIR..."
     mkdir -p "$OUTPUT_DIR"
@@ -61,9 +72,21 @@ else
     TRUSTSTORE_PASS="$TRUSTSTORE_PASSWORD"
 fi
 
-# Always prompt for the client certificate export password
-read -s -p "Enter client certificate export password (for PKCS12 file): " CLIENT_PASS
-echo
+# Use CLIENT_PASSWORD from .env for the PKCS12 export if set.
+if [ -z "$CLIENT_PASSWORD" ]; then
+    read -s -p "Enter client certificate export password (for PKCS12 file): " CLIENT_PASS
+    echo
+else
+    CLIENT_PASS="$CLIENT_PASSWORD"
+fi
+
+# keytool rejects passwords under 6 characters - fail before generating anything
+for pass in "$CA_PASS" "$KEYSTORE_PASS" "$TRUSTSTORE_PASS" "$CLIENT_PASS"; do
+    if [ "${#pass}" -lt 6 ]; then
+        echo "Error: every password must be at least 6 characters (keytool requirement)." >&2
+        exit 1
+    fi
+done
 
 # -------------------------------
 # Define filenames (all files will be placed in the OUTPUT_DIR)
@@ -78,10 +101,15 @@ KEYSTORE="${OUTPUT_DIR}/kafka.keystore.jks"
 TRUSTSTORE="${OUTPUT_DIR}/kafka.truststore.jks"
 SAN_FILE="${OUTPUT_DIR}/san.cnf"
 
+# Password files for the apache/kafka image (KAFKA_SSL_*_CREDENTIALS env vars).
+KEYSTORE_CREDS="${OUTPUT_DIR}/kafka_keystore_creds"
+KEY_CREDS="${OUTPUT_DIR}/kafka_ssl_key_creds"
+TRUSTSTORE_CREDS="${OUTPUT_DIR}/kafka_truststore_creds"
+
 # -------------------------------
 # Backup any existing files
 # -------------------------------
-for file in "$CA_KEY" "$CA_CERT" "$CLIENT_KEY" "$CLIENT_CSR" "$CLIENT_CERT" "$PKCS12_FILE" "$KEYSTORE" "$TRUSTSTORE"; do
+for file in "$CA_KEY" "$CA_CERT" "$CLIENT_KEY" "$CLIENT_CSR" "$CLIENT_CERT" "$PKCS12_FILE" "$KEYSTORE" "$TRUSTSTORE" "$KEYSTORE_CREDS" "$KEY_CREDS" "$TRUSTSTORE_CREDS"; do
     if [ -f "$file" ]; then
         mv "$file" "${file}.backup_$(date +%Y%m%d%H%M%S)"
         echo "Backed up existing file $file"
@@ -137,7 +165,7 @@ done
 # -------------------------------
 echo "Signing the client CSR with the CA key to generate the client certificate..."
 openssl x509 -req -in "$CLIENT_CSR" -CA "$CA_CERT" -CAkey "$CA_KEY" -CAcreateserial \
-    -out "$CLIENT_CERT" -days 365 -extfile "$SAN_FILE" -passin pass:"$CA_PASS"
+    -out "$CLIENT_CERT" -days 365 -extfile "$SAN_FILE" -extensions v3_req -passin pass:"$CA_PASS"
 
 # -------------------------------
 # Step 5: Create a PKCS12 File from Client Key and Certificate
@@ -154,7 +182,7 @@ keytool -importkeystore \
     -deststorepass "$KEYSTORE_PASS" -destkeypass "$KEYSTORE_PASS" \
     -destkeystore "$KEYSTORE" \
     -srckeystore "$PKCS12_FILE" -srcstoretype PKCS12 -srcstorepass "$CLIENT_PASS" \
-    -alias kafka
+    -alias kafka -noprompt
 
 # -------------------------------
 # Step 7: Create the Java Truststore (.jks) and Import the CA Certificate
@@ -162,6 +190,21 @@ keytool -importkeystore \
 echo "Creating Java truststore and importing CA certificate..."
 keytool -import -file "$CA_CERT" -alias CARoot \
     -keystore "$TRUSTSTORE" -storepass "$TRUSTSTORE_PASS" -noprompt
+
+# -------------------------------
+# Step 8: Write the password files read by the apache/kafka image
+# -------------------------------
+# The keystore key shares the keystore password (see -destkeypass above).
+printf '%s' "$KEYSTORE_PASS" > "$KEYSTORE_CREDS"
+printf '%s' "$KEYSTORE_PASS" > "$KEY_CREDS"
+printf '%s' "$TRUSTSTORE_PASS" > "$TRUSTSTORE_CREDS"
+
+# The containers run as other uids (e.g. appuser 1000 for Kafka), so everything they
+# mount must be world-readable. Only the CA key stays private. Local demo material only.
+chmod 755 "$OUTPUT_DIR"
+chmod 600 "$CA_KEY"
+chmod 644 "$CA_CERT" "$CLIENT_CERT" "$CLIENT_KEY" "$KEYSTORE" "$TRUSTSTORE" \
+    "$KEYSTORE_CREDS" "$KEY_CREDS" "$TRUSTSTORE_CREDS"
 
 # -------------------------------
 # Cleanup temporary files
@@ -179,4 +222,5 @@ echo "  - Client certificate: $CLIENT_CERT"
 echo "  - Client private key: $CLIENT_KEY"
 echo "  - Java keystore: $KEYSTORE"
 echo "  - Java truststore: $TRUSTSTORE"
+echo "  - Password files (apache/kafka): $KEYSTORE_CREDS, $KEY_CREDS, $TRUSTSTORE_CREDS"
 echo "----------------------------------------------"

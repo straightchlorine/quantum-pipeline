@@ -116,10 +116,14 @@ docs-serve:
 # --- docker ---
 
 # Build Docker image (target: cpu, gpu, all)
-# For GPU: set CUDA_ARCH env var to match your GPU (default: 8.6/Ampere)
+#
+# For GPU: compiles for every generation from Pascal on by default;
+# set CUDA_ARCH to your card's compute capability to constrain.
 #   CUDA_ARCH=6.1 just docker-build gpu   # Pascal (GTX 10xx)
-#   CUDA_ARCH=7.5 just docker-build gpu   # Turing (RTX 20xx)
-#   CUDA_ARCH=8.9 just docker-build gpu   # Ada Lovelace (RTX 40xx)
+#   CUDA_ARCH=8.6 just docker-build gpu   # Ampere (RTX 30xx)
+#
+# To get compute capability:
+#   nvidia-smi --query-gpu=compute_cap --format=csv
 docker-build TARGET="cpu":
     #!/usr/bin/env bash
     VERSION=$(python -c "import quantum_pipeline; print(quantum_pipeline.__version__)")
@@ -134,10 +138,12 @@ docker-build TARGET="cpu":
             echo "[  OK  ] CPU image built (v${VERSION})"
             ;;
         gpu)
-            ARCH="${CUDA_ARCH:-8.6}"
+            ARCH="${CUDA_ARCH:-Dockerfile default}"
+            ARCH_ARGS=()
+            if [ -n "${CUDA_ARCH:-}" ]; then ARCH_ARGS=(--build-arg "CUDA_ARCH=${CUDA_ARCH}"); fi
             echo "[ INFO ] Building GPU image (CUDA_ARCH=${ARCH})..."
             docker build -f docker/Dockerfile.gpu \
-                --build-arg CUDA_ARCH="${ARCH}" \
+                "${ARCH_ARGS[@]}" \
                 -t quantum-pipeline:gpu \
                 -t straightchlorine/quantum-pipeline:gpu \
                 -t straightchlorine/quantum-pipeline:${VERSION}-gpu \

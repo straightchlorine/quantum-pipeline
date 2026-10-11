@@ -11,10 +11,10 @@ on:
         type: string
         default: ""
       cuda_arch:
-        description: "CUDA compute capability (6.1 Pascal, 7.5 Turing, 8.6 Ampere, 8.9 Ada)"
+        description: "CUDA compute capabilities to compile for (empty = the Dockerfile's multi-generation default)"
         required: false
         type: string
-        default: "8.6"
+        default: ""
 
 env:
   DOCKERHUB_IMAGE: docker.io/${{ github.repository }}
@@ -111,8 +111,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile.gpu
           push: true
-          build-args: |
-            CUDA_ARCH=${{ inputs.cuda_arch || '8.6' }}
+          build-args: ${{ inputs.cuda_arch && format('CUDA_ARCH={0}', inputs.cuda_arch) || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ env.GHCR_IMAGE }}:buildcache-gpu
@@ -158,21 +157,7 @@ jobs:
             "${DOCKERHUB_IMAGE}@${DIGEST}" \
             "${GHCR_IMAGE}@${DIGEST}"
 
-      # Syft pulls and unpacks the full image - may fail on disk/time for an
-      # image this size, hence best-effort.
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          docker-images: true
-          large-packages: false
-          swap-storage: false
-
       - name: Generate SBOM
-        continue-on-error: true
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ${{ env.GHCR_IMAGE }}@${{ needs.build-gpu-image.outputs.digest }}
@@ -188,35 +173,21 @@ jobs:
           subject-digest: ${{ needs.build-gpu-image.outputs.digest }}
           push-to-registry: true
 
-      # Docker Hub does not support OCI referrers - attestation is stored in
-      # GitHub's attestation store only (gh attestation verify).
+      # storing in attestation store
       - name: Attest build provenance (Docker Hub)
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: index.docker.io/${{ github.repository }}
           subject-digest: ${{ needs.build-gpu-image.outputs.digest }}
 
-  # Best-effort: scanning an 11 GB image can exhaust runner disk or time out.
   scan-gpu-image:
     needs: [build-gpu-image]
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
       packages: read
       security-events: write
     steps:
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          docker-images: true
-          large-packages: false
-          swap-storage: true
-
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -228,6 +199,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Smoke-test the image
+        env:
+          IMAGE: ${{ env.GHCR_IMAGE }}@${{ needs.build-gpu-image.outputs.digest }}
+        run: |
+          docker run --rm --entrypoint bash "$IMAGE" -c '
+            set -euo pipefail
+            aer_dir="$(python -c "import os, qiskit_aer; print(os.path.dirname(qiskit_aer.__file__))")"
+            if find "$aer_dir" -name "*.so" -exec ldd {} + | grep "not found"; then exit 1; fi
+            python -m quantum_pipeline --help > /dev/null'
 
       - name: Scan GPU image
         id: scan
@@ -241,7 +222,7 @@ jobs:
           ignore-unfixed: true
           trivyignores: .trivyignore
           exit-code: "0"
-          timeout: 40m
+          timeout: 15m
 
       - name: Upload report to Security tab
         if: steps.scan.outcome == 'success'

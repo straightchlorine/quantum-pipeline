@@ -15,12 +15,13 @@ docker build -f docker/Dockerfile.cpu -t quantum-pipeline:cpu .
 ### `Dockerfile.gpu`
 
 GPU simulation container with CUDA support for Aer. `CUDA_ARCH` defaults
-to 8.6 (Ampere) and can be overridden at build time. Requires
+to `6.1 7.0 8.0 9.0+PTX` (Pascal to Hopper, Blackwell via PTX). Set it to one
+value for a faster local build. Requires
 `nvidia-container-toolkit` on the host.
 
 ```bash
 docker build -f docker/Dockerfile.gpu -t quantum-pipeline:gpu .
-# Override for your GPU architecture:
+# Faster local build for one GPU (see nvidia-smi --query-gpu=compute_cap):
 docker build -f docker/Dockerfile.gpu --build-arg CUDA_ARCH="8.9" -t quantum-pipeline:gpu .
 ```
 
