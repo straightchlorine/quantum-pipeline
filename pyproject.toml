@@ -52,7 +52,6 @@ dependencies = [
     # Data streaming and processing
     "avro>=1.12.0",
     "kafka-python-ng>=2.2.3",
-    "pyspark>=3.5.5",
 
     # Utilities
     "cryptography>=44.0.1",
@@ -75,6 +74,8 @@ dev = [
     "pytest-timeout>=2.3.1",
     "pytest-randomly>=3.16.0",
     "pytest-watch>=4.2.0",
+    # the Spark job tests in tests/stream
+    "pyspark>=3.5.5",
 ]
 
 # Documentation generation and serving
@@ -93,6 +94,8 @@ ml = [
     "seaborn>=0.13.2",
     "jupyterlab>=4.5.6",
     "mlflow>=3.10.1",
+    # notebooks/data-processing.ipynb
+    "pyspark>=3.5.5",
 ]
 
 [project.urls]
