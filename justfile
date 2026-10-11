@@ -222,6 +222,17 @@ build:
     echo "[  OK  ] Built to dist/"
     @ls -lh dist/
 
+# Bump the version in pyproject.toml and the package
+bump-version VERSION:
+    [[ "{{VERSION}}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "[ FAIL ] usage: just bump-version X.Y.Z"; exit 1; }
+    sed -i 's/^version = ".*"/version = "{{VERSION}}"/' pyproject.toml
+    sed -i "s/^__version__ = '.*'/__version__ = '{{VERSION}}'/" quantum_pipeline/__init__.py
+    git add pyproject.toml quantum_pipeline/__init__.py
+    git commit -m "chore(version): bump to {{VERSION}}"
+    echo "[  OK  ] Version {{VERSION}} committed"
+    git tag -a {{VERSION}} -s
+    echo "[  OK  ] Version {{VERSION}} tagged"
+
 # --- utilities ---
 
 # Clean all generated files and caches
