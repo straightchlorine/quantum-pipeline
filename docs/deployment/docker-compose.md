@@ -78,7 +78,7 @@ Build the simulation container images:
 # CPU only
 just docker-build cpu
 
-# GPU (set CUDA_ARCH for your GPU, default 8.6/Ampere)
+# GPU (optional: set CUDA_ARCH to your GPU for a faster local build)
 CUDA_ARCH=6.1 just docker-build gpu
 
 # Both

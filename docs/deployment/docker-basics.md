@@ -16,36 +16,48 @@ repository.
 
 | Image Tag | Base Image | Purpose |
 |---|---|---|
-| [`straightchlorine/quantum-pipeline:cpu`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.cpu) | `python:3.12-slim-bookworm` | CPU-only simulations |
-| [`straightchlorine/quantum-pipeline:gpu`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.gpu) | `nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04` | GPU-accelerated simulations |
+| [`straightchlorine/quantum-pipeline:cpu`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.cpu) | `python:3.12-slim-trixie` | CPU-only simulations |
+| [`straightchlorine/quantum-pipeline:gpu`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.gpu) | `ubuntu:24.04` (Aer compiled on `nvidia/cuda:12.6.3-devel-ubuntu24.04`) | GPU-accelerated simulations |
 | [`quantum-pipeline-spark`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/Dockerfile.spark) | `apache/spark:4.0.2-python3` | Spark master and worker nodes |
 | [`airflow` (custom)](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/Dockerfile) | `apache/airflow:3.1.8` | Airflow API server, scheduler, workers, triggerer |
 
 ### CPU Image
 
-The CPU image is a lightweight container based on Python 3.12 (Bookworm). It installs
-the Quantum Pipeline package and its dependencies directly from the project source.
-The `data/` directory with sample molecule files is included in the image, so you
-can run simulations immediately with `--file data/molecules.json`.
+The CPU image is a container based on Python 3.12 (Debian Trixie). It installs 
+the Quantum Pipeline package and its dependencies. The `data/` directory with
+sample molecule files is included, so you can run simulations immediately with
+`--file data/molecules.json`.
+
+Both images run as root by default but work under any `--user`: the working
+directory `/usr/src/quantum_pipeline`, where `gen/` and `run_configs/` are written,
+is writable by every user. A bind-mounted `gen/` must be writable by that user too.
 
 ### GPU Image
 
-The GPU image is built on NVIDIA CUDA 12.6.3 with cuDNN. It includes a custom
-compilation of Qiskit Aer from source with CUDA Thrust backend support.
+The GPU image compiles Qiskit Aer from source with the CUDA Thrust backend
+(CUDA 12.6.3) and ships it on Ubuntu 24.04: Aer carries its own CUDA runtime
+and the NVIDIA Container Toolkit provides the driver, so no CUDA or cuDNN base is
+needed. The host driver must support CUDA 12 (driver 525 or newer). cuStateVec and
+the `tensor_network` simulation method are not built in.
 
-The `straightchlorine/quantum-pipeline:gpu` image on Docker Hub is compiled for
-**Ampere architecture** (`CUDA_ARCH=8.6`). If your GPU uses a different
-architecture, rebuild locally with the appropriate `CUDA_ARCH`:
+From 2.3.0, the `straightchlorine/quantum-pipeline:gpu` image on Docker Hub is
+built for compute capabilities `6.1 7.0 8.0 9.0+PTX`. Code built for X.y runs on
+every X.z with z at least y, and `+PTX` lets the driver compile for newer GPUs.
+One image therefore covers:
 
-| `CUDA_ARCH` | Architecture | Example GPUs |
-|---|---|---|
-| `6.1` | Pascal | GTX 1060, GTX 1050 Ti |
-| `7.5` | Turing | RTX 2070, RTX 2080 |
-| `8.6` | Ampere (Docker Hub default) | RTX 3060, RTX 3080 |
-| `8.9` | Ada Lovelace | RTX 4070, RTX 4090 |
+| Architecture | Example GPUs |
+|---|---|
+| Pascal (6.1) | GTX 1060, GTX 1050 Ti |
+| Volta (7.0) | Titan V, V100 |
+| Turing (7.5) | RTX 2070, RTX 2080 |
+| Ampere (8.0, 8.6) | A100, RTX 3060, RTX 3080 |
+| Ada Lovelace (8.9) | RTX 4070, RTX 4090 |
+| Hopper (9.0) | H100 |
+| Blackwell | via PTX |
 
-The GPU image is not built in CI/CD due to the long compilation time (Aer from
-source). It is built and pushed manually.
+Pascal P100 (6.0) and anything older is not covered. You do not need to rebuild
+for your GPU. A local build for a single architecture is optional: it significantly 
+faster, but only useful on your own machine.
 
 ### Spark Image
 
@@ -76,10 +88,10 @@ The simplest way to build images:
 # Build CPU image
 just docker-build cpu
 
-# Build GPU image (default CUDA_ARCH=8.6/Ampere)
+# Build GPU image (default CUDA_ARCH covers Pascal to Hopper)
 just docker-build gpu
 
-# Build GPU image for Pascal GPUs
+# Faster local build for one GPU (use its compute capability)
 CUDA_ARCH=6.1 just docker-build gpu
 
 # Build both CPU and GPU images
@@ -94,12 +106,16 @@ Each image can be built directly with Docker:
 # CPU
 docker build -t quantum-pipeline:cpu -f docker/Dockerfile.cpu .
 
-# GPU (default Ampere)
+# GPU (default: Pascal to Hopper)
 docker build -t quantum-pipeline:gpu -f docker/Dockerfile.gpu .
 
-# GPU targeting Pascal
+# GPU for a single architecture (faster, local use)
 docker build -t quantum-pipeline:gpu -f docker/Dockerfile.gpu \
   --build-arg CUDA_ARCH="6.1" .
+
+# A different CUDA 12 toolkit (the driver must support CUDA 12)
+docker build -t quantum-pipeline:gpu -f docker/Dockerfile.gpu \
+  --build-arg CUDA_ARCH="6.1" --build-arg CUDA_VERSION="12.4.1" .
 
 # Airflow (with custom Docker GID)
 docker build -t quantum-pipeline-airflow -f docker/airflow/Dockerfile \
@@ -109,7 +125,8 @@ docker build -t quantum-pipeline-airflow -f docker/airflow/Dockerfile \
 
 !!! warning "GPU Build Time"
     Building the GPU image compiles Qiskit Aer from source with CUDA Thrust backend
-    support. This takes a while. Make sure `CUDA_ARCH` matches your target GPU!
+    support. This takes a while. A single-arch `CUDA_ARCH` build is significantly 
+    faster; find your card's value with `nvidia-smi --query-gpu=compute_cap --format=csv`.
 
 ## Running Containers
 

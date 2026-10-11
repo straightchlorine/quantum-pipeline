@@ -10,6 +10,36 @@ Release notes for Quantum Pipeline, starting from version 1.4.0.
 For earlier versions, see the [GitHub releases](https://github.com/straightchlorine/quantum-pipeline/releases).
 
 ---
+## [2.3.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.3.0)
+
+### Breaking changes
+
+`pyspark` is no longer a core dependency. It moved to the `dev` extra 
+(Spark job tests) and the `ml` extra (the data-processing notebook).
+
+The Docker images no longer contain conda or pip, so images built `FROM` them
+that install packages at build time need their own Python tooling.
+
+### Docker images
+
+The GPU image compiles Aer on the CUDA toolchain and ships it on plain Ubuntu
+24.04 in a venv, without conda, cuDNN or the CUDA base.
+883 MiB instead of 16 GiB, and cleared some security findings. It also runs on
+GeForce cards, which the CUDA base's forward-compat `libcuda` broke.
+A `CUDA_VERSION` build arg selects the toolkit. The CPU image moved to Debian
+Trixie and drops git.
+Both images run under any `--user`, ship without pip, and install their
+dependencies in a layer of their own.
+Published GPU image is now scanned weekly.
+The GPU image is built for compute capabilities `6.1 7.0 8.0 9.0+PTX`, so the
+published image runs on every NVIDIA GPU from Pascal on.
+
+The example compose files in `examples/` run against the current images, with
+`apache/kafka` and the schema registry `--kafka` needs, in plaintext, TLS and
+SASL over TLS variants. `docker/scripts/ssl-gen.sh` now writes the credential
+files `apache/kafka` expects.
+
+---
 
 ## [2.2.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.2.0)
 

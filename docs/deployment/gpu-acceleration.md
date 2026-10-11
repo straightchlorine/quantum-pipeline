@@ -20,7 +20,8 @@ The GPU image is built on CUDA 12.6.3. For detailed installation steps, see the
     for quantum simulations but requires Volta architecture or newer (compute
     capability 7.0+) and CUDA 11.2+. The `blocking_enable` option shares this
     requirement. The thesis and current experiments did not use these features
-    because the test hardware is Pascal architecture.
+    because the test hardware is Pascal architecture. The image currently does 
+    not build cuStateVec or the `tensor_network` method in.
 
 ## GPU Configuration
 
@@ -56,17 +57,21 @@ quantum-pipeline \
 
 ## CUDA_ARCH Build Argument
 
-The GPU Docker image compiles Qiskit Aer from source for a specific CUDA compute
-capability. The `CUDA_ARCH` build argument controls which architecture is targeted:
+The GPU Docker image compiles Qiskit Aer from source. By default `CUDA_ARCH` is
+`6.1 7.0 8.0 9.0+PTX`, which covers all of these (from 2.3.0 the published image
+does too):
 
-| `CUDA_ARCH` | Architecture | Example GPUs |
+| Compute capability | Architecture | Example GPUs |
 |---|---|---|
 | `6.1` | Pascal | GTX 1060, GTX 1050 Ti |
-| `7.5` | Turing | RTX 2070, RTX 2080 |
-| `8.6` | Ampere (default) | RTX 3060, RTX 3080 |
+| `7.0` / `7.5` | Volta / Turing | V100, RTX 2070, RTX 2080 |
+| `8.0` / `8.6` | Ampere | A100, RTX 3060, RTX 3080 |
 | `8.9` | Ada Lovelace | RTX 4070, RTX 4090 |
+| `9.0` and newer | Hopper, Blackwell (via PTX) | H100 |
 
-Build for your specific GPU:
+Pascal P100 (6.0) and older are not covered. For a faster local build (about 4x),
+set `CUDA_ARCH` to your card's compute capability, from
+`nvidia-smi --query-gpu=compute_cap --format=csv`:
 
 ```bash
 # Pascal (GTX 10xx)
@@ -168,9 +173,9 @@ configuration, runtime issues), see the
 4 GB GPU, the practical limit is approximately 28 qubits with `statevector`
 simulation.
 
-**Qiskit Aer GPU Build:** Ensure the `CUDA_ARCH` build argument matches your target
-GPU architecture. Mismatched flags produce builds that fail to compile or fail at
-runtime with `CUDA error: no kernel image is available`. See the
+**Qiskit Aer GPU Build:** The default image covers Pascal 6.1 and newer. Only a custom
+single-arch build for another card, or a GPU older than 6.1, fails at runtime with
+`CUDA error: no kernel image is available`. See the
 [CUDA_ARCH table](#cuda_arch-build-argument) above.
 
 ## References

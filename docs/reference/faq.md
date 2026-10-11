@@ -85,8 +85,8 @@ Click on any question to expand the answer.
 
 ??? question "How do I install GPU support?"
     Install NVIDIA drivers and the NVIDIA Container Toolkit on the host, then use the GPU image (`straightchlorine/quantum-pipeline:gpu`).
-    The image includes CUDA 12.6 and cuDNN. You need to set the `CUDA_ARCH` build argument to match
-    your GPU architecture when building locally (e.g. `6.1` for GTX 10xx, `7.5` for RTX 20xx, `8.6` for RTX 30xx). 
+    From 2.3.0 the published image runs on Pascal (GTX 10xx) and newer GPUs (RTX 20xx/30xx/40xx, A100, H100, Blackwell),
+    so you do not need to rebuild it. The host needs an NVIDIA driver supporting CUDA 12 (525 or newer).
 
     See [GPU Acceleration](../deployment/gpu-acceleration.md) for complete setup instructions.
 
