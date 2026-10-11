@@ -292,8 +292,13 @@ class TestOptimizerConfigFactory:
         assert 'COBYLA' in optimizers
         assert 'SLSQP' in optimizers
 
-    def test_register_optimizer(self):
+    def test_register_optimizer(self, monkeypatch):
         """Test registering a new optimizer."""
+        # register_optimizer mutates the class-level registry: work on a copy so
+        # the 'CUSTOM' entry does not leak into other tests
+        monkeypatch.setattr(
+            OptimizerConfigFactory, '_configs', dict(OptimizerConfigFactory._configs)
+        )
 
         class CustomConfig(OptimizerConfig):
             def get_options(self, num_parameters: int):
