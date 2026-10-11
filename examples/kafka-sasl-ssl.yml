@@ -1,60 +1,157 @@
+# Solver -> Kafka (KRaft + SSL) with Confluent schema registry.
+# (clients log in with a username and password - no client cert;
+# should not use PLAIN without TLS)
+#
+# Prerequisites:
+# - Docker with Compose v2
+# - openssl + keytool
+#
+# Setup:
+# 1. Following variables generated/set in ./.env
+#   a. KEYSTORE_PASSWORD
+#   b. TRUSTSTORE_PASSWORD
+#   c. KAFKA_BROKER_PASSWORD
+#   d. KAFKA_CLIENT_PASSWORD
+#   e. KAFKA_CLIENT_USER (optional; default: quantum)
+#   f. CERTIFICATE_PASSWORD
+#   g. CLIENT_PASSWORD
+# 2. From repo root generate ./secrets:
+#   HOSTNAMES=kafka,localhost bash docker/scripts/ssl-gen.sh
+# 3. Run from the repo root (CPU solver; results in ./examples/gen):
+#   docker compose --env-file .env -f examples/kafka-sasl-ssl.yml up --build \
+#     --abort-on-container-exit \
+#     --exit-code-from quantum-pipeline quantum-pipeline
+#
+# For a GPU run it requires:
+# - NVIDIA GPU
+# - nvidia-container-toolkit
+# - replace the 'quantum-pipeline' in command above with 'quantum-pipeline-gpu'
+#
+# Full teardown:
+#   docker compose --env-file .env -f examples/kafka-sasl-ssl.yml down -v
+
+
+x-solver: &solver
+  restart: "no"
+  environment:
+    KAFKA_SERVERS: kafka:9092
+    SCHEMA_REGISTRY_URL: http://schema-registry:8081
+  volumes:
+    - ./gen:/usr/src/quantum_pipeline/gen
+    - ../secrets:/usr/src/quantum_pipeline/secrets:ro
+  depends_on:
+    kafka:
+      condition: service_healthy
+    schema-registry:
+      condition: service_healthy
+
 services:
   kafka:
-    image: bitnami/kafka:latest
-    container_name: kafka
-    restart: unless-stopped
-    ports:
-      - "9094:9094"
-      - "9092:9092"
+    image: apache/kafka:${KAFKA_VERSION:-4.2.0}
     environment:
-      # KRaft
-      - KAFKA_CFG_NODE_ID=0
-      - KAFKA_CFG_PROCESS_ROLES=controller,broker
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
-      # Listeners
-      - KAFKA_CFG_LISTENERS=SASL_SSL://kafka:9092,CONTROLLER://:9093,EXTERNAL://0.0.0.0:9094
-      - KAFKA_CFG_ADVERTISED_LISTENERS=SASL_SSL://kafka:9092,EXTERNAL://${EXTERNAL_HOST_IP}:9094
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:SASL_PLAINTEXT,SASL_SSL:SASL_SSL,EXTERNAL:SASL_SSL
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=SASL_SSL
-      - KAFKA_CLIENT_LISTENER_NAME=SASL_SSL
-      # SASL Authentication
-      - KAFKA_CFG_SASL_MECHANISM_CONTROLLER_PROTOCOL=PLAIN
-      - KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN
-      - KAFKA_CONTROLLER_USER=${KAFKA_CONTROLLER_USER}
-      - KAFKA_CONTROLLER_PASSWORD=${KAFKA_CONTROLLER_PASSWORD}
-      - KAFKA_INTER_BROKER_USER=${KAFKA_BROKER_USER}
-      - KAFKA_INTER_BROKER_PASSWORD=${KAFKA_BROKER_PASSWORD}
-      - KAFKA_CLIENT_USERS=${KAFKA_CLIENT_USER}
-      - KAFKA_CLIENT_PASSWORDS=${KAFKA_CLIENT_PASSWORD}
-      # SSL Configuration
-      - KAFKA_TLS_TYPE=JKS
-      - KAFKA_CERTIFICATE_PASSWORD=${CERTIFICATE_PASSWORD}
-    networks:
-      - quantum-net
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      # The client/inter-broker listener is SASL over TLS only.
+      # CONTROLLER is the KRaft quorum listener inside this single container
+      # (never published).
+      KAFKA_LISTENERS: SASL_SSL://kafka:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: SASL_SSL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,SASL_SSL:SASL_SSL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: SASL_SSL
+      KAFKA_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: PLAIN
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      CLUSTER_ID: quantum-example-kafka-id-01
+      # The apache/kafka image requires KAFKA_OPTS to point at a JAAS file (mounted).
+      KAFKA_OPTS: -Djava.security.auth.login.config=/etc/kafka/jaas.conf
+      # Files under /etc/kafka/secrets; *_CREDENTIALS name files holding the passwords.
+      KAFKA_SSL_KEYSTORE_FILENAME: kafka.keystore.jks
+      KAFKA_SSL_KEYSTORE_CREDENTIALS: kafka_keystore_creds
+      KAFKA_SSL_KEY_CREDENTIALS: kafka_ssl_key_creds
+      # No client certificates here, but the broker still has to trust its own certificate
+      # for inter-broker connections, so the truststore is set explicitly.
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /etc/kafka/secrets/kafka.truststore.jks
+      KAFKA_SSL_TRUSTSTORE_PASSWORD: ${TRUSTSTORE_PASSWORD:?set TRUSTSTORE_PASSWORD (see header)}
     volumes:
-      - ../secrets/kafka.keystore.jks:/opt/bitnami/kafka/config/certs/kafka.keystore.jks:ro
-      - ../secrets/kafka.truststore.jks:/opt/bitnami/kafka/config/certs/kafka.truststore.jks:ro
-  quantum-pipeline:
-    container_name: quantum-pipeline
-    command: ["--file", "data/molecules.json", "--kafka", "--max-iterations", "1", "--sasl-ssl", "--ssl-dir", "/usr/src/quantum-pipeline/secrets/", "--ssl-password", "${CERTIFICATE_PASSWORD}", "--sasl-mechanism", "PLAIN", "--sasl-plain-username", "${KAFKA_CLIENT_USER}", "--sasl-plain-password", "${KAFKA_CLIENT_PASSWORD}"]
-    build:
-      context: ../
-      dockerfile: Dockerfile
-    restart: always
-    volumes:
-      - ../secrets/:/usr/src/quantum-pipeline/secrets/
-      - ../gen/:/usr/src/quantum-pipeline/gen/
-    environment:
-      IBM_RUNTIME_CHANNEL: ${IBM_RUNTIME_CHANNEL}
-      IBM_RUNTIME_INSTANCE: ${IBM_RUNTIME_INSTANCE}
-      IBM_RUNTIME_TOKEN: ${IBM_RUNTIME_TOKEN}
-      KAFKA_SERVERS: ${KAFKA_SERVERS}
-    networks:
-      - quantum-net
+      - ../secrets:/etc/kafka/secrets:ro
+    configs:
+      - source: kafka_jaas
+        target: /etc/kafka/jaas.conf
+      - source: kafka_client_properties
+        target: /etc/kafka/client.properties
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --command-config /etc/kafka/client.properties --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:${SCHEMA_REGISTRY_VERSION:-8.2.0}
     depends_on:
-      - kafka
-networks:
-  quantum-net:
-    name: quantum-pipeline-network
-    driver: bridge
+      kafka:
+        condition: service_healthy
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: SASL_SSL
+      SCHEMA_REGISTRY_KAFKASTORE_SASL_MECHANISM: PLAIN
+      SCHEMA_REGISTRY_KAFKASTORE_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_CLIENT_USER:-quantum}" password="${KAFKA_CLIENT_PASSWORD:?set KAFKA_CLIENT_PASSWORD (see header)}";
+      SCHEMA_REGISTRY_KAFKASTORE_SSL_TRUSTSTORE_LOCATION: /etc/schema-registry/secrets/kafka.truststore.jks
+      SCHEMA_REGISTRY_KAFKASTORE_SSL_TRUSTSTORE_PASSWORD: ${TRUSTSTORE_PASSWORD}
+    volumes:
+      - ../secrets:/etc/schema-registry/secrets:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "-s", "http://localhost:8081/subjects"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  quantum-pipeline:
+    !!merge <<: *solver
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.cpu
+    command: ["--file", "data/molecules.json", "--molecule-index", "0", "--max-iterations", "5", "--kafka", "--sasl-ssl", "--sasl-mechanism", "PLAIN", "--sasl-plain-username", "${KAFKA_CLIENT_USER:-quantum}", "--sasl-plain-password", "${KAFKA_CLIENT_PASSWORD}", "--ssl-dir", "/usr/src/quantum_pipeline/secrets"]
+
+  quantum-pipeline-gpu:
+    !!merge <<: *solver
+    profiles: [gpu]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gpu
+    command: ["--file", "data/molecules.json", "--molecule-index", "0", "--max-iterations", "5", "--kafka", "--sasl-ssl", "--sasl-mechanism", "PLAIN", "--sasl-plain-username", "${KAFKA_CLIENT_USER:-quantum}", "--sasl-plain-password", "${KAFKA_CLIENT_PASSWORD}", "--ssl-dir", "/usr/src/quantum_pipeline/secrets", "--gpu"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+configs:
+  kafka_jaas:
+    content: |
+      KafkaServer {
+        org.apache.kafka.common.security.plain.PlainLoginModule required
+        username="broker"
+        password="${KAFKA_BROKER_PASSWORD:?set KAFKA_BROKER_PASSWORD (see header)}"
+        user_broker="${KAFKA_BROKER_PASSWORD}"
+        user_${KAFKA_CLIENT_USER:-quantum}="${KAFKA_CLIENT_PASSWORD}";
+      };
+  # Admin-client settings for the broker healthcheck.
+  kafka_client_properties:
+    content: |
+      security.protocol=SASL_SSL
+      sasl.mechanism=PLAIN
+      sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="broker" password="${KAFKA_BROKER_PASSWORD}";
+      ssl.truststore.location=/etc/kafka/secrets/kafka.truststore.jks
+      ssl.truststore.password=${TRUSTSTORE_PASSWORD}

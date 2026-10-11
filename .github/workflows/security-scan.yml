@@ -1,8 +1,5 @@
 name: Security Scan
 
-# Informational only for now.
-# Findings land in the Security tab via SARIF upload.
-
 on:
   schedule:
     - cron: "0 6 * * 3"
@@ -26,13 +23,20 @@ jobs:
       contents: read
       security-events: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Scan published image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: docker.io/straightchlorine/quantum-pipeline:latest
           format: sarif
+          limit-severities-for-sarif: true
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
           exit-code: "0"
           timeout: 15m
 
@@ -41,6 +45,42 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
           category: trivy-published
+
+  # Weekly scan of the published GPU image
+  scan-published-gpu:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+        with:
+          large-packages: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Scan published GPU image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: docker.io/straightchlorine/quantum-pipeline:gpu
+          format: sarif
+          limit-severities-for-sarif: true
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "0"
+          timeout: 40m
+
+      - name: Upload report to Security tab
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-gpu
 
   # Scan the CPU image
   scan-pr:
@@ -67,13 +107,19 @@ jobs:
           tags: quantum-pipeline:scan
           cache-from: type=gha
 
+      - name: Smoke-test the image
+        run: >-
+          docker run --rm --user 1000:1000 quantum-pipeline:scan --file data/molecules.json --molecule-index 0 --max-iterations 2
       - name: Scan image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: quantum-pipeline:scan
           format: sarif
+          limit-severities-for-sarif: true
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
           exit-code: "0"
           timeout: 15m
 
@@ -91,5 +137,7 @@ jobs:
           image-ref: quantum-pipeline:scan
           format: table
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
           exit-code: "0"
           skip-setup-trivy: true

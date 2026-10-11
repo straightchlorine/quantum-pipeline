@@ -140,8 +140,8 @@ These variables control the performance monitoring subsystem. The code default f
 | Variable | Default | Description |
 |---|---|---|
 | `DOCKER_GID` | `970` | GID of the `docker` group on the host. Used to build the Airflow image so it can access the Docker socket for batch generation DAGs. Check with `stat -c '%g' /var/run/docker.sock`. |
-| `CUDA_ARCH` | `8.6` (Dockerfile) / `6.1` (.env.ml.example) | CUDA compute capability for the GPU image build. The Dockerfile.gpu default is `8.6` (Ampere); `.env.ml.example` overrides to `6.1` (Pascal) to match the project's test hardware. `6.1` = Pascal, `7.5` = Turing, `8.6` = Ampere, `8.9` = Ada Lovelace. |
-| `QUANTUM_PIPELINE_HOST_ROOT` | `/home/zweiss/code/quantum-pipeline` | Absolute path to the quantum-pipeline repo on the host. Used by `docker-compose.ml.yaml` and the batch generation script (`scripts/generate_ml_batch.py`) to resolve volume mount paths. The compose file defaults to the maintainer's local path; override this for your own system. |
+| `CUDA_ARCH` | `6.1 7.0 8.0 9.0+PTX` (Dockerfile) / `6.1` (.env.ml.example) | CUDA compute capabilities for the GPU image build. The Dockerfile.gpu default covers Pascal to Hopper and Blackwell (via PTX). A single value builds about 4x faster and is only useful for local builds; `.env.ml.example` sets `6.1` (Pascal) to match the project's test hardware. |
+| `QUANTUM_PIPELINE_HOST_ROOT` | `$HOME/code/quantum-pipeline` | Absolute path to the quantum-pipeline repo on the host. Used by `docker-compose.ml.yaml` and the batch generation script (`scripts/generate_ml_batch.py`) to resolve volume mount paths. The compose file defaults to the maintainer's local path; override this for your own system. |
 
 ### R2 Sync Configuration
 

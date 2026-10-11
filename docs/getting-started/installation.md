@@ -78,7 +78,7 @@ To build images locally:
 just docker-build cpu    # or: gpu, all
 
 # in case of gpu:
-# set CUDA_ARCH env var to match your GPU (default: 8.6/Ampere)
+# optional: set CUDA_ARCH to your GPU for a faster local build (default covers Pascal to Hopper)
 CUDA_ARCH=7.5 just docker-build gpu   # Turing (RTX 20xx)
 ```
 
@@ -139,9 +139,9 @@ Install extra groups with PDM or pip:
 
 | Group | Command | What it adds |
 |-------|---------|--------------|
-| `dev` | `pdm install -G dev` | pytest, ruff, mypy, debugpy, testcontainers |
+| `dev` | `pdm install -G dev` | pytest, ruff, mypy, debugpy, testcontainers, pyspark |
 | `docs` | `pdm install -G docs` | mkdocs, mkdocs-material, pymdown-extensions |
-| `ml` | `pdm install -G ml` | scikit-learn, xgboost, mlflow, jupyterlab, seaborn |
+| `ml` | `pdm install -G ml` | scikit-learn, xgboost, mlflow, jupyterlab, seaborn, pyspark |
 
 With pip, use `pip install -e ".[dev]"`, `pip install -e ".[docs]"`, or `pip install -e ".[ml]"`.
 

@@ -125,7 +125,7 @@ The default `DOCKER_GID` is `970`. If your host uses a different value, the cont
 
 **Cause:** The container user does not have write access to the host directory.
 
-**Solution:** Fix host permissions with `chmod -R 777 ./data ./logs` or run with `--user "$(id -u):$(id -g)"`.
+**Solution:** Pre-create the mounted directories on the host as your own user, and/or run with `--user "$(id -u):$(id -g)"`. The images work under any user.
 
 ### Stale Docker State
 
@@ -137,22 +137,14 @@ The default `DOCKER_GID` is `970`. If your host uses a different value, the cont
 
 ### Wrong CUDA_ARCH for Your GPU
 
-**Symptom:** The GPU image builds successfully but simulations crash with CUDA errors, produce incorrect results, or fall back to CPU silently.
+**Symptom:** Simulations crash with `CUDA error: no kernel image is available` or fall back to CPU.
 
-**Cause:** The `CUDA_ARCH` build argument does not match your GPU's compute capability. The qiskit-aer GPU build compiles CUDA kernels for a specific architecture, and a mismatch means those kernels cannot run on your hardware.
+**Cause:** The default image covers Pascal 6.1 and newer. This only happens with a custom single-arch `CUDA_ARCH` build for a different card, or a GPU older than 6.1 (such as the P100, 6.0).
 
-**Solution:**
+**Solution:** Use the default image, or rebuild with your card's compute capability:
 
 ```bash
-# Check your GPU's compute capability
 nvidia-smi --query-gpu=compute_cap --format=csv,noheader
-
-# Rebuild with the correct architecture
-# Common values:
-#   6.1 = GTX 10xx (Pascal)
-#   7.5 = RTX 20xx (Turing)
-#   8.6 = RTX 30xx (Ampere)
-#   8.9 = RTX 40xx (Ada Lovelace)
 CUDA_ARCH=7.5 just docker-build gpu
 ```
 
