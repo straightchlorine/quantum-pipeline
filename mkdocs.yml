@@ -1,5 +1,5 @@
 site_name: Quantum Pipeline
-site_description: Extensible framework for running quantum algorithms backed by a modern data stack
+site_description: Python framework running the Variational Quantum Eigensolver (VQE) on molecules and streams the results through Kafka, Spark and Airflow into Iceberg feature tables.
 site_author: Piotr Krzysztof Lis
 site_url: https://docs.qp.piotrkrzysztof.dev
 
@@ -7,7 +7,13 @@ repo_name: straightchlorine/quantum-pipeline
 repo_url: https://github.com/straightchlorine/quantum-pipeline
 edit_uri: edit/master/docs/
 
-copyright: Copyright &copy; 2025-2026 Piotr Krzysztof Lis
+copyright: Copyright &copy; 2025-2026 <a href="https://piotrkrzysztof.dev">Piotr Krzysztof Lis</a>
+
+exclude_docs: |
+  roadmap/
+
+hooks:
+  - hooks/home_og_title.py
 
 theme:
   name: material

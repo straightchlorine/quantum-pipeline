@@ -1,5 +1,6 @@
 ---
-description: "Step-by-step Docker Compose setup of the full platform: simulation, Kafka, Spark, Airflow, storage and monitoring, with verification."
+title: "Deploy the Full Stack with Docker Compose"
+description: "Docker Compose setup of the full platform: simulation, Kafka, Spark, Airflow, Garage, MLflow and monitoring exporters, with service ports and just commands."
 ---
 
 # Docker Compose Deployment
@@ -259,8 +260,9 @@ docker compose --env-file .env -f compose/docker-compose.ml.yaml up -d --scale s
 ```
 
 For additional simulation instances, add new service definitions with a unique
-`container_name`, distinct Kafka topic, appropriate GPU device assignment, and
-separate output volume mounts.
+`container_name`, appropriate GPU device assignment, and separate output volume
+mounts. Instances publish to the `experiment.vqe` topic by default, which is the
+only topic the Redpanda Connect sink reads.
 
 ## Stopping the Deployment
 

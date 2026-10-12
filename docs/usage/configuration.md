@@ -1,5 +1,6 @@
 ---
-description: "Every quantum-pipeline CLI flag explained: simulation, VQE, backend, Kafka and monitoring options, with defaults and precedence rules."
+title: "Configuration Reference: CLI Flags"
+description: "Reference for the quantum-pipeline CLI flags: simulation, VQE, backend, output, monitoring and Kafka options, with defaults and how CLI flags override them."
 ---
 
 # Configuration Reference
@@ -8,16 +9,16 @@ Complete reference for all CLI flags accepted by `quantum-pipeline`.
 
 ## Configuration Layers
 
-CLI arguments override the built-in defaults (highest priority first):
+Highest priority first:
 
 | Layer | Source | Purpose |
 |-------|--------|---------|
+| Config file | File passed with `--load` | Overrides the CLI flags |
 | CLI arguments | Flags passed to `quantum-pipeline` | Runtime overrides |
 | Defaults | [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py) | Built-in fallback values |
 
-A config file passed with `--load` is read and validated, but its values are not
-currently merged back into the run (see the `--load` flag below). The run still
-uses CLI flags and defaults.
+A config file passed with `--load` is applied after the CLI arguments, so its
+values override the CLI flags (see the `--load` flag below).
 
 Static settings (supported optimizers, basis sets, simulation methods, output
 directories) live in
@@ -56,6 +57,7 @@ by
 | Output | `--output-dir` | path | `./gen` | Output directory |
 | Output | `--log-level` | choice | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | Backend | `--shots` | int | `1024` | Circuit execution shots (must be positive) |
+| Backend | `--exact` | flag | `false` | Exact statevector expectation values instead of shot sampling |
 | Backend | `--optimization-level` | int | `3` | Circuit optimization level (0-3) |
 | Features | `--report` | flag | `false` | Generate PDF report |
 | Features | `--dump` | flag | `false` | Save config to JSON |
@@ -177,15 +179,13 @@ runs until the energy change between iterations falls below `--threshold`
 !!! note "Interaction with --max-iterations"
     If `--convergence` is enabled and `--max-iterations` is left at the default
     (100), the entry point sets `max_iterations` to `None` and uses the
-    threshold instead. Passing both non-default values raises a `ValueError` at
-    the solver level via
-    [`OptimizerConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py).
+    threshold instead. If you pass a non-default `--max-iterations` as well, it
+    is ignored and a warning is logged; the threshold decides when the run stops.
 
 ### `--optimizer`
 
-Optimization algorithm. The pipeline has 8 optimizers with dedicated configs
-via `OptimizerConfigFactory` and 8 more accepted by the CLI but without custom
-handling. See [Optimizers](optimizers.md) for the full comparison.
+Optimization algorithm. The pipeline offers 8 optimizers, each configured
+through `OptimizerConfigFactory`. See [Optimizers](optimizers.md) for the full comparison.
 
 ### `--init-strategy`
 
@@ -220,6 +220,11 @@ its jitter is reproducible either way.
 Number of measurement samples per circuit execution. Must be a positive
 integer. Default: `1024`.
 
+### `--exact`
+
+Use exact statevector expectation values (Aer EstimatorV2,
+`default_precision=0.0`) instead of shot sampling. Overrides `--shots`.
+
 ### `--optimization-level`
 
 Qiskit transpilation optimization level. Higher levels produce shorter circuits
@@ -250,7 +255,7 @@ Aer backend simulation method. Default: `statevector`. See
 | `statevector` | Yes | High | Exact |
 | `density_matrix` | Yes | Very high | Exact |
 | `matrix_product_state` | No | Low | Approximate |
-| `tensor_network` | Yes (required) | Medium | Exact |
+| `tensor_network` | Yes (required; needs a cuQuantum build) | Medium | Exact |
 
 ### `--noise`
 
@@ -261,7 +266,8 @@ Name of a noise model backend (e.g., `ibmq_manila`). Best used with
 
 ### `--output-dir`
 
-Directory for output files, graphs, and reports. Default: `./gen`.
+Directory for output files, graphs, and reports. Default: `./gen`. Accepted but
+currently has no effect; output goes to `gen/`.
 
 ### `--log-level`
 
@@ -287,11 +293,8 @@ with `--load`.
 
 ### `--load`
 
-Read and validate a previously saved configuration file. The current
-implementation does not merge the loaded values back into the run: the file is
-parsed and checked, but the run still uses the CLI flags and defaults. Treat a
-dumped config as a record of the settings a run used rather than a way to replay
-them. Cannot be used with `--dump`.
+Load a previously saved configuration file. The file is applied after the CLI
+arguments, so its values override the CLI flags. Cannot be used with `--dump`.
 
 ```bash
 quantum-pipeline --load run_configs/molecules-cc-pvdz-L-BFGS-B-local-20250615.json

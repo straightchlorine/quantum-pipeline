@@ -1,6 +1,6 @@
 ---
-title: Changelog
-description: "Release notes for Quantum Pipeline: breaking changes, new features, fixes and maintenance."
+title: "Changelog and Release Notes by Version"
+description: "Release notes for Quantum Pipeline from version 1.4.0 onward: breaking changes, Docker image changes, new features, fixes and maintenance, grouped by release."
 ---
 
 # Changelog
@@ -14,7 +14,7 @@ For earlier versions, see the [GitHub releases](https://github.com/straightchlor
 
 ### Breaking changes
 
-`pyspark` is no longer a core dependency. It moved to the `dev` extra 
+`pyspark` is no longer a core dependency. It moved to the `dev` extra
 (Spark job tests) and the `ml` extra (the data-processing notebook).
 
 The Docker images no longer contain conda or pip, so images built `FROM` them

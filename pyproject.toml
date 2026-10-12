@@ -100,6 +100,11 @@ ml = [
 
 [project.urls]
 Homepage = "https://github.com/straightchlorine/quantum-pipeline"
+Documentation = "https://docs.qp.piotrkrzysztof.dev/"
+Source = "https://github.com/straightchlorine/quantum-pipeline"
+Issues = "https://github.com/straightchlorine/quantum-pipeline/issues"
+Changelog = "https://docs.qp.piotrkrzysztof.dev/changelog/"
+Author = "https://piotrkrzysztof.dev"
 
 [tool.ruff]
 line-length = 99

@@ -1,6 +1,6 @@
 ---
-title: Benchmarking Results
-description: "Thesis and v2.0.0 benchmark results for VQE: GPU speedups, convergence behavior, energy accuracy and known limitations."
+title: "Benchmarking Results: VQE Speed, Accuracy"
+description: "Thesis and v2.0.0 benchmark results for VQE runs: GPU speedups, convergence behavior, energy accuracy against reference values, and the known limitations."
 ---
 
 # Benchmarking Results
@@ -60,12 +60,11 @@ experiments:
 | Ansatz | EfficientSU2 |
 | Parameter initialization | Random uniform \([0, 2\pi]\) |
 
-Only L-BFGS-B was tested in the thesis. The pipeline lists
-[16 optimizers](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py),
-of which 8 are wired through the
-[optimizer config factory](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py)
-(three with dedicated configuration classes: L-BFGS-B, COBYLA, SLSQP).
-Selecting one of the others raises an error. See
+Only L-BFGS-B was tested in the thesis. The pipeline offers
+[8 optimizers](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py)
+(three with dedicated configuration classes in the
+[optimizer config factory](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py):
+L-BFGS-B, COBYLA, SLSQP). See
 [Optimizers](../usage/optimizers.md) for details.
 
 ### v2.0.0 Verification Parameters

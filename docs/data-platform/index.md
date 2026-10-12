@@ -1,6 +1,6 @@
 ---
-title: Data Platform Overview
-description: Overview of the data platform that turns streamed VQE results into analytics-ready ML feature tables with Kafka, Spark and Iceberg.
+title: "Data Platform Overview: Kafka to Iceberg"
+description: "Overview of the data platform that turns streamed VQE results into ML feature tables, using Kafka, Redpanda Connect, Spark, Iceberg, Garage storage and Airflow."
 ---
 
 # Data Platform

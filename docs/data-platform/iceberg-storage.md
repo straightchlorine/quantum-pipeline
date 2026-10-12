@@ -1,5 +1,6 @@
 ---
-description: Iceberg catalog, S3A and Garage storage setup, partitioning, snapshot tagging and table maintenance for VQE feature tables.
+title: "Iceberg Storage on Garage S3 for VQE"
+description: "Iceberg catalog, S3A and Garage object storage setup, table partitioning, snapshot tagging and the processing metadata table for the VQE feature tables."
 ---
 
 # Iceberg Storage

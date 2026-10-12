@@ -1,6 +1,6 @@
 ---
-title: Basis Sets
-description: Compare the STO-3G, 6-31G and cc-pVDZ basis sets by accuracy, qubit count and cost, with a guide to choosing one.
+title: "Basis Sets: STO-3G, 6-31G and cc-pVDZ"
+description: "Compare the STO-3G, 6-31G and cc-pVDZ basis sets by accuracy, qubit count and computational cost, with a short guide to choosing one for a VQE simulation."
 ---
 
 # Basis Sets

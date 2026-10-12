@@ -1,6 +1,6 @@
 ---
-title: Usage Overview
-description: Guide to configuring and running VQE simulations with the quantum-pipeline CLI, from flags and defaults to optimizers and backends.
+title: "Usage Overview: Running VQE Simulations"
+description: "Guide to configuring and running VQE simulations with the quantum-pipeline CLI, from flags and defaults to optimizers, simulation methods and backends."
 ---
 
 # Usage
@@ -18,8 +18,8 @@ graph LR
 
 CLI flags override the built-in defaults in
 [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
-A config file passed with `--load` is read and validated but its values are not
-currently merged into the run, so the run still uses CLI flags and defaults. See
+A config file passed with `--load` is applied after the CLI arguments, so its
+values override the CLI flags. See
 [Configuration](configuration.md) for details.
 
 ## Section Guide

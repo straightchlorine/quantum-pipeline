@@ -1,10 +1,11 @@
 ---
-description: Fixes for common install, simulation, GPU, Kafka and pipeline errors, each listed as symptom, cause and solution.
+title: "Troubleshooting Docker, GPU, Kafka, Spark"
+description: "Fixes for common install, simulation, Docker, GPU, Kafka, Spark, Airflow and monitoring problems, listed by symptom and solution, with a cause where known."
 ---
 
 # Troubleshooting
 
-This page provides solutions to common issues encountered when installing, configuring, and running the Quantum Pipeline. Problems are organized by category, each following a consistent **Symptom / Cause / Solution** format.
+This page provides solutions to common issues encountered when installing, configuring, and running the Quantum Pipeline. Problems are grouped by category, with a symptom, a solution and a cause where it is known.
 
 ## Installation Issues
 
@@ -152,7 +153,7 @@ If you are unsure, check the [NVIDIA CUDA GPUs page](https://developer.nvidia.co
 
 ### CUDA Not Available
 
-For CUDA setup issues (`RuntimeError: CUDA is not available`) or driver version mismatches (`CUDA driver version is insufficient`), see [GPU Acceleration](../deployment/gpu-acceleration.md) for complete setup and troubleshooting instructions. The GPU image requires a host driver compatible with CUDA 12.6.
+For CUDA setup issues (`RuntimeError: CUDA is not available`) or driver version mismatches (`CUDA driver version is insufficient`), see [GPU Acceleration](../deployment/gpu-acceleration.md) for complete setup and troubleshooting instructions. The GPU image requires a host driver that supports CUDA 12 (525 or newer).
 
 ### GPU Out of Memory
 
@@ -268,7 +269,7 @@ docker compose ps garage
 
 **Symptom:** The [`quantum_feature_processing`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py#L44) DAG does not appear in the Airflow web interface.
 
-**Solution:** Verify the DAG file exists (`docker compose exec airflow-webserver ls /opt/airflow/dags/`), check for import errors in **Admin > DAG Import Errors**, and force a rescan with `docker compose exec airflow-scheduler airflow dags reserialize`.
+**Solution:** Verify the DAG file exists (`docker compose exec airflow-apiserver ls /opt/airflow/dags/`), check for import errors in **Admin > DAG Import Errors**, and force a rescan with `docker compose exec airflow-scheduler airflow dags reserialize`.
 
 ### Task Failures with Retry Exhaustion
 
@@ -277,7 +278,7 @@ docker compose ps garage
 **Solution:** Check task logs in the Airflow UI (**DAG > Task Instance > Logs**), verify dependent services with `docker compose ps`, then clear the failed task:
 
 ```bash
-docker compose exec airflow-webserver airflow tasks clear \
+docker compose exec airflow-apiserver airflow tasks clear \
     quantum_feature_processing -t run_quantum_processing \
     -s 2025-01-01 -e 2025-12-31 --yes
 ```
@@ -286,7 +287,7 @@ docker compose exec airflow-webserver airflow tasks clear \
 
 **Symptom:** Airflow fails to start with `sqlalchemy.exc.OperationalError: could not connect to server`.
 
-**Solution:** Check PostgreSQL status (`docker compose ps postgres`), then initialize with `docker compose exec airflow-webserver airflow db init`.
+**Solution:** Check PostgreSQL status (`docker compose ps postgres`), then initialize with `docker compose exec airflow-apiserver airflow db migrate`.
 
 ## Monitoring Issues
 
@@ -294,23 +295,22 @@ docker compose exec airflow-webserver airflow tasks clear \
 
 **Symptom:** `ConnectionError: HTTPConnectionPool host='pushgateway' port=9091` in simulation logs, or metrics silently not appearing.
 
-**Cause:** The PushGateway container is not running, the `PUSHGATEWAY_URL` environment variable points to the wrong address, or there is a network mismatch between the simulation container and the monitoring stack.
+**Cause:** PushGateway is not running (the Compose stack does not include it, so you run it separately), the `PUSHGATEWAY_URL` environment variable points to the wrong address, or there is a network mismatch between the simulation container and PushGateway.
 
 **Solution:**
 
 ```bash
-# Check PushGateway is running
-docker compose ps pushgateway
+# Check PushGateway is running (it is run separately from the Compose stack)
+docker ps | grep -i pushgateway
+curl -s http://localhost:9091/metrics | head -5
 
-# Verify the URL from inside the simulation container
-docker compose exec quantum-pipeline curl -s http://pushgateway:9091/metrics | head -5
-
-# Check the configured URL
-docker compose exec quantum-pipeline env | grep PUSHGATEWAY
+# Check the configured URL in a batch service
+docker compose exec quantum-pipeline-cpu env | grep PUSHGATEWAY
 
 # Common fixes:
-# - From Docker containers, use http://pushgateway:9091 (service name)
 # - From the host, use http://localhost:9091
+# - From Docker containers, use an address that reaches your PushGateway
+#   (for example its container name on a shared network)
 # - Make sure MONITORING_ENABLED is set to true
 ```
 

@@ -1,5 +1,6 @@
 ---
-description: Reference for the qp_sys, qp_vqe and qp_batch Prometheus metrics exported during VQE runs, with types, units and labels.
+title: "Prometheus Performance Metrics Reference"
+description: "Reference for the qp_sys, qp_vqe and qp_batch Prometheus metrics exported during VQE runs, with their types, labels and meaning, and how to run a PushGateway."
 ---
 
 # Performance Metrics

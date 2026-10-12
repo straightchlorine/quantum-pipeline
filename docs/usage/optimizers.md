@@ -1,5 +1,6 @@
 ---
-description: Compare the classical optimizers available for VQE parameter tuning, their settings, and how to control iteration limits and convergence.
+title: "Optimizers: COBYLA, L-BFGS-B and More"
+description: "Compare the classical optimizers available for VQE parameter tuning, such as COBYLA and L-BFGS-B, their settings, iteration limits and convergence control."
 ---
 
 # Optimizers
@@ -19,12 +20,11 @@ The VQE optimization loop:
 By the variational principle, the computed energy is always an upper bound on
 the true ground state energy.
 
-The pipeline accepts all 16 optimizers listed in
-[`settings.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L4),
-but only 8 have dedicated configuration classes in
-[`optimizer_config.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py).
-The remaining 8 are accepted by the CLI but will raise a `ValueError` at
-runtime because the factory does not know how to configure them.
+The pipeline offers the 8 optimizers listed in
+[`settings.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L4).
+Three have dedicated configuration classes in
+[`optimizer_config.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py)
+(L-BFGS-B, COBYLA, SLSQP) and five use `GenericConfig`.
 
 ```bash
 quantum-pipeline -f molecules.json --optimizer L-BFGS-B
@@ -37,7 +37,8 @@ Each configured optimizer has a class that controls the `options` dict and
 The
 [`OptimizerConfigFactory.create_config()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L233)
 method picks the right class. It accepts `max_iterations` and
-`convergence_threshold`, which are mutually exclusive.
+`convergence_threshold`, which are mutually exclusive. At the CLI,
+`--convergence` takes precedence over `--max-iterations`.
 
 ### Specialized Configs
 
@@ -142,9 +143,9 @@ When you pass `--max-iterations N`, the limit is enforced in two ways:
 2. **Callback-level**: `compute_energy()` in `VQESolver` tracks iteration count
    and raises `MaxFunctionEvalsReachedError` when exceeded.
 
-If both `max_iterations` and `convergence_threshold` are resolved at the solver
-level, `max_iterations` takes priority. At the `OptimizerConfig` constructor
-level, passing both raises a `ValueError`.
+If `--convergence` is set, `--max-iterations` is ignored (with a warning if it
+was set to a non-default value); the threshold decides when the run stops. (`OptimizerConfig` itself
+raises a `ValueError` if constructed directly with both values.)
 
 ## Performance Notes
 

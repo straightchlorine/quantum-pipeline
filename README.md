@@ -47,7 +47,7 @@ Prometheus metrics and a Grafana dashboard with alert rules watch the run. The M
 
 - Runs VQE for every molecule in a JSON file, in `sto3g`, `6-31g` or `cc-pvdz`
 - Lets you pick the classical optimizer (L-BFGS-B, COBYLA, SLSQP, Nelder-Mead, Powell, BFGS, CG, TNC), the ansatz depth, the iteration cap and the convergence threshold
-- Simulates with Qiskit Aer on CPU, or on a GPU through cuStateVec with the `:gpu` image ([Docker Hub](https://hub.docker.com/r/straightchlorine/quantum-pipeline/tags?name=gpu) &middot; [GHCR](https://github.com/straightchlorine/quantum-pipeline/pkgs/container/quantum-pipeline))
+- Simulates with Qiskit Aer on CPU, or on a GPU through the CUDA Thrust backend with the `:gpu` image ([Docker Hub](https://hub.docker.com/r/straightchlorine/quantum-pipeline/tags?name=gpu) &middot; [GHCR](https://github.com/straightchlorine/quantum-pipeline/pkgs/container/quantum-pipeline))
 - Writes a PDF report and PNG convergence plots to `gen/`
 - Streams each finished run, with all its iterations, to Kafka as Avro, with a schema registry
 - Turns the stream into Iceberg tables with Spark and Airflow
@@ -70,7 +70,7 @@ docker run --rm straightchlorine/quantum-pipeline:cpu -f data/molecules.json -b 
 
 Both images are on [Docker Hub](https://hub.docker.com/r/straightchlorine/quantum-pipeline/tags) as `straightchlorine/quantum-pipeline:cpu` and `:gpu`, and on [GHCR](https://github.com/straightchlorine/quantum-pipeline/pkgs/container/quantum-pipeline) as `ghcr.io/straightchlorine/quantum-pipeline` with the same tags.
 
-The GPU image is built for one CUDA architecture (Ampere by default). For another GPU, rebuild it with the `CUDA_ARCH` build argument - see the [GPU acceleration page](https://docs.qp.piotrkrzysztof.dev/deployment/gpu-acceleration/).
+The GPU image is built for compute capabilities 6.1, 7.0, 8.0 and 9.0 (plus PTX), so it targets NVIDIA GPUs with compute capability 6.1 or newer. To build for one GPU only, rebuild it with the `CUDA_ARCH` build argument - see the [GPU acceleration page](https://docs.qp.piotrkrzysztof.dev/deployment/gpu-acceleration/).
 
 The [installation guide](https://docs.qp.piotrkrzysztof.dev/getting-started/installation/) covers GPU acceleration; the [deployment guide](https://docs.qp.piotrkrzysztof.dev/deployment/) brings up the full platform with `docker compose`.
 
@@ -87,3 +87,11 @@ Started as an engineering thesis, continued through a master's. Source on [GitHu
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+<div align="center">
+
+To the only God, be honour and glory for ever and ever.
+
+</div>

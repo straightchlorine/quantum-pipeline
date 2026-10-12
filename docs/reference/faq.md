@@ -1,5 +1,6 @@
 ---
-description: Answers to frequent questions about installing, running and deploying Quantum Pipeline, its data platform, monitoring and speed.
+title: "Frequently Asked Questions (FAQ)"
+description: "Answers to frequent questions about installing, running and deploying Quantum Pipeline, its data platform, monitoring, supported molecules and simulation speed."
 ---
 
 # Frequently Asked Questions
@@ -96,7 +97,7 @@ Click on any question to expand the answer.
     on your machine.
 
 ??? question "What are the required system dependencies?"
-    Python 3.12, Docker, and Docker Compose. For GPU support: NVIDIA drivers and the NVIDIA Container Toolkit.
+    Python 3.12 for the package. Docker and Docker Compose are only needed for the container images and the full platform. For GPU support: NVIDIA drivers and the NVIDIA Container Toolkit.
     All scientific computing dependencies are managed through pip.
 
 ## Usage
@@ -159,15 +160,14 @@ Click on any question to expand the answer.
     seeds.
 
 ??? question "Why do I get different results with the same --seed?"
-    The `--seed` flag only controls the initial parameter values (the starting
-    point for the optimizer). It does not seed the Qiskit Aer simulator backend.
-    Since `EstimatorV2` uses shot-based sampling (default 1024 shots per
-    iteration), the measurement outcomes are stochastic. Each run samples
-    different shots, producing a slightly different energy estimate per iteration,
-    which causes the optimizer to follow a different trajectory.
+    With a fixed `--seed` the initial parameters, the simulator and the
+    transpiler are seeded, so two runs with the same settings give the same
+    result. Results can still differ across Qiskit and Aer versions. `--exact`
+    removes shot noise altogether.
 
-    This is expected behavior, not a bug. To collect meaningful statistics, run
-    multiple seeds and compare the distributions rather than individual values.
+    Without `--seed`, shot sampling (default 1024 shots per iteration) makes each
+    run follow a slightly different trajectory. To collect meaningful statistics,
+    run multiple seeds and compare the distributions rather than individual values.
 
 ??? question "How do I run multiple simulations in parallel?"
     The batch generation system is the recommended way to run many simulations.
@@ -203,13 +203,14 @@ Click on any question to expand the answer.
     be printed to the console or saved to local files.
 
 ??? question "Can I use the pipeline without Spark?"
-    Yes. Kafka and Garage will still store your simulation results as Avro files in
-    the object storage bucket. Spark is only needed for the incremental processing
+    Yes. Kafka and Garage still store your simulation results in the object
+    storage bucket, as JSON files by default (Avro with the Kafka Connect
+    alternative). Spark is only needed for the incremental processing
     step that transforms raw results into structured feature tables in Apache
     Iceberg format.
 
-    You can query the raw Avro files directly using any Avro-compatible tool,
-    including Python's `fastavro` library or Apache Spark in standalone mode.
+    You can read the raw files with any JSON or Avro tool, including Python's
+    `json` module, the `fastavro` library or Apache Spark in standalone mode.
 
 ??? question "How do I access stored simulation data?"
     There are several ways to access the data:
@@ -228,7 +229,7 @@ Click on any question to expand the answer.
     Apache Avro for wire serialization between the producer and Kafka, with schemas managed by the Confluent Schema Registry. Data at rest is JSON (via Redpanda Connect) or Avro (via Kafka Connect). See [Serialization](../architecture/serialization.md) for details.
 
 ??? question "How does schema evolution work?"
-    New Avro schemas are registered in the Schema Registry and published to the `experiment.vqe` Kafka topic. Redpanda Connect (configured in `compose/redpanda-connect.yaml`) consumes from this topic and writes to Garage object storage, so multiple schema versions coexist without downtime. See [Kafka Streaming](../data-platform/kafka-streaming.md) for details.
+    When a field is added to a result dataclass, its Avro schema gets a nullable default, so older and newer messages stay decodable by the same consumer. See [Serialization](../architecture/serialization.md#schema-evolution) for details.
 
 ??? question "What happens if Kafka goes down during a simulation?"
     The producer retries failed deliveries and waits for full acknowledgement;
@@ -306,8 +307,7 @@ Click on any question to expand the answer.
 ??? question "What speedup can I expect with GPU acceleration?"
     Speedup depends on the basis set and molecule complexity:
 
-    - **sto3g basis set**: 1.7-1.8x average speedup, up to 2.1x for medium
-      molecules (8-10 qubits)
+    - **sto3g basis set**: 1.7-1.8x average speedup
     - **cc-pvdz basis set**: 3.5-4.1x speedup due to larger matrix operations
 
     Small molecules (4 qubits) may see no benefit or slight slowdown due to GPU

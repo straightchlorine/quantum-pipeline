@@ -1,5 +1,6 @@
 ---
-description: How VQE results are encoded with Avro, registered in Schema Registry and sent through Kafka, including schemas and evolution rules.
+title: "Avro Serialization and Schema Registry"
+description: "How VQE results are encoded with Avro, registered in Schema Registry and sent through Kafka, with the schema layout, field types and how schema changes work."
 ---
 
 # Serialization
@@ -173,10 +174,9 @@ For the full Avro JSON schema definitions, see the interface classes in
 
 ## Schema Evolution
 
-The Schema Registry is set to **NONE** compatibility mode. This allows
-unrestricted schema changes. On the wire, each message carries its schema ID in
-the Confluent header, so consumers always know which version to use for
-decoding.
+The pipeline does not change the registry's default compatibility mode
+(`BACKWARD`). On the wire, each message carries its schema ID in the Confluent
+header, so consumers always know which version to use for decoding.
 
 When a field is added to a dataclass, the corresponding interface's schema
 property is updated with a nullable default. This keeps older and newer messages
@@ -184,10 +184,10 @@ decodable by the same consumer.
 
 !!! info "Kafka Connect"
 
-    If you switch to the Kafka Connect path with Avro at rest, consider
-    tightening compatibility to `BACKWARD` or `FULL` so that Spark can read
-    files written with different schema versions without issues. With the
-    default Redpanda Connect path (JSON at rest), `NONE` is sufficient. See the
+    If you switch to the Kafka Connect path with Avro at rest, keep the
+    compatibility mode at `BACKWARD` or `FULL` so that Spark can read files
+    written with different schema versions without issues. The default
+    Redpanda Connect path writes JSON at rest. See the
     [Confluent Schema Evolution documentation](https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html)
     for details on compatibility modes.
 

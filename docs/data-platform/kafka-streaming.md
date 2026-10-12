@@ -1,5 +1,6 @@
 ---
-description: Kafka topic design, KRaft cluster, Schema Registry, producer settings and the Redpanda Connect S3 sink for VQE result streaming.
+title: "Kafka Streaming and Schema Registry Setup"
+description: "Kafka topic design, the KRaft cluster, Schema Registry, producer settings and the Redpanda Connect S3 sink used to stream and store VQE simulation results."
 ---
 
 # Kafka Streaming
