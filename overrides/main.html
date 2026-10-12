@@ -64,3 +64,18 @@
     </script>
   {% endif %}
 {% endblock %}
+
+{% block styles %}
+  {{ super() }}
+  <style>
+    [data-md-color-scheme=default] { --md-code-hl-comment-color: #626262; }
+    [data-md-color-scheme=slate] { --md-code-hl-comment-color: #a3a8bd; }
+    .md-typeset a:not(.headerlink):not(.anchor-link):not(.md-content__button):not(.md-button) {
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.2em;
+    }
+    .md-footer .md-copyright, .md-footer .md-copyright__highlight { color: var(--md-footer-fg-color--light); }
+    .md-footer .md-copyright a { color: var(--md-footer-fg-color); }
+  </style>
+{% endblock %}
