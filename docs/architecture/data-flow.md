@@ -1,6 +1,6 @@
 ---
 title: "VQE Data Flow: Simulation to Iceberg"
-description: "Follow VQE results from molecule input through Kafka streaming and Spark batch jobs into Iceberg analytics tables and ML feature tables."
+description: "Follow VQE results from molecule input through Kafka streaming and Spark batch jobs run by Airflow into Iceberg analytics tables and ML feature tables."
 ---
 
 # Data Flow Architecture
