@@ -1,5 +1,6 @@
 ---
-description: "Set up NVIDIA GPU simulation with Qiskit Aer CUDA: prerequisites, CUDA_ARCH build argument, Docker GPU access and speedups."
+title: "GPU Acceleration with Qiskit Aer CUDA"
+description: "Set up NVIDIA GPU simulation with Qiskit Aer CUDA: prerequisites, the CUDA_ARCH build argument, Docker GPU access, and the speedups measured on consumer cards."
 ---
 
 # GPU Acceleration
@@ -10,8 +11,8 @@ configuration, and performance characteristics of GPU-accelerated execution.
 
 ## Prerequisites
 
-GPU acceleration requires an NVIDIA GPU (compute capability 6.0+), NVIDIA
-drivers (520+), NVIDIA Container Toolkit (1.14+), and Docker Engine (24.0+).
+GPU acceleration requires an NVIDIA GPU (compute capability 6.1 or newer), NVIDIA
+drivers 525 or newer (CUDA 12), NVIDIA Container Toolkit (1.14+), and Docker Engine (24.0+).
 The GPU image is built on CUDA 12.6.3. For detailed installation steps, see the
 [NVIDIA Container Toolkit installation guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
@@ -157,7 +158,8 @@ The thesis experiments measured GPU acceleration across six molecules with two
 NVIDIA GPUs (GTX 1060, GTX 1050 Ti) against an Intel i5-8500 CPU baseline.
 The key results: 1.74-1.81x speedup on STO-3G, 3.53-4.08x on cc-pVDZ. Speedup
 scales with qubit count and basis set size, with the crossover from
-overhead-dominated to acceleration-dominated at roughly 8 qubits.
+overhead-dominated to acceleration-dominated between 12 and 14 qubits
+(LiH to BeH2 in the thesis runs).
 
 For the full benchmark data, per-molecule breakdown, convergence analysis, and
 basis set comparisons, see

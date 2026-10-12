@@ -1,13 +1,13 @@
 # Quantum Pipeline
 
-> Extensible framework for running quantum algorithms (VQE) for ground-state energy estimation, backed by a modern data stack.
+> Python framework that runs the Variational Quantum Eigensolver (VQE) on molecules and streams the results through Kafka, Spark and Airflow into Iceberg feature tables.
 
 Quantum Pipeline simulates molecules with the Variational Quantum Eigensolver using Qiskit, and streams the results through Kafka, Spark, Airflow, and Iceberg into ML feature tables. It runs from the PyPI package, a single Docker container, or a full Docker Compose platform.
 
 ## Docs
 
 - [Home](https://docs.qp.piotrkrzysztof.dev/): Overview of the framework and its documentation
-- [Installation](https://docs.qp.piotrkrzysztof.dev/getting-started/installation/): Install from source, with requirements and optional GPU support
+- [Installation](https://docs.qp.piotrkrzysztof.dev/getting-started/installation/): Install from PyPI, source or Docker, with requirements and optional GPU support
 - [Quick Start](https://docs.qp.piotrkrzysztof.dev/getting-started/quick-start/): Run a first VQE simulation for H2 in a few steps
 - [Basic Usage](https://docs.qp.piotrkrzysztof.dev/getting-started/basic-usage/): The quantum-pipeline command and its options
 - [Usage Overview](https://docs.qp.piotrkrzysztof.dev/usage/): Configuring and running VQE simulations
@@ -35,7 +35,7 @@ Quantum Pipeline simulates molecules with the Variational Quantum Eigensolver us
 - [Scientific Overview](https://docs.qp.piotrkrzysztof.dev/scientific/): Quantum chemistry background and the electronic structure problem
 - [VQE Algorithm](https://docs.qp.piotrkrzysztof.dev/scientific/vqe-algorithm/): The Variational Quantum Eigensolver for ground-state energies
 - [Basis Sets](https://docs.qp.piotrkrzysztof.dev/scientific/basis-sets/): How basis sets determine the qubit count under the Jordan-Wigner transform
-- [Benchmarking](https://docs.qp.piotrkrzysztof.dev/scientific/benchmarking/): GPU speedup, convergence, and energy results from the engineering thesis experiments
+- [Benchmarking](https://docs.qp.piotrkrzysztof.dev/scientific/benchmarking/): GPU speedup, convergence and energy results from the thesis experiments and the v2.0.0 verification runs
 - [Changelog](https://docs.qp.piotrkrzysztof.dev/changelog/): Release notes starting from version 1.4.0
 - [Troubleshooting](https://docs.qp.piotrkrzysztof.dev/reference/troubleshooting/): Solutions to common install, configuration, and runtime problems
 - [FAQ](https://docs.qp.piotrkrzysztof.dev/reference/faq/): Answers to common questions by topic
@@ -44,3 +44,6 @@ Quantum Pipeline simulates molecules with the Variational Quantum Eigensolver us
 
 - [GitHub repository](https://github.com/straightchlorine/quantum-pipeline): Source code and issues
 - [PyPI package](https://pypi.org/project/quantum-pipeline/): Released versions
+- [Author](https://piotrkrzysztof.dev/): Piotr Krzysztof Lis
+
+To the only God, be honour and glory for ever and ever.

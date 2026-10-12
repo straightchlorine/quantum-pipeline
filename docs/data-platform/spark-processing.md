@@ -1,5 +1,6 @@
 ---
-description: "How Spark turns raw VQE results into feature tables: cluster setup, configuration, the 11 output tables and incremental runs."
+title: "Spark Processing of VQE Feature Tables"
+description: "How Spark turns raw VQE results into feature tables: cluster setup, configuration, the 11 output Iceberg tables and how incremental processing runs work."
 ---
 
 # Spark Processing

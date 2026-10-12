@@ -1,6 +1,6 @@
 ---
-title: Architecture Overview
-description: How Quantum Pipeline's simulation, Kafka streaming, Spark processing, Airflow and monitoring components fit together.
+title: "Architecture Overview and Components"
+description: "How the simulation core, Kafka, Spark, Airflow and Prometheus fit together, with links to the system design, data flow and serialization pages in this section."
 ---
 
 # Architecture

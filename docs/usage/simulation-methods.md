@@ -1,5 +1,6 @@
 ---
-description: Pick a Qiskit Aer simulation method (statevector, density matrix, MPS, tensor network) by accuracy, memory use and GPU support.
+title: "Simulation Methods: Statevector and MPS"
+description: "Pick a Qiskit Aer simulation method (statevector, density matrix, MPS, tensor network) by accuracy, memory use and GPU support, with trade-offs for each."
 ---
 
 # Simulation Methods
@@ -36,11 +37,11 @@ Selects the best simulation method based on the circuit and noise model. Qiskit 
 
 Dense statevector simulation that maintains the full $2^n$-dimensional complex state vector for an $n$-qubit system. Provides exact results for ideal (noiseless) circuits. This is the default and most common method.
 
-- **GPU Support**: Yes (via CUDA Thrust or cuStateVec backends)
+- **GPU Support**: Yes (via the CUDA Thrust backend; cuStateVec needs a cuQuantum build of Aer)
 - **Memory**: $2^n \times 16$ bytes (complex128)
 - **When to use**: Default choice for ideal circuit simulation, especially with GPU acceleration
 
-When combined with `--gpu`, statevector offloads operations to the GPU using CUDA. This provides meaningful speedups for circuits with 15+ qubits, where the state vector is large enough to benefit from GPU parallelism.
+When combined with `--gpu`, statevector offloads operations to the GPU using CUDA. This provides meaningful speedups from between 12 and 14 qubits (LiH to BeH2 in the thesis runs) upward, where the state vector is large enough to benefit from GPU parallelism.
 
 ### `density_matrix`
 
@@ -75,14 +76,14 @@ GPU-accelerated tensor network simulation using NVIDIA cuTensorNet from the cuQu
 
 | Method | GPU Backend | Requirements |
 |--------|-------------|--------------|
-| `statevector` | CUDA Thrust / cuStateVec | CUDA-capable GPU, qiskit-aer with GPU support |
+| `statevector` | CUDA Thrust (cuStateVec with a cuQuantum build) | CUDA-capable GPU, qiskit-aer with GPU support |
 | `density_matrix` | CUDA Thrust | CUDA-capable GPU, qiskit-aer with GPU support |
 | `tensor_network` | cuTensorNet | CUDA-capable GPU, cuQuantum libraries |
 | `automatic` | Depends | May select a GPU-compatible method |
 
 GPU acceleration requires an NVIDIA GPU with CUDA support (toolkit 11.2+), and qiskit-aer compiled with the CUDA Thrust backend. The `tensor_network` method additionally requires cuQuantum libraries (cuTensorNet). For cuStateVec, Volta architecture or newer is needed (Tesla V100, GeForce 20 series+). Minimum 6 GB GPU memory recommended.
 
-The Quantum Pipeline Docker image (`Dockerfile.gpu`) includes all GPU dependencies pre-configured. See [GPU Acceleration](../deployment/gpu-acceleration.md) for setup details.
+The Docker GPU image (`Dockerfile.gpu`) builds Aer with the CUDA Thrust backend only. cuStateVec and `tensor_network` need a custom Aer build with cuQuantum and are not in the image. See [GPU Acceleration](../deployment/gpu-acceleration.md) for setup details.
 
 ## Selection Guide
 

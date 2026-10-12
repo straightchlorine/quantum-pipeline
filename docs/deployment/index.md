@@ -1,6 +1,6 @@
 ---
-title: Deployment Overview
-description: "How to run Quantum Pipeline: the PyPI package, a single Docker container, or the full platform with Docker Compose."
+title: "Deployment Options: PyPI, Docker, Compose"
+description: "Three ways to run Quantum Pipeline: the PyPI package, a single Docker container, or the full platform with Docker Compose, plus pages on GPU and .env settings."
 ---
 
 # Deployment

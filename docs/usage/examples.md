@@ -1,5 +1,6 @@
 ---
-description: "Worked command-line examples: single and batch molecules, GPU runs, Kafka streaming, saved configs, Python API and ansatz comparisons."
+title: "Examples: Single, Batch, GPU and Kafka"
+description: "Worked command-line examples: single and batch molecules, GPU runs, Kafka streaming, dumping run configs, the Python API and ansatz and init comparisons."
 ---
 
 # Examples
@@ -13,6 +14,7 @@ Run a minimal VQE simulation for a hydrogen molecule to verify the pipeline work
 ```bash
 quantum-pipeline \
     -f data/molecules.json \
+    --molecule-index 0 \
     --basis sto3g \
     --max-iterations 50 \
     --optimizer L-BFGS-B
@@ -101,7 +103,7 @@ What happens:
 1. The VQE simulation runs with GPU acceleration.
 2. Results are serialized using Avro format and the schema is registered with the Schema Registry.
 3. The serialized result is published to the Kafka topic.
-4. Redpanda Connect picks up the message and writes it to Garage (S3-compatible storage) as an Avro file.
+4. Redpanda Connect picks up the message and decodes it and writes it to Garage (S3-compatible storage) as a JSON file.
 
 The `--kafka` flag is required to enable streaming. Without it, other Kafka parameters are ignored. After Redpanda Connect transfers data to Garage, Apache Airflow can trigger Spark processing for feature engineering.
 
@@ -119,7 +121,7 @@ quantum-pipeline \
     --shots 2048
 ```
 
-The optimizer runs until the energy change between consecutive iterations falls below the threshold. For well-behaved problems (H\(_2\) with L-BFGS-B), convergence typically occurs within 30-80 iterations. For more complex molecules, it may require hundreds.
+The optimizer runs until the energy change between consecutive iterations falls below the threshold. The number of iterations depends on the molecule, basis set and optimizer; thesis H\(_2\) runs with L-BFGS-B took about 650 iterations.
 
 ### Threshold guidelines
 
@@ -129,7 +131,7 @@ The optimizer runs until the energy change between consecutive iterations falls 
 | `1e-6` | Standard (1 microHartree) | General runs |
 | `1e-8` | High precision (10 nanoHartree) | Publication-quality research |
 
-Convergence mode (`--convergence`) and fixed iterations (`--max-iterations`) are mutually exclusive at the `OptimizerConfig` level. If `--convergence` is enabled and `--max-iterations` is left at the default, the entry point sets `max_iterations` to `None`. Passing both non-default values raises a `ValueError`.
+If `--convergence` is set, `--max-iterations` is ignored (with a warning if it was set to a non-default value); the threshold decides when the run stops.
 
 For L-BFGS-B, the convergence threshold is passed as `ftol` and `gtol` in the options dict. For COBYLA and other optimizers, it is passed as the global `tol` parameter to `scipy.optimize.minimize`.
 
@@ -163,7 +165,7 @@ quantum-pipeline \
 quantum-pipeline --load run_configs/molecules-cc-pvdz-L-BFGS-B-local-20250615.json
 ```
 
-`--dump` and `--load` are mutually exclusive. Note that `--load` currently only reads and validates the file: its values are not merged back into the run, which still uses the CLI flags and defaults. Treat a dumped config as a record of the settings a run used rather than a way to replay it.
+`--dump` and `--load` are mutually exclusive. A config file passed with `--load` is applied after the CLI arguments, so its values override the CLI flags.
 
 ## Programmatic Usage
 

@@ -1,5 +1,6 @@
 ---
-description: Complete reference of .env settings for Quantum Pipeline, Kafka, Garage, Airflow, Spark, MLflow, monitoring and Docker builds.
+title: "Environment Variables Reference (.env)"
+description: "Reference of .env settings for Quantum Pipeline, Kafka, Garage, Airflow, Spark, MLflow, monitoring and Docker builds, with the default value of each variable."
 ---
 
 # Environment Variables

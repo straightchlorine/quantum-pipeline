@@ -1,5 +1,6 @@
 ---
-description: Available CPU, GPU, Spark and Airflow images, how to build them with just or manually, and how to run a simulation container.
+title: "Docker Basics: CPU and GPU Images"
+description: "The CPU, GPU, Spark and Airflow Docker images for Quantum Pipeline, how to build them with just or by hand, and how to run a single simulation container."
 ---
 
 # Docker Basics

@@ -1,5 +1,6 @@
 ---
-description: Airflow services, shared config modules and the DAGs that schedule Spark feature processing and ML jobs for the VQE data pipeline.
+title: "Airflow Orchestration for VQE Pipelines"
+description: "Airflow services, shared config modules and the DAGs that schedule Spark feature processing, ML feature jobs and batch generation for the data platform."
 ---
 
 # Airflow Orchestration

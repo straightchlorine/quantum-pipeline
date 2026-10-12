@@ -1,5 +1,6 @@
 ---
-description: Install Quantum Pipeline from PyPI, from source with PDM or pip, or in Docker, and check the Python 3.12 and GPU requirements.
+title: "Installation: PyPI, Source and Docker"
+description: "Install Quantum Pipeline from PyPI, from source with PDM or pip, or in Docker, and check the Python 3.12 and optional NVIDIA GPU requirements before running."
 ---
 
 # Installation
@@ -9,6 +10,12 @@ description: Install Quantum Pipeline from PyPI, from source with PDM or pip, or
 - **Python**: 3.12 (the only supported version)
 - **OS**: Linux (tested). macOS and Windows (WSL2) are untested; may work for CPU-only use.
 - **Optional**: NVIDIA GPU with CUDA for GPU acceleration
+
+## From PyPI
+
+```bash
+pip install quantum-pipeline
+```
 
 ## From source
 
@@ -85,7 +92,7 @@ CUDA_ARCH=7.5 just docker-build gpu   # Turing (RTX 20xx)
 ## Full platform with Docker Compose
 
 This deploys the simulation module alongside Kafka, Spark, Airflow, Garage,
-monitoring and MLflow. The stack is defined in
+monitoring exporters and MLflow. The stack is defined in
 [`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml).
 
 The fastest way to get started is the setup script. It generates `.env` with

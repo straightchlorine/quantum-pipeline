@@ -1,6 +1,6 @@
 ---
-title: Scientific Background Overview
-description: Background on electronic structure and VQE, with entry points to the algorithm, basis set and benchmarking pages.
+title: "Scientific Background: VQE Theory"
+description: "Background on the electronic structure problem and the variational quantum eigensolver, with links to the VQE algorithm, basis set and benchmarking pages."
 ---
 
 # Scientific Background

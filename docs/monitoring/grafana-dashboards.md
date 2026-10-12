@@ -1,5 +1,6 @@
 ---
-description: Import the bundled Grafana dashboard and read its panels for VQE performance, accuracy, GPU, system, data platform and databases.
+title: "Grafana Dashboards for VQE Monitoring"
+description: "Import the bundled Grafana dashboard and read its panels for VQE performance, accuracy, GPU, system load, the data platform and the supporting databases."
 ---
 
 # Grafana Dashboards

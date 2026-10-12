@@ -1,5 +1,6 @@
 ---
-description: Run your first VQE simulation on the H2 molecule, read the output, and try convergence-based stopping, GPU and Kafka streaming.
+title: "Quick Start: First VQE Run on H2"
+description: "Run your first VQE simulation on the H2 molecule, read the output, then try convergence-based stopping, GPU acceleration and Kafka streaming of the results."
 ---
 
 # Quick Start
@@ -140,8 +141,8 @@ See [Configuration](../usage/configuration.md) for the full parameter reference.
 When `--convergence` is enabled, the default iteration limit (100) is dropped and the optimizer
 runs until the threshold is met.
 
-`--convergence` and an explicit `--max-iterations` are mutually exclusive, so pass one or the other,
-not both.
+If `--convergence` is set, `--max-iterations` is ignored, with a warning if it was
+set to a non-default value.
 
 ```bash
 quantum-pipeline \

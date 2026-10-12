@@ -1,5 +1,6 @@
 ---
-description: "Component-by-component design of the stack: VQE runner, Kafka, Garage storage, Airflow DAGs and incremental processing."
+title: "System Design of the VQE Data Stack"
+description: "Component-by-component design of the Quantum Pipeline stack: the VQE runner, Kafka, Garage S3 storage, Airflow DAGs, incremental Spark runs and monitoring."
 ---
 
 # System Design
@@ -336,7 +337,9 @@ by Garage).
 | Redis | redis-exporter | `redis-exporter:9121` |
 | GPU | nvidia-gpu-exporter | `nvidia-gpu-exporter:9835` |
 
-Grafana dashboards at `http://grafana:3000`. For configuration details, see
+Grafana dashboards at `http://grafana:3000`. PushGateway, Prometheus and
+Grafana are not part of the Compose stack; the hostnames above assume you run
+them on the same network. For configuration details, see
 [Monitoring](../monitoring/index.md).
 
 

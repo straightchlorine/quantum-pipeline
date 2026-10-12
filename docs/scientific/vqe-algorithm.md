@@ -1,6 +1,6 @@
 ---
-title: Variational Quantum Eigensolver
-description: "How VQE estimates ground-state energies: ansatz choices, random versus Hartree-Fock initialization, and observed convergence."
+title: "Variational Quantum Eigensolver"
+description: "How VQE estimates molecular ground-state energies: ansatz choices, random versus Hartree-Fock initialization, classical optimizer loop and observed convergence."
 ---
 
 # Variational Quantum Eigensolver
@@ -289,9 +289,9 @@ table is in the [Changelog](../changelog.md#200). Key observations:
 - **HF initialization beat random for EfficientSU2** in these H2 runs.
   COBYLA with HF init reached -1.836 Ha for H2 (vs. -1.555 Ha with random).
   L-BFGS-B and BFGS with HF init both reached -1.838 Ha.
-- **Optimizer choice matters.** COBYLA and SLSQP performed well with random
-  init; L-BFGS-B struggled more (likely due to barren plateau sensitivity
-  in gradient-based methods).
+- **Random-init results varied widely by optimizer.** COBYLA reached -1.555 Ha
+  for H2, L-BFGS-B -0.895 and Nelder-Mead -0.553; with HF init COBYLA, BFGS and
+  L-BFGS-B all reached about -1.84 Ha.
 - **Basis set + init interaction is significant.** L-BFGS-B with random init
   on 6-31G produced +2.101 Ha for H2 (a poor local minimum). The same optimizer
   with HF init on 6-31G reached -1.857 Ha.
@@ -338,8 +338,8 @@ primitives and the classical optimization backend. Key implementation details:
   with eight optimizers having dedicated configuration (three with custom
   classes: L-BFGS-B, COBYLA, SLSQP). See
   [Optimizers](../usage/optimizers.md) for the full list.
-- **Statevector simulation** with optional GPU acceleration through NVIDIA
-  cuQuantum (see [GPU Acceleration](../deployment/gpu-acceleration.md)), running
+- **Statevector simulation** with optional GPU acceleration through Qiskit
+  Aer's CUDA Thrust backend (see [GPU Acceleration](../deployment/gpu-acceleration.md)), running
   either with shot sampling or with exact expectation values.
 - **Deviation from the Hartree-Fock reference** computed against the PySCF
   reference energy in the same basis and reported per molecule, as a signed

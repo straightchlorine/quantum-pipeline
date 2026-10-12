@@ -1,5 +1,6 @@
 ---
-description: CLI syntax, common workflows, config files, ansatz and initialization choices, output layout and log levels.
+title: "Basic Usage: CLI Syntax and Workflows"
+description: "CLI syntax and common workflows for Quantum Pipeline: config files, ansatz and initialization choices, simulation options, output layout and log levels."
 ---
 
 # Basic Usage
@@ -77,15 +78,14 @@ quantum-pipeline \
     --dump
 ```
 
-`--load` points the run at a saved configuration file and validates it:
+`--load` points the run at a saved configuration file:
 
 ```bash
 quantum-pipeline --file data/molecules.json --load run_configs/my_config.json
 ```
 
-The loaded values are not currently applied, though: the run still uses the
-arguments and defaults from the command line, so treat `--dump` as a record of a
-run rather than a way to replay one. `--dump` and `--load` cannot be used together.
+A config file passed with `--load` is applied after the CLI arguments, so its
+values override the CLI flags. `--dump` and `--load` cannot be used together.
 
 The dumped JSON mirrors the CLI arguments. For the field names, see
 [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
@@ -130,7 +130,7 @@ The `--simulation-method` flag selects the Aer simulator backend:
 | `automatic` | Aer selects the best method based on circuit and noise model |
 | `density_matrix` | Dense density matrix, for noisy circuits |
 | `matrix_product_state` | Tensor-network MPS, lower memory for large circuits |
-| `tensor_network` | GPU-only, requires cuTensorNet |
+| `tensor_network` | GPU-only, needs a cuQuantum build of Aer |
 
 `tensor_network` requires the `--gpu` flag.
 
