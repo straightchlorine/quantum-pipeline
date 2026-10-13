@@ -64,3 +64,13 @@
 .md-typeset details summary {
   font-size: 0.85rem;
 }
+
+/* Badge rows: no link underline stub under inline images */
+.md-typeset p[align="center"] a {
+  text-decoration: none;
+  border-bottom: 0;
+}
+
+.md-typeset p[align="center"] a img {
+  vertical-align: middle;
+}

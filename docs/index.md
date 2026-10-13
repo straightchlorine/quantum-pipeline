@@ -10,31 +10,15 @@ description: "Open-source Python framework that runs VQE on molecules to estimat
 </p>
 
 <p align="center">
-  <a href="https://pypi.org/project/quantum-pipeline/">
-    <img src="https://badge.fury.io/py/quantum-pipeline.svg" alt="PyPI version">
-  </a>
-  <a href="https://pypi.org/project/quantum-pipeline/">
-    <img src="https://img.shields.io/pypi/dm/quantum-pipeline" alt="PyPI Downloads per Month">
-  </a>
-  <a href="https://pepy.tech/project/quantum-pipeline">
-    <img src="https://static.pepy.tech/badge/quantum-pipeline" alt="PyPI Total Downloads">
-  </a>
-  <a href="https://pypi.org/project/quantum-pipeline/">
-    <img src="https://img.shields.io/pypi/pyversions/quantum-pipeline.svg" alt="Python Versions">
-  </a>
+  <a href="https://pypi.org/project/quantum-pipeline/"><img src="https://badge.fury.io/py/quantum-pipeline.svg" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/quantum-pipeline/"><img src="https://img.shields.io/pypi/dm/quantum-pipeline" alt="PyPI Downloads per Month"></a>
+  <a href="https://pepy.tech/project/quantum-pipeline"><img src="https://static.pepy.tech/badge/quantum-pipeline" alt="PyPI Total Downloads"></a>
+  <a href="https://pypi.org/project/quantum-pipeline/"><img src="https://img.shields.io/pypi/pyversions/quantum-pipeline.svg" alt="Python Versions"></a>
   <br>
-  <a href="https://hub.docker.com/r/straightchlorine/quantum-pipeline">
-    <img src="https://img.shields.io/docker/pulls/straightchlorine/quantum-pipeline.svg" alt="Docker Pulls">
-  </a>
-  <a href="https://hub.docker.com/r/straightchlorine/quantum-pipeline">
-    <img src="https://img.shields.io/docker/image-size/straightchlorine/quantum-pipeline/latest" alt="Docker Image Size">
-  </a>
-  <a href="https://opensource.org/licenses/MIT">
-    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
-  </a>
-  <a href="https://github.com/straightchlorine/quantum-pipeline">
-    <img src="https://img.shields.io/github/stars/straightchlorine/quantum-pipeline.svg" alt="GitHub Stars">
-  </a>
+  <a href="https://hub.docker.com/r/straightchlorine/quantum-pipeline"><img src="https://img.shields.io/docker/pulls/straightchlorine/quantum-pipeline.svg" alt="Docker Pulls"></a>
+  <a href="https://hub.docker.com/r/straightchlorine/quantum-pipeline"><img src="https://img.shields.io/docker/image-size/straightchlorine/quantum-pipeline/latest" alt="Docker Image Size"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://github.com/straightchlorine/quantum-pipeline"><img src="https://img.shields.io/github/stars/straightchlorine/quantum-pipeline.svg" alt="GitHub Stars"></a>
 </p>
 
 ## Overview

@@ -7,6 +7,7 @@
 [Documentation](https://docs.qp.piotrkrzysztof.dev) &middot; [Quick Start](https://docs.qp.piotrkrzysztof.dev/getting-started/quick-start/) &middot; [Examples](https://docs.qp.piotrkrzysztof.dev/usage/examples/)
 
 [![PyPI version](https://badge.fury.io/py/quantum-pipeline.svg)](https://pypi.org/project/quantum-pipeline/)
+[![PyPI Total Downloads](https://static.pepy.tech/badge/quantum-pipeline)](https://pepy.tech/project/quantum-pipeline)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/quantum-pipeline)](https://pypi.org/project/quantum-pipeline/)
 [![Docker Pulls](https://img.shields.io/docker/pulls/straightchlorine/quantum-pipeline.svg)](https://hub.docker.com/r/straightchlorine/quantum-pipeline)
 [![ghcr.io](https://img.shields.io/badge/ghcr.io-cpu%20%7C%20gpu-blue?logo=github)](https://github.com/straightchlorine/quantum-pipeline/pkgs/container/quantum-pipeline)
