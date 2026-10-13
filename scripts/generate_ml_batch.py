@@ -318,6 +318,9 @@ def build_docker_command(
         "--ansatz", ansatz,
         "--simulation-method", config["simulation_method"],
         "--log-level", "INFO",
+        # Sampled shots with a gradient optimizer raise InvalidSolverConfigError,
+        # and the dataset wants noise-free trajectories, so every run is exact.
+        "--exact",
     ])
 
     if molecule_index is not None:
