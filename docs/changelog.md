@@ -10,6 +10,95 @@ Release notes for Quantum Pipeline, starting from version 1.4.0.
 For earlier versions, see the [GitHub releases](https://github.com/straightchlorine/quantum-pipeline/releases).
 
 ---
+## [2.4.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.4.0)
+
+### Breaking changes
+
+Before 2.4.0, a run without `--shots` sampled 1024 shots unless you passed
+`--exact`. From 2.4.0, a run without `--shots` is exact: expectation values are
+computed from the statevector, with no shot sampling. To sample, pass `--shots N`.
+
+The default optimizer, L-BFGS-B, needs gradients. With sampled energies the
+gradient would come from comparing energies at nearby points, and the sampling
+error is larger than those differences.
+The gradient would be noise, so the optimizer now refuses sampled shots.
+To replicate pre 2.4.0 behavoiur, add `--shots 1024` and switch to a
+gradient-free optimizer such as `--optimizer COBYLA`.
+
+Two cases differ. `--ibm` without `--shots` still samples 1024 shots, so it
+needs a gradient-free optimizer for the same reason. `--noise` now needs either
+`--shots N` or `--simulation-method density_matrix`.
+
+These gradient optimizers refuse sampled shots with an error and exit
+code 2: L-BFGS-B, BFGS, CG, TNC, SLSQP, Newton-CG and trust-constr. COBYLA and
+the other gradient-free optimizers accept sampled shots, but they now sample
+only when you pass `--shots`.
+
+Without it they run exact like everything else. Separately, a file passed
+with `--load` overrides the CLI flags, including whether the run is exact or
+sampled, so if the loaded file says to sample (or to be exact), that wins
+over what was typed.
+
+`qiskit-algorithms>=0.4.0` is a new runtime dependency.
+
+### Analytic-gradient fast path
+
+There is a new fast path for exact runs with a gradient optimizer. The
+"analytic" path computes energies and exact gradients (derivatives) directly
+on the statevector, with no sampling. Before, these runs went through Aer (the
+Qiskit simulator) and estimated gradients by finite differences.
+
+Energies from the new path agree with Aer exact to about 1e-13 Ha
+(chemical accuracy is about 1.6e-3 Ha, so the difference is negligible).
+
+On the benchmark, one optimizer step (one energy and gradient update) is roughly
+4x (H2) to 250x (NH3) faster than on Aer, from step times measured in
+`scripts/benchmark_fast_path.py`.
+
+The run log announces the path, and the backend saved in the run's output data
+is `statevector_analytic`.
+
+Problems above 16 qubits stay on the Aer exact path. The analytic gradient
+builds a large matrix form of the Hamiltonian (the molecule's energy operator)
+on every call, and a larger H2 setup with 20 qubits (cc-pVDZ basis set) ran out
+of memory.
+
+### Optimizers
+
+Newton-CG and trust-constr are added, for ten supported optimizers in total.
+
+Newton-CG only works on the analytic path (the exact-derivative fast path
+described above). That means the run must be exact, local (not `--ibm`),
+without noise, without GPU, and at most 16 qubits.
+
+If those conditions are not met, Newton-CG says so and does not run.
+trust-constr has no such restriction: when the analytic path is not available,
+it falls back to finite differences.
+
+### Hartree-Fock start and the stationary-point trap
+
+With `--init-strategy hf` at the default 2 repetitions a gradient optimizer can stop at the Hartree-Fock energy; see [Hartree-Fock initialization](scientific/vqe-algorithm.md#hartree-fock-initialization).
+
+### Benchmark script and tests
+
+New script: `scripts/benchmark_fast_path.py` compares the analytic path against
+Aer. It takes `--output` and `--molecules`, and it also runs outside a git
+checkout. Its results are committed under `benchmarks/fast_path/`.
+
+Because the default is now exact, the ML batch builder
+(`scripts/generate_ml_batch.py`) and the smoke script
+(`scripts/smoke_test_ml_pipeline.sh`) now pass `--exact` explicitly.
+
+### Fixes
+
+L-BFGS-B no longer passes the deprecated `disp` option.
+
+Solver configuration errors now print the usage and the reason and exit with
+code 2, instead of showing a traceback. This covers a gradient optimizer
+combined with `--shots`, and Newton-CG used off the analytic path.
+
+---
+
 ## [2.3.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.3.0)
 
 ### Breaking changes

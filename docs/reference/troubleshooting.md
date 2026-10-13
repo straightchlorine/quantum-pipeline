@@ -39,8 +39,8 @@ This page provides solutions to common issues encountered when installing, confi
 # Increase the maximum number of iterations
 quantum-pipeline -f data/molecules.json --max-iterations 500
 
-# Try Hartree-Fock initialization to avoid barren plateaus
-quantum-pipeline -f data/molecules.json --init-strategy hf
+# Try Hartree-Fock initialization; with EfficientSU2 it needs 3 or more repetitions
+quantum-pipeline -f data/molecules.json --init-strategy hf --ansatz-reps 3
 
 # Try a different optimizer
 quantum-pipeline -f data/molecules.json --optimizer COBYLA
@@ -48,6 +48,14 @@ quantum-pipeline -f data/molecules.json --optimizer COBYLA
 # Loosen convergence tolerance for faster (less precise) convergence
 quantum-pipeline -f data/molecules.json --convergence --threshold 1e-4
 ```
+
+### Run Exits with Code 2 and One Error Line
+
+**Symptom:** The command exits with code 2 after printing a single error line.
+
+**Cause:** A run without `--shots` is [exact](../usage/configuration.md#-exact): expectation values come from the statevector, with no shot sampling. A gradient optimizer (the default L-BFGS-B included) needs those exact values, so it refuses sampled shots. Sampling can still start without `--shots`: `--ibm` samples 1024 shots by default, and a `--load` file can store shots. A `--noise` run on any method other than `density_matrix` also needs `--shots N`.
+
+**Solution:** Drop `--shots`, or switch to a gradient-free optimizer such as COBYLA. For a noisy run, pass `--simulation-method density_matrix` or `--shots N`.
 
 ### Out of Memory During Simulation
 
@@ -77,8 +85,9 @@ quantum-pipeline -f data/molecules.json --ansatz-reps 1
 **Solution:**
 
 ```bash
-# Verify GPU is being used (check logs for "Using GPU backend")
-quantum-pipeline -f data/molecules.json --log-level DEBUG
+# Verify the GPU is used: the log shows "Initializing Aer simulator backend with GPU
+# acceleration..." and "Using exact Aer estimator on aer_simulator_statevector_gpu"
+quantum-pipeline -f data/molecules.json --gpu --log-level DEBUG
 
 # Ensure no other heavy processes are running
 top
@@ -95,7 +104,10 @@ nvidia-smi
 
 **Solution:**
 
-Run multiple simulations with different seeds, or use `--init-strategy hf` to start from the Hartree-Fock state. In one H2/6-31g run with L-BFGS-B, random init spent over 1000 iterations and ended at a positive energy, while HF init reached -1.857 Ha in 50 iterations.
+Run multiple simulations with different seeds, or use `--init-strategy hf` to start from the Hartree-Fock state.
+In one H2/6-31g run with L-BFGS-B, random init spent over 1000 iterations and ended at a positive energy,
+while HF init reached -1.857 Ha in 50 iterations.
+With `hf` at the default 2 repetitions a gradient optimizer can stop at the Hartree-Fock energy; see [Hartree-Fock initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization).
 
 ## Docker Issues
 

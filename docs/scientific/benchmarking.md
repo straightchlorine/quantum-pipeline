@@ -1,6 +1,6 @@
 ---
 title: "Benchmarking Results: VQE Speed, Accuracy"
-description: "Thesis and v2.0.0 benchmark results for VQE runs: GPU speedups, convergence behavior, energy accuracy against reference values, and the known limitations."
+description: "Thesis and v2.0.0 benchmark results for VQE runs: GPU speedups, analytic fast-path timings, convergence behavior, energy accuracy against reference values, and the known limitations."
 ---
 
 # Benchmarking Results
@@ -60,11 +60,11 @@ experiments:
 | Ansatz | EfficientSU2 |
 | Parameter initialization | Random uniform \([0, 2\pi]\) |
 
-Only L-BFGS-B was tested in the thesis. The pipeline offers
-[8 optimizers](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py)
-(three with dedicated configuration classes in the
-[optimizer config factory](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py):
-L-BFGS-B, COBYLA, SLSQP). See
+Only L-BFGS-B was tested in the thesis. The pipeline lists
+[10 optimizers](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py),
+all configured through the
+[optimizer config factory](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py)
+(four with dedicated configuration classes: L-BFGS-B, COBYLA, SLSQP, trust-constr). See
 [Optimizers](../usage/optimizers.md) for details.
 
 ### v2.0.0 Verification Parameters
@@ -308,6 +308,67 @@ LiH (12 qubits), beyond which GPU acceleration provides consistent benefits.
        alt="Overall GPU speedup summary bar chart">
   <figcaption>Figure 9. Overall GPU speedup averaged across all molecules for the sto-3g basis set: GTX 1060 at 1.81x and GTX 1050 Ti at 1.74x relative to CPU baseline.</figcaption>
 </figure>
+
+### Analytic Fast-Path Comparison
+
+The numbers above all come from the exact Aer path, where L-BFGS-B estimates
+every gradient by finite differences and so needs about n_params + 1 objective
+calls per step. With [`--exact`](../usage/configuration.md#-exact), a gradient
+optimizer on a local noiseless run computes the energy and the exact gradient
+together in one statevector pass, which is one call per step.
+
+The analytic path runs on the CPU, so `--gpu` opts out of it.
+GPU rows in this chapter still describe Aer runs.
+
+The comparison times one optimizer step on each path for both ansatz levels. The
+Aer step is estimated as n_params + 1 single energy calls, so no full Aer
+optimizer step is run. All times are in seconds, with core frozen for LiH, BeH2
+and NH3.
+
+| Tier | Molecule | Params (SU2 / EP) | EfficientSU2 energy and gradient | ExcitationPreserving energy and gradient | Aer exact, per step | Speedup (EfficientSU2) |
+|------|----------|------|------|------|------|------|
+| 4 qubits | H2 | 32 / 34 | 0.031 | 0.075 | 0.14 | 4.4x |
+| 10 qubits | LiH | 80 / 175 | 0.085 | 0.61 | 4.1 | 49x |
+| 12 qubits | BeH2 | 96 / 246 | 0.115 | 1.01 | 6.4 | 55x |
+| 14 qubits | NH3 | 112 / 329 | 0.305 | 2.39 | 78 | 257x |
+
+The CLI does not freeze the core, so there the same molecules run at 12 (LiH),
+14 (BeH2) and 16 (NH3) qubits. The 4-qubit speedup is small because a step at
+that size is dominated by fixed overhead.
+
+The absolute seconds are host-specific. They come from
+`benchmarks/fast_path/2026-10-12-540bf39.json`, measured on 2026-10-12 on a
+workstation with `OMP_NUM_THREADS=1` and a load average of about 4, so the
+timings are best read as upper bounds and should be repeated on a quiet machine.
+Regenerate it with
+`OMP_NUM_THREADS=1 pdm run python scripts/benchmark_fast_path.py`.
+
+The same file extrapolates the per-step times to a data-collection grid of
+2,600 trajectories of 300 steps each over the 10, 12 and 14 qubit tiers. One
+thread per run, so wall seconds equal core seconds. Core-hour ranges for the
+grid, from the fastest to the slowest tier:
+
+| Path | Core-hours |
+|------|-----------|
+| EfficientSU2, analytic | 18 to 66 |
+| ExcitationPreserving, analytic | 132 to 518 |
+| Aer exact, finite differences | 898 to 16,959 |
+
+Earlier estimates from a quiet host were 15-135, 98-444 and 650-16,900
+core-hours for the same three rows. The measured ranges sit inside or above
+them because of the load during the run.
+
+The ExcitationPreserving step costs about 2.4 times (H2) to 8.8 times (BeH2)
+more than the EfficientSU2 step, because it has more parameters and its gates
+need an extra translation before differentiation.
+
+Do not apply EfficientSU2 timings to ExcitationPreserving runs: the benchmark
+keeps the two apart as `t_energy_grad_s` and `t_energy_grad_ep_s`.
+
+Starting from the same parameters, both paths give the same energy to the
+printed precision. Full trajectories can differ, because finite-difference and
+analytic gradients differ slightly; see
+[Hartree-Fock initialization](vqe-algorithm.md#hartree-fock-initialization).
 
 ### Practical Implications
 

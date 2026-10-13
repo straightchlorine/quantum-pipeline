@@ -18,8 +18,8 @@ graph LR
 
 CLI flags override the built-in defaults in
 [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
-A config file passed with `--load` is applied after the CLI arguments, so its
-values override the CLI flags. See
+A config file passed with `--load` is read and validated, and its values then
+override the CLI flags, including `--exact`. See
 [Configuration](configuration.md) for details.
 
 ## Section Guide
@@ -39,8 +39,8 @@ values override the CLI flags. See
 
     ---
 
-    The 8 configured classical optimizers (L-BFGS-B, COBYLA, SLSQP, and
-    5 generic-config ones), their behavior modes, default iteration
+    The 10 configured classical optimizers (L-BFGS-B, COBYLA, SLSQP,
+    trust-constr, and 6 generic-config ones), their behavior modes, default iteration
     budgets, and selection guidelines.
 
     [:octicons-arrow-right-24: Optimizers](optimizers.md)

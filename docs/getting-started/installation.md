@@ -39,7 +39,8 @@ pip install -e .
 
 ## Docker
 
-Pre-built images are available on Docker Hub:
+Pre-built images are available on Docker Hub. A run without `--shots` is exact:
+expectation values come from the statevector, with no shot sampling (see [`--exact`](../usage/configuration.md#-exact)).
 
 === "CPU"
     ```bash
