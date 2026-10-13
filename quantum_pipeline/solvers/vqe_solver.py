@@ -6,6 +6,7 @@ from qiskit.quantum_info import Statevector, state_fidelity
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer.backends.aer_simulator import AerBackend
 from qiskit_aer.primitives import EstimatorV2 as AerEstimatorV2
+from qiskit_algorithms.gradients import ReverseEstimatorGradient
 from qiskit_ibm_runtime import EstimatorV2, Session
 from scipy.optimize import minimize
 
@@ -13,6 +14,9 @@ from quantum_pipeline.circuits import HFData, build_hf_initial_state
 from quantum_pipeline.configs.constants import (
     EP_HF_INIT_JITTER,
     EP_INIT_JITTER,
+    FAST_PATH_BACKEND,
+    FAST_PATH_MAX_QUBITS,
+    GRADIENT_OPTIMIZERS,
     HF_FIDELITY_THRESHOLD,
     HF_PRE_OPT_ATTEMPTS,
     HF_PRE_OPT_MAXITER,
@@ -37,6 +41,14 @@ class MaxFunctionEvalsReachedError(Exception):
         self.iteration = iteration
         self.best_params = best_params
         self.best_energy = best_energy
+
+
+class InvalidSolverConfigError(ValueError):
+    """A combination of flags that cannot produce a correct number, detected before any compute.
+
+    Distinct from a compute failure so VQERunner's per-molecule catch-all can re-raise it: the
+    condition is identical for every molecule, so continuing would waste the batch.
+    """
 
 
 class VQESolver(Solver):
@@ -67,6 +79,11 @@ class VQESolver(Solver):
         self.default_shots = default_shots
         self.backend_config = backend_config
         self.vqe_process: list[VQEProcess] = []
+        # One gradient object per solver.
+        # It caches the unrolled ansatz per circuit, so a fresh object per objective
+        # call would re-translate the circuit every time.
+        # The Aer and IBMQ paths never use it.
+        self._gradient = ReverseEstimatorGradient()
         self.current_iter = 1
         self.convergence_threshold = convergence_threshold
         self.optimization_level = optimization_level
@@ -298,9 +315,13 @@ class VQESolver(Solver):
             success=False,
         )
 
-    def compute_energy(self, params, ansatz, hamiltonian, estimator):
-        """scipy objective callback: evaluate <H>, record the step, enforce the hard eval limit."""
+    def _enforce_eval_limit(self) -> None:
+        """Raise MaxFunctionEvalsReachedError once the evaluation budget is spent.
 
+        max_iterations bounds objective calls, not optimiser steps.
+        Raising rather than returning a sentinel keeps the partial trajectory intact
+        for the truncated result.
+        """
         if self.max_iterations is not None and self.current_iter > self.max_iterations:
             best = self._best_step()
             raise MaxFunctionEvalsReachedError(
@@ -309,10 +330,13 @@ class VQESolver(Solver):
                 best_energy=float(best.result),
             )
 
-        pub = (ansatz, [hamiltonian], [params])
-        result = estimator.run(pubs=[pub]).result()
-        energy, std = result[0].data.evs[0], result[0].data.stds[0]
+    def _record_step(self, params, energy: np.float64, std: np.float64) -> np.float64:
+        """Append one row for this objective call, advance the counter, and return energy.
 
+        energy is electronic (Ha); the nuclear-repulsion offset lives on VQEResult, never on a
+        row. Derived features compare against the previous row, so they only hold while one
+        row is one objective call.
+        """
         if self.vqe_process:
             prev = self.vqe_process[-1]
             energy_delta = np.float64(energy - prev.result)
@@ -326,22 +350,75 @@ class VQESolver(Solver):
             parameter_delta_norm = None
             cumulative_min_energy = np.float64(energy)
 
-        step = VQEProcess(
-            iteration=self.current_iter,
-            parameters=np.array(params, copy=True),
-            result=energy,
-            std=std,
-            energy_delta=energy_delta,
-            parameter_delta_norm=parameter_delta_norm,
-            cumulative_min_energy=cumulative_min_energy,
+        self.vqe_process.append(
+            VQEProcess(
+                iteration=self.current_iter,
+                parameters=np.array(params, copy=True),
+                result=energy,
+                std=std,
+                energy_delta=energy_delta,
+                parameter_delta_norm=parameter_delta_norm,
+                cumulative_min_energy=cumulative_min_energy,
+            )
         )
-
-        self.vqe_process.append(step)
         self.logger.debug(
             f'Iters. done: {self.current_iter:0{self.digits_iter}d} [Current cost: {energy}]'
         )
         self.current_iter += 1
         return energy
+
+    def compute_energy(self, params, ansatz, hamiltonian, estimator):
+        """scipy objective callback: enforce the eval limit, evaluate <H>, record the step.
+
+        MaxFunctionEvalsReachedError propagates through scipy; _run_optimization catches it.
+        """
+        self._enforce_eval_limit()
+        pub = (ansatz, [hamiltonian], [params])
+        result = estimator.run(pubs=[pub]).result()
+        energy, std = result[0].data.evs[0], result[0].data.stds[0]
+        return self._record_step(params, energy, std)
+
+    def _fast_path_eligible(self) -> bool:
+        """True when the analytic statevector path may replace the Aer path.
+
+        The analytic path changes energies by at most about 1e-13 Ha. So it may only
+        replace a run that already asked for exact, noiseless, local expectation values
+        with a gradient optimizer.
+
+        gpu is excluded even though the analytic path is faster. The analytic path is plain
+        NumPy on the host, while vqe_runner reports backend_type='GPU' from the flag alone.
+
+        Problems above FAST_PATH_MAX_QUBITS are excluded: the per-call sparse Hamiltonian
+        in ReverseEstimatorGradient runs out of memory around 20 qubits.
+
+        TODO: consider how to include gpu for this path also.
+        """
+        # local is bool | None. "is True" rejects None, which means "not asked for".
+        return (
+            self.default_shots is None
+            and self.optimizer in GRADIENT_OPTIMIZERS
+            and not self.backend_config.noise
+            and self.backend_config.local is True
+            and not self.backend_config.gpu
+            and self.qubit_op.num_qubits <= FAST_PATH_MAX_QUBITS
+        )
+
+    def _fast_path_objective(self, params, ansatz, hamiltonian) -> tuple[float, np.ndarray]:
+        """scipy objective for via_statevector: returns (energy, gradient) in one call.
+
+        Recorded std is 0.0, the same as the exact Aer estimator, so rows from both paths
+        agree field by field.
+        """
+        self._enforce_eval_limit()
+        energy = float(
+            Statevector(ansatz.assign_parameters(params)).expectation_value(hamiltonian).real
+        )
+        gradient = np.asarray(
+            self._gradient.run([ansatz], [hamiltonian], [params]).result().gradients[0],
+            dtype=np.float64,
+        )
+        self._record_step(params, np.float64(energy), np.float64(0.0))
+        return energy, gradient
 
     def _prepare_circuit(self, backend):
         """Build and transpile the ansatz and Hamiltonian for the given backend.
@@ -351,6 +428,8 @@ class VQESolver(Solver):
             initial parameters and the _isa variants are the backend-compatible
             transpiled forms.
         """
+        # via_statevector does not call this method.
+        # Any state bound here for later use must also be bound in via_statevector.
         hamiltonian = self.qubit_op
 
         self.logger.info(f'Initializing the ansatz with {self.ansatz_reps} reps...')
@@ -387,8 +466,15 @@ class VQESolver(Solver):
             exact_estimator=exact_estimator,
         )
 
-    def _run_optimization(self, ansatz_isa, hamiltonian_isa, estimator, x0) -> VQEResult:
-        """Run scipy minimize; a hard-limit abort in compute_energy still yields a result.
+    def _run_optimization(
+        self, ansatz_isa, hamiltonian_isa, estimator, x0, *, analytic: bool = False
+    ) -> VQEResult:
+        """Run scipy minimize; a hard-limit abort in the objective still yields a result.
+
+        analytic picks the objective, its arguments and the gradient source together, so a
+        caller cannot mix them up. compute_energy takes the estimator; _fast_path_objective
+        does not and returns its own gradient. Both paths build the same partial VQEResult
+        on MaxFunctionEvalsReachedError.
 
         Raises:
             ValueError: If both `max_iterations` and `convergence_threshold` are set
@@ -420,10 +506,20 @@ class VQESolver(Solver):
         res = None
         with Timer() as t:
             try:
+                # With analytic False scipy estimates any gradient it needs by finite
+                # differences, and gradient-free optimizers ignore it without a warning.
+                # So one call serves both paths.
+                objective = self._fast_path_objective if analytic else self.compute_energy
+                minimize_args = (
+                    (ansatz_isa, hamiltonian_isa)
+                    if analytic
+                    else (ansatz_isa, hamiltonian_isa, estimator)
+                )
                 res = minimize(
-                    self.compute_energy,
+                    objective,
                     x0,
-                    args=(ansatz_isa, hamiltonian_isa, estimator),
+                    args=minimize_args,
+                    jac=analytic,
                     method=self.optimizer,
                     options=optimization_params,
                     tol=minimize_tol,
@@ -534,10 +630,80 @@ class VQESolver(Solver):
         )
         return result
 
+    def via_statevector(self) -> VQEResult:
+        """Run VQE on an exact statevector with analytic gradients.
+
+        No backend, no transpilation and no sampling. The ansatz and the Hamiltonian stay
+        logical. Transpiling would give the same gradient on a relabelled circuit, and it
+        would add optimization_level and seed_transpiler to what decides a trajectory.
+        """
+        ansatz = self._build_ansatz(self.qubit_op.num_qubits)
+        x0 = self._compute_initial_parameters(ansatz)
+
+        # state that the Aer path binds during circuit preparation must be bound here too
+        # TODO: add ansatz_logical
+        self._build_init_data(FAST_PATH_BACKEND, ansatz, self.qubit_op, x0, exact_estimator=True)
+        self.logger.info(
+            f'Analytic-gradient statevector path: {self.qubit_op.num_qubits} qubits, '
+            f'{ansatz.num_parameters} parameters, optimizer {self.optimizer}.'
+        )
+
+        # The estimator is None on purpose: with analytic=True it is not passed to scipy.
+        # It stays a positional argument so all three paths share one signature.
+        result = self._run_optimization(ansatz, self.qubit_op, None, x0, analytic=True)
+        self.logger.info(
+            f'Analytic path completed in {result.minimization_time:.6f} seconds '
+            f'and {len(result.iteration_list)} iterations.'
+        )
+        return result
+
     def solve(self) -> VQEResult:
-        """Run the VQE simulation and return the result."""
+        """Run the VQE simulation and return the result.
+
+        Raises InvalidSolverConfigError before any compute in two cases, checked in this order.
+        Newton-CG on a run the analytic path cannot take: Newton-CG needs an analytic gradient
+        and scipy rejects it without one.
+
+        Any other gradient optimizer paired with sampled shots: finite-difference gradients
+        of a sampled energy aren't helpful.
+
+        Otherwise dispatches, in priority order, to the analytic statevector path, Aer, then IBMQ.
+        """
         self.current_iter = 1
         self.vqe_process = []
+
+        eligible = self._fast_path_eligible()
+
+        if self.optimizer == 'Newton-CG' and not eligible:
+            # Only the analytic path passes a gradient function to scipy. Elsewhere scipy
+            # would stop with 'Jacobian is required for Newton-CG method'.
+            raise InvalidSolverConfigError(
+                'Optimizer Newton-CG needs an analytic gradient. Only an exact, local, noiseless, '
+                f'non-GPU run of at most {FAST_PATH_MAX_QUBITS} qubits provides one. Use --exact '
+                'on a local run without --noise or --gpu, or pick another optimizer '
+                '(--optimizer L-BFGS-B, BFGS or COBYLA).'
+            )
+
+        if self.default_shots is not None and self.optimizer in GRADIENT_OPTIMIZERS:
+            # Finite differences over shot noise give noise gradients. scipy's first line search
+            # then fails and it returns nit=0 with success=True: a wrong energy marked converged.
+            raise InvalidSolverConfigError(
+                f'Optimizer {self.optimizer} needs a gradient, but default_shots='
+                f'{self.default_shots} samples the objective. Finite-difference gradients of a '
+                'sampled energy are meaningless and scipy reports nit=0 with success=True. '
+                'Use exact expectation values (--exact) or a gradient-free optimizer '
+                '(--optimizer COBYLA).'
+            )
+
+        if eligible:
+            return self.via_statevector()
+
+        n_qubits = self.qubit_op.num_qubits
+        if n_qubits > FAST_PATH_MAX_QUBITS and self.optimizer in GRADIENT_OPTIMIZERS:
+            self.logger.info(
+                f'{n_qubits} qubits is above the analytic-path limit of {FAST_PATH_MAX_QUBITS}; '
+                'using the Aer path with finite-difference gradients.'
+            )
 
         backend = self.get_backend()
 

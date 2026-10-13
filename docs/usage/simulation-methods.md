@@ -14,7 +14,7 @@ When running VQE simulations locally (without IBM Quantum hardware), the pipelin
 The simulation method is set via `--simulation-method`:
 
 ```bash
-quantum-pipeline -f molecules.json --simulation-method statevector
+quantum-pipeline -f data/molecules.json --simulation-method statevector
 ```
 
 The default is `statevector`. For GPU-accelerated workloads, `tensor_network` is an alternative that requires the `--gpu` flag (and cuQuantum libraries). When unsure, `automatic` delegates the choice to Qiskit Aer based on circuit properties.
@@ -49,7 +49,7 @@ Dense density matrix simulation that represents the quantum state as a $2^n \tim
 
 - **GPU Support**: Yes
 - **Memory**: $2^{2n} \times 16$ bytes
-- **When to use**: Simulations with noise models (via `--noise`)
+- **When to use**: Simulations with noise models (via `--noise`). A `--noise` run without `--shots` is an [exact run](configuration.md#-exact) (expectation values computed from the statevector, no shot sampling) and needs this method; on other methods, add `--shots N` to sample the noise model.
 
 !!! warning "Memory scaling"
     The density matrix requires quadratically more memory than statevector. This limits practical use to approximately 12-14 qubits on CPU. GPU acceleration helps with computation speed but does not change the memory scaling.

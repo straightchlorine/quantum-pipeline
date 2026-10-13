@@ -56,6 +56,8 @@ quantum-pipeline \
   --max-iterations 150
 ```
 
+With `--gpu` the run uses the Aer exact path; the analytic path is CPU-only.
+
 ## CUDA_ARCH Build Argument
 
 The GPU Docker image compiles Qiskit Aer from source. By default `CUDA_ARCH` is
@@ -160,6 +162,13 @@ The key results: 1.74-1.81x speedup on STO-3G, 3.53-4.08x on cc-pVDZ. Speedup
 scales with qubit count and basis set size, with the crossover from
 overhead-dominated to acceleration-dominated between 12 and 14 qubits
 (LiH to BeH2 in the thesis runs).
+
+These figures compare GPU and CPU on the Aer path. An exact run (no `--shots`)
+with a gradient optimizer that is local, noiseless, without `--gpu` and has at
+most 16 qubits takes the analytic path instead: energies and gradients are
+computed directly on the statevector. At these sizes that CPU run is faster than
+a `--gpu` run, and adding `--gpu` turns the analytic path off. See
+[Analytic Fast-Path Comparison](../scientific/benchmarking.md#analytic-fast-path-comparison).
 
 For the full benchmark data, per-molecule breakdown, convergence analysis, and
 basis set comparisons, see

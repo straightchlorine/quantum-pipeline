@@ -74,7 +74,7 @@ class QuantumPipelineArgParser:
         sim_group.add_argument(
             '-ar',
             '--ansatz-reps',
-            type=int,
+            type=self.positive_int,
             default=DEFAULTS['ansatz_reps'],
             help='Amount of reps for the ansatz',
         )
@@ -190,7 +190,9 @@ class QuantumPipelineArgParser:
     def _add_output_logging(self):
         output_group = self.parser.add_argument_group('Output and Logging')
         output_group.add_argument(
-            '--output-dir', default=settings.GEN_DIR, help='Directory to store output files'
+            '--output-dir',
+            default=settings.GEN_DIR,
+            help='Currently has no effect; output goes to gen/',
         )
         output_group.add_argument(
             '--log-level',
@@ -207,7 +209,7 @@ class QuantumPipelineArgParser:
     def shots(self, shots):
         if int(shots) <= 0:
             raise argparse.ArgumentTypeError(f'shots:{shots} is not a valid number')
-        return shots
+        return int(shots)
 
     def _add_backend_options(self):
         backend_group = self.parser.add_argument_group('Advanced Backend Options')
@@ -215,15 +217,22 @@ class QuantumPipelineArgParser:
             '--shots',
             type=self.shots,
             default=DEFAULTS['shots'],
-            help='Number of shots for quantum circuit execution (ignored when --exact is set)',
+            help=(
+                'Sample the circuit with this many shots. Without --shots the run is exact (no '
+                'shot noise), and a gradient optimizer such as the default L-BFGS-B uses analytic '
+                'gradients on a statevector. Sampled shots are incompatible with a gradient-based '
+                'optimizer: finite-difference gradients of a noisy objective are meaningless, so '
+                'the run is rejected. Use --optimizer COBYLA with --shots. With --ibm the '
+                'default is 1024 shots, because hardware cannot be exact.'
+            ),
         )
         backend_group.add_argument(
             '--exact',
             action='store_true',
             help=(
                 'Use exact statevector expectation values (qiskit_aer EstimatorV2, '
-                'default_precision=0.0) instead of shot sampling. Eliminates shot noise, '
-                'is deterministic, and is faster for noiseless runs. Overrides --shots.'
+                'default_precision=0.0) instead of shot sampling. This is already the default '
+                'when --shots is not given. With --shots, --exact overrides it.'
             ),
         )
         backend_group.add_argument(
@@ -237,7 +246,7 @@ class QuantumPipelineArgParser:
     def ensure_file(self, path):
         if os.path.isfile(path):
             return path
-        raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
+        raise argparse.ArgumentTypeError(f'{path} is not a readable file')
 
     def _add_additional_features(self):
         additional_group = self.parser.add_argument_group('Additional Features')
@@ -401,11 +410,18 @@ class QuantumPipelineArgParser:
         if args.convergence and args.threshold is None:
             self.parser.error('--threshold must be set if --convergence is enabled.')
 
-        if args.exact and args.noise and args.simulation_method != 'density_matrix':
+        # Hardware cannot return exact values, so --ibm without --shots samples.
+        if args.ibm and args.shots is None and not args.exact:
+            args.shots = DEFAULTS['ibm_shots']
+
+        # No --shots means an exact run, the same as --exact.
+        exact_run = args.exact or args.shots is None
+        if exact_run and args.noise and args.simulation_method != 'density_matrix':
             self.parser.error(
-                '--exact with --noise requires --simulation-method density_matrix. '
-                'Other methods sample the noise model shot by shot, so the run is no '
-                'longer exact even though it reports zero variance.'
+                'An exact run (--exact, or no --shots) with --noise requires '
+                '--simulation-method density_matrix. Other methods sample the noise model '
+                'shot by shot, so the run is no longer exact even though it reports zero '
+                'variance. Pass --shots N to sample, or use density_matrix.'
             )
 
         gpu_only_methods = {'tensor_network'}

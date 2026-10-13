@@ -17,8 +17,8 @@ Highest priority first:
 | CLI arguments | Flags passed to `quantum-pipeline` | Runtime overrides |
 | Defaults | [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py) | Built-in fallback values |
 
-A config file passed with `--load` is applied after the CLI arguments, so its
-values override the CLI flags (see the `--load` flag below).
+A config file passed with `--load` is read and validated, and its values then
+override the CLI flags, including [`--exact`](#-exact) (see the `--load` flag below).
 
 Static settings (supported optimizers, basis sets, simulation methods, output
 directories) live in
@@ -52,12 +52,12 @@ by
 | VQE | `--convergence` | flag | `false` | Enable convergence-based stopping |
 | VQE | `--threshold` | float | `1e-6` | Convergence threshold (Hartree) |
 | VQE | `--optimizer` | choice | `L-BFGS-B` | Optimization algorithm |
-| VQE | `--init-strategy` | choice | `random` | Parameter init (`random`, `hf`) |
+| VQE | `--init-strategy` | choice | `random` | Parameter init (`random`, `hf`); `hf` with `EfficientSU2` needs `--ansatz-reps 3`, see [below](#-init-strategy) |
 | VQE | `--seed` | int | `None` | Random seed for reproducibility |
-| Output | `--output-dir` | path | `./gen` | Output directory |
+| Output | `--output-dir` | path | `./gen` | Output directory; currently has no effect, output goes to `gen/` |
 | Output | `--log-level` | choice | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| Backend | `--shots` | int | `1024` | Circuit execution shots (must be positive) |
-| Backend | `--exact` | flag | `false` | Exact statevector expectation values instead of shot sampling |
+| Backend | `--shots` | int | none (exact) | Sample with this many shots (must be positive); without it the run is exact |
+| Backend | `--exact` | flag | `false` | Exact expectation values; already the default without `--shots`, overrides `--shots` |
 | Backend | `--optimization-level` | int | `3` | Circuit optimization level (0-3) |
 | Features | `--report` | flag | `false` | Generate PDF report |
 | Features | `--dump` | flag | `false` | Save config to JSON |
@@ -111,7 +111,7 @@ Process only the molecule at this 0-based index. Without this flag, all
 molecules in the file are processed sequentially.
 
 ```bash
-quantum-pipeline -f molecules.json --molecule-index 1
+quantum-pipeline -f data/molecules.json --molecule-index 1
 ```
 
 ### `--basis` / `-b`
@@ -131,7 +131,7 @@ pattern is fixed per ansatz and is not configurable.
 
 | Ansatz | Rotations | Entangling layer | Notes |
 |--------|-----------|------------------|-------|
-| `EfficientSU2` (default) | RY and RZ | CNOTs, reverse-linear | General-purpose; supports `--init-strategy hf` |
+| `EfficientSU2` (default) | RY and RZ | CNOTs, reverse-linear | General-purpose; supports `--init-strategy hf`; at 2 repetitions `hf` can stall at the Hartree-Fock energy, see [`--init-strategy`](#-init-strategy) |
 | `RealAmplitudes` | RY only | CNOTs, reverse-linear | Half the parameters of `EfficientSU2`; reaches only states with real amplitudes; supports `--init-strategy hf` |
 | `ExcitationPreserving` | RZ | XX+YY rotations, all-to-all | Preserves particle number; starts from the Hartree-Fock determinant plus a parameter jitter (narrow for `--init-strategy hf`, wide for `random`) and fails without Hartree-Fock data |
 
@@ -150,6 +150,10 @@ Switch from local Aer simulator to IBM Quantum backend. Requires
 GPU acceleration applies only to the local Aer backend, so `--gpu` has no
 effect with `--ibm`.
 
+Hardware cannot be exact, so `--ibm` without `--shots` samples 1024 shots. Pair it
+with a gradient-free optimizer such as `COBYLA`, because a gradient optimizer,
+including the default `L-BFGS-B`, refuses sampled shots.
+
 ### `--min-qubits`
 
 Minimum qubit count for IBM backend selection. Only valid with `--ibm`.
@@ -158,7 +162,11 @@ Minimum qubit count for IBM backend selection. Only valid with `--ibm`.
 
 ### `--max-iterations`
 
-Maximum number of VQE optimization iterations. Default: `100`.
+Maximum number of objective evaluations. Default: `100`. On the analytic path
+(defined under [`--exact`](#-exact)) one evaluation returns the energy and
+gradient. On the Aer path (`--gpu`, `--noise`, or more than 16 qubits) a gradient
+optimizer spends about one evaluation per parameter on each finite-difference
+gradient, so raise the limit or use `--convergence`.
 
 The limit is enforced at two levels: the optimizer config sets `maxiter` in
 the scipy options dict, and the `compute_energy()` callback raises
@@ -184,8 +192,15 @@ runs until the energy change between iterations falls below `--threshold`
 
 ### `--optimizer`
 
-Optimization algorithm. The pipeline offers 8 optimizers, each configured
-through `OptimizerConfigFactory`. See [Optimizers](optimizers.md) for the full comparison.
+Optimization algorithm. The pipeline has 10 optimizers with dedicated configs
+via `OptimizerConfigFactory`. See [Optimizers](optimizers.md) for the full comparison.
+
+Seven of them use a gradient: `L-BFGS-B` (the default), `SLSQP`, `BFGS`, `CG`,
+`TNC`, `Newton-CG` and `trust-constr`. They need exact expectation values, which
+any run without `--shots` provides. With `--shots N` they are refused before any
+computation starts: the pipeline prints the usage and one error line and exits
+with code 2. `Newton-CG` is stricter: it needs the analytic path of [`--exact`](#-exact), so it
+also needs a local run without `--noise` or `--gpu`, with at most 16 qubits.
 
 ### `--init-strategy`
 
@@ -207,6 +222,8 @@ correlated ground state (27 mHa below Hartree-Fock) in 2 of 3 seeds and a poor
 minimum in the third. See
 [Hartree-Fock Initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization).
 
+With `hf` at the default 2 repetitions a gradient optimizer can stop at the Hartree-Fock energy; see [Hartree-Fock initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization).
+
 ### `--seed`
 
 Random seed for reproducible parameter initialization. Default: `None` (random).
@@ -218,12 +235,34 @@ its jitter is reproducible either way.
 ### `--shots`
 
 Number of measurement samples per circuit execution. Must be a positive
-integer. Default: `1024`.
+integer. Default: none, which means the run is exact (see
+[`--exact`](#-exact)). Pass `--shots N` to sample instead. With `--ibm` the
+default is `1024`, because hardware cannot be exact.
+
+Sampled shots work only with a gradient-free optimizer such as `COBYLA`. With a
+gradient optimizer, including the default `L-BFGS-B`, the pipeline prints the
+usage and one error line and exits with code 2. Drop `--shots` to run exact, or
+add [`--exact`](#-exact), which overrides `--shots`.
 
 ### `--exact`
 
-Use exact statevector expectation values (Aer EstimatorV2,
-`default_precision=0.0`) instead of shot sampling. Overrides `--shots`.
+A run without `--shots` is exact: expectation values are computed from the
+statevector, with no sampling and no shot noise, and the same seed gives the same
+energies. `--exact` only matters to override `--shots`. Finite differences over a
+sampled energy only measure noise, so a gradient optimizer needs an exact run, and
+the default `L-BFGS-B` works out of the box. Combining sampled shots with a
+gradient optimizer exits with code 2 (usage plus one error line).
+
+An exact run uses the analytic path when it is local, noiseless, without `--gpu`,
+has at most 16 qubits and uses a gradient optimizer. The statevector is simulated
+directly and the energy and its exact gradient come out of one pass, which
+replaces the many extra evaluations that finite differences need. Energies agree
+with the Aer exact path to about 1e-13 Ha; see
+[Analytic Fast-Path Comparison](../scientific/benchmarking.md#analytic-fast-path-comparison)
+for timings. Every other exact run, including any with a gradient-free optimizer,
+takes the Aer exact path, which estimates gradients by finite differences. An
+exact noisy run (a `--noise` run without `--shots`) also needs
+`--simulation-method density_matrix`.
 
 ### `--optimization-level`
 
@@ -259,8 +298,10 @@ Aer backend simulation method. Default: `statevector`. See
 
 ### `--noise`
 
-Name of a noise model backend (e.g., `ibmq_manila`). Best used with
-`density_matrix` simulation method.
+Name of a noise model backend (e.g., `ibmq_manila`). A noisy run needs either
+`--shots N` or `--simulation-method density_matrix`; an exact noisy run (no
+`--shots`) on any other method exits with code 2. Noise also rules out the
+analytic path.
 
 ## Output Flags
 
@@ -289,15 +330,19 @@ often too large for the PDF
 Save the current configuration to a JSON file in `run_configs/`. The filename
 follows the pattern `{file stem}-{basis}-{optimizer}-{local|api}-{YYYYMMDD}.json`
 (for example `molecules-cc-pvdz-L-BFGS-B-local-20250615.json`). Cannot be used
-with `--load`.
+with `--load`. The run then continues as normal; `--dump` does not skip the simulation.
 
 ### `--load`
 
-Load a previously saved configuration file. The file is applied after the CLI
-arguments, so its values override the CLI flags. Cannot be used with `--dump`.
+Read and validate a previously saved configuration file, then apply it. The
+loaded values win over every CLI flag, so a flag such as `--exact` cannot
+override what the file says. A config dumped from a run with sampled shots (for
+example an older one, with `"shots": 1024`) stores them, so loading it with a
+gradient optimizer exits with code 2 (usage plus one error line). Dump a config
+from a run without `--shots`, or set `"shots": null` in the file by hand. `--file` is still required. Cannot be used with `--dump`.
 
 ```bash
-quantum-pipeline --load run_configs/molecules-cc-pvdz-L-BFGS-B-local-20250615.json
+quantum-pipeline --file data/molecules.json --exact --load run_configs/molecules-cc-pvdz-L-BFGS-B-local-20250615.json
 ```
 
 ## Monitoring Flags
@@ -410,6 +455,12 @@ enforces these rules:
 | `--ssl` requires `--kafka` | SSL is for Kafka connections |
 | `--sasl-mechanism` requires `--kafka` | SASL is for Kafka connections |
 | `--ssl-dir` and individual SSL files are mutually exclusive | Choose one approach |
+| Gradient optimizer with `--shots` | Refused; use a gradient-free optimizer or drop `--shots` |
+| `Newton-CG` | Needs the analytic path: local, no `--noise`, no `--gpu`, at most 16 qubits |
+| `--noise` | Needs `--shots N` or `--simulation-method density_matrix` |
+| `--shots` | Must be a positive integer |
+
+A violated rule prints the usage and one error line and exits with code 2.
 
 ## Environment Variables
 

@@ -21,6 +21,9 @@ Only `--file` is required. All other flags have defaults defined in
 quantum-pipeline --file data/molecules.json
 ```
 
+Without `--shots` a run is exact: expectation values come from the statevector, with no
+sampling. `--exact` is therefore optional (see [Configuration](../usage/configuration.md#-exact)).
+
 To process a single molecule by its 0-based index:
 
 ```bash
@@ -63,11 +66,14 @@ quantum-pipeline --file data/molecules.json --molecule-index 0
         --max-iterations 100
     ```
 
+    If the broker is unreachable, the run exits with code 1 after spooling the results to `gen/undelivered/`.
+
 ## Configuration files
 
 `--dump` saves the current CLI configuration. It writes a JSON file to
 `run_configs/` with a name built from the molecule file, basis set, optimizer,
-backend, and date (for example `molecules-cc-pvdz-L-BFGS-B-local-20260613.json`):
+backend, and date (for example `molecules-cc-pvdz-L-BFGS-B-local-20260613.json`).
+The run then continues as normal; `--dump` does not skip the simulation:
 
 ```bash
 quantum-pipeline \
@@ -84,8 +90,11 @@ quantum-pipeline \
 quantum-pipeline --file data/molecules.json --load run_configs/my_config.json
 ```
 
-A config file passed with `--load` is applied after the CLI arguments, so its
-values override the CLI flags. `--dump` and `--load` cannot be used together.
+The loaded values are applied and win over every CLI flag, including `--exact`,
+so a flag on the command line cannot override what the file says.
+A config dumped from a run with sampled shots stores those shots, so reloading it
+with a gradient optimizer exits with code 2 (usage plus one error line).
+Dump from a run without `--shots`, which is exact.
 
 The dumped JSON mirrors the CLI arguments. For the field names, see
 [`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
@@ -103,11 +112,15 @@ The entanglement pattern is fixed per ansatz and is not a command-line option.
 Two initialization strategies are available, `--init-strategy random` (the
 default) and `--init-strategy hf`, but what they do depends on the ansatz:
 
+
 | Ansatz | Parameters start at | Effect of `--init-strategy hf` |
 |--------|---------------------|--------------------------------|
-| `EfficientSU2` | Uniform [0, 2pi) | Runs a pre-optimization that finds parameters reproducing the Hartree-Fock state |
+| `EfficientSU2` | Uniform [0, 2pi) | Runs a pre-optimization that finds parameters reproducing the Hartree-Fock state. At 2 repetitions an optimizer can stall there, see below |
 | `RealAmplitudes` | Uniform [0, 2pi) | Runs the same pre-optimization |
 | `ExcitationPreserving` | A small jitter off zero, applied on top of the Hartree-Fock determinant the circuit always starts from | Narrows the jitter (standard deviation 0.01 instead of 0.5); the Hartree-Fock reference is built into the circuit either way |
+
+
+With `hf` at the default 2 repetitions, a gradient optimizer can stop at the Hartree-Fock energy; see [Hartree-Fock initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization).
 
 For `EfficientSU2` and `RealAmplitudes`, `hf` falls back to random, with a
 warning, only when no Hartree-Fock data is available. What the strategies did in
@@ -248,6 +261,7 @@ runner = VQERunner(
     basis_set='sto3g',
     max_iterations=100,
     optimizer='L-BFGS-B',
+    default_shots=None,  # exact expectation values, needed by L-BFGS-B
     init_strategy='hf',
     seed=42,
 )
@@ -262,7 +276,10 @@ for result in runner.run_results:
 
 The constructor defaults differ from the CLI: when you omit them it uses the
 `COBYLA` optimizer (CLI default is `L-BFGS-B`) and `ansatz_reps=3` (CLI default is
-2). Pass these explicitly to reproduce a CLI run. For the full constructor
+2). The constructor samples 1024 shots by default (`default_shots=1024`), and a
+gradient optimizer such as `L-BFGS-B` refuses sampled shots. `default_shots=None` gives
+exact expectation values, which is what the CLI does when you leave out `--shots`. Pass these explicitly to
+reproduce a CLI run. For the full constructor
 signature, see the [source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py).
 
 ## Next steps

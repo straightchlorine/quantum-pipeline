@@ -105,16 +105,18 @@ Click on any question to expand the answer.
 ??? question "How do I choose the right optimizer?"
     The most commonly used are **COBYLA** and **L-BFGS-B**.
 
-    The pipeline supports 8 optimizers used in batch generation:
+    The pipeline supports 10 optimizers:
 
     - **L-BFGS-B** - limited-memory BFGS, good general default
-    - **COBYLA** - gradient-free, handles noisy landscapes
+    - **COBYLA** - gradient-free, handles noisy landscapes, so it works with `--shots` (gradient optimizers refuse sampled shots)
     - **SLSQP** - sequential least squares, gradient-based
     - **Nelder-Mead** - simplex method, gradient-free
     - **Powell** - directional set method, gradient-free
     - **BFGS** - full quasi-Newton method
     - **CG** - conjugate gradient
     - **TNC** - truncated Newton with bounds
+    - **Newton-CG** - Newton conjugate gradient, needs the [analytic path](../usage/configuration.md#-exact): an exact run (no `--shots`) that is local and noiseless, without `--gpu`, with at most 16 qubits
+    - **trust-constr** - trust-region method with constraints
 
     See the [Optimizers](../usage/optimizers.md) page for a comparison.
 
@@ -128,7 +130,7 @@ Click on any question to expand the answer.
 
     | Ansatz | What it is | Where it starts |
     |--------|------------|-----------------|
-    | **EfficientSU2** (default) | Hardware-efficient RY/RZ rotations with reverse-linear CNOT entanglement. The ansatz of the thesis experiments | All-zero state, parameters uniform [0, 2pi) - or a Hartree-Fock pre-optimization under `--init-strategy hf` |
+    | **EfficientSU2** (default) | Hardware-efficient RY/RZ rotations with reverse-linear CNOT entanglement. The ansatz of the thesis experiments | All-zero state, parameters uniform [0, 2pi) - or a Hartree-Fock pre-optimization under `--init-strategy hf`; at 2 repetitions it can stall at the Hartree-Fock energy, so prefer `--ansatz-reps 3` with `hf` |
     | **RealAmplitudes** | RY rotations only, so half the parameters and only real amplitudes are reachable. Simpler circuit | All-zero state, parameters uniform [0, 2pi) - or the same pre-optimization under `--init-strategy hf` |
     | **ExcitationPreserving** | XX+YY rotations with all-to-all entanglement, conserving particle number, at a parameter count that grows quadratically in qubits | The Hartree-Fock determinant, always prepended, with parameters jittered off zero |
 
@@ -156,16 +158,24 @@ Click on any question to expand the answer.
     [`--init-strategy`](../usage/configuration.md#-init-strategy) page; see also
     [Hartree-Fock Initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization).
 
+    With `hf` at the default 2 repetitions a gradient optimizer can stop at the
+    Hartree-Fock energy; see
+    [Hartree-Fock initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization).
+
     For data collection or benchmarking, run both strategies across multiple
     seeds.
 
 ??? question "Why do I get different results with the same --seed?"
     With a fixed `--seed` the initial parameters, the simulator and the
     transpiler are seeded, so two runs with the same settings give the same
-    result. Results can still differ across Qiskit and Aer versions. `--exact`
-    removes shot noise altogether.
+    result. Results can still differ across Qiskit and Aer versions. A run
+    without `--shots` is exact: expectation values are computed from the
+    statevector, with no sampling, so there is no shot noise. Gradient
+    optimizers such as `L-BFGS-B` need that, so a sampled run (`--shots N`) must
+    use a gradient-free optimizer such as `COBYLA`, or the pipeline exits with
+    code 2.
 
-    Without `--seed`, shot sampling (default 1024 shots per iteration) makes each
+    Without `--seed`, shot sampling (only with `--shots`, for example `--optimizer COBYLA --shots 1024`) makes each
     run follow a slightly different trajectory. To collect meaningful statistics,
     run multiple seeds and compare the distributions rather than individual values.
 
@@ -316,7 +326,7 @@ Click on any question to expand the answer.
     [Benchmarking](../scientific/benchmarking.md) for detailed results.
 
 ??? question "How do I speed up optimization?"
-    Try `--init-strategy hf` to start from a better initial point (with
+    Try `--init-strategy hf` (with `EfficientSU2` only at `--ansatz-reps 3` or more) to start from a better initial point (with
     `ExcitationPreserving` the flag only narrows the parameter jitter),
     increase `--ansatz-reps` for expressiveness, run multiple
     simulations to avoid local minima, use GPU acceleration, start with sto3g,
@@ -324,7 +334,7 @@ Click on any question to expand the answer.
     faster results.
 
 ??? question "Why are my energy values different from reference literature?"
-    Common causes: random parameter initialization converging on local minima, limited ansatz expressiveness, or early termination from convergence tolerance. Run multiple simulations and select the best result, or try `--init-strategy hf` for a better starting point with `EfficientSU2` or `RealAmplitudes`. See [Benchmarking](../scientific/benchmarking.md) for detailed analysis.
+    Common causes: random parameter initialization converging on local minima, limited ansatz expressiveness, or early termination from convergence tolerance. Run multiple simulations and select the best result, or try `--init-strategy hf --ansatz-reps 3` for a better starting point with `EfficientSU2` or `RealAmplitudes`. See [Benchmarking](../scientific/benchmarking.md) for detailed analysis.
 
 For issues not covered here, see the [Troubleshooting](troubleshooting.md) guide or
 open an issue on [GitHub](https://github.com/straightchlorine/quantum-pipeline).

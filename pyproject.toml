@@ -38,6 +38,7 @@ dependencies = [
     "qiskit-nature>=0.7.2",
     "qiskit-qasm3-import>=0.6.0",
     "pyscf>=2.8.0",
+    "qiskit-algorithms>=0.4.0",
 
     # Visualization and reporting
     "reportlab>=4.3.1",
@@ -141,6 +142,7 @@ ignore_missing_imports = false
 module = [
     "qiskit.*",
     "qiskit_aer.*",
+    "qiskit_algorithms.*",
     "qiskit_nature.*",
     "pyscf.*",
     "kafka.*",

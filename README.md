@@ -46,8 +46,8 @@ Prometheus metrics and a Grafana dashboard with alert rules watch the run. The M
 ## What it does
 
 - Runs VQE for every molecule in a JSON file, in `sto3g`, `6-31g` or `cc-pvdz`
-- Lets you pick the classical optimizer (L-BFGS-B, COBYLA, SLSQP, Nelder-Mead, Powell, BFGS, CG, TNC), the ansatz depth, the iteration cap and the convergence threshold
 - Simulates with Qiskit Aer on CPU, or on a GPU through the CUDA Thrust backend with the `:gpu` image ([Docker Hub](https://hub.docker.com/r/straightchlorine/quantum-pipeline/tags?name=gpu) &middot; [GHCR](https://github.com/straightchlorine/quantum-pipeline/pkgs/container/quantum-pipeline))
+- Lets you pick the classical optimizer (L-BFGS-B, COBYLA, SLSQP, Nelder-Mead, Powell, BFGS, CG, TNC, Newton-CG, trust-constr), the ansatz depth, the iteration cap and the convergence threshold
 - Writes a PDF report and PNG convergence plots to `gen/`
 - Streams each finished run, with all its iterations, to Kafka as Avro, with a schema registry
 - Turns the stream into Iceberg tables with Spark and Airflow
@@ -58,7 +58,7 @@ Prometheus metrics and a Grafana dashboard with alert rules watch the run. The M
 
 ```bash
 pip install quantum-pipeline
-quantum-pipeline -f molecules.json -b sto3g --max-iterations 100 --optimizer L-BFGS-B --report
+quantum-pipeline -f data/molecules.json -b sto3g --max-iterations 100 --optimizer L-BFGS-B --report
 ```
 
 Or with Docker:

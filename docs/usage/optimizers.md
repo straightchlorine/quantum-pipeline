@@ -13,21 +13,22 @@ The VQE optimization loop:
 
 1. The optimizer proposes parameters $\theta$.
 2. The simulator prepares state $|\psi(\theta)\rangle$ using the ansatz circuit.
-3. The energy expectation $\langle \psi(\theta) | \hat{H} | \psi(\theta) \rangle$ is measured.
-4. The optimizer updates $\theta$ based on the measured energy.
+3. The energy expectation $\langle \psi(\theta) | \hat{H} | \psi(\theta) \rangle$ is evaluated (exactly, or sampled with `--shots`).
+4. The optimizer updates $\theta$ based on the energy.
 5. Repeat until convergence or the iteration limit.
 
 By the variational principle, the computed energy is always an upper bound on
 the true ground state energy.
 
-The pipeline offers the 8 optimizers listed in
+The pipeline offers the 10 optimizers listed in
 [`settings.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L4).
-Three have dedicated configuration classes in
-[`optimizer_config.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py)
-(L-BFGS-B, COBYLA, SLSQP) and five use `GenericConfig`.
+Each one is configured in
+[`optimizer_config.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py).
+
+Seven optimizers use a gradient (L-BFGS-B, SLSQP, BFGS, CG, TNC, Newton-CG, trust-constr) and need exact expectation values, which any run without `--shots` provides (see [`--exact`](configuration.md#-exact)). With `--shots N` they are refused with exit code 2, so use COBYLA, Nelder-Mead or Powell for sampled runs.
 
 ```bash
-quantum-pipeline -f molecules.json --optimizer L-BFGS-B
+quantum-pipeline -f data/molecules.json --optimizer L-BFGS-B
 ```
 
 ## Configured Optimizers
@@ -87,9 +88,21 @@ programming subproblems.
 Sets `ftol` in options when convergence threshold is provided. Also passes the
 threshold as global `tol`.
 
+#### trust-constr - Trust-Region Constrained
+
+Gradient-based trust-region method. It needs no Hessian and keeps its own
+quasi-Newton approximation.
+
+- **Type**: Trust-region
+- **Default maxiter**: 1,000
+- **Config class**: `TrustConstrConfig`
+
+With `max_iterations` set, `xtol` and `gtol` are 1e-15. Scipy then stops later
+than with its defaults, but it may still stop before `maxiter`. Otherwise the convergence threshold is passed as global `tol`.
+
 ### Generic Configs
 
-The remaining 5 configured optimizers use
+The remaining 6 configured optimizers use
 [`GenericConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L163),
 which passes `maxiter` (or `maxfun` for TNC) into the options dict and returns
 `convergence_threshold` as the global `tol`.
@@ -101,6 +114,7 @@ which passes `maxiter` (or `maxfun` for TNC) into the options dict and returns
 | `BFGS` | Quasi-Newton | 1,000 | Fast convergence, full Hessian approximation |
 | `CG` | Conjugate gradient | 2,000 | Moderate convergence, low memory |
 | `TNC` | Truncated Newton (bounded) | 500 | Uses `maxfun` instead of `maxiter` |
+| `Newton-CG` | Newton conjugate gradient | 1,000 | Needs the [analytic path](configuration.md#-exact): an exact run (no `--shots`) that is local and noiseless, without `--gpu`, with at most 16 qubits. Any other run exits with code 2. |
 
 GenericConfig behavior:
 
@@ -110,7 +124,7 @@ GenericConfig behavior:
 
 ## Other Optimizers
 
-Only the eight optimizers above are offered by the CLI. Other scipy methods
+Only the ten optimizers above are offered by the CLI. Other scipy methods
 can be added with `OptimizerConfigFactory.register_optimizer()` and a custom
 `OptimizerConfig` subclass or a lambda wrapping `GenericConfig`, plus an entry
 in `settings.SUPPORTED_OPTIMIZERS`.
@@ -127,6 +141,8 @@ in `settings.SUPPORTED_OPTIMIZERS`.
 | `TNC` | Truncated Newton (bounded) | 500 |
 | `Powell` | Derivative-free (direction-set) | 10,000 |
 | `Nelder-Mead` | Derivative-free (simplex) | 5,000 |
+| `Newton-CG` | Newton conjugate gradient (needs gradient) | 1,000 |
+| `trust-constr` | Trust-region (gradient) | 1,000 |
 
 In practice, the thesis used L-BFGS-B and COBYLA exclusively. The v2.0.0 verification tested COBYLA, L-BFGS-B, SLSQP, Nelder-Mead, Powell, and BFGS on H2 and
 HeH+ (see [Benchmarking Results](../scientific/benchmarking.md#v200-verification-results)).
@@ -149,19 +165,13 @@ raises a `ValueError` if constructed directly with both values.)
 
 ## Performance Notes
 
-Gradient-based optimizers require $O(n)$ additional circuit evaluations per
-iteration for $n$ parameters (parameter-shift rules), but the improved
-convergence rate typically compensates.
-
-For GPU-accelerated simulations the per-iteration overhead is low, making
-gradient-based methods (especially L-BFGS-B) the most efficient choice in wall
-time.
+On the analytic path (a local, exact, noiseless run with at most 16 qubits) a gradient optimizer gets the energy and its gradient from one statevector pass, so each iteration costs about one evaluation. On the Aer path (`--gpu`, `--noise`, or more than 16 qubits) it estimates the gradient by finite differences and needs about one extra evaluation per parameter, but faster convergence typically compensates. See [`--exact`](configuration.md#-exact).
 
 Convergence mode (`--convergence`) pairs well with gradient-based optimizers
 that converge monotonically:
 
 ```bash
-quantum-pipeline -f molecules.json \
+quantum-pipeline -f data/molecules.json \
     --optimizer L-BFGS-B \
     --convergence \
     --threshold 1e-6

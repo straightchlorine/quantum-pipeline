@@ -3,6 +3,8 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
+from quantum_pipeline.configs.constants import GRADIENT_OPTIMIZERS
+from quantum_pipeline.configs.defaults import DEFAULTS
 from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
 from quantum_pipeline.configs.parsing.configuration_manager import ConfigurationManager
 
@@ -255,10 +257,69 @@ def test_exact_without_noise_keeps_default_method(argparser):
     assert args.exact is True
 
 
+def test_bare_defaults_are_a_valid_pair(argparser):
+    """A bare run is exact with the default gradient optimizer, so it reaches the analytic path."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json'])
+    argparser._validate_args(args)
+
+    assert args.shots is None
+    assert args.exact is False
+    assert args.optimizer == 'L-BFGS-B'
+    assert args.optimizer in GRADIENT_OPTIMIZERS
+
+
+def test_shots_opts_into_sampling(argparser):
+    """--shots N gives an int that the CLI passes on as the sampled shot count."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--shots', '512'])
+    argparser._validate_args(args)
+
+    assert args.shots == 512
+    assert isinstance(args.shots, int)
+
+
+def test_ibm_without_shots_samples_by_default(argparser):
+    """Hardware cannot be exact, so --ibm without --shots falls back to the IBM default."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--ibm'])
+    argparser._validate_args(args)
+
+    assert args.shots == DEFAULTS['ibm_shots']
+
+
+def test_ibm_keeps_explicit_shots(argparser):
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--ibm', '--shots', '256'])
+    argparser._validate_args(args)
+
+    assert args.shots == 256
+
+
+def test_noise_without_shots_requires_density_matrix(argparser):
+    """No --shots means an exact run, which a sampled noise model cannot honour."""
+    args = argparser.parser.parse_args(['--file', 'molecule.json', '--noise', 'ibm_brisbane'])
+    with pytest.raises(SystemExit):
+        argparser._validate_args(args)
+
+
+def test_noise_with_shots_is_allowed(argparser):
+    args = argparser.parser.parse_args(
+        ['--file', 'molecule.json', '--noise', 'ibm_brisbane', '--shots', '1024']
+    )
+    argparser._validate_args(args)
+
+    assert args.shots == 1024
+
+
 def test_ansatz_reps_argument(argparser):
     """Test the ansatz reps argument."""
     args = argparser.parser.parse_args(['--file', 'molecule.json', '--ansatz-reps', '3'])
     assert args.ansatz_reps == 3
+
+
+@pytest.mark.parametrize('reps', ['0', '-1'])
+def test_ansatz_reps_rejects_non_positive(argparser, reps):
+    """--ansatz-reps 0 built a rotation-only ansatz and -1 crashed mid-run with a traceback."""
+    with pytest.raises(SystemExit) as excinfo:
+        argparser.parser.parse_args(['--file', 'molecule.json', '--ansatz-reps', reps])
+    assert excinfo.value.code == 2
 
 
 def test_ibm_backend_flag(argparser):
@@ -535,7 +596,7 @@ def test_invalid_optimizer(argparser):
 @pytest.mark.parametrize(
     'args,expected',
     [
-        (['--file', 'molecule.json', '--shots', '1024'], '1024'),
+        (['--file', 'molecule.json', '--shots', '1024'], 1024),
         (['--file', 'molecule.json', '--shots', '-1'], SystemExit),  # Invalid case
     ],
 )

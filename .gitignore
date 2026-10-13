@@ -118,7 +118,8 @@ instance/
 # Sphinx documentation
 docs/_build/
 
-# Notes on the implementation plans
+# Notes on the implementation plans and internal thesis-planning library
+docs/internal/
 docs/roadmap/
 
 # Still very experimental

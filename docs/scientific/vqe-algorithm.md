@@ -30,9 +30,12 @@ simulator) and a classical optimizer:
 
 3. **Energy Measurement** - Evaluate the expectation value
    \(\langle \psi(\theta) | \hat{H} | \psi(\theta) \rangle\) by decomposing
-   the Hamiltonian into a sum of Pauli operators. On the local simulator this
-   can be done either by sampling a finite number of shots or by computing the
-   expectation value exactly from the statevector (`--exact`).
+   the Hamiltonian into a sum of Pauli operators. On the local simulator the
+   expectation value is computed exactly from the statevector by default, with
+   no sampling. `--shots N` samples a finite number of shots instead. A local
+   exact run with a gradient optimizer and at most 16 qubits takes the analytic
+   path, which gets the energy and its gradient from one statevector pass (see
+   [`--exact`](../usage/configuration.md#-exact)).
 
 4. **Classical Optimization** - Feed the measured energy back to a classical
    optimizer, which proposes updated parameters \(\theta'\). The pipeline
@@ -107,6 +110,10 @@ to wander into states with the wrong electron count. That is what makes a
 sub-FCI energy possible in principle (see
 [Experimental Observations](#experimental-observations)).
 
+Note: with the default 2 repetitions, a start from the Hartree-Fock
+state (`--init-strategy hf`) can stall a gradient optimizer at the Hartree-Fock
+energy. See [Hartree-Fock Initialization](#hartree-fock-initialization).
+
 ### RealAmplitudes
 
 Dropping the \(R_Z\) rotations halves the parameter count and restricts the
@@ -141,11 +148,26 @@ electrons between neighbouring orbitals, so the best reachable state is
 Hartree-Fock itself. All-to-all coupling removes that limit at the cost of the
 quadratic parameter growth in the table above.
 
-**It starts from a jitter, not from zero.** At zero parameters the circuit gives
-exactly the Hartree-Fock determinant, a stationary point (Brillouin's theorem) where the optimizer
-would stay and report the Hartree-Fock energy. A small jitter breaks that,
-and the scale is set in
+**It cannot start at zero.** At zero parameters the circuit gives
+exactly the Hartree-Fock determinant, and that point is stationary: the
+[analytic gradient](../usage/configuration.md#-exact) there is exactly 0.0 at 4, 10, 12 and 14 qubits (H\(_2\),
+LiH, BeH\(_2\) and NH\(_3\) with the core frozen, as in the thesis grid; the CLI
+does not freeze the core, so it runs the last three at 12, 14 and 16 qubits). Central
+finite differences with a step of 1e-4 agree. So the optimizer would stay put
+and report the Hartree-Fock energy at every size, the 4-qubit case included. A
+small random jitter breaks that, so the jitter is what lets the optimizer move
+at all. Its scale is set in
 [`constants.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/constants.py).
+
+The jitter also decides where the search starts. For `ExcitationPreserving`
+with the default random initialization, the start point lies above the
+Hartree-Fock energy by 0.528 Ha for H\(_2\), 0.503 Ha for LiH and 3.00 Ha for
+NH\(_3\). These figures hold for an ansatz with 3 repetitions, an unseeded run
+and the frozen-core problems; the CLI's 12-qubit LiH starts 3.97 Ha above. With
+2 repetitions, the CLI default, H\(_2\) starts 0.647 Ha above, and different
+seeds give 0.1 to 1.1 Ha. With
+`--init-strategy hf` the jitter is much smaller (see
+[Parameter Initialization](#parameter-initialization)).
 
 With all three in place, the ansatz reached chemical accuracy on H\(_2\) in
 quick checks and improved with additional repetitions. This was not benchmarked
@@ -199,6 +221,10 @@ Measured on H2/sto3g with COBYLA in convergence mode, seeds 1-3: `hf` ended 0 to
 correlated ground state (27 mHa below Hartree-Fock) in 2 of 3 seeds and a poor
 minimum in the third.
 
+The plateau reached by `hf` in those runs is the stall described under
+[Hartree-Fock Initialization](#hartree-fock-initialization), which also gives
+the measured rates and the remedies.
+
 ### Hartree-Fock Initialization
 
 Added in v1.4.0 and refined in v2.0.0, the `--init-strategy hf` flag starts
@@ -220,6 +246,29 @@ and always act, regardless of rotation angles. At zero parameters the rotation
 gates become identity, but the CX gates still alter the HF state. The
 pre-optimization approach avoids this by finding parameters where the ansatz
 itself produces the HF state.
+
+**The trap with EfficientSU2 at 2 repetitions:** the pre-optimization reproduces
+the Hartree-Fock state exactly, so the optimizer starts on the best classical
+answer. With the default `EfficientSU2` ansatz at 2 repetitions, that starting
+point is near-stationary: the energy gradient there is zero or tiny, and the
+parameter directions that would lower the energy toward the correlated ground
+state are not reachable to first order. A gradient optimizer such as L-BFGS-B
+sees a gradient below its tolerance, declares convergence and returns the Hartree-Fock energy as if it were the result. The
+run looks normal, only the energy is too high.
+
+**Measured rates.** H2 in the sto-3g basis, exact statevector, L-BFGS-B with
+analytic gradients, `--max-iterations 200`, seeds 0-9. `hf` with `EfficientSU2`
+at 2 repetitions stalled at the Hartree-Fock energy in 5 of 10 seeds, and at 3
+repetitions in 1 of 10. `hf` with `ExcitationPreserving` at 2 repetitions
+stalled in 1 of 10. A random start with `EfficientSU2` at 2 repetitions stalled
+in 6 of 10, so `hf` is not meaningfully better there. `COBYLA` only creeps off
+the plateau.
+
+**Remedies.** Raise the repetitions with `--ansatz-reps 3`, switch to
+`--ansatz ExcitationPreserving`, or change `--seed`. A stalled run ends at the
+Hartree-Fock total energy of -1.11676 Ha; a run that escapes reaches the FCI
+energy of -1.13728 Ha. More repetitions make a stall rarer but do not rule it
+out, so check the final energy against the Hartree-Fock value.
 
 **Current limitations:**
 
@@ -335,8 +384,8 @@ primitives and the classical optimization backend. Key implementation details:
   Hartree-Fock determinant for ExcitationPreserving.
 - **Optimizer configuration** via the
   [optimizer config factory](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py),
-  with eight optimizers having dedicated configuration (three with custom
-  classes: L-BFGS-B, COBYLA, SLSQP). See
+  with ten optimizers having dedicated configuration (four with custom
+  classes: L-BFGS-B, COBYLA, SLSQP, trust-constr). See
   [Optimizers](../usage/optimizers.md) for the full list.
 - **Statevector simulation** with optional GPU acceleration through Qiskit
   Aer's CUDA Thrust backend (see [GPU Acceleration](../deployment/gpu-acceleration.md)), running

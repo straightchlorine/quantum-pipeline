@@ -20,7 +20,12 @@ quantum-pipeline \
     --optimizer L-BFGS-B
 ```
 
-The `sto3g` basis set is the smallest and fastest, good for quick tests. H\(_2\) maps to 4 qubits with `sto3g`, making it a simple test case. The expected ground state energy for H\(_2\) at 0.74 Angstrom bond length is approximately -1.137 Hartree.
+A run without `--shots` is exact: expectation values are computed from the statevector, with no sampling (see [`--exact`](configuration.md#-exact)). With a gradient optimizer such as L-BFGS-B, a local run, no noise, no `--gpu` and at most 16 qubits, this is the analytic path, which computes energies and gradients directly on the statevector.
+
+The `sto3g` basis set is the smallest and fastest, useful for quick tests. H\(_2\) maps to 4 qubits with `sto3g`,
+making it a simple test case. The expected ground state energy for H\(_2\) at 0.74 Angstrom bond length is
+approximately -1.137 Hartree.
+With the default random initialisation and 2 ansatz repetitions, a single run can stop at the Hartree-Fock energy and report a higher energy (see [Hartree-Fock initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization)); to reach it reliably add `--init-strategy hf --ansatz-reps 3 --seed 42`. This is the total energy, printed on the "Total energy (electronic + nuclear repulsion)" log line; the "Best energy" line is the electronic part only (about -1.852 Ha at the ground state).
 
 ## Multi-Molecule Batch Processing
 
@@ -44,7 +49,6 @@ quantum-pipeline \
     --max-iterations 100 \
     --optimizer L-BFGS-B \
     --ansatz-reps 2 \
-    --shots 1024 \
     --report
 ```
 
@@ -63,16 +67,26 @@ quantum-pipeline \
     --optimizer L-BFGS-B \
     --init-strategy hf \
     --ansatz-reps 5 \
-    --shots 4096 \
     --optimization-level 3 \
     --gpu \
     --simulation-method statevector \
     --report
 ```
 
-GPU acceleration offloads statevector operations to the NVIDIA GPU. The `cc-pvdz` basis set provides higher accuracy but needs significantly more qubits (e.g. 48 for H\(_2\)O). Convergence mode runs until the energy change falls below the threshold.
+GPU acceleration offloads statevector operations to the NVIDIA GPU. The `cc-pvdz` basis set provides
+higher accuracy but needs significantly more qubits (e.g. 48 for H\(_2\)O).
+Convergence mode runs until the energy change falls below the threshold.
+With `--gpu` the run uses the Aer exact path, not the analytic path.
 
-The `--init-strategy hf` flag pre-optimizes the parameters against Hartree-Fock data, so the optimizer starts from the Hartree-Fock state instead of a random point. Random starts ended in poor local minima in the thesis runs; the one measured comparison is under [`--init-strategy`](configuration.md#-init-strategy). This example leaves `--ansatz` at its default, `EfficientSU2`. See [Ansatz and Init Strategy Comparison](#ansatz-and-init-strategy-comparison) for what the flag does with the other two.
+The `--init-strategy hf` flag pre-optimizes the parameters against Hartree-Fock data, so the optimizer
+starts from the Hartree-Fock state instead of a random point. Random starts ended in poor local minima
+in the thesis runs; the one measured comparison is under [`--init-strategy`](configuration.md#-init-strategy).
+
+This example leaves `--ansatz` at its default, `EfficientSU2`, and uses 5 repetitions:
+with `hf`, `EfficientSU2` is more reliable at 3 repetitions, because at 2 a gradient
+optimizer can stop at the Hartree-Fock energy;
+see [Hartree-Fock initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization). See [Ansatz and Init Strategy Comparison](#ansatz-and-init-strategy-comparison)
+for what the flag does with the other two.
 
 !!! note "GPU performance"
     In thesis benchmarks (GTX 1060/1050 Ti, H\(_2\) molecule), GPU acceleration provided 1.7-4x speedup depending on basis set and circuit size. The `cc-pvdz` basis set generates many more qubits than `sto3g`, so ensure you have enough GPU memory (6+ GB recommended). For circuits exceeding GPU memory, consider `--simulation-method tensor_network`.
@@ -105,7 +119,9 @@ What happens:
 3. The serialized result is published to the Kafka topic.
 4. Redpanda Connect picks up the message and decodes it and writes it to Garage (S3-compatible storage) as a JSON file.
 
-The `--kafka` flag is required to enable streaming. Without it, other Kafka parameters are ignored. After Redpanda Connect transfers data to Garage, Apache Airflow can trigger Spark processing for feature engineering.
+The `--kafka` flag is required to enable streaming. Without it, other Kafka parameters are ignored.
+If the broker is unreachable, the run exits with code 1 after spooling the results to `gen/undelivered/`.
+After Redpanda Connect transfers data to Garage, Apache Airflow can trigger Spark processing for feature engineering.
 
 ## Convergence-Based Optimization
 
@@ -117,8 +133,7 @@ quantum-pipeline \
     --basis sto3g \
     --convergence \
     --threshold 1e-6 \
-    --optimizer L-BFGS-B \
-    --shots 2048
+    --optimizer L-BFGS-B
 ```
 
 The optimizer runs until the energy change between consecutive iterations falls below the threshold. The number of iterations depends on the molecule, basis set and optimizer; thesis H\(_2\) runs with L-BFGS-B took about 650 iterations.
@@ -141,7 +156,10 @@ Save a simulation configuration for reproducibility and reload it later.
 
 ### Save configuration
 
-Adding `--dump` saves the run configuration as a JSON file in `run_configs/`. The filename encodes the molecule file, basis, optimizer, backend, and date (for example `molecules-cc-pvdz-L-BFGS-B-local-20250615.json`).
+Adding `--dump` saves the run configuration as a JSON file in `run_configs/`.
+The filename encodes the molecule file, basis, optimizer, backend, and date
+(for example `molecules-cc-pvdz-L-BFGS-B-local-20250615.json`).
+The run then continues as normal; `--dump` does not skip the simulation.
 
 ```bash
 quantum-pipeline \
@@ -152,8 +170,7 @@ quantum-pipeline \
     --optimizer L-BFGS-B \
     --ansatz RealAmplitudes \
     --init-strategy hf \
-    --ansatz-reps 2 \
-    --shots 2048 \
+    --ansatz-reps 3 \
     --gpu \
     --simulation-method statevector \
     --dump
@@ -162,10 +179,16 @@ quantum-pipeline \
 ### Load a saved configuration
 
 ```bash
-quantum-pipeline --load run_configs/molecules-cc-pvdz-L-BFGS-B-local-20250615.json
+quantum-pipeline --file data/molecules.json --load run_configs/molecules-cc-pvdz-L-BFGS-B-local-20250615.json
 ```
 
-`--dump` and `--load` are mutually exclusive. A config file passed with `--load` is applied after the CLI arguments, so its values override the CLI flags.
+`--dump` and `--load` are mutually exclusive.
+
+The loaded values win over every CLI flag, including `--exact`. A config dumped from a run with
+sampled shots (for example an older one with `"shots": 1024`) stores them, so a gradient optimizer
+such as L-BFGS-B is rejected on reload.
+
+Dump a config from an exact run (no `--shots`), or set `"shots": null` in the file by hand.
 
 ## Programmatic Usage
 
@@ -173,7 +196,12 @@ The pipeline can also be used as a Python library through the [`VQERunner`](http
 
 Backend, Kafka producer, and security settings can be passed as [`BackendConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/backend.py), [`ProducerConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/producer.py), and [`SecurityConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/security.py) objects respectively.
 
-Note that a few `VQERunner` constructor defaults differ from the CLI defaults: the optimizer defaults to `COBYLA` (CLI: `L-BFGS-B`) and `ansatz_reps` defaults to `3` (CLI: `2`). Pass these explicitly when you want a run to match its CLI equivalent.
+Note that a few `VQERunner` constructor defaults differ from the CLI defaults:
+the optimizer defaults to `COBYLA` (CLI: `L-BFGS-B`) and `ansatz_reps` defaults to `3` (CLI: `2`)
+The constructor samples 1024 shots by default (`default_shots=1024`), and a gradient optimizer such
+as L-BFGS-B refuses sampled shots.
+Pass `default_shots=None` for exact expectation values, which is what the CLI does when you leave
+out `--shots`. Pass all of these explicitly when you want a run to match its CLI equivalent.
 
 This is useful for parameter sweeps, automated benchmarks, and integration with analysis notebooks.
 
@@ -203,13 +231,14 @@ quantum-pipeline \
     --seed 42 \
     --report
 
-# EfficientSU2 with Hartree-Fock init
+# EfficientSU2 with Hartree-Fock init (3 repetitions; see [Hartree-Fock initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization))
 quantum-pipeline \
     -f data/molecules.json \
     --basis cc-pvdz \
     --max-iterations 200 \
     --optimizer L-BFGS-B \
     --ansatz EfficientSU2 \
+    --ansatz-reps 3 \
     --init-strategy hf \
     --seed 42 \
     --report
@@ -234,7 +263,7 @@ ansatz:
 
 | Ansatz | Entangling layer | Circuit starts from | Effect of `--init-strategy hf` |
 |--------|------------------|---------------------|--------------------------------|
-| `EfficientSU2` (default) | CNOTs, reverse-linear | All-zero state, parameters uniform [0, 2pi) | Pre-optimizes the parameters to reproduce the Hartree-Fock state |
+| `EfficientSU2` (default) | CNOTs, reverse-linear | All-zero state, parameters uniform [0, 2pi) | Pre-optimizes the parameters to reproduce the Hartree-Fock state. At 2 repetitions a gradient optimizer can stop at the Hartree-Fock energy, so prefer `--ansatz-reps 3` (see [Hartree-Fock initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization)) |
 | `RealAmplitudes` | CNOTs, reverse-linear | All-zero state, parameters uniform [0, 2pi) | Runs the same pre-optimization |
 | `ExcitationPreserving` | XX+YY rotations, all-to-all | The Hartree-Fock determinant, prepended as a fixed initial state, with parameters jittered off zero | Narrows the jitter (0.01 instead of 0.5); the Hartree-Fock reference is in the circuit either way |
 

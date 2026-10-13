@@ -135,7 +135,8 @@ JSON
         --max-iterations 50 \
         --kafka \
         --servers "${KAFKA_SERVERS}" \
-        --seed 42 2>&1 | tail -5; then
+        --seed 42 \
+        --exact 2>&1 | tail -5; then
         ok "VQE simulation completed and result sent to Kafka"
     else
         fail "VQE simulation failed"

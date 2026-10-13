@@ -142,7 +142,6 @@ docker run --rm \
   quantum-pipeline:cpu \
   --file ./data/molecules.json \
   --simulation-method statevector \
-  --max-iterations 150 \
   --convergence
 ```
 
@@ -158,7 +157,6 @@ docker run --rm --gpus all \
   --file ./data/molecules.json \
   --gpu \
   --simulation-method statevector \
-  --max-iterations 150 \
   --convergence
 ```
 
@@ -177,7 +175,6 @@ docker run --rm --gpus all \
   --gpu \
   --kafka \
   --simulation-method statevector \
-  --max-iterations 150 \
   --convergence
 ```
 
@@ -197,7 +194,7 @@ docker run --rm --gpus all \
 | `--basis <set>` | Basis set (e.g., `sto3g`, `cc-pvdz`) |
 | `--ansatz <type>` | Ansatz type (`EfficientSU2`, `RealAmplitudes`, `ExcitationPreserving`) |
 | `--seed <n>` | Random seed for reproducible parameter initialization |
-| `--init-strategy <strategy>` | Parameter initialization (`random`, `hf`) |
+| `--init-strategy <strategy>` | Parameter initialization (`random`, `hf`); use `hf` with `--ansatz-reps 3` (see [`--init-strategy`](../usage/configuration.md#-init-strategy)) |
 | `--log-level <level>` | Log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | `--report` | Generate a PDF report after simulation |
 | `--enable-performance-monitoring` | Enable resource monitoring |

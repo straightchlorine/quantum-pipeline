@@ -49,6 +49,7 @@ The molecule format fields:
         --basis sto3g \
         --max-iterations 100 \
         --optimizer L-BFGS-B \
+        --ansatz-reps 3 \
         --init-strategy hf \
         --seed 42 \
         --report
@@ -64,14 +65,23 @@ The molecule format fields:
         --basis sto3g \
         --max-iterations 100 \
         --optimizer L-BFGS-B \
+        --ansatz-reps 3 \
         --init-strategy hf \
         --seed 42 \
         --report
     ```
 
 `--molecule-index 0` selects the first molecule (H\(_2\)). Otherwise, all molecules in the file are processed.
-`--init-strategy hf` and `--seed 42` are not required, but they make this first run reliable and reproducible (see [Common issues](#common-issues)).
-With Docker, the `-v` mount maps the container's `gen/` directory to a `gen/` folder in your current directory so the report and plots survive the run.
+`--init-strategy hf`, `--ansatz-reps 3` and `--seed 42` are not required, but they make this first run reliable
+and reproducible (see [Common issues](#common-issues)).
+
+A run without `--shots` is exact (expectation values come from the statevector, no sampling),
+so `--exact` is optional. With `hf` at the default 2 repetitions a gradient optimizer can
+stop at the Hartree-Fock energy, which is why this run uses `--ansatz-reps 3`;
+see [Hartree-Fock initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization).
+
+With Docker, the `-v` mount maps the container's `gen/` directory to a `gen/` folder in your current
+directory so the report and plots survive the run.
 
 The `--report` flag generates a PDF in `gen/` with molecular structure
 visualization, energy convergence plot, and Hamiltonian operator coefficients.
@@ -97,18 +107,26 @@ Molecule:
 2026-06-13 22:30:30,082 - VQERunner - INFO - HF reference energy: -1.116759 Ha
 2026-06-13 22:30:30,100 - VQERunner - INFO - Problem mapped to qubits in 0.017953 seconds.
 2026-06-13 22:30:30,100 - VQERunner - INFO - Running VQE procedure...
+2026-06-13 22:30:30,105 - VQESolver - INFO - Analytic-gradient statevector path: 4 qubits, 32 parameters, optimizer L-BFGS-B.
 ...
-2026-06-13 22:30:40,361 - VQESolver - INFO - Total energy (electronic + nuclear repulsion): -1.12675774 Ha (nuclear repulsion: 0.71510434 Ha)
-2026-06-13 22:30:40,362 - VQESolver - INFO - Simulation via Aer completed in 7.487499 seconds and 100 iterations.
-2026-06-13 22:30:40,362 - VQERunner - INFO -   VQE Total Energy: -1.126758 Ha
-2026-06-13 22:30:40,362 - VQERunner - INFO -   HF Reference:     -1.116759 Ha
-2026-06-13 22:30:40,362 - VQERunner - INFO -   Error:            -9.998 mHa
-2026-06-13 22:30:40,362 - VQERunner - INFO -   Accuracy Score:   79.2/100
+2026-06-13 22:30:31,402 - VQESolver - INFO - VQE completed 54 iterations. Best energy: -1.85238817 Ha
+2026-06-13 22:30:31,402 - VQESolver - INFO - Total energy (electronic + nuclear repulsion): -1.13728383 Ha (nuclear repulsion: 0.71510434 Ha)
+...
+2026-06-13 22:30:31,404 - VQERunner - INFO -   VQE Total Energy: -1.137284 Ha
+2026-06-13 22:30:31,404 - VQERunner - INFO -   HF Reference:     -1.116759 Ha
+2026-06-13 22:30:31,404 - VQERunner - INFO -   Deviation:        -20.525 mHa
+2026-06-13 22:30:31,404 - VQERunner - INFO -   HF-deviation score: 73.3/100
 ```
+
+The VQESolver line shows the analytic path: on a local, exact, noiseless run with a gradient
+optimizer and at most 16 qubits, energies and gradients are computed directly on the statevector
+(see [`--exact`](../usage/configuration.md#-exact)).
 
 The energies are reported in the logs and in the PDF report, not as a single
 "final energy" line. The literature ground-state energy for H\(_2\) with STO-3G
-is about -1.137 Ha; this run reaches about -1.127 Ha (within roughly 10 mHa).
+is about -1.137 Ha; this run reaches -1.13728 Ha, the exact (FCI) value for this basis.
+The "Best energy" line is the electronic part only; the total energy is on the
+"Total energy" line. Timings and the exact iteration count vary by machine.
 Random initialization (the default) can settle in a higher local minimum, so the
 exact value varies between runs (see [Common issues](#common-issues)).
 
@@ -123,9 +141,10 @@ exact value varies between runs (see [Common issues](#common-issues)).
 | `--optimizer` | Optimization algorithm (see [Optimizer Guide](../usage/optimizers.md)) | `L-BFGS-B` |
 | `--ansatz` | Ansatz type: `EfficientSU2`, `RealAmplitudes`, `ExcitationPreserving` | `EfficientSU2` |
 | `-ar` / `--ansatz-reps` | Ansatz repetition depth | `2` |
-| `--init-strategy` | Parameter initialization: `random` or `hf` | `random` |
+| `--init-strategy` | Parameter initialization: `random` or `hf` (use `hf` with `--ansatz-reps 3`, see [Common issues](#common-issues)) | `random` |
 | `--seed` | Random seed for reproducibility | None |
-| `--shots` | Number of shots per circuit execution | `1024` |
+| `--shots` | Sample with this many shots per circuit execution; without it the run is exact | none (exact) |
+| `--exact` | Exact expectation values. Already the default without `--shots`; overrides `--shots` | off |
 | `--simulation-method` | Simulator backend method | `statevector` |
 | `--gpu` | Enable GPU acceleration | off |
 | `--report` | Generate a PDF report | off |
@@ -190,13 +209,15 @@ quantum-pipeline \
     --kafka
 ```
 
-This requires Kafka and Schema Registry to be running. See [Kafka Streaming](../data-platform/kafka-streaming.md).
+This requires Kafka and Schema Registry to be running. If the broker is unreachable, the run exits with code 1 after spooling the results to `gen/undelivered/`. See [Kafka Streaming](../data-platform/kafka-streaming.md).
 
 ## Common issues
 
 **Simulation takes too long?** Use fixed iterations instead of `--convergence`. Consider also starting with `sto3g` basis set for faster execution.
 
-**Results do not match reference energies?** Random initialization can trap the optimizer in local minima. Try `--init-strategy hf` for Hartree-Fock-based initialization, or increase `--max-iterations`.
+**Results do not match reference energies?** Random initialization can trap the optimizer in local minima.
+Try `--init-strategy hf --ansatz-reps 3` for Hartree-Fock-based initialization, or increase `--max-iterations`.
+With `hf` at the default 2 repetitions a gradient optimizer can stop at the Hartree-Fock energy; see [Hartree-Fock initialization](../scientific/vqe-algorithm.md#hartree-fock-initialization).
 
 **Memory errors with large molecules?** Use `--simulation-method matrix_product_state`, reduce `--ansatz-reps`, or use a smaller basis set.
 
