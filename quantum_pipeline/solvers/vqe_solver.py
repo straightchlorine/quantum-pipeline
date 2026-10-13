@@ -640,8 +640,8 @@ class VQESolver(Solver):
         ansatz = self._build_ansatz(self.qubit_op.num_qubits)
         x0 = self._compute_initial_parameters(ansatz)
 
-        # state bound in the circuit-preparation step on the other paths must be bound here too;
-        # TODO: the same for ansatz_logical should happen
+        # state that the Aer path binds during circuit preparation must be bound here too
+        # TODO: add ansatz_logical
         self._build_init_data(FAST_PATH_BACKEND, ansatz, self.qubit_op, x0, exact_estimator=True)
         self.logger.info(
             f'Analytic-gradient statevector path: {self.qubit_op.num_qubits} qubits, '

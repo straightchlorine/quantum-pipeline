@@ -1,0 +1,226 @@
+{
+  "rows": [
+    {
+      "molecule_name": "H2",
+      "geometry": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.7414
+        ]
+      ],
+      "n_qubits": 4,
+      "n_params": 32,
+      "n_params_ep": 34,
+      "t_energy_s": 0.0019038750033359975,
+      "t_energy_grad_s": 0.031044495990499854,
+      "t_energy_grad_ep_s": 0.07502608702634461,
+      "t_aer_eval_s": 0.0041552559996489435,
+      "aer_step_s": 0.13712344798841514,
+      "speedup": 4.416997075113645,
+      "hf_grad_norm": 0.0,
+      "frozen_core": false,
+      "git_sha": "540bf39",
+      "package_version": "2.3.0",
+      "numpy": "2.4.3",
+      "scipy": "1.17.1",
+      "qiskit": "2.3.1",
+      "omp_num_threads": "1",
+      "cpu_count": 16,
+      "loadavg": [
+        2.3828125,
+        3.0048828125,
+        5.57373046875
+      ]
+    },
+    {
+      "molecule_name": "LiH",
+      "geometry": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.5949
+        ]
+      ],
+      "n_qubits": 10,
+      "n_params": 80,
+      "n_params_ep": 175,
+      "t_energy_s": 0.011227103997953236,
+      "t_energy_grad_s": 0.08534552200580947,
+      "t_energy_grad_ep_s": 0.6088122100045439,
+      "t_aer_eval_s": 0.05117203199188225,
+      "aer_step_s": 4.144934591342462,
+      "speedup": 48.56651519525906,
+      "hf_grad_norm": 0.0,
+      "frozen_core": true,
+      "git_sha": "540bf39",
+      "package_version": "2.3.0",
+      "numpy": "2.4.3",
+      "scipy": "1.17.1",
+      "qiskit": "2.3.1",
+      "omp_num_threads": "1",
+      "cpu_count": 16,
+      "loadavg": [
+        2.62548828125,
+        3.037109375,
+        5.55615234375
+      ]
+    },
+    {
+      "molecule_name": "BeH2",
+      "geometry": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.3264
+        ],
+        [
+          0.0,
+          0.0,
+          -1.3264
+        ]
+      ],
+      "n_qubits": 12,
+      "n_params": 96,
+      "n_params_ep": 246,
+      "t_energy_s": 0.015983532008249313,
+      "t_energy_grad_s": 0.11539002499193884,
+      "t_energy_grad_ep_s": 1.0142506839765701,
+      "t_aer_eval_s": 0.06559388301684521,
+      "aer_step_s": 6.3626066526339855,
+      "speedup": 55.140005846072725,
+      "hf_grad_norm": 0.0,
+      "frozen_core": true,
+      "git_sha": "540bf39",
+      "package_version": "2.3.0",
+      "numpy": "2.4.3",
+      "scipy": "1.17.1",
+      "qiskit": "2.3.1",
+      "omp_num_threads": "1",
+      "cpu_count": 16,
+      "loadavg": [
+        2.56689453125,
+        3.001953125,
+        5.50390625
+      ]
+    },
+    {
+      "molecule_name": "NH3",
+      "geometry": [
+        [
+          0.0,
+          0.0,
+          0.1128
+        ],
+        [
+          0.0,
+          0.9395,
+          -0.2632
+        ],
+        [
+          0.8137,
+          -0.4698,
+          -0.2632
+        ],
+        [
+          -0.8137,
+          -0.4698,
+          -0.2632
+        ]
+      ],
+      "n_qubits": 14,
+      "n_params": 112,
+      "n_params_ep": 329,
+      "t_energy_s": 0.1047203799826093,
+      "t_energy_grad_s": 0.3049610460002441,
+      "t_energy_grad_ep_s": 2.3901421740010846,
+      "t_aer_eval_s": 0.6926726250094362,
+      "aer_step_s": 78.27200662606629,
+      "speedup": 256.66231032668884,
+      "hf_grad_norm": 0.0,
+      "frozen_core": true,
+      "git_sha": "540bf39",
+      "package_version": "2.3.0",
+      "numpy": "2.4.3",
+      "scipy": "1.17.1",
+      "qiskit": "2.3.1",
+      "omp_num_threads": "1",
+      "cpu_count": 16,
+      "loadavg": [
+        4.267578125,
+        3.44091796875,
+        5.5341796875
+      ]
+    }
+  ],
+  "grid_extrapolation": {
+    "steps_per_trajectory": 300,
+    "trajectories": 2600,
+    "grid_qubits": [
+      10,
+      12,
+      14
+    ],
+    "levels": {
+      "efficientsu2": {
+        "step_s_range": [
+          0.08534552200580947,
+          0.3049610460002441
+        ],
+        "cell_s_range": [
+          25.60365660174284,
+          91.48831380007323
+        ],
+        "core_hours_range": [
+          18.491529767925385,
+          66.07489330005289
+        ]
+      },
+      "excitation_preserving": {
+        "step_s_range": [
+          0.6088122100045439,
+          2.3901421740010846
+        ],
+        "cell_s_range": [
+          182.64366300136317,
+          717.0426522003254
+        ],
+        "core_hours_range": [
+          131.90931216765117,
+          517.864137700235
+        ]
+      },
+      "aer_exact": {
+        "step_s_range": [
+          4.144934591342462,
+          78.27200662606629
+        ],
+        "cell_s_range": [
+          1243.4803774027387,
+          23481.601987819886
+        ],
+        "core_hours_range": [
+          898.0691614575335,
+          16958.934768981027
+        ]
+      }
+    },
+    "max_loadavg_1min": 4.267578125,
+    "quiescent_host": false
+  }
+}
