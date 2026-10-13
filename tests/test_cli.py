@@ -1,7 +1,10 @@
 from unittest.mock import Mock, patch
 
-from quantum_pipeline.cli import execute_simulation
+import pytest
+
+from quantum_pipeline.cli import execute_simulation, main
 from quantum_pipeline.configs.defaults import DEFAULTS
+from quantum_pipeline.solvers.vqe_solver import InvalidSolverConfigError
 
 
 def _kwargs(**overrides):
@@ -48,6 +51,19 @@ def test_without_convergence_max_iterations_is_kept():
     assert call['convergence_threshold'] is None
 
 
+def test_default_shots_none_runs_exact():
+    """Without --shots the runner gets default_shots=None, the exact path."""
+    assert _run(shots=DEFAULTS['shots'])['default_shots'] is None
+
+
+def test_explicit_shots_are_passed_on():
+    assert _run(shots=512)['default_shots'] == 512
+
+
+def test_exact_overrides_shots():
+    assert _run(shots=512, exact=True)['default_shots'] is None
+
+
 def test_kafka_servers_env_ignored_when_kafka_disabled(monkeypatch):
     """kafka_config is None with --kafka off, so the env override must not be applied."""
     monkeypatch.setenv('KAFKA_SERVERS', 'broker:9092')
@@ -65,3 +81,21 @@ def test_kafka_servers_env_overrides_config_when_kafka_enabled(monkeypatch):
 
     assert call['kafka_config'] is kafka_config
     assert kafka_config.servers == 'broker:9092'
+
+
+def test_invalid_solver_config_exits_cleanly(monkeypatch, capsys):
+    """A bad flag combination (gradient optimizer with sampled shots) is a usage error: exit 2
+    with the message on stderr, not a Python traceback."""
+    monkeypatch.setattr('sys.argv', ['quantum-pipeline', '-f', 'molecules.json'])
+    message = 'Optimizer L-BFGS-B needs a gradient, but default_shots=1024 samples the objective.'
+    with (
+        patch('quantum_pipeline.cli.QuantumPipelineArgParser.get_config', return_value={}),
+        patch(
+            'quantum_pipeline.cli.execute_simulation',
+            side_effect=InvalidSolverConfigError(message),
+        ),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        main()
+    assert excinfo.value.code == 2
+    assert message in capsys.readouterr().err

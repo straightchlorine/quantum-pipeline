@@ -8,6 +8,7 @@ from quantum_pipeline.configs.module.backend import BackendConfig
 from quantum_pipeline.configs.module.producer import ProducerConfig
 from quantum_pipeline.configs.module.security import SecurityConfig
 from quantum_pipeline.runners.vqe_runner import VQERunner
+from quantum_pipeline.solvers.vqe_solver import InvalidSolverConfigError
 from quantum_pipeline.stream.kafka_interface import KafkaProducerError
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
 
@@ -673,6 +674,49 @@ class TestVQERunner:
             assert len(runner.run_results) == 1
             # The partial report is the point of continuing: it must survive the failure.
             mock_report.return_value.generate_report.assert_called_once()
+
+    def test_invalid_solver_config_propagates(self, multiple_molecules_file):
+        """A flag mistake fails every molecule the same way, so run() stops on the first one
+        and raises the config error itself, not the 'N molecules failed' RuntimeError."""
+        with (
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
+            patch('quantum_pipeline.runners.vqe_runner.validate_basis_set'),
+            patch('quantum_pipeline.runners.vqe_runner.PySCFDriver.from_molecule') as mock_driver,
+            patch('quantum_pipeline.runners.vqe_runner.JordanWignerMapper') as mock_mapper,
+            patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
+            patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
+        ):
+            molecule1 = Mock()
+            molecule1.symbols = ['H', 'H']
+            molecule2 = Mock()
+            molecule2.symbols = ['C', 'O']
+            mock_load.return_value = [molecule1, molecule2]
+
+            mock_problem = Mock()
+            mock_problem.second_q_ops.return_value = [Mock()]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
+            mock_driver.return_value.run.return_value = mock_problem
+            mock_mapper.return_value.map.return_value = Mock()
+
+            mock_solver.return_value.solve.side_effect = InvalidSolverConfigError(
+                'Optimizer L-BFGS-B needs a gradient'
+            )
+
+            mock_timer_context = MagicMock()
+            mock_timer_context.__enter__.return_value = mock_timer_context
+            mock_timer_context.elapsed = 0.5
+            mock_timer.return_value = mock_timer_context
+
+            runner = VQERunner(filepath=str(multiple_molecules_file), basis_set='sto3g')
+
+            with pytest.raises(InvalidSolverConfigError, match='needs a gradient'):
+                runner.run()
+
+            assert mock_solver.return_value.solve.call_count == 1
+            assert runner._failed == []
+            assert runner.run_results == []
 
     def test_failed_molecule_and_undelivered_result_both_reported(
         self, multiple_molecules_file, tmp_path, monkeypatch

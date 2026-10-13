@@ -5,10 +5,14 @@ Comprehensive tests for the optimizer configuration factory and individual
 optimizer configuration classes.
 """
 
+import warnings
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
+from scipy.optimize import OptimizeWarning, minimize
 
+from quantum_pipeline.configs.constants import GRADIENT_OPTIMIZERS
 from quantum_pipeline.solvers.optimizer_config import (
     COBYLAConfig,
     GenericConfig,
@@ -16,6 +20,7 @@ from quantum_pipeline.solvers.optimizer_config import (
     OptimizerConfig,
     OptimizerConfigFactory,
     SLSQPConfig,
+    TrustConstrConfig,
     get_optimizer_configuration,
 )
 
@@ -51,7 +56,7 @@ class TestLBFGSBConfig:
         config = LBFGSBConfig(max_iterations=50)
         options = config.get_options(num_parameters=10)
 
-        assert options['disp'] is False
+        assert 'disp' not in options
         assert options['maxfun'] == 50
         assert options['maxiter'] == 50
         # Tight tolerances to prevent premature convergence
@@ -63,7 +68,7 @@ class TestLBFGSBConfig:
         config = LBFGSBConfig(convergence_threshold=0.001)
         options = config.get_options(num_parameters=10)
 
-        assert options['disp'] is False
+        assert 'disp' not in options
         # When only convergence_threshold is specified, use default maxiter
         assert options['maxiter'] == 15000
         assert options['ftol'] == 0.001
@@ -79,7 +84,7 @@ class TestLBFGSBConfig:
         config = LBFGSBConfig()
         options = config.get_options(num_parameters=10)
 
-        assert options['disp'] is False
+        assert 'disp' not in options
         assert 'maxfun' not in options
         assert 'ftol' not in options or options.get('ftol') == 2.220446049250313e-09
         assert 'gtol' not in options or options.get('gtol') == 1e-05
@@ -475,8 +480,8 @@ class TestOptimizerConfigIntegration:
         minimize_tol = config.get_minimize_tol()
 
         assert isinstance(options, dict)
-        assert 'disp' in options
-        assert options['disp'] is False
+        # L-BFGS-B drops disp: scipy 1.18 no longer accepts it there.
+        assert options.get('disp', False) is False
         assert 'maxiter' in options
         assert options['maxiter'] == max_iterations
         assert minimize_tol is None or isinstance(minimize_tol, float)
@@ -500,8 +505,8 @@ class TestOptimizerConfigIntegration:
         minimize_tol = config.get_minimize_tol()
 
         assert isinstance(options, dict)
-        assert 'disp' in options
-        assert options['disp'] is False
+        # L-BFGS-B drops disp: scipy 1.18 no longer accepts it there.
+        assert options.get('disp', False) is False
         assert 'maxiter' in options  # All should have maxiter in convergence mode
         assert minimize_tol is None or isinstance(minimize_tol, float)
 
@@ -617,3 +622,78 @@ class TestGenericConfig:
         supported = OptimizerConfigFactory.get_supported_optimizers()
         for opt in ['Nelder-Mead', 'Powell', 'BFGS', 'CG', 'TNC']:
             assert opt in supported
+
+
+class TestNewtonCGAndTrustConstr:
+    """Newton-CG and trust-constr take an analytic jac and no Hessian."""
+
+    @staticmethod
+    def _fg(x):
+        return float(x @ x), 2.0 * x
+
+    def test_newton_cg_uses_generic_config_with_maxiter_only(self):
+        config = OptimizerConfigFactory.create_config('Newton-CG')
+        assert isinstance(config, GenericConfig)
+        assert config.get_options(10) == {'disp': False, 'maxiter': 1000}
+
+    def test_trust_constr_default_options(self):
+        config = OptimizerConfigFactory.create_config('trust-constr')
+        assert isinstance(config, TrustConstrConfig)
+        assert config.get_options(10) == {'disp': False, 'maxiter': 1000}
+        assert config.get_minimize_tol() is None
+
+    def test_trust_constr_max_iterations_sets_tight_tolerances(self):
+        options = TrustConstrConfig(max_iterations=50).get_options(10)
+        assert options == {'disp': False, 'maxiter': 50, 'xtol': 1e-15, 'gtol': 1e-15}
+
+    def test_trust_constr_convergence_threshold_is_tol(self):
+        config = TrustConstrConfig(convergence_threshold=1e-6)
+        assert config.get_minimize_tol() == 1e-6
+        assert 'xtol' not in config.get_options(10)
+
+    def test_trust_constr_mutual_exclusion_raises(self):
+        with pytest.raises(ValueError, match='mutually exclusive'):
+            TrustConstrConfig(max_iterations=10, convergence_threshold=1e-6)
+
+    @pytest.mark.parametrize('optimizer', ['Newton-CG', 'trust-constr'])
+    @pytest.mark.parametrize('kwargs', [{}, {'max_iterations': 100}])
+    def test_options_are_accepted_by_scipy(self, optimizer, kwargs):
+        options, tol = get_optimizer_configuration(optimizer, num_parameters=2, **kwargs)
+        result = minimize(
+            self._fg, np.array([1.0, 2.0]), jac=True, method=optimizer, options=options, tol=tol
+        )
+        assert result.success
+        assert np.linalg.norm(result.x) < 1e-3
+
+    @pytest.mark.parametrize('optimizer', OptimizerConfigFactory.get_supported_optimizers())
+    @pytest.mark.parametrize(
+        'kwargs', [{}, {'max_iterations': 20}, {'convergence_threshold': 1e-6}]
+    )
+    def test_options_raise_no_scipy_warning(self, optimizer, kwargs):
+        """Every option we pass is one scipy still accepts. An unknown or deprecated key only
+        warns (L-BFGS-B 'disp': deprecated in scipy 1.17, 'Unknown solver options' in 1.18),
+        so warnings are turned into errors here."""
+        options, tol = get_optimizer_configuration(optimizer, num_parameters=2, **kwargs)
+        gradient = optimizer in GRADIENT_OPTIMIZERS
+        objective = self._fg if gradient else (lambda x: float(x @ x))
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', OptimizeWarning)
+            warnings.simplefilter('error', DeprecationWarning)
+            minimize(
+                objective,
+                np.array([1.0, 2.0]),
+                jac=True if gradient else None,
+                method=optimizer,
+                options=options,
+                tol=tol,
+            )
+
+    def test_newton_cg_without_jac_raises(self):
+        """Why Newton-CG is analytic-path-only: scipy refuses to run it without a gradient."""
+        with pytest.raises(ValueError, match='Jacobian is required'):
+            minimize(lambda x: float(x @ x), np.array([1.0, 2.0]), method='Newton-CG')
+
+    def test_both_in_supported_list(self):
+        supported = OptimizerConfigFactory.get_supported_optimizers()
+        assert 'Newton-CG' in supported
+        assert 'trust-constr' in supported

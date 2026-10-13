@@ -76,6 +76,35 @@ def test_compute_energy(vqe_solver):
     assert vqe_solver.current_iter == 2
 
 
+def test_record_step_appends_row(vqe_solver):
+    """_record_step builds the row and derived features with no estimator involved."""
+    params1 = np.array([0.1, 0.2, 0.3])
+    params2 = np.array([0.4, 0.2, 0.3])
+
+    with patch.object(vqe_solver.logger, 'debug'):
+        energy = vqe_solver._record_step(params1, np.float64(1.5), np.float64(0.1))
+
+        assert energy == 1.5
+        assert len(vqe_solver.vqe_process) == 1
+        row = vqe_solver.vqe_process[0]
+        assert row.iteration == 1
+        assert row.result == 1.5
+        assert row.std == 0.1
+        assert row.energy_delta is None
+        assert row.parameter_delta_norm is None
+        assert row.cumulative_min_energy == 1.5
+        assert vqe_solver.current_iter == 2
+
+        vqe_solver._record_step(params2, np.float64(1.0), np.float64(0.1))
+
+    row2 = vqe_solver.vqe_process[1]
+    assert row2.iteration == 2
+    assert row2.energy_delta == pytest.approx(-0.5)
+    assert row2.parameter_delta_norm == pytest.approx(0.3)
+    assert row2.cumulative_min_energy == 1.0
+    assert vqe_solver.current_iter == 3
+
+
 def test_compute_energy_derived_features(vqe_solver):
     """Test that compute_energy populates derived ML features across iterations."""
     mock_ansatz = MagicMock()
@@ -464,10 +493,9 @@ class TestVQEEdgeCases:
         )
 
         assert 'maxiter' in options
-        assert 'disp' in options
+        assert 'disp' not in options  # scipy 1.18 rejects disp for L-BFGS-B
         assert options['maxiter'] == max_iterations
         assert options['maxfun'] == max_iterations
-        assert options['disp'] is False
         # Tight tolerances to prevent premature convergence
         assert options['ftol'] == 1e-15
         assert options['gtol'] == 1e-15
@@ -500,6 +528,24 @@ class TestMaxFunctionEvalsReachedError:
 
         with pytest.raises(MaxFunctionEvalsReachedError) as exc_info:
             vqe_solver.compute_energy(np.array([0.1, 0.2]), MagicMock(), MagicMock(), MagicMock())
+
+        assert exc_info.value.iteration == 3
+        assert exc_info.value.best_energy == -1.5
+        np.testing.assert_array_equal(exc_info.value.best_params, np.array([0.1, 0.2]))
+
+    def test_enforce_eval_limit_raises(self, vqe_solver):
+        """_enforce_eval_limit raises on its own, without an estimator call."""
+        vqe_solver.max_iterations = 3
+        vqe_solver.current_iter = 4  # one past the limit
+
+        mock_process = MagicMock()
+        mock_process.result = -1.5
+        mock_process.cumulative_min_energy = -1.5
+        mock_process.parameters = np.array([0.1, 0.2])
+        vqe_solver.vqe_process = [mock_process]
+
+        with pytest.raises(MaxFunctionEvalsReachedError) as exc_info:
+            vqe_solver._enforce_eval_limit()
 
         assert exc_info.value.iteration == 3
         assert exc_info.value.best_energy == -1.5
@@ -1393,6 +1439,8 @@ class TestViaAer:
         assert isinstance(result, VQEResult)
         assert result.minimum == -1.0
         mock_minimize.assert_called_once()
+        # The Aer path must never hand scipy a gradient function.
+        assert mock_minimize.call_args.kwargs['jac'] is False
 
     @patch('quantum_pipeline.solvers.vqe_solver.minimize')
     @patch('quantum_pipeline.solvers.vqe_solver.get_optimizer_configuration')

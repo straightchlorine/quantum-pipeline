@@ -175,7 +175,7 @@ class TestLBFGSBPriorities:
         assert options['ftol'] == 0.0001
         assert options['gtol'] == 0.0001
         assert minimize_tol is None
-        assert options['disp'] is False
+        assert 'disp' not in options  # scipy 1.18 rejects disp for L-BFGS-B
 
 
 class TestOptimizerPriorityIntegration:

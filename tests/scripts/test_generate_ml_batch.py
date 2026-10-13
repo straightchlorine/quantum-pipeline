@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'scripts'))
 
-from generate_ml_batch import make_run_key
+from generate_ml_batch import build_docker_command, make_run_key
 
 _BASE = {
     'lane': 'cpu',
@@ -52,3 +52,22 @@ def test_run_key_distinguishes_every_dimension():
     }
     assert base not in variants
     assert len(variants) == 7  # all distinct
+
+
+_CONFIG = {'basis': 'sto3g', 'simulation_method': 'statevector'}
+
+
+def _command(optimizer):
+    return build_docker_command(
+        'quantum-pipeline-cpu', 'H2.json', optimizer, 'random', 1, 'EfficientSU2', _CONFIG, False
+    )
+
+
+def test_command_passes_exact_for_gradient_optimizer():
+    """Sampled shots with a gradient optimizer are rejected, so the batch must pass --exact."""
+    assert '--exact' in _command('L-BFGS-B')
+
+
+def test_command_passes_exact_for_every_optimizer():
+    """The batch builds exact trajectories for all optimizers, COBYLA included."""
+    assert '--exact' in _command('COBYLA')
