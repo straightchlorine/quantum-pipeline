@@ -5,6 +5,7 @@ import os
 from quantum_pipeline.configs.defaults import DEFAULTS
 from quantum_pipeline.configs.parsing.argparser import QuantumPipelineArgParser
 from quantum_pipeline.runners.vqe_runner import VQERunner
+from quantum_pipeline.solvers.vqe_solver import InvalidSolverConfigError
 from quantum_pipeline.utils.logger import get_logger
 
 logger = get_logger('QuantumPipeline')
@@ -37,7 +38,7 @@ def execute_simulation(**kwargs):
         optimizer=kwargs['optimizer'],
         ansatz_reps=kwargs['ansatz_reps'],
         ansatz_type=kwargs.get('ansatz_type', 'EfficientSU2'),
-        default_shots=None if kwargs.get('exact') else kwargs['shots'],
+        default_shots=None if kwargs.get('exact') else kwargs.get('shots'),
         seed=kwargs.get('seed'),
         init_strategy=kwargs.get('init_strategy', 'random'),
         report=kwargs['report'],
@@ -52,4 +53,10 @@ def execute_simulation(**kwargs):
 def main():
     parser = QuantumPipelineArgParser()
     kwargs = parser.get_config()
-    execute_simulation(**kwargs)
+    try:
+        execute_simulation(**kwargs)
+    except InvalidSolverConfigError as e:
+        # on bad flag combination, not a crash:
+        # - print usage and the reason,
+        # - exit 2, without traceback
+        parser.parser.error(str(e))

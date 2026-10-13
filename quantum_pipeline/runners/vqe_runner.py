@@ -18,7 +18,7 @@ from quantum_pipeline.mappers import JordanWignerMapper
 from quantum_pipeline.monitoring import get_performance_monitor
 from quantum_pipeline.report.report_generator import ReportGenerator
 from quantum_pipeline.runners.runner import Runner
-from quantum_pipeline.solvers.vqe_solver import VQESolver
+from quantum_pipeline.solvers.vqe_solver import InvalidSolverConfigError, VQESolver
 from quantum_pipeline.stream.kafka_interface import KafkaProducerError, VQEKafkaProducer
 from quantum_pipeline.stream.serialization.interfaces.vqe import VQEDecoratedResultInterface
 from quantum_pipeline.structures.vqe_observation import VQEDecoratedResult
@@ -443,6 +443,10 @@ class VQERunner(Runner):
                     self.logger.info(f'Processing molecule {molecule_id + 1}:\n\n{molecule}\n')
                     try:
                         decorated_result = self._process_molecule(molecule_id, molecule)
+                    # A config error fails every molecule the same way, so skipping and continuing
+                    # would burn the whole batch and report a flag mistake as compute failures.
+                    except InvalidSolverConfigError:
+                        raise
                     except Exception:
                         # One bad molecule (SCF failure, OOM, driver error) must not
                         # discard hours of already-computed results from this batch.

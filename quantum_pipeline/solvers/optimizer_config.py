@@ -8,7 +8,9 @@ from typing import Any, ClassVar
 from quantum_pipeline.configs.constants import (
     COBYLA_DEFAULT_MAXITER,
     LBFGSB_DEFAULT_MAXITER,
+    NEWTON_CG_DEFAULT_MAXITER,
     SLSQP_DEFAULT_MAXITER,
+    TRUSTCONSTR_DEFAULT_MAXITER,
 )
 
 
@@ -44,18 +46,21 @@ class OptimizerConfig(ABC):
 class LBFGSBConfig(OptimizerConfig):
     """Configuration for L-BFGS-B optimizer.
 
-    `max_iterations` sets `maxiter`/`maxfun` with `ftol`/`gtol` at 1e-15 so the whole budget
-    is spent; `convergence_threshold` sets `ftol`/`gtol` under a high `maxiter` cap; with
+    `max_iterations` sets `maxiter`/`maxfun` with `ftol`/`gtol` at 1e-15, so scipy stops later
+    than with its defaults but may still stop before the cap;
+
+    `convergence_threshold` sets `ftol`/`gtol` under a high `maxiter` cap; with
     neither, only `maxiter` is set and scipy tolerances apply.
     """
 
     def get_options(self, num_parameters: int) -> dict[str, Any]:
-        options: dict[str, Any] = {'disp': False}
+        # NOTE: 'disp' is deprecated for L-BFGS-B
+        options: dict[str, Any] = {}
 
         if self.max_iterations is not None:
             # Set both maxfun and maxiter to prevent hanging.
-            # Use tight tolerances to ensure the full iteration budget is used
-            # (scipy's defaults would cause early stopping).
+            # tight tolerances are meant to make scipy stop later than
+            # it's defaults would; still might stop before maxiter
             options['maxfun'] = self.max_iterations
             options['maxiter'] = self.max_iterations
             options['ftol'] = 1e-15
@@ -136,6 +141,36 @@ class SLSQPConfig(OptimizerConfig):
             self.logger.warning(f'SLSQP max_iterations {self.max_iterations} should be >= 1')
 
 
+class TrustConstrConfig(OptimizerConfig):
+    """Configuration for trust-constr optimizer.
+
+    `max_iterations` sets `maxiter` with `xtol`/`gtol` at 1e-15, so scipy stops later than
+    with its defaults but may still stop before the cap;
+    otherwise only `maxiter` is set and `convergence_threshold` is passed as scipy `tol`.
+    """
+
+    def get_options(self, num_parameters: int) -> dict[str, Any]:
+        if self.max_iterations is not None:
+            # Tight tolerances make scipy stop later than its defaults would.
+            # It may still stop before maxiter.
+            return {
+                'disp': False,
+                'maxiter': self.max_iterations,
+                'xtol': 1e-15,
+                'gtol': 1e-15,
+            }
+        return {'disp': False, 'maxiter': TRUSTCONSTR_DEFAULT_MAXITER}
+
+    def get_minimize_tol(self) -> float | None:
+        return self.convergence_threshold
+
+    def validate_parameters(self, num_parameters: int) -> None:
+        if self.max_iterations is not None and self.max_iterations < 1:
+            self.logger.warning(
+                f'trust-constr max_iterations {self.max_iterations} should be >= 1'
+            )
+
+
 class GenericConfig(OptimizerConfig):
     """Generic configuration for scipy optimizers not requiring custom logic.
 
@@ -149,6 +184,10 @@ class GenericConfig(OptimizerConfig):
         'BFGS': 1000,  # quasi-Newton; fast convergence, limit by outer iterations
         'CG': 2000,  # conjugate gradient; moderate convergence
         'TNC': 500,  # truncated Newton; each step is expensive (inner CG)
+        # Newton-CG requires to run with jac.
+        # No xtol - xtol=1e-15 can make optimizer report failure, still
+        # TODO: more testing on this.
+        'Newton-CG': NEWTON_CG_DEFAULT_MAXITER,
     }
 
     # Optimizers that use 'maxfun' instead of 'maxiter'
@@ -199,6 +238,8 @@ class OptimizerConfigFactory:
         'BFGS': lambda **kw: GenericConfig('BFGS', **kw),
         'CG': lambda **kw: GenericConfig('CG', **kw),
         'TNC': lambda **kw: GenericConfig('TNC', **kw),
+        'Newton-CG': lambda **kw: GenericConfig('Newton-CG', **kw),
+        'trust-constr': TrustConstrConfig,
     }
 
     @classmethod

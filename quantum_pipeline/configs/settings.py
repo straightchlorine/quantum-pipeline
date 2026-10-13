@@ -11,6 +11,8 @@ SUPPORTED_OPTIMIZERS = {
     'TNC': 'Truncated Newton method for bound-constrained optimization.',
     'COBYLA': 'Constrained optimization by linear approximations.',
     'SLSQP': 'Sequential Least Squares Programming for constrained optimization.',
+    'Newton-CG': 'Newton conjugate gradient method; needs an analytic gradient, so it runs only with --exact on a local noiseless run.',
+    'trust-constr': 'Trust-region method for constrained optimization.',
 }
 
 SUPPORTED_BASIS_SETS = ['sto3g', '6-31g', 'cc-pvdz']

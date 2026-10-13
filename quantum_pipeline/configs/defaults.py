@@ -12,7 +12,11 @@ DEFAULTS: dict[str, Any] = {
     'ansatz_type': 'EfficientSU2',
     'seed': None,
     'init_strategy': 'random',
-    'shots': 1024,
+    # None means exact expectation values (analytic gradients for gradient optimizers).
+    # --shots N switches to sampling.
+    'shots': None,
+    # IBM hardware cannot be exact, so --ibm without --shots samples this many shots.
+    'ibm_shots': 1024,
     'backend': {
         'local': True,
         'min_qubits': None,
