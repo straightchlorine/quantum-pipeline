@@ -314,6 +314,14 @@ def test_ansatz_reps_argument(argparser):
     assert args.ansatz_reps == 3
 
 
+@pytest.mark.parametrize('reps', ['0', '-1'])
+def test_ansatz_reps_rejects_non_positive(argparser, reps):
+    """--ansatz-reps 0 built a rotation-only ansatz and -1 crashed mid-run with a traceback."""
+    with pytest.raises(SystemExit) as excinfo:
+        argparser.parser.parse_args(['--file', 'molecule.json', '--ansatz-reps', reps])
+    assert excinfo.value.code == 2
+
+
 def test_ibm_backend_flag(argparser):
     assert not argparser.parser.parse_args(['--file', 'molecule.json']).ibm
     assert argparser.parser.parse_args(['--file', 'molecule.json', '--ibm']).ibm

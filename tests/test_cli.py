@@ -99,3 +99,22 @@ def test_invalid_solver_config_exits_cleanly(monkeypatch, capsys):
         main()
     assert excinfo.value.code == 2
     assert message in capsys.readouterr().err
+
+
+def test_missing_molecule_file_exits_cleanly(monkeypatch, capsys, tmp_path):
+    """A --file path that does not exist is a usage error (exit 2), not a FileNotFoundError
+    traceback from the molecule loader."""
+    missing = tmp_path / 'molecules.json'
+    monkeypatch.setattr('sys.argv', ['quantum-pipeline', '-f', str(missing)])
+    with (
+        patch(
+            'quantum_pipeline.cli.QuantumPipelineArgParser.get_config',
+            return_value={'file': str(missing)},
+        ),
+        patch('quantum_pipeline.cli.execute_simulation') as execute,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        main()
+    assert excinfo.value.code == 2
+    execute.assert_not_called()
+    assert 'no such file' in capsys.readouterr().err

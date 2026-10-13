@@ -15,6 +15,7 @@ from quantum_pipeline.configs.constants import (
     EP_HF_INIT_JITTER,
     EP_INIT_JITTER,
     FAST_PATH_BACKEND,
+    FAST_PATH_MAX_QUBITS,
     GRADIENT_OPTIMIZERS,
     HF_FIDELITY_THRESHOLD,
     HF_PRE_OPT_ATTEMPTS,
@@ -387,6 +388,9 @@ class VQESolver(Solver):
         gpu is excluded even though the analytic path is faster. The analytic path is plain
         NumPy on the host, while vqe_runner reports backend_type='GPU' from the flag alone.
 
+        Problems above FAST_PATH_MAX_QUBITS are excluded: the per-call sparse Hamiltonian
+        in ReverseEstimatorGradient runs out of memory around 20 qubits.
+
         TODO: consider how to include gpu for this path also.
         """
         # local is bool | None. "is True" rejects None, which means "not asked for".
@@ -396,6 +400,7 @@ class VQESolver(Solver):
             and not self.backend_config.noise
             and self.backend_config.local is True
             and not self.backend_config.gpu
+            and self.qubit_op.num_qubits <= FAST_PATH_MAX_QUBITS
         )
 
     def _fast_path_objective(self, params, ansatz, hamiltonian) -> tuple[float, np.ndarray]:
@@ -635,6 +640,8 @@ class VQESolver(Solver):
         ansatz = self._build_ansatz(self.qubit_op.num_qubits)
         x0 = self._compute_initial_parameters(ansatz)
 
+        # state bound in the circuit-preparation step on the other paths must be bound here too;
+        # TODO: the same for ansatz_logical should happen
         self._build_init_data(FAST_PATH_BACKEND, ansatz, self.qubit_op, x0, exact_estimator=True)
         self.logger.info(
             f'Analytic-gradient statevector path: {self.qubit_op.num_qubits} qubits, '
@@ -672,8 +679,9 @@ class VQESolver(Solver):
             # would stop with 'Jacobian is required for Newton-CG method'.
             raise InvalidSolverConfigError(
                 'Optimizer Newton-CG needs an analytic gradient. Only an exact, local, noiseless, '
-                'non-GPU run provides one. Use --exact on a local run without --noise or --gpu, '
-                'or pick another optimizer (--optimizer L-BFGS-B, BFGS or COBYLA).'
+                f'non-GPU run of at most {FAST_PATH_MAX_QUBITS} qubits provides one. Use --exact '
+                'on a local run without --noise or --gpu, or pick another optimizer '
+                '(--optimizer L-BFGS-B, BFGS or COBYLA).'
             )
 
         if self.default_shots is not None and self.optimizer in GRADIENT_OPTIMIZERS:
@@ -689,6 +697,13 @@ class VQESolver(Solver):
 
         if eligible:
             return self.via_statevector()
+
+        n_qubits = self.qubit_op.num_qubits
+        if n_qubits > FAST_PATH_MAX_QUBITS and self.optimizer in GRADIENT_OPTIMIZERS:
+            self.logger.info(
+                f'{n_qubits} qubits is above the analytic-path limit of {FAST_PATH_MAX_QUBITS}; '
+                'using the Aer path with finite-difference gradients.'
+            )
 
         backend = self.get_backend()
 

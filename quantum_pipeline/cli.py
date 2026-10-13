@@ -53,6 +53,11 @@ def execute_simulation(**kwargs):
 def main():
     parser = QuantumPipelineArgParser()
     kwargs = parser.get_config()
+
+    # checked not as an argparse type: a --load config may supply the path.
+    molecule_file = kwargs.get('file')
+    if molecule_file is not None and not os.path.isfile(molecule_file):
+        parser.parser.error(f'--file {molecule_file}: no such file')
     try:
         execute_simulation(**kwargs)
     except InvalidSolverConfigError as e:

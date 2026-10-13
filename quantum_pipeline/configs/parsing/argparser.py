@@ -74,7 +74,7 @@ class QuantumPipelineArgParser:
         sim_group.add_argument(
             '-ar',
             '--ansatz-reps',
-            type=int,
+            type=self.positive_int,
             default=DEFAULTS['ansatz_reps'],
             help='Amount of reps for the ansatz',
         )
@@ -190,7 +190,9 @@ class QuantumPipelineArgParser:
     def _add_output_logging(self):
         output_group = self.parser.add_argument_group('Output and Logging')
         output_group.add_argument(
-            '--output-dir', default=settings.GEN_DIR, help='Directory to store output files'
+            '--output-dir',
+            default=settings.GEN_DIR,
+            help='Currently has no effect; output goes to gen/',
         )
         output_group.add_argument(
             '--log-level',
@@ -244,7 +246,7 @@ class QuantumPipelineArgParser:
     def ensure_file(self, path):
         if os.path.isfile(path):
             return path
-        raise argparse.ArgumentTypeError(f'readable_dir:{path} is not a valid path')
+        raise argparse.ArgumentTypeError(f'{path} is not a readable file')
 
     def _add_additional_features(self):
         additional_group = self.parser.add_argument_group('Additional Features')
