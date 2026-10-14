@@ -96,11 +96,11 @@ done
 echo ""
 echo "[ INFO ] Configuring Garage S3 storage..."
 
-NODE_ID=$($GARAGE status 2>/dev/null | grep -oP '^\S+' | tail -1)
+NODE_ID=$($GARAGE status 2>/dev/null | grep -oP '^\S+' | tail -1 || true)
 [ -z "${NODE_ID}" ] && echo "[ FAIL ] Could not get node ID" && exit 1
 
 # layout assign (skip if node already has a role)
-LAYOUT=$($GARAGE layout show 2>/dev/null)
+LAYOUT=$($GARAGE layout show 2>/dev/null || true)
 if echo "${LAYOUT}" | grep -q "${NODE_ID:0:12}"; then
     echo "[ SKIP ] Layout already assigned for ${NODE_ID:0:12}"
 else
@@ -112,7 +112,8 @@ fi
 
 # key create - secret is only shown at creation time, so if key exists
 # but .env has placeholder creds, we delete and recreate
-EXISTING_KEY=$($GARAGE key info ml-pipeline 2>/dev/null)
+# `key info` exits non-zero when the key is absent; tolerate that under set -e.
+EXISTING_KEY=$($GARAGE key info ml-pipeline 2>/dev/null || true)
 if [ -n "${EXISTING_KEY}" ] && grep -q "GK_CHANGE_ME\|S3_ACCESS_KEY=$" .env; then
     echo "[ INFO ] Key exists but .env has no valid credentials, recreating..."
     $GARAGE key delete --yes ml-pipeline > /dev/null 2>&1
@@ -121,7 +122,7 @@ fi
 
 if [ -z "${EXISTING_KEY}" ]; then
     echo "[ INFO ] Creating access key (ml-pipeline)..."
-    KEY_OUTPUT=$($GARAGE key create ml-pipeline 2>/dev/null)
+    KEY_OUTPUT=$($GARAGE key create ml-pipeline 2>/dev/null || true)
     KEY_ID=$(echo "${KEY_OUTPUT}" | grep "Key ID:" | awk '{print $3}')
     KEY_SECRET=$(echo "${KEY_OUTPUT}" | grep "Secret key:" | awk '{print $3}')
 else
@@ -137,7 +138,7 @@ BUCKETS=("${S3_RAW_BUCKET:-raw-results}" "${S3_FEATURES_BUCKET:-features}" "${S3
 echo "[ INFO ] Creating buckets: ${BUCKETS[*]}..."
 for BUCKET in "${BUCKETS[@]}"; do
     $GARAGE bucket create "${BUCKET}" > /dev/null 2>&1 || true
-    $GARAGE bucket allow --read --write "${BUCKET}" --key ml-pipeline > /dev/null 2>&1
+    $GARAGE bucket allow --read --write "${BUCKET}" --key ml-pipeline > /dev/null 2>&1 || true
     echo "[  OK  ] ${BUCKET}"
 done
 
