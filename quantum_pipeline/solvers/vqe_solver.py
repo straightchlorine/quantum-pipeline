@@ -61,6 +61,7 @@ class VQESolver(Solver):
         ansatz_reps: int = 3,
         ansatz_type: str = 'EfficientSU2',
         default_shots: int | None = 1024,
+        no_analytic: bool = False,
         convergence_threshold: float | None = None,
         optimization_level: int = 3,
         seed: int | None = None,
@@ -77,6 +78,7 @@ class VQESolver(Solver):
         self.seed = seed
         self.digits_iter = len(str(max_iterations))
         self.default_shots = default_shots
+        self.no_analytic = no_analytic
         self.backend_config = backend_config
         self.vqe_process: list[VQEProcess] = []
         # One gradient object per solver.
@@ -385,6 +387,9 @@ class VQESolver(Solver):
         replace a run that already asked for exact, noiseless, local expectation values
         with a gradient optimizer.
 
+        no_analytic forces the Aer path even when the run is otherwise eligible; it exists so
+        a benchmark can measure the Aer exact CPU lane that the analytic path would replace.
+
         gpu is excluded even though the analytic path is faster. The analytic path is plain
         NumPy on the host, while vqe_runner reports backend_type='GPU' from the flag alone.
 
@@ -393,6 +398,8 @@ class VQESolver(Solver):
 
         TODO: consider how to include gpu for this path also.
         """
+        if self.no_analytic:
+            return False
         # local is bool | None. "is True" rejects None, which means "not asked for".
         return (
             self.default_shots is None

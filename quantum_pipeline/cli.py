@@ -39,6 +39,7 @@ def execute_simulation(**kwargs):
         ansatz_reps=kwargs['ansatz_reps'],
         ansatz_type=kwargs.get('ansatz_type', 'EfficientSU2'),
         default_shots=None if kwargs.get('exact') else kwargs.get('shots'),
+        no_analytic=kwargs.get('no_analytic', False),
         seed=kwargs.get('seed'),
         init_strategy=kwargs.get('init_strategy', 'random'),
         report=kwargs['report'],

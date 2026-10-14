@@ -63,6 +63,7 @@ class VQERunner(Runner):
         ansatz_reps: int = 3,
         ansatz_type: str = 'EfficientSU2',
         default_shots: int | None = 1024,
+        no_analytic: bool = False,
         seed: int | None = None,
         init_strategy: str = 'random',
         report: bool = False,
@@ -80,6 +81,7 @@ class VQERunner(Runner):
         self.ansatz_type = ansatz_type
         self.optimizer = optimizer
         self.default_shots = default_shots
+        self.no_analytic = no_analytic
         self.convergence_threshold = convergence_threshold
         self.seed = seed
         self.init_strategy = init_strategy
@@ -200,6 +202,7 @@ class VQERunner(Runner):
                 ansatz_reps=self.ansatz_reps,
                 ansatz_type=self.ansatz_type,
                 default_shots=self.default_shots,
+                no_analytic=self.no_analytic,
                 convergence_threshold=self.convergence_threshold,
                 seed=self.seed,
                 init_strategy=self.init_strategy,

@@ -288,6 +288,61 @@ class TestVQERunner:
             assert result.mapping_time == 0.5
             assert result.vqe_time == 0.5
 
+    def test_no_analytic_defaults_off(self):
+        """The benchmark opt-out is off unless asked for."""
+        runner = VQERunner(filepath='/path/to/molecules.xyz', basis_set='sto3g')
+        assert runner.no_analytic is False
+
+    def test_run_passes_no_analytic_to_solver(self, single_molecule_file):
+        """run() forwards no_analytic to VQESolver: the benchmark CPU-Aer lane depends on it."""
+        with (
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
+            patch('quantum_pipeline.runners.vqe_runner.validate_basis_set'),
+            patch('quantum_pipeline.runners.vqe_runner.PySCFDriver.from_molecule') as mock_driver,
+            patch('quantum_pipeline.runners.vqe_runner.JordanWignerMapper') as mock_mapper,
+            patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
+            patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
+        ):
+            mock_molecule = Mock()
+            mock_molecule.symbols = ['H', 'H']
+            mock_load.return_value = [mock_molecule]
+
+            mock_problem = Mock()
+            mock_second_q_op = Mock()
+            mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
+            mock_driver.return_value.run.return_value = mock_problem
+
+            mock_qubit_op = Mock()
+            mock_mapper.return_value.map.return_value = mock_qubit_op
+
+            mock_result = Mock()
+            mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
+            mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
+            mock_result.initial_data = Mock()
+            mock_result.initial_data.optimizer = 'COBYLA'
+            mock_result.initial_data.ansatz_reps = 3
+            mock_result.initial_data.hamiltonian = Mock()
+            mock_result.initial_data.ansatz = Mock()
+            mock_solver.return_value.solve.return_value = mock_result
+
+            mock_timer_context = MagicMock()
+            mock_timer_context.__enter__.return_value = mock_timer_context
+            mock_timer_context.elapsed = 0.5
+            mock_timer.return_value = mock_timer_context
+
+            runner = VQERunner(
+                filepath=str(single_molecule_file), basis_set='sto3g', no_analytic=True
+            )
+            runner.run()
+
+            mock_solver.assert_called_once()
+            assert mock_solver.call_args.kwargs['no_analytic'] is True
+
     def test_run_with_molecule_index(self, multiple_molecules_file):
         """Test run() with molecule_index filters to a single molecule."""
         with (
@@ -823,6 +878,7 @@ class TestVQERunner:
                 ansatz_reps=3,
                 ansatz_type='EfficientSU2',
                 default_shots=1024,
+                no_analytic=False,
                 convergence_threshold=1e-6,
                 seed=None,
                 init_strategy='random',

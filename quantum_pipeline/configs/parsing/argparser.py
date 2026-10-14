@@ -236,6 +236,14 @@ class QuantumPipelineArgParser:
             ),
         )
         backend_group.add_argument(
+            '--no-analytic',
+            action='store_true',
+            help=(
+                'Keep the Aer exact path even when the analytic statevector path would apply. '
+                'Benchmarking only.'
+            ),
+        )
+        backend_group.add_argument(
             '--optimization-level',
             type=int,
             choices=[0, 1, 2, 3],

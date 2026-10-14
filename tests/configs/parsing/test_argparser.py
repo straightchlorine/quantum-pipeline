@@ -899,3 +899,17 @@ class TestSeedArgument:
         """Test that negative seed values are accepted."""
         args = argparser.parser.parse_args(['--file', 'molecule.json', '--seed', '-1'])
         assert args.seed == -1
+
+
+class TestNoAnalyticArgument:
+    """Tests for the --no-analytic CLI argument (benchmark-only opt-out)."""
+
+    def test_no_analytic_default_off(self, argparser):
+        """Test that --no-analytic defaults to False, so the analytic path stays automatic."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert args.no_analytic is False
+
+    def test_no_analytic_store_true(self, argparser):
+        """Test that --no-analytic is a store_true flag."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--no-analytic'])
+        assert args.no_analytic is True
