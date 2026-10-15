@@ -3,12 +3,13 @@ FROM python:3.12-slim-trixie@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp/build
-COPY pyproject.toml ./
-RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml', 'rb'))['project']['dependencies']))" \
-      > requirements.txt && \
-    pip install --no-cache-dir -r requirements.txt
 
-COPY README.md LICENSE ./
+# from pdm.lock; with each relock regenerate like this:
+#   pdm export -G default -f requirements -o docker/requirements.txt
+COPY docker/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY pyproject.toml README.md LICENSE ./
 COPY quantum_pipeline ./quantum_pipeline
 
 RUN pip install --no-cache-dir --no-deps . && pip uninstall -y pip && rm -rf /tmp/build
