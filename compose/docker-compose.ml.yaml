@@ -120,6 +120,22 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      # A converged VQE result is one row per energy evaluation at ~2 KB per row.
+      # A single record reaches tens of MB.
+      #
+      # The broker default of 1 MiB rejects it with RecordTooLargeException.
+      #
+      # max.message.bytes is a topic config; defaults to the broker's message.max.bytes;
+      # changing this takes effect on topics that do not override it.
+      #
+      # socket.request.max.bytes must be at least as large as a whole produce request,
+      # i.e. larger than message.max.bytes, so it is set to 256 MiB.
+      #
+      # The broker record limit is 136 MiB, 8 MiB above the producer's 128 MiB max_request_size.
+      # Metadata attached by the broker to the record cannot push it past the broker limit.
+      KAFKA_MESSAGE_MAX_BYTES: ${KAFKA_MESSAGE_MAX_BYTES:-142606336}
+      KAFKA_REPLICA_FETCH_MAX_BYTES: ${KAFKA_REPLICA_FETCH_MAX_BYTES:-142606336}
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: ${KAFKA_SOCKET_REQUEST_MAX_BYTES:-268435456}
       CLUSTER_ID: quantum-ml-kafka-cluster-id-01
     networks:
       - quantum-net
