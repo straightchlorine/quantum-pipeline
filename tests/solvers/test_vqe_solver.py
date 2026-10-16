@@ -605,6 +605,118 @@ class TestMaxFunctionEvalsReachedError:
 
         assert energy == -1.0
 
+    def test_max_evaluations_bounds_when_max_iterations_none(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        """--convergence leaves max_iterations None, so max_evaluations is the only ceiling.
+
+        Without it the Aer lanes record one row per objective call with no bound at all,
+        because scipy's maxiter counts optimiser steps and each step costs n_params + 1
+        evaluations on finite differences.
+        """
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=None,
+            max_evaluations=3,
+            optimizer='COBYLA',
+            ansatz_reps=2,
+        )
+        solver.current_iter = 4  # one past the limit
+
+        mock_process = MagicMock()
+        mock_process.result = -1.5
+        mock_process.cumulative_min_energy = -1.5
+        mock_process.parameters = np.array([0.1, 0.2])
+        solver.vqe_process = [mock_process]
+
+        with pytest.raises(MaxFunctionEvalsReachedError) as exc_info:
+            solver._enforce_eval_limit()
+
+        assert exc_info.value.iteration == 3
+        assert exc_info.value.best_energy == -1.5
+
+    def test_max_iterations_takes_precedence_over_max_evaluations(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        """When both are set the tighter of the two must win, not max_evaluations.
+
+        The solver prefers max_iterations, so a caller that sets both and expects the
+        smaller budget must not get a surprise extension.
+        """
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=3,
+            max_evaluations=9999,
+            optimizer='COBYLA',
+            ansatz_reps=2,
+        )
+        solver.current_iter = 4
+
+        mock_process = MagicMock()
+        mock_process.result = -1.5
+        mock_process.cumulative_min_energy = -1.5
+        mock_process.parameters = np.array([0.1, 0.2])
+        solver.vqe_process = [mock_process]
+
+        with pytest.raises(MaxFunctionEvalsReachedError):
+            solver._enforce_eval_limit()
+
+    def test_max_evaluations_not_reached_does_not_raise(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=None,
+            max_evaluations=10,
+            optimizer='COBYLA',
+            ansatz_reps=2,
+        )
+        solver.current_iter = 10
+
+        solver._enforce_eval_limit()  # at the limit, not past it
+
+    def test_no_limit_when_both_none(self, mock_backend_config, sample_hamiltonian):
+        """Library default stays unbounded; the CLI supplies DEFAULTS['max_evaluations']."""
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=None,
+            optimizer='COBYLA',
+            ansatz_reps=2,
+        )
+        assert solver.max_evaluations is None
+        solver.current_iter = 10**9
+
+        solver._enforce_eval_limit()  # no ceiling configured, so no raise
+
+    def test_smaller_of_max_iterations_and_max_evaluations_wins(
+        self, mock_backend_config, sample_hamiltonian
+    ):
+        """max_evaluations also caps a larger max_iterations; a smaller max_iterations wins."""
+        mock_process = MagicMock()
+        mock_process.result = -1.5
+        mock_process.parameters = np.array([0.1, 0.2])
+
+        solver = VQESolver(
+            qubit_op=sample_hamiltonian,
+            backend_config=mock_backend_config,
+            max_iterations=50,
+            max_evaluations=3,
+            optimizer='COBYLA',
+            ansatz_reps=2,
+        )
+        solver.vqe_process = [mock_process]
+        assert solver._evaluation_limit() == 3
+        solver.current_iter = 4
+        with pytest.raises(MaxFunctionEvalsReachedError):
+            solver._enforce_eval_limit()
+
+        solver.max_iterations = 2
+        assert solver._evaluation_limit() == 2
+
 
 class TestVQESolverSeed:
     """Tests for seed-based reproducibility via VQESolver."""

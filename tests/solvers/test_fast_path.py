@@ -201,6 +201,22 @@ def test_fast_path_stops_at_max_iterations(h2_cell, backend_config):
     assert float(result.minimum) == min(float(row.result) for row in result.iteration_list)
 
 
+def test_fast_path_stops_at_max_evaluations_under_convergence(h2_cell, backend_config):
+    """--convergence leaves max_iterations None, so max_evaluations is the only bound. One
+    analytic objective call is one evaluation and one row, so the run stops after exactly 5."""
+    solver = _fast_solver(
+        h2_cell.qubit_op,
+        backend_config,
+        max_iterations=None,
+        convergence_threshold=1e-12,
+        max_evaluations=5,
+    )
+    result = solver.via_statevector()
+
+    assert len(result.iteration_list) == 5
+    assert result.success is False
+
+
 @pytest.mark.parametrize(
     'overrides, expect_fast',
     [
