@@ -11,33 +11,16 @@ from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
-from airflow.utils.email import send_email
+from airflow.sdk import Asset
 from airflow.utils.log.logging_mixin import LoggingMixin
 from common.dag_defaults import make_default_args
-from common.pipeline_config import AIRFLOW_ALERT_EMAIL, S3_BUCKET_URL, S3_WAREHOUSE_URL
+from common.pipeline_config import S3_BUCKET_URL, S3_WAREHOUSE_URL
 
 logger = LoggingMixin().log
 
-
-# function to send success email with processing results
-def send_success_email(context):
-    """Send a detailed success email with processing summary"""
-    task_instance = context['task_instance']
-    results = task_instance.xcom_pull(task_ids='run_quantum_processing')
-
-    if not results:
-        results = 'No data processed'
-
-    subject = f'Quantum Processing Success: {context["logical_date"]}'
-    html_content = f"""
-    <h3>Quantum Processing Completed Successfully</h3>
-    <p><b>Execution Date:</b> {context['execution_date']}</p>
-    <p><b>Processing Results:</b></p>
-    <pre>{results}</pre>
-    <p>View the <a href="{context['task_instance'].log_url}">logs</a> for more details.</p>
-    """
-
-    send_email(to=[AIRFLOW_ALERT_EMAIL], subject=subject, html_content=html_content)
+# emitted when a processing run finishes - Iceberg warehouse run writes to
+# TODO: move it to a shared var; keep in sync with quantum_ml_feature_dag.py
+QUANTUM_FEATURES_ASSET = Asset('s3://features/warehouse/quantum_features')
 
 
 # create the DAG
@@ -45,9 +28,13 @@ with DAG(
     'quantum_feature_processing',
     default_args=make_default_args(retries=3, retry_delay=timedelta(minutes=20)),
     description='Process quantum experiment data into ML feature tables',
-    schedule=timedelta(days=1),
+    schedule='@daily',
     start_date=datetime(2025, 1, 1),
     catchup=False,
+    # Spark resolves jars into a shared ivy cache; run this one at a time.
+    # NOTE: two concurrent runs of this DAG race on that cache
+    # one of them fails with 'unresolved dependency'.
+    max_active_runs=1,
     tags=['quantum', 'ML', 'features', 'processing', 'Apache Spark'],
 ) as dag:
     quantum_simulation_results_processing = SparkSubmitOperator(
@@ -64,6 +51,7 @@ with DAG(
         },
         execution_timeout=timedelta(hours=2),
         sla=timedelta(hours=1, minutes=30),
-        on_success_callback=send_success_email,
+        # asset updated only on success - schedules quantum_ml_feature_processing
+        outlets=[QUANTUM_FEATURES_ASSET],
         verbose=True,
     )

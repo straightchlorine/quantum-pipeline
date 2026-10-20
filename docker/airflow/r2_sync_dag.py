@@ -1,18 +1,20 @@
 """
 Airflow DAG: R2 Sync via rclone
 
-Incrementally syncs processed ML feature tables from Garage (local S3) to
-Cloudflare R2 using rclone:
+Runs when quantum_ml_feature_processing updates its ML features asset on success
++ possible manual trigger.
+
+Syncs processed ML feature tables from Garage to Cloudflare R2 via rclone:
 
   garage:features/warehouse/quantum_features/ml_iteration_features/
-    → r2:qp-data/features/ml_iteration_features/
+    -> r2:qp-data/features/ml_iteration_features/
 
   garage:features/warehouse/quantum_features/ml_run_summary/
-    → r2:qp-data/features/ml_run_summary/
+    -> r2:qp-data/features/ml_run_summary/
 
 Prerequisites:
-  - rclone must be installed in the Airflow container image (Dockerfile.airflow).
-  - Rclone remotes configured via environment variables (no rclone config file needed):
+  - rclone must be installed within the container;
+  - rclone remotes configured via env vars:
 
     Garage remote ("garage"):
       RCLONE_CONFIG_GARAGE_TYPE=s3
@@ -31,11 +33,8 @@ Prerequisites:
       RCLONE_CONFIG_R2_SECRET_ACCESS_KEY=<r2-secret-key>
       RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
 
-  Inject via docker-compose.ml.yaml env_file, or override at runtime with
-  Airflow Variables (R2_SYNC_GARAGE_WAREHOUSE, R2_SYNC_R2_BUCKET, etc.).
+  - Inject via docker compose or override at runtime with Airflow Variables.
 
-Schedule: manual trigger by default (set R2_SYNC_SCHEDULE Variable to override,
-e.g. "@weekly"). Depends on quantum_ml_feature_processing completing first.
 """
 
 import os
@@ -45,23 +44,17 @@ from airflow import DAG
 from airflow.exceptions import AirflowException
 from airflow.models import Variable
 from airflow.providers.standard.operators.python import PythonOperator
-from airflow.providers.standard.sensors.external_task import ExternalTaskSensor
+from airflow.sdk import Asset
 from airflow.utils.log.logging_mixin import LoggingMixin
 from common.dag_defaults import make_default_args
 
 logger = LoggingMixin().log
 
-# ------------------------------------------------------------------
-# Schedule: None (manual) unless overridden via Airflow Variable.
-# This is the only Variable.get() at module scope — acceptable for
-# schedule since it's a single cheap DB call.
-# ------------------------------------------------------------------
-_schedule = Variable.get('R2_SYNC_SCHEDULE', default_var=None)
-if _schedule == 'None' or _schedule == '':
-    _schedule = None
+# emitted by quantum_ml_feature_processing when the ML feature tables are written.
+# TODO: move it to a shared var; until then keep in sync with quantum_ml_feature_dag.py
+ML_FEATURES_ASSET = Asset('s3://features/warehouse/quantum_features/ml_features')
 
-# rclone env keys — read from container environment (cheap, no DB hit).
-# Airflow Variable overrides are resolved at task runtime only.
+# rclone env keys (alternatively - airflow variables)
 _RCLONE_ENV_KEYS = [
     'RCLONE_CONFIG_GARAGE_TYPE',
     'RCLONE_CONFIG_GARAGE_PROVIDER',
@@ -173,22 +166,13 @@ with DAG(
     'r2_sync',
     default_args=default_args,
     description='Sync ML feature Parquet files from Garage to Cloudflare R2 via rclone',
-    schedule=_schedule,
+    # runs when quantum_ml_feature_processing succeeds
+    schedule=[ML_FEATURES_ASSET],
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['quantum', 'ML', 'r2', 'sync', 'rclone'],
 ) as dag:
-
-    wait_for_ml_features = ExternalTaskSensor(
-        task_id='wait_for_ml_feature_processing',
-        external_dag_id='quantum_ml_feature_processing',
-        external_task_id='run_ml_feature_processing',
-        execution_delta=timedelta(0),
-        mode='reschedule',
-        poke_interval=60,
-        timeout=7200,
-    )
-
+    # if either source or the remote is unreachable - fail
     health_check = PythonOperator(
         task_id='rclone_health_check',
         python_callable=_health_check_fn,
@@ -206,4 +190,5 @@ with DAG(
         op_kwargs={'table_name': 'ml_run_summary'},
     )
 
-    wait_for_ml_features >> health_check >> [sync_iteration_features, sync_run_summary]
+    # the two table syncs are independent - run them in parallel after the check
+    health_check >> [sync_iteration_features, sync_run_summary]

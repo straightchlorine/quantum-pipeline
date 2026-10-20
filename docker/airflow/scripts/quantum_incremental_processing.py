@@ -1,32 +1,27 @@
 """Incremental VQE experiment data -> feature tables in Iceberg format.
 
-Contract of one run (`main`), for every topic directory under `S3_BUCKET_URL`:
+One run, for every topic directory under `S3_BUCKET_URL`:
 
-1. Re-read EVERY raw Avro/JSON file of the topic. There is no watermark and no
-   file bookkeeping, so the cost of a run grows with the whole history.
-2. Collapse records that share an `experiment_id` (a raw file delivered twice)
-   to one, then flatten them into 9 feature tables (molecules, vqe_results,
-   vqe_iterations, ...). Each table has derived key columns: `experiment_id`
-   (hash of the record's inputs, see `_experiment_identity`) or an id built
-   from it by plain string concatenation with the position of the row.
-3. For each table, anti-join against the keys already in the Iceberg table and
-   append only the rows whose key is absent. Already-seen rows are never
-   updated, so the first copy of a key wins. If the table does not exist yet,
-   it is created from the whole frame instead.
-4. After each write, tag the new snapshot `v_<batch>` / `v_incr_<batch>` (an
-   Iceberg tag is a named pointer to a snapshot: it lets you query the table
-   exactly as it was after this run with `VERSION AS OF`, and keeps that
-   snapshot from being removed by snapshot expiry). The tags and row counts
-   of one run are recorded in the `processing_metadata` table.
+1. Re-read every raw Avro/JSON file of the topic.
+   TODO: add a watermark so the full re-read can be dropped.
 
-Tables created by an older version of this script have different key values
-and must be dropped and rebuilt from the raw files.
+2. Collapse records that share an `experiment_id` to one, then flatten
+   into 9 feature tables (molecules, vqe_results, vqe_iterations, ...).
+   Each table has derived key columns: `experiment_id` or an id built
+   by plain string concatenation with the position of the row.
+
+3. For each table, anti-join against the keys already in the Iceberg table
+   and append only the rows whose key is absent.
+
+4. After each write, tag the new snapshot `v_<batch>` / `v_incr_<batch>`.
 """
 
 import logging
 import sys
 import uuid
 from datetime import date, datetime, timezone
+from functools import reduce
+from operator import and_
 from typing import NamedTuple
 
 sys.path.insert(0, '/opt/airflow/dags')
@@ -41,6 +36,7 @@ from pyspark.sql.functions import (
     concat,
     concat_ws,
     explode,
+    get_json_object,
     lit,
     posexplode,
     row_number,
@@ -54,8 +50,12 @@ logger = logging.getLogger(__name__)
 
 _APP_NAME = 'Quantum Pipeline Feature Processing'
 
-# Partitions of the raw frame after the read (the raw files are small and numerous).
-_RAW_NUM_PARTITIONS = 4
+# partition count the raw topic frame is repartitioned to right after the read;
+# the raw files are many and small - 4 keeps the number of tasks from inflating
+# NOTE: repartition() does a full shuffle
+# could consider a coalesce() if the source gives more than 4 partitions.
+# TODO: analyze it
+_RAW_PARTITION_COUNT = 4
 
 
 class BatchInfo(NamedTuple):
@@ -97,8 +97,8 @@ def list_available_topics(spark, bucket_path):
         list: Topic (directory) names; empty if `bucket_path` does not exist or
         is not a directory.
     """
-    # S3A filesystem and credentials provider are configured in spark-defaults.conf
-    # (EnvironmentVariableCredentialsProvider reads AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
+    # S3A filesystem settings defined in compose/spark-defaults.conf.
+    # Credentials picked up from container env vars.
     fs = spark._jvm.org.apache.hadoop.fs.FileSystem.get(
         spark._jvm.java.net.URI.create(bucket_path), spark._jsc.hadoopConfiguration()
     )
@@ -124,20 +124,20 @@ def read_experiments_by_topic(spark, bucket_path, topic_name, num_partitions=Non
     Returns:
         DataFrame: the topic data, cached because every table reads it.
     """
-    # support both Avro (Kafka Connect) and JSON (Redpanda Connect) output
-    # Use recursiveFileLookup to handle both flat and time-partitioned layouts
-    # (S3A does not reliably support ** recursive globs)
     topic_dir = f'{bucket_path}{topic_name}'
 
+    # assume avro, fallback to json
     try:
         df = (
             spark.read.format('avro')
+            # recursiveFileLookup covers the flat and the time-partitioned layout;
+            # needed because S3A does not reliably support ** recursive globs
             .option('recursiveFileLookup', 'true')
             .option('pathGlobFilter', '*.avro')
             .load(topic_dir)
         )
     except Exception:
-        # TODO: JSON infers bigint where Avro has int, so the same column differs per source
+        # TODO: JSON infers bigint where Avro has int, the same column differs per source
         df = (
             spark.read.option('recursiveFileLookup', 'true')
             .option('pathGlobFilter', '*.json')
@@ -147,22 +147,15 @@ def read_experiments_by_topic(spark, bucket_path, topic_name, num_partitions=Non
     if num_partitions:
         df = df.repartition(num_partitions)
 
-    # cache the dataframe as it will be used multiple times
     return df.cache()
 
 
-# Separator between the hashed fields. A control character, so it cannot appear in
-# a molecule symbol, a Pauli label or a backend name and shift text between fields.
+# control-character separator; cannot appear in the records
 _IDENTITY_SEPARATOR = '\u001f'
 
 
 def _positive_zero(column, spark_type):
-    """Turn every -0.0 inside a double-typed `column` into 0.0, leave other types alone.
-
-    Avro keeps the sign of a negative zero, while Spark reads the JSON number `-0` as
-    0.0 and renders -0.0 as '-0.0', so the same record would hash differently. Adding
-    0.0 works because IEEE 754 defines -0.0 + 0.0 as 0.0.
-    """
+    """Turn every -0.0 inside a double-typed `column` into 0.0."""
     if spark_type == 'double':
         return column + lit(0.0)
     if spark_type == 'array<double>':
@@ -190,11 +183,9 @@ def _array_or_null(dataframe, path, element_type):
 
 
 def _experiment_identity(dataframe):
-    """Build the `experiment_id` column: sha256 over an explicit, ordered field list.
+    """Build the `experiment_id` column: sha256 over an ordered field list.
 
-    What goes into the hash, in this order (numerics are cast to a fixed type, ints
-    to `bigint` and floats to `double`, so Avro INT and JSON LONG render the same, and
-    a negative zero is rendered as 0.0 because JSON input cannot keep its sign):
+    Hash is built from:
 
     - `molecule_data`: symbols, coords, multiplicity, charge, units, masses
     - `basis_set`
@@ -204,15 +195,6 @@ def _experiment_identity(dataframe):
       ansatz_name, exact_estimator
     - `performance_start`, the only run-specific field the record has (a JSON
       snapshot with a timestamp, set only when performance monitoring was on)
-
-    No result field is hashed. Two properties follow. The id does not depend on the
-    schema Spark inferred (field order, extra fields), because nothing is read
-    through `to_json(struct(...))`, so Avro and JSON input give the same id and a
-    new field in the data cannot change it. And the same raw record always gets the
-    same id, which is what the key anti-join needs to recognise it, while a
-    different seed, basis or (with monitoring on) a different run gets a new one.
-    Without monitoring, a rerun with identical inputs shares the id of the first
-    run and is skipped by the anti-join (the first run wins).
 
     Args:
         dataframe: Raw experiment DataFrame; only its schema is inspected.
@@ -282,10 +264,15 @@ def add_metadata_columns(dataframe, processing_name):
         `processing_date`, `processing_batch_id` and `processing_name` added,
         BatchInfo with the same values for the caller).
     """
-    # Evaluated once here and passed as literals. current_timestamp() and
-    # current_date() are re-evaluated per Spark job, so the 9 tables and the
-    # metadata row would get different timestamps, and processing_date (a
-    # partition key) could differ across midnight within a single run.
+    # One timestamp for the whole run, passed as literals below.
+    # current_timestamp()/current_date() are re-evaluated once per query (one per
+    # table write) - the 9 feature tables and the processing_metadata row could
+    # each carry a different value.
+    #
+    # processing_date is an Iceberg partition column; it decides the storage layout.
+    # Disagreement could split a single run across two date partitions. Subsequent
+    # filtering by processing_date would silently miss the rows written after midnight.
+    # TODO: think on it a bit - is it what is required?
     now = datetime.now(timezone.utc)
     batch = BatchInfo(
         # one id per job run, not a dedup key, so random is fine
@@ -325,10 +312,10 @@ def identify_new_records(spark, new_data_df, table_name, key_columns):
             f'SELECT DISTINCT {", ".join(key_columns)} '  # noqa: S608
             f'FROM {CATALOG_FQN}.{table_name}'
         )
-        # left_anti keeps the left rows with no match on the right. An empty
-        # right side keeps everything. Keys are compared with `=`, so a row
-        # with a NULL key never matches and is re-appended on every run.
-        return new_data_df.join(existing_keys, on=key_columns, how='left_anti')
+        # left_anti keeps the left rows with no match on the right;
+        # comparing null-safe; if `=` was used a NULL key never matches
+        match = reduce(and_, (new_data_df[k].eqNullSafe(existing_keys[k]) for k in key_columns))
+        return new_data_df.join(existing_keys, on=match, how='left_anti')
 
     except Exception as e:
         raise RuntimeError(f'Error identifying new records: {e!s}') from e
@@ -337,8 +324,7 @@ def identify_new_records(spark, new_data_df, table_name, key_columns):
 def _tag_latest_snapshot(spark, table_name, version_tag):
     """Point the Iceberg tag `version_tag` at the newest snapshot of `table_name`.
 
-    The `snapshots` metadata table lists every commit of the table; the write that
-    just finished is the one with the latest `committed_at`.
+    The write that just finished is the one with the latest `committed_at`.
     """
     snapshot_id = spark.sql(
         f'SELECT snapshot_id FROM {CATALOG_FQN}.{table_name}.snapshots '  # noqa: S608
@@ -357,8 +343,8 @@ def process_incremental_data(
     """Write the rows of `new_data_df` that the target table does not have yet.
 
     Creates the table on the first run, appends afterwards, then tags the new
-    snapshot so this run's result can be found later (`v_<batch>` for the
-    creating run, `v_incr_<batch>` for appends).
+    snapshot so the run is identifiable (`v_<batch>` for first one, `v_incr_<batch>`
+    for incremental ones).
 
     Args:
         spark: SparkSession.
@@ -373,18 +359,15 @@ def process_incremental_data(
         tuple: (version_tag, new_record_count), or (None, 0) when there was
         nothing to write: the input was empty or every key already exists.
     """
-    # An exploded child frame is empty when a run has no hamiltonian terms or
-    # iterations. Writing it would create an empty table and an empty snapshot.
+    # empty when run has no hamiltonian terms or iterations;
+    # would result in an empty table and snapshot
     if new_data_df.isEmpty():
         logger.info('Input dataset is empty for %s', table_name)
         return None, 0
 
     batch_suffix = batch_id.replace('-', '')
 
-    # The existence check comes before any filtering because the two cases
-    # differ in more than the filter: with no table there is nothing to
-    # anti-join against (querying it would fail), and only the creating write
-    # can set partitioning and the table comment.
+    # with no table - nothing to anti-join against; first check
     if not spark.catalog.tableExists(f'{CATALOG_FQN}.{table_name}'):
         writer = new_data_df.write.format('iceberg').option('write-format', 'parquet')
 
@@ -396,8 +379,8 @@ def process_incremental_data(
 
         writer.mode('overwrite').saveAsTable(f'{CATALOG_FQN}.{table_name}')
 
-        # Lets a later append add new columns: without this property Iceberg rejects
-        # a write whose schema differs from the table, whatever the writer asks for.
+        # permitting further appending
+        # Iceberg rejects a write with a schema differing from the table
         spark.sql(f"""
         ALTER TABLE {CATALOG_FQN}.{table_name}
         SET TBLPROPERTIES ('write.spark.accept-any-schema'='true')
@@ -419,11 +402,16 @@ def process_incremental_data(
         logger.info('No new records found for table %s', table_name)
         return None, 0
 
-    # DataFrameWriterV2 is the API the Iceberg docs show for schema merge. With
-    # `mergeSchema` a column that is new in the frame is added to the table (old rows
-    # get NULL); the table property set at creation is the other half of the opt-in.
-    # Partitioning is fixed by the table, so there is no partitionBy on append.
-    (truly_new_data.writeTo(f'{CATALOG_FQN}.{table_name}').option('mergeSchema', 'true').append())
+    # mergeSchema - column that is new in the frame is added to the table
+    # (old rows get null)
+    # check-ordering - as versions change this script may contain columns in
+    # another order
+    (
+        truly_new_data.writeTo(f'{CATALOG_FQN}.{table_name}')
+        .option('mergeSchema', 'true')
+        .option('check-ordering', 'false')
+        .append()
+    )
 
     logger.info('Appended %d new records to table %s', new_record_count, table_name)
 
@@ -474,14 +462,12 @@ def transform_quantum_data(df):
         col('processing_name'),
     )
 
-    # Redpanda Connect delivers at least once, so a raw file can arrive twice and the
-    # same experiment_id would then appear in every table twice (the key anti-join
-    # only compares with rows already in the table, not within the batch). The record
-    # has no reliable timestamp ("keep the latest" is not possible: performance_end is
-    # a JSON snapshot that is NULL without monitoring), and copies with the same id may
-    # still differ in their results (a rerun with identical inputs). So dropDuplicates,
-    # whose pick is arbitrary, is not enough; row_number over a fixed ordering of
-    # result columns picks the same copy on every run.
+    # Since Redpanda Connect delivers at least once, raw file can arrive twice
+    # and the same experiment_id would then appear in every table twice.
+    # No reliable timestamp and copies with the same id might still differ in the
+    # results.
+    # dropDuplicates is arbitrary, so it's combined with row_number over fixed
+    # ordering.
     one_per_experiment = Window.partitionBy('experiment_id').orderBy(
         col('total_time').desc(),
         col('minimum_energy').asc(),
@@ -494,16 +480,16 @@ def transform_quantum_data(df):
         .drop('_copy_rank')
     )
 
-    # Every table below derives from base_df, and base_df holds the experiment_id
-    # hash. Without persist() each count/isEmpty/write of each table would
-    # recompute the hash from the raw files. The caller unpersists it.
+    # Every table below derives from base_df.
+    # base_df holds the experiment_id hash; persist in order to keep it from
+    # recomputing.
     base_df = base_df.persist()
 
     df_molecule = base_df.select(
         col('experiment_id'),
         col('molecule_id'),
         col('molecule_data.symbols').alias('atom_symbols'),
-        # TODO: molecule_name = array_join(symbols) is shared by geometries and charge states
+        # TODO: molecule_name = array_join(symbols), shared by geometries and charge states
         array_join(col('molecule_data.symbols'), '').alias('molecule_name'),
         col('molecule_data.coords').alias('coordinates'),
         col('molecule_data.multiplicity').alias('multiplicity'),
@@ -545,6 +531,7 @@ def transform_quantum_data(df):
         ),
         col('performance_start'),
         col('performance_end'),
+        get_json_object(col('performance_start'), '$.container_type').alias('container_type'),
         col('processing_timestamp'),
         col('processing_date'),
         col('processing_batch_id'),
@@ -556,6 +543,10 @@ def transform_quantum_data(df):
         col('molecule_id'),
         col('basis_set'),
         col('initial_data.backend').alias('backend'),
+        # The Aer backend name is identical for both cards
+        # (aer_simulator_statevector_gpu).
+        # It's the container type the run reported within the performance snapshot.
+        get_json_object(col('performance_start'), '$.container_type').alias('container_type'),
         col('initial_data.num_qubits').alias('num_qubits'),
         col('initial_data.optimizer').alias('optimizer'),
         col('initial_data.noise_backend').alias('noise_backend'),
@@ -579,9 +570,8 @@ def transform_quantum_data(df):
         col('processing_name'),
     )
 
-    # posexplode keeps the position in the parameter vector, which says which gate
-    # the value belongs to. The position is also what makes the id unique: values
-    # repeat (all-zero initial parameters), positions do not.
+    # posexplode keeps the position in the parameter vector, determining
+    # which gate the value belongs to; also makes id unique
     df_initial_parameters = base_df.select(
         col('experiment_id'),
         col('molecule_id'),
@@ -616,11 +606,10 @@ def transform_quantum_data(df):
         concat(col('experiment_id'), lit('_opt_'), col('parameter_index').cast('string')),
     )
 
-    # One row per (experiment, step) is kept. base_df already has one record per
-    # experiment, so this guards a run that reports the same step twice: the steps
-    # would repeat the same iteration_id inside one batch, and the key anti-join only
-    # sees ROWS ALREADY IN THE TABLE, not duplicates within the batch. Which copy
-    # survives is arbitrary.
+    # One row per (experiment, step) is kept.
+    # Since base_df already has one record per experiment, this guards a run
+    # that reports the same step twice: the steps would repeat the same
+    # iteration_id inside one batch.
     df_iterations = (
         base_df.select(
             col('experiment_id'),
@@ -907,7 +896,7 @@ def check_for_new_data(spark, topic, bucket_path):
     """
     logger.info('Processing topic: %s', topic)
 
-    df = read_experiments_by_topic(spark, bucket_path, topic, num_partitions=_RAW_NUM_PARTITIONS)
+    df = read_experiments_by_topic(spark, bucket_path, topic, num_partitions=_RAW_PARTITION_COUNT)
 
     if df.isEmpty():
         logger.info('No data available in topic %s', topic)
@@ -918,8 +907,8 @@ def check_for_new_data(spark, topic, bucket_path):
 
 def main():
     """Main entry point for the quantum feature processing script."""
-    # spark-submit does not configure Python logging, and the root logger
-    # defaults to WARNING, so without this every logger.info is dropped.
+    # spark-submit doesn't configure logging; root logger defaults to WARNING,
+    # so without this logger.info is dropped.
     logging.basicConfig(
         level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s'
     )
