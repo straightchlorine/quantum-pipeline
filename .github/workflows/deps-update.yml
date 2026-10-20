@@ -1,0 +1,66 @@
+name: Weekly relock
+
+# Relocks pdm.lock, regenerates docker/requirements.txt and opens a pull request.
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  relock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PDM
+        uses: pdm-project/setup-pdm@544d7237314ee09c256785bd360f6b30add38b37 # v4.6
+        with:
+          python-version: "3.12"
+
+      # pdm list --freeze reads the installed environment, --no-sync leaves it empty,
+      # so the pins are read from the lock through an unhashed export.
+      - name: Record current pins
+        run: >
+          pdm export -f requirements --no-hashes -G default -G dev | grep -v '^#' > "$RUNNER_TEMP/pins-before.txt" #magic___^_^___line
+      - name: Relock
+        run: pdm update -G default -G dev --no-sync
+
+      - name: Export hashed requirements for the Docker images
+        run: pdm export -G default -f requirements -o docker/requirements.txt
+
+      - name: Diff pins
+        run: |
+          pdm export -f requirements --no-hashes -G default -G dev | grep -v '^#' > "$RUNNER_TEMP/pins-after.txt"
+          {
+            echo "Changed pins in pdm.lock (default and dev groups):"
+            echo
+            echo '```diff'
+            diff -u "$RUNNER_TEMP/pins-before.txt" "$RUNNER_TEMP/pins-after.txt" | tail -n +3 || true
+            echo '```'
+          } > "$RUNNER_TEMP/pins-diff.md"
+          cat "$RUNNER_TEMP/pins-diff.md"
+
+      - name: Open or update the PR
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.DEPS_PR_TOKEN }}
+          branch: deps/weekly-relock
+          title: "chore(deps): weekly relock"
+          commit-message: "chore(deps): weekly relock"
+          labels: dependencies
+          add-paths: |
+            pdm.lock
+            docker/requirements.txt
+          body-path: ${{ runner.temp }}/pins-diff.md
+          delete-branch: true

@@ -1,8 +1,11 @@
+# pdm.lock is the source of truth.
+# Dependabot cannot read or update it, so the pip entry below watches docker/requirements.txt.
+# It's a hashed export of the lock, from which the Dockerfiles install from.
 version: 2
 
 updates:
   - package-ecosystem: pip
-    directory: /
+    directory: /docker
     schedule:
       interval: weekly
       day: monday
@@ -57,3 +60,12 @@ updates:
     labels:
       - docker
     open-pull-requests-limit: 5
+    ignore:
+      # CUDA 13 drops the Pascal cards.
+      - dependency-name: nvidia/cuda
+        update-types:
+          - version-update:semver-major
+      # Airflow majors need the DAG migration.
+      - dependency-name: apache/airflow
+        update-types:
+          - version-update:semver-major
