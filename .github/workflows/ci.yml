@@ -5,10 +5,14 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  # Called by the Release workflow (publish.yml) on the tagged commit.
+  workflow_call:
 
 permissions:
   contents: read
 
+# When called, github.workflow is the caller's name ("Release"), so the group
+# is unique per release tag and never collides with the caller's own group.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
