@@ -1,8 +1,21 @@
 name: Publish GPU Image
 
+# Called by the Release workflow (publish.yml) on a tag push, which attaches
+# the SBOM to the GitHub release itself. Run it by hand to rebuild the image
+# of an existing release.
+
 on:
-  push:
-    tags: ["[0-9]+.[0-9]+.[0-9]+"]
+  workflow_call:
+    inputs:
+      version:
+        description: "Release tag to build"
+        required: true
+        type: string
+      cuda_arch:
+        description: "CUDA compute capabilities to compile for (empty = the Dockerfile's multi-generation default)"
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       version:
@@ -29,6 +42,7 @@ concurrency:
 
 jobs:
   build-gpu-image:
+    name: Build GPU image
     runs-on: ubuntu-latest
     timeout-minutes: 300
     environment: docker
@@ -123,6 +137,7 @@ jobs:
         run: test -n "$DIGEST"
 
   sign-and-attest:
+    name: Sign & attest GPU image
     needs: [build-gpu-image]
     runs-on: ubuntu-latest
     environment: docker
@@ -181,9 +196,11 @@ jobs:
           subject-name: index.docker.io/${{ github.repository }}
           subject-digest: ${{ needs.build-gpu-image.outputs.digest }}
 
-  # The release is created by publish.yml on the same tag push.
-  # Since it's usually before this image finishes; wait for it, then attach.
+  # Manual rebuilds only: on a release, publish.yml attaches the SBOM when it
+  # creates the GitHub release, which happens after this workflow finishes.
   attach-sbom:
+    name: Attach SBOM to release
+    if: github.event_name == 'workflow_dispatch'
     needs: [build-gpu-image, sign-and-attest]
     runs-on: ubuntu-latest
     permissions:
@@ -199,14 +216,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.build-gpu-image.outputs.version }}
-        run: |
-          for i in $(seq 1 30); do
-            gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
-            echo "release $VERSION not created yet (attempt $i/30)"; sleep 30
-          done
-          gh release upload "$VERSION" --repo "$GITHUB_REPOSITORY" --clobber sbom/*
+        run: gh release upload "$VERSION" --repo "$GITHUB_REPOSITORY" --clobber sbom/*
 
   scan-gpu-image:
+    name: Scan GPU image
     needs: [build-gpu-image]
     runs-on: ubuntu-latest
     permissions:
@@ -236,8 +249,10 @@ jobs:
             if find "$aer_dir" -name "*.so" -exec ldd {} + | grep "not found"; then exit 1; fi
             python -m quantum_pipeline --help > /dev/null'
 
+      # Informational: a scanner failure does not block the release.
       - name: Scan GPU image
         id: scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.GHCR_IMAGE }}@${{ needs.build-gpu-image.outputs.digest }}
@@ -252,6 +267,7 @@ jobs:
 
       - name: Upload report to Security tab
         if: steps.scan.outcome == 'success'
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           sarif_file: trivy-results.sarif
