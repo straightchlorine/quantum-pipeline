@@ -2,13 +2,16 @@
 Airflow DAG: VQE batch generation wrapper (vqe_batch_generation_dag.py).
 
 Wraps scripts/generate_ml_batch.py as a single BashOperator task so that
-Airflow can provide scheduling, alerting, and ExternalTaskSensor chaining
-to the downstream Spark processing DAG - without the LocalExecutor
+Airflow can provide triggering, alerting and run state - without the LocalExecutor
 scalability problems of orchestrating 3,200 individual VQE tasks.
+
+Not chained to the Spark processing DAG (no sensor, no asset): results reach S3
+through Kafka and Redpanda Connect, and quantum_feature_processing picks them up
+on its own daily schedule.
 
 Architecture: Option C1 (hybrid) from QUA-36 research.
   - Script handles all generation logic (3-lane parallel, JSON state, resume)
-  - Airflow handles: scheduling, email-on-failure, ExternalTaskSensor trigger
+  - Airflow handles: manual trigger, email-on-failure, run state
 
 Tasks:
   1. build_images         - builds quantum-pipeline:cpu and :gpu via Docker socket

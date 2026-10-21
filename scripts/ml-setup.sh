@@ -67,7 +67,7 @@ if [ "${S3_ENDPOINT}" != "${LOCAL_S3_ENDPOINT}" ]; then
     # Garage answers an anonymous request with 403; any HTTP status means something is there.
     PROBE=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "${S3_ENDPOINT}/" 2>/dev/null) || PROBE=000
     if [ "${PROBE}" != "000" ]; then
-        ok "${S3_ENDPOINT} answers (HTTP ${PROBE}); using it, the compose Garage stays off"
+        ok "${S3_ENDPOINT} answers (HTTP ${PROBE}); using it (the compose Garage is not used)"
         REMOTE=true
     else
         warn "${S3_ENDPOINT} did not answer; falling back to the compose Garage"

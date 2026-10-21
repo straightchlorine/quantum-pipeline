@@ -19,7 +19,7 @@ Prerequisites:
     Garage remote ("garage"):
       RCLONE_CONFIG_GARAGE_TYPE=s3
       RCLONE_CONFIG_GARAGE_PROVIDER=Other
-      RCLONE_CONFIG_GARAGE_ENDPOINT=http://garage:3900
+      RCLONE_CONFIG_GARAGE_ENDPOINT=${S3_ENDPOINT} (default http://garage:3901, the S3 API)
       RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID=<garage-access-key>
       RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY=<garage-secret-key>
       RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE=true
