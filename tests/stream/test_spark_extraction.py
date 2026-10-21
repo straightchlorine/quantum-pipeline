@@ -734,6 +734,17 @@ class TestIdentifyNewRecords:
 
         assert sorted(r['key'] for r in result.collect()) == ['a', 'b', 'c']
 
+    def test_null_key_already_in_table_is_not_appended_again(self, spark, monkeypatch):
+        existing = spark.createDataFrame([('x', None)], 'key string, sub int')
+        self._patch_existing(monkeypatch, spark, existing)
+        batch = spark.createDataFrame(
+            [('x', None, 1), ('x', 2, 2)], 'key string, sub int, value int'
+        )
+
+        result = identify_new_records(spark, batch, 'any_table', ['key', 'sub'])
+
+        assert [(r['key'], r['sub'], r['value']) for r in result.collect()] == [('x', 2, 2)]
+
 
 class TestBatchMetadataIsShared:
     def test_timestamp_and_date_identical_across_all_tables(self, sample_df):

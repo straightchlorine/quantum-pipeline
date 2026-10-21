@@ -51,6 +51,12 @@ def test_without_convergence_max_iterations_is_kept():
     assert call['convergence_threshold'] is None
 
 
+def test_max_evaluations_is_passed_on_with_and_without_convergence():
+    """The ceiling reaches the runner on both paths; --convergence must not drop it."""
+    assert _run(max_evaluations=1234)['max_evaluations'] == 1234
+    assert _run(convergence=True, max_evaluations=1234)['max_evaluations'] == 1234
+
+
 def test_default_shots_none_runs_exact():
     """Without --shots the runner gets default_shots=None, the exact path."""
     assert _run(shots=DEFAULTS['shots'])['default_shots'] is None

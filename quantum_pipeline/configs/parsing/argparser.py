@@ -156,6 +156,17 @@ class QuantumPipelineArgParser:
         )
 
         vqe_group.add_argument(
+            '--max-evaluations',
+            type=self.positive_int,
+            default=DEFAULTS['max_evaluations'],
+            help=(
+                'Hard ceiling on energy evaluations; also bounds --max-iterations when both '
+                'apply (the smaller wins). Under --convergence it is the only bound, since '
+                'optimiser steps alone cost one evaluation per parameter on the finite-difference lanes.'
+            ),
+        )
+
+        vqe_group.add_argument(
             '--convergence',
             action='store_true',
             default=DEFAULTS['convergence_threshold_enable'],

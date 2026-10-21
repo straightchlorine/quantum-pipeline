@@ -35,6 +35,7 @@ def execute_simulation(**kwargs):
         basis_set=kwargs['basis'],
         max_iterations=max_iterations,
         convergence_threshold=threshold,
+        max_evaluations=kwargs.get('max_evaluations'),
         optimizer=kwargs['optimizer'],
         ansatz_reps=kwargs['ansatz_reps'],
         ansatz_type=kwargs.get('ansatz_type', 'EfficientSU2'),
