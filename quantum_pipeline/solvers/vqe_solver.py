@@ -61,12 +61,14 @@ class VQESolver(Solver):
         ansatz_reps: int = 3,
         ansatz_type: str = 'EfficientSU2',
         default_shots: int | None = 1024,
+        no_analytic: bool = False,
         convergence_threshold: float | None = None,
         optimization_level: int = 3,
         seed: int | None = None,
         init_strategy: str = 'random',
         hf_data: HFData | None = None,
         mapper: Mapper | None = None,
+        max_evaluations: int | None = None,
     ) -> None:
         super().__init__()
         self.qubit_op = qubit_op
@@ -74,9 +76,11 @@ class VQESolver(Solver):
         self.ansatz_type = ansatz_type
         self.optimizer = optimizer
         self.max_iterations = max_iterations
+        self.max_evaluations = max_evaluations
         self.seed = seed
         self.digits_iter = len(str(max_iterations))
         self.default_shots = default_shots
+        self.no_analytic = no_analytic
         self.backend_config = backend_config
         self.vqe_process: list[VQEProcess] = []
         # One gradient object per solver.
@@ -315,14 +319,22 @@ class VQESolver(Solver):
             success=False,
         )
 
+    def _evaluation_limit(self) -> int | None:
+        """Smaller of the configured budgets, or None when neither is set."""
+        limits = [v for v in (self.max_iterations, self.max_evaluations) if v is not None]
+        return min(limits) if limits else None
+
     def _enforce_eval_limit(self) -> None:
         """Raise MaxFunctionEvalsReachedError once the evaluation budget is spent.
 
         max_iterations bounds objective calls, not optimiser steps.
         Raising rather than returning a sentinel keeps the partial trajectory intact
         for the truncated result.
+
+        The effective limit: min(max_iterations, max_evaluations), None if both unset.
         """
-        if self.max_iterations is not None and self.current_iter > self.max_iterations:
+        limit = self._evaluation_limit()
+        if limit is not None and self.current_iter > limit:
             best = self._best_step()
             raise MaxFunctionEvalsReachedError(
                 iteration=self.current_iter - 1,
@@ -385,6 +397,9 @@ class VQESolver(Solver):
         replace a run that already asked for exact, noiseless, local expectation values
         with a gradient optimizer.
 
+        no_analytic forces the Aer path even when the run is otherwise eligible; it exists so
+        a benchmark can measure the Aer exact CPU lane that the analytic path would replace.
+
         gpu is excluded even though the analytic path is faster. The analytic path is plain
         NumPy on the host, while vqe_runner reports backend_type='GPU' from the flag alone.
 
@@ -393,6 +408,8 @@ class VQESolver(Solver):
 
         TODO: consider how to include gpu for this path also.
         """
+        if self.no_analytic:
+            return False
         # local is bool | None. "is True" rejects None, which means "not asked for".
         return (
             self.default_shots is None
@@ -530,7 +547,7 @@ class VQESolver(Solver):
         if truncated is not None:
             self.logger.info(
                 f'Hard evaluation limit reached after {truncated.iteration} function evaluations '
-                f'(limit: {self.max_iterations}). Best energy: {truncated.best_energy:.8f} Ha'
+                f'(limit: {self._evaluation_limit()}). Best energy: {truncated.best_energy:.8f} Ha'
             )
             self._log_total_energy(truncated.best_energy)
             return self._make_truncated_result(

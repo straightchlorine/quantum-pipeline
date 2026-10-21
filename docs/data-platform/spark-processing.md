@@ -27,16 +27,18 @@ the Airflow driver).
 
 Worker memory and cores are configurable via `SPARK_WORKER_MEMORY` and
 `SPARK_WORKER_CORES` in
-[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml#L245).
+[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml).
 
 Key details:
 
 - Workers register with the master at `spark://spark-master:7077`
 - Airflow submits jobs via `SparkSubmitOperator`
-- Workers access Garage through the S3A filesystem connector
-- Configuration is loaded from
-  [`compose/spark-defaults.conf`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/spark-defaults.conf)
-  mounted into containers
+- Workers access the object store (Garage by default) through the S3A
+  filesystem connector
+- Configuration is loaded from `compose/spark-defaults.conf`, which `just setup`
+  renders from
+  [`compose/spark-defaults.conf.template`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/spark-defaults.conf.template)
+  and which is mounted into containers
 - S3 credentials are passed via `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
   environment variables
 - JAR dependencies (Iceberg runtime, Hadoop AWS, Spark Avro) are resolved via
@@ -59,7 +61,7 @@ from `spark-defaults.conf`:
 
 | Setting | Value |
 |---------|-------|
-| S3A endpoint | `http://garage:3901`, path-style access, fast upload |
+| S3A endpoint | `S3_ENDPOINT` and `S3_REGION` from `.env` (default `http://garage:3901`, region `garage`), path-style access, fast upload |
 | Iceberg catalog | `quantum_catalog`, Hadoop type, warehouse at `s3a://features/warehouse/` |
 | Serialization | KryoSerializer |
 | Memory | 1 GB driver, 1536 MB executor, 8 shuffle partitions |
@@ -120,10 +122,17 @@ child tables are built from the `experiment_id` and a position or step number;
 the exact formats are in
 [the processing script](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/scripts/quantum_incremental_processing.py).
 
-Columns added to the base tables: `exact_estimator` in `vqe_results`,
-`performance_start` and `performance_end` in `performance_metrics`, and the
-positional `parameter_index` and `term_index` in the parameter and Hamiltonian
-tables.
+Columns added to the base tables: `exact_estimator` and `container_type` in
+`vqe_results`, `performance_start`, `performance_end` and `container_type` in
+`performance_metrics`, and the positional `parameter_index` and `term_index`
+in the parameter and Hamiltonian tables.
+
+`container_type` is the hardware label the run reported (for example `CPU` or
+`GPU_GTX1060_6GB`), read from the performance snapshot. It tells GPU lanes apart,
+because the Aer backend name is the same for both cards. The label comes from the
+`CONTAINER_TYPE` variable, which the batch services in the compose file set. It
+is `unknown` when monitoring ran without `CONTAINER_TYPE`, and empty (NULL) for
+runs without performance monitoring.
 
 ### ML Feature Tables (2 tables)
 

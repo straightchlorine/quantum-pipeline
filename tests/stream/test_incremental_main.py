@@ -65,8 +65,10 @@ def test_append_merges_schema_through_the_v2_writer(monkeypatch):
 
     assert (tag, count) == ('v_incr_ab', 3)
     new_rows.writeTo.assert_called_once_with(f'{qip.CATALOG_FQN}.molecules')
-    new_rows.writeTo.return_value.option.assert_called_once_with('mergeSchema', 'true')
-    new_rows.writeTo.return_value.option.return_value.append.assert_called_once_with()
+    merge = new_rows.writeTo.return_value.option
+    merge.assert_called_once_with('mergeSchema', 'true')
+    merge.return_value.option.assert_called_once_with('check-ordering', 'false')
+    merge.return_value.option.return_value.append.assert_called_once_with()
 
 
 def test_created_table_accepts_any_schema():

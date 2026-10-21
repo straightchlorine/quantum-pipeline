@@ -1,5 +1,4 @@
-"""
-Quantum ML Feature Processing Script
+"""Quantum ML Feature Processing
 
 Reads 5 of the normalized Iceberg tables produced by quantum_incremental_processing.py
 (vqe_iterations, vqe_results, molecules, performance_metrics, ansatz_info) and joins them
@@ -8,35 +7,39 @@ into two ML-ready feature tables:
   - ml_iteration_features  (one row per iteration per experiment)
   - ml_run_summary         (one row per VQE run, aggregated from iterations)
 
-Each table is written incrementally and gated on its own: for every target table only the
-experiment_ids not yet present in THAT table are processed. A crash between the two writes
-therefore self-heals on the next run (the run missing from ml_run_summary is rebuilt and
-only that table is written), instead of leaving a run without a summary row forever.
+Each table is gated on its own contents: for every target table only the experiment_ids not
+yet present in that table are processed.
+A crash between the two writes self-heals on the next run. It doesn't leave a run without summary.
 
 Run-level labels (look-ahead):
-  Some ml_iteration_features columns are properties of the WHOLE run, repeated unchanged on
-  every iteration row: convergence_iteration, total_iterations, final_energy, converged,
-  relative_iteration (step / total_iterations), vqe_time and total_time. At iteration k they
-  already contain information from iterations after k (or from the run's end), so for any
-  "predict from the first K steps" model they are look-ahead. quantum_pipeline/ml/ must
-  never read them as features; they are labels or bookkeeping only. Every other column at
-  step k is computed from steps <= k of the same run (tests/stream/
-  test_ml_feature_processing.py checks this by truncating runs).
+    Some ml_iteration_features columns are properties of the entire run, repeated unchanged on
+    every iteration row:
+        - convergence_iteration,
+        - total_iterations,
+        - final_energy,
+        - converged,
+        - relative_iteration (step / total_iterations),
+        - vqe_time
+        - total_time.
+    Since at any given iteration they already contain information from iteration ahead, they are
+    look-ahead for any models aiming to predict from the first K steps. They must never be read
+    as features - labeling and bookkeeping only.
+    All other columns are computed from steps <= k of the same run.
 
-Conventions the code relies on:
-  - iteration_step is 1-based and unique per experiment_id. Every window below orders by it,
-    and a tie would make lag/row_number pick an arbitrary row, so validate_iteration_features
-    raises if (experiment_id, iteration_step) is not unique.
-  - `converged` is the optimizer's success flag (scipy `success`, renamed from vqe_results.
-    success). It means the optimizer met ITS OWN stopping criterion, not that the energy is
-    accurate; a run can "converge" onto a poor local minimum.
-  - Step 1 has no previous point, so energy_delta, parameter_delta_norm, mean_param_change
-    and energy_moving_std_5 are NULL there.
+Conventions:
+    - iteration_step is 1-based and unique per experiment_id. Every window below orders by it,
+        and a tie would make lag/row_number pick an arbitrary row.
+        validate_iteration_features raises if (experiment_id, iteration_step) is not unique.
+    - `converged` is the optimizer's success flag (scipy `success`, renamed from
+        vqe_results.success). It means the optimizer met its own stopping criterion,
+        not that the energy is accurate; run still can converge at a poor local minimum.
+    - Step 1 has no previous point, so energy_delta, parameter_delta_norm, mean_param_change and
+        energy_moving_std_5 are NULL there.
 """
 
 import logging
 import sys
-from datetime import date
+from datetime import datetime, timezone
 from functools import reduce
 from operator import or_
 
@@ -80,15 +83,14 @@ logger = logging.getLogger(__name__)
 
 _APP_NAME = 'Quantum ML Feature Processing'
 
-# Columns that come from the left-joined context tables and are written once, so a NULL
-# here would stay NULL in Iceberg forever (the run is never reprocessed once its id exists
-# in the table). The first four are also the grouping/partition keys of ml_run_summary;
-# the rest are the run-level labels of vqe_results / performance_metrics.
+# Null for those columns would stay a null forever within the Iceberg, since runs aren't reprocessed.
 _REQUIRED_COLUMNS = [
+    # run summary
     'molecule_name',
     'optimizer',
     'basis_set',
     'num_qubits',
+    # run level labels (vqe_results/performance_metrics)
     'total_iterations',
     'final_energy',
     'converged',
@@ -96,18 +98,15 @@ _REQUIRED_COLUMNS = [
     'total_time',
 ]
 
-# Upper bound on experiment_ids printed in the NULL-drop warning, to keep the log readable.
+# upper bound on experiment_ids printed in the null-drop warning - only for readability
 _MAX_LOGGED_IDS = 20
 
 
 def get_new_experiment_ids(spark, source_experiment_ids, target_table):
-    """
-    Return the experiment_ids from source that are not yet in target_table, as a list.
+    """Return the experiment_ids from source that are not yet in target_table, as a list.
 
-    The result is collected to the driver on purpose. A lazy left_anti join against the
-    target table would be re-evaluated every time it is used, and after the target has been
-    appended to it would silently return nothing (the ids are in the table by then). A
-    plain Python list is immune to that.
+    Collecting to the driver, since lazy left_anti join would be re-evaluated every time it's used.
+    Also after target change it would return nothing (silently).
 
     Args:
         spark: SparkSession
@@ -126,8 +125,7 @@ def get_new_experiment_ids(spark, source_experiment_ids, target_table):
 
 
 def experiment_ids_to_df(spark, experiment_ids, schema):
-    """
-    Turn a collected id list back into a small in-memory DataFrame.
+    """Turn a collected id list back into a small in-memory DataFrame.
 
     Args:
         spark: SparkSession
@@ -141,8 +139,7 @@ def experiment_ids_to_df(spark, experiment_ids, schema):
 
 
 def load_source_tables(spark):
-    """
-    Load the 5 source Iceberg tables needed for ML feature materialization.
+    """Load the 5 source Iceberg tables the ML feature tables are built from.
 
     Returns:
         dict: DataFrames keyed by table name
@@ -152,17 +149,11 @@ def load_source_tables(spark):
 
 
 def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date):
-    """
-    Join source tables and compute per-iteration ML features for the given experiment_ids.
+    """Join source tables and compute per-iteration features for the given experiment_ids.
 
-    Derived features computed via Spark window functions, all ordered by iteration_step
-    within one experiment_id:
-      - is_new_minimum, steps_since_improvement
-      - energy_moving_avg_5, energy_moving_std_5
-      - relative_iteration, energy_improvement_rate, normalized_energy
-      - mean_param_change, convergence_iteration
-
-    See the module docstring for which output columns are run-level labels (look-ahead).
+    Derived features use window functions ordered by iteration_step within one experiment_id;
+    they are computed below and grouped in the final select(). For run-level labels see docstring
+    on top.
 
     Args:
         source_dfs: dict of source DataFrames
@@ -183,9 +174,9 @@ def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date)
     # if the id frame ever contained a duplicate.
     iters = iters.join(new_experiment_ids_df.select('experiment_id'), 'experiment_id', 'left_semi')
 
-    # num_qubits/basis_set also live in the context tables joined below, so keeping both
-    # copies would make every later reference ambiguous. Removing them upstream in
-    # quantum_incremental_processing.py instead is still open.
+    # num_qubits/basis_set also live in the context tables joined below;
+    # removing them here to avoid ambiguous references
+    # TODO: consider dropping them at upstream quantum_incremental_processing.py
     iters = iters.drop('num_qubits', 'basis_set')
 
     vqe_cols = vqe.select(
@@ -197,14 +188,13 @@ def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date)
         col('num_qubits'),
         col('total_iterations'),
         col('minimum_energy').alias('final_energy'),
-        # scipy's `success`: the optimizer met its own stopping criterion. Says nothing
-        # about whether the energy is close to the true ground state.
+        # scipy's `success`: the optimizer met its own stopping criterion.
+        # does not imply result was close to the true ground state
         # TODO: success is nullable in Avro; a NULL row is dropped by validation on every run
         col('success').alias('converged'),
     )
 
-    # basis_set and ansatz_type sourced from ansatz_info (consistently populated
-    # for both Avro/Kafka Connect and JSON/Redpanda Connect data)
+    # basis_set and ansatz_type sourced from ansatz_info
     ansatz_cols = ansatz.select(
         'experiment_id',
         col('basis_set'),
@@ -228,8 +218,9 @@ def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date)
         col('total_time'),
     )
 
-    # Left joins keep every iteration row even when a context row is missing (the columns
-    # are then NULL); validate_iteration_features decides what to do with those rows.
+    # left join keeps every iteration row even when a context row is missing
+    # (the columns are then NULL);
+    # validate_iteration_features decides what to do with those rows
     df = (
         iters.join(vqe_cols, on='experiment_id', how='left')
         .join(ansatz_cols, on='experiment_id', how='left')
@@ -237,23 +228,21 @@ def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date)
         .join(perf_cols, on='experiment_id', how='left')
     )
 
-    # w_exp_ord: one run, steps in order; with an orderBy Spark's default frame is "start of
-    # partition up to the current row", which is what `first()` below relies on.
+    # one run, steps in order.
     w_exp_ord = Window.partitionBy('experiment_id').orderBy('iteration_step')
     w_exp_full = Window.partitionBy('experiment_id')
-    # Trailing window of ML_ROLLING_WINDOW rows INCLUDING the current one (the `_5` in the
-    # column names is the default width of 5).
+
+    # trailing window of ML_ROLLING_WINDOW rows *including* the current one
+    # (the `_5` in the column names is the default width of 5).
     w_rolling = w_exp_ord.rowsBetween(-(ML_ROLLING_WINDOW - 1), 0)
     w_cumul = w_exp_ord.rowsBetween(Window.unboundedPreceding, 0)
 
-    # is_new_minimum
-    # --
-    # cumulative_min_energy comes from the solver and already includes the current step, so
-    # comparing a row's own energy to it can never be "strictly below" (at best equal).
-    # The previous row's value is the best seen BEFORE this step, hence lag(). Strict `<`:
-    # an energy equal to the running best is not a new minimum. lag() is NULL on step 1,
-    # which is always True, so step 1 counts as a "new minimum" and later feeds
-    # num_new_minima / improvement_ratio in ml_run_summary.
+    # is_new_minimum:
+    # Solver's cumulative_min_energy already includes the current step.
+    # Comparing a row's own energy to it can never be "strictly below".
+    #
+    # Instead - comparing it against the previous row instead, with strict `<`:
+    # tie for the running best is not a new minimum.
     prev_cumulative_min = lag('cumulative_min_energy').over(w_exp_ord)
     df = df.withColumn(
         'is_new_minimum',
@@ -262,15 +251,13 @@ def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date)
         .otherwise(lit(False)),
     )
 
-    # improvement_group: monotonically increasing counter per experiment, increments at new minima
+    # improvement_group: increasing counter per experiment, increments at new minima
     df = df.withColumn(
         'improvement_group',
         spark_sum(when(col('is_new_minimum'), lit(1)).otherwise(lit(0))).over(w_cumul),
     )
 
     # steps_since_improvement: 0 at the row where a new minimum was found, counts up after.
-    # Numbering rows inside each (experiment_id, improvement_group) block gives this without
-    # a self-join.
     df = df.withColumn(
         'steps_since_improvement',
         row_number().over(
@@ -280,16 +267,15 @@ def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date)
     )
 
     # convergence_iteration: last iteration_step at which a new minimum was found.
-    # RUN-LEVEL LABEL: w_exp_full spans the whole run, so on step k this already knows
-    # about steps > k (look-ahead for any horizon-K feature set).
+    # NOTE [RUN-LEVEL]: w_exp_full spans the whole run, so on step k this already knows about steps > k
+    # (look-ahead for any horizon-K feature set)
     df = df.withColumn(
         'convergence_iteration',
         spark_max(when(col('is_new_minimum'), col('iteration_step'))).over(w_exp_full),
     )
 
-    # Rolling statistics (width ML_ROLLING_WINDOW; column names keep the default width 5).
-    # Spark's stddev is the SAMPLE std (n-1), so it is NULL on a one-row window, i.e. on
-    # step 1; from step 2 on it is defined.
+    # Rolling stats over ML_ROLLING_WINDOW rows; the `_5` names are its default width.
+    # stddev is the sample std (n-1), so it is NULL on the one-row window at step 1.
     # TODO: _5 hardcodes the default ML_ROLLING_WINDOW; pin the width or derive the names
     df = df.withColumn('energy_moving_avg_5', avg('iteration_energy').over(w_rolling)).withColumn(
         'energy_moving_std_5', stddev('iteration_energy').over(w_rolling)
@@ -297,14 +283,9 @@ def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date)
 
     df = df.withColumn('_initial_energy', first('iteration_energy').over(w_exp_ord))
 
-    # mean_param_change
-    # --
-    # Running mean of parameter_delta_norm over steps 1..k. The step-1 value is NULL (no
-    # previous parameters) and sum()/count() both skip NULLs, so the divisor is the number
-    # of deltas actually present (k - 1 at step k), not iteration_step. At step k = n this
-    # equals avg('parameter_delta_norm') over the run in ml_run_summary
-    # (mean_param_delta_norm). It is NULL at step 1, where the count is 0; the when() guard
-    # keeps ANSI mode from raising on 0/0.
+    # mean_param_change:
+    # running mean of parameter_delta_norm. sum()/count() skip NULLs, so the divisor is the deltas
+    # actually present (k - 1 at step k), not iteration_step.
     cumul_param_norm = spark_sum('parameter_delta_norm').over(w_cumul)
     cumul_param_count = count('parameter_delta_norm').over(w_cumul)
     df = df.withColumn(
@@ -314,7 +295,7 @@ def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date)
 
     df = (
         df
-        # RUN-LEVEL LABEL: divides by the final iteration count of the run (look-ahead).
+        # NOTE [RUN-LEVEL]: divides by the final iteration count of the run (look-ahead).
         .withColumn(
             'relative_iteration',
             col('iteration_step').cast('double') / col('total_iterations').cast('double'),
@@ -325,8 +306,8 @@ def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date)
             (col('_initial_energy') - col('cumulative_min_energy'))
             / col('iteration_step').cast('double'),
         )
-        # Distance above the best energy so far, relative to its magnitude. The `!= 0`
-        # guard avoids a divide-by-zero, which Spark's ANSI mode would turn into an error.
+        # distance above the best energy so far, relative to its magnitude.
+        # The `!= 0` is meant to avoid a divide-by-zero.
         .withColumn(
             'normalized_energy',
             when(
@@ -383,8 +364,7 @@ def build_iteration_features(source_dfs, new_experiment_ids_df, processing_date)
 
 
 def validate_iteration_features(df_iter, source_dfs, experiment_ids_df):
-    """
-    Check the joined frame against its source and drop rows with unusable NULLs.
+    """Check the joined frame against its source and drop rows with unusable NULLs.
 
     Order matters: row-count guards run BEFORE the NULL drop, because dropping rows would
     otherwise be indistinguishable from a join that lost rows.
@@ -409,9 +389,9 @@ def validate_iteration_features(df_iter, source_dfs, experiment_ids_df):
     )
     joined_count = df_iter.count()
 
-    # Left joins onto one-row-per-experiment tables must neither add nor remove rows, so
-    # `!=` (not `>`): a duplicated vqe_results row multiplies iteration rows, while a
-    # broken join key could lose them.
+    # Left joins onto one-row-per-experiment tables must neither add nor remove rows.
+    # `!=`: a duplicated vqe_results row multiplies iteration rows,
+    # while a broken join key could lose them.
     if joined_count != source_count:
         raise RuntimeError(
             f'Join fan-out detected: ml_iteration_features has {joined_count} rows '
@@ -419,8 +399,8 @@ def validate_iteration_features(df_iter, source_dfs, experiment_ids_df):
             f'Check for many-to-many join explosion in build_iteration_features().'
         )
 
-    # Every window orders by iteration_step; with a tie, lag()/row_number() would pick an
-    # arbitrary row and the features would differ between runs of the job.
+    # every window orders by iteration_step; with a tie, lag()/row_number() would pick an
+    # arbitrary row and the features would differ between runs of the job
     distinct_count = df_iter.select('experiment_id', 'iteration_step').distinct().count()
     if distinct_count != joined_count:
         raise RuntimeError(
@@ -428,11 +408,11 @@ def validate_iteration_features(df_iter, source_dfs, experiment_ids_df):
             f'{distinct_count} distinct keys. Window features would be nondeterministic.'
         )
 
-    # A NULL here means a left join missed its context row (or the run-level label is not
-    # there yet). The first four columns are the grouping keys of the summary table and
-    # basis_set partitions the write; the rest would be frozen as NULL, because once an
-    # id is in the table it is never processed again. Dropping the rows instead leaves the
-    # id "new", so the next run retries it after the missing data has arrived.
+    # Null means a left join missed its context row (or the run-level label is not there yet).
+    # Row like this would freeze as null in Iceberg - an id is never reprocessed - drop it instead.
+    #
+    # The id stays "new" and the next run retries it after the missing data has arrived.
+    # The first four columns are grouping keys of the summary table and basis_set partitions that write.
     has_null = reduce(or_, [col(c).isNull() for c in _REQUIRED_COLUMNS])
     bad_rows = df_iter.filter(has_null)
     bad_count = bad_rows.count()
@@ -457,8 +437,7 @@ def validate_iteration_features(df_iter, source_dfs, experiment_ids_df):
 
 
 def build_run_summary(df_iter, processing_date):
-    """
-    Aggregate ml_iteration_features into ml_run_summary (one row per experiment).
+    """Aggregate ml_iteration_features into ml_run_summary (one row per experiment).
 
     Every column here describes the finished run, so none of it is usable as an input
     feature for early prediction; it is for labels, analysis and dashboards.
@@ -473,7 +452,8 @@ def build_run_summary(df_iter, processing_date):
     w_exp_ord = Window.partitionBy('experiment_id').orderBy('iteration_step')
 
     # Rank each row from both ends of its run so the first/last N steps can be selected with
-    # a plain filter. The `first_10_*` / `last_10_*` column names are the defaults of
+    # a plain filter.
+    # The `first_10_*` / `last_10_*` column names are the defaults of
     # ML_TRAJECTORY_HEAD / ML_TRAJECTORY_TAIL; the real width follows those settings.
     df_with_rank = df_iter.withColumn('_rn_asc', row_number().over(w_exp_ord)).withColumn(
         '_rn_desc',
@@ -544,7 +524,7 @@ def build_run_summary(df_iter, processing_date):
             count(when(col('is_new_minimum'), True)).cast('double')
             / col('total_iterations').cast('double')
         ).alias('improvement_ratio'),
-        # partitioning
+        # partition value for this write
         lit(processing_date).alias('processing_date'),
     )
 
@@ -559,8 +539,7 @@ def build_run_summary(df_iter, processing_date):
 
 
 def write_incremental(spark, df, table_name, partition_columns):
-    """
-    Write a DataFrame to an Iceberg table, creating it on first run or appending.
+    """Write a DataFrame to an Iceberg table, creating it on first run or appending.
 
     Known limitation: there is no full-refresh path, and the first write uses
     mode('overwrite'), which replaces the table if it was created concurrently.
@@ -595,10 +574,8 @@ def main():
         source_dfs = load_source_tables(spark)
         all_experiment_ids = source_dfs['vqe_iterations'].select('experiment_id').distinct()
 
-        # Each table is gated on its own contents. Both lists are collected NOW, before any
-        # write: a lazy anti-join would be re-evaluated after the first append (and Spark
-        # also recaches plans that read a table it appended to), at which point the ids
-        # are "already present" and the second table would get 0 rows.
+        # Each table is gated on its own contents.
+        # Both lists are collected now, before any write.
         iter_table = f'{CATALOG_FQN}.ml_iteration_features'
         summary_table = f'{CATALOG_FQN}.ml_run_summary'
         iter_ids = get_new_experiment_ids(spark, all_experiment_ids, iter_table)
@@ -620,17 +597,17 @@ def main():
         summary_ids_df = experiment_ids_to_df(spark, summary_ids, id_schema)
 
         # One date for both tables, even if the job runs past midnight.
-        processing_date = date.today()
+        processing_date = datetime.now(timezone.utc).date()
 
-        # Build the features once for the union of ids (the summary is derived from the
-        # iteration rows, so a run missing only its summary still needs them).
+        # Build the features once for the union of ids; summary is derived from iteration
+        # rows - a run missing only its summary still needs them.
         df_all = build_iteration_features(source_dfs, todo_df, processing_date).persist()
         persisted.append(df_all)
         df_clean = validate_iteration_features(df_all, source_dfs, todo_df)
 
-        # Build BOTH output frames and materialise them before the first write. Their plans
-        # read only source tables and in-memory id lists, never the ml_* tables, so the
-        # writes below cannot invalidate these caches or change what the second one holds.
+        # Build both output frames and persist them before the first write.
+        # Their plans read only source tables and in-memory id lists, never the ml_* tables.
+        # The writes below cannot invalidate these caches or change what the second one holds.
         df_iter = df_clean.join(iter_ids_df, 'experiment_id', 'left_semi').persist()
         persisted.append(df_iter)
         df_summary = build_run_summary(

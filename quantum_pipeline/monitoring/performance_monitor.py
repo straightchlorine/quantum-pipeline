@@ -11,7 +11,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -346,7 +346,7 @@ class PerformanceMonitor:
                 context = self.experiment_context.copy()
 
             return {
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'container_type': self.container_type,
                 'experiment_context': context,
                 'system': self._collect_system_metrics(),
@@ -354,7 +354,7 @@ class PerformanceMonitor:
             }
         except Exception as e:
             self.logger.error(f'Failed to collect metrics snapshot: {e}')
-            return {'error': str(e), 'timestamp': datetime.now().isoformat()}
+            return {'error': str(e), 'timestamp': datetime.now(timezone.utc).isoformat()}
 
     def _collect_system_metrics(self) -> dict[str, Any]:
         """Collect host CPU, memory and I/O metrics via psutil."""

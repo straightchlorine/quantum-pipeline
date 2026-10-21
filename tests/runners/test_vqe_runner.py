@@ -288,6 +288,61 @@ class TestVQERunner:
             assert result.mapping_time == 0.5
             assert result.vqe_time == 0.5
 
+    def test_no_analytic_defaults_off(self):
+        """The benchmark opt-out is off unless asked for."""
+        runner = VQERunner(filepath='/path/to/molecules.xyz', basis_set='sto3g')
+        assert runner.no_analytic is False
+
+    def test_run_passes_no_analytic_to_solver(self, single_molecule_file):
+        """run() forwards no_analytic to VQESolver: the benchmark CPU-Aer lane depends on it."""
+        with (
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
+            patch('quantum_pipeline.runners.vqe_runner.validate_basis_set'),
+            patch('quantum_pipeline.runners.vqe_runner.PySCFDriver.from_molecule') as mock_driver,
+            patch('quantum_pipeline.runners.vqe_runner.JordanWignerMapper') as mock_mapper,
+            patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
+            patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
+        ):
+            mock_molecule = Mock()
+            mock_molecule.symbols = ['H', 'H']
+            mock_load.return_value = [mock_molecule]
+
+            mock_problem = Mock()
+            mock_second_q_op = Mock()
+            mock_problem.second_q_ops.return_value = [mock_second_q_op]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
+            mock_driver.return_value.run.return_value = mock_problem
+
+            mock_qubit_op = Mock()
+            mock_mapper.return_value.map.return_value = mock_qubit_op
+
+            mock_result = Mock()
+            mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
+            mock_result.iteration_list = [0.5, 0.0, -0.5, -1.0]
+            mock_result.optimal_parameters = [0.1, 0.2, 0.3]
+            mock_result.initial_data = Mock()
+            mock_result.initial_data.optimizer = 'COBYLA'
+            mock_result.initial_data.ansatz_reps = 3
+            mock_result.initial_data.hamiltonian = Mock()
+            mock_result.initial_data.ansatz = Mock()
+            mock_solver.return_value.solve.return_value = mock_result
+
+            mock_timer_context = MagicMock()
+            mock_timer_context.__enter__.return_value = mock_timer_context
+            mock_timer_context.elapsed = 0.5
+            mock_timer.return_value = mock_timer_context
+
+            runner = VQERunner(
+                filepath=str(single_molecule_file), basis_set='sto3g', no_analytic=True
+            )
+            runner.run()
+
+            mock_solver.assert_called_once()
+            assert mock_solver.call_args.kwargs['no_analytic'] is True
+
     def test_run_with_molecule_index(self, multiple_molecules_file):
         """Test run() with molecule_index filters to a single molecule."""
         with (
@@ -341,9 +396,11 @@ class TestVQERunner:
             )
             runner.run()
 
-            # Only one molecule processed (index 1 = H2O)
+            # Only one molecule processed (index 1 = H2O), and the id it carries is its file
+            # index. molecule_names stays intact so _process_molecule can index it by that id.
             assert len(runner.run_results) == 1
-            assert runner.molecule_names == ['H2O']
+            assert runner.run_results[0].molecule_id == 1
+            assert runner.molecule_names == ['H2', 'H2O']
 
     def test_run_with_molecule_index_out_of_range(self, single_molecule_file):
         """Test run() raises IndexError when molecule_index is out of range."""
@@ -364,6 +421,88 @@ class TestVQERunner:
             )
 
             with pytest.raises(IndexError, match='molecule-index 5 out of range'):
+                runner.run()
+
+    def test_molecule_index_keeps_the_file_index_as_molecule_id(self, multiple_molecules_file):
+        """--molecule-index runs one molecule, but molecule_id must stay that molecule's
+        position in the file: it is recorded on the result and streamed to Kafka, and the
+        Iceberg pipeline reads it back. Slicing the list made every run report id 0."""
+        with (
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule_names') as mock_names,
+            patch('quantum_pipeline.runners.vqe_runner.validate_basis_set'),
+            patch('quantum_pipeline.runners.vqe_runner.PySCFDriver.from_molecule') as mock_driver,
+            patch('quantum_pipeline.runners.vqe_runner.JordanWignerMapper') as mock_mapper,
+            patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
+            patch('quantum_pipeline.runners.vqe_runner.Timer') as mock_timer,
+        ):
+            mols = []
+            for symbols in (['H', 'H'], ['O', 'H', 'H'], ['N', 'H', 'H', 'H']):
+                m = Mock()
+                m.symbols = symbols
+                mols.append(m)
+            mock_load.return_value = mols
+            mock_names.return_value = ['H2', 'H2O', 'NH3']
+
+            mock_problem = Mock()
+            mock_problem.second_q_ops.return_value = [Mock()]
+            mock_problem.num_particles = (1, 1)
+            mock_problem.num_spatial_orbitals = 2
+            mock_problem.reference_energy = -1.117
+            mock_driver.return_value.run.return_value = mock_problem
+            mock_mapper.return_value.map.return_value = Mock()
+
+            mock_result = Mock()
+            mock_result.minimum = -1.0
+            mock_result.total_energy = -1.0
+            mock_result.iteration_list = [0.5, 0.0]
+            mock_result.optimal_parameters = [0.1]
+            mock_result.initial_data = Mock()
+            mock_result.initial_data.optimizer = 'COBYLA'
+            mock_result.initial_data.ansatz_reps = 3
+            mock_result.initial_data.hamiltonian = Mock()
+            mock_result.initial_data.ansatz = Mock()
+            mock_solver.return_value.solve.return_value = mock_result
+
+            timer_ctx = MagicMock()
+            timer_ctx.__enter__.return_value = timer_ctx
+            timer_ctx.elapsed = 0.5
+            mock_timer.return_value = timer_ctx
+
+            runner = VQERunner(
+                filepath=str(multiple_molecules_file), basis_set='sto3g', molecule_index=2
+            )
+            runner.run()
+
+            assert len(runner.run_results) == 1
+            assert runner.run_results[0].molecule_id == 2
+
+    def test_molecule_index_failure_message_counts_only_the_selected_molecule(
+        self, multiple_molecules_file
+    ):
+        """One molecule is attempted, so the failure count is '1 of 1', not '1 of <file size>'."""
+        with (
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule') as mock_load,
+            patch('quantum_pipeline.runners.vqe_runner.load_molecule_names') as mock_names,
+            patch('quantum_pipeline.runners.vqe_runner.validate_basis_set'),
+            patch('quantum_pipeline.runners.vqe_runner.PySCFDriver.from_molecule'),
+            patch('quantum_pipeline.runners.vqe_runner.JordanWignerMapper'),
+            patch('quantum_pipeline.runners.vqe_runner.VQESolver') as mock_solver,
+        ):
+            mols = []
+            for symbols in (['H', 'H'], ['O', 'H', 'H'], ['N', 'H', 'H', 'H']):
+                m = Mock()
+                m.symbols = symbols
+                mols.append(m)
+            mock_load.return_value = mols
+            mock_names.return_value = ['H2', 'H2O', 'NH3']
+            mock_solver.return_value.solve.side_effect = RuntimeError('SCF did not converge')
+
+            runner = VQERunner(
+                filepath=str(multiple_molecules_file), basis_set='sto3g', molecule_index=1
+            )
+
+            with pytest.raises(RuntimeError, match=r'1 of 1 molecules failed \(indices \[1\]\)'):
                 runner.run()
 
     def test_run_with_kafka_enabled(self, single_molecule_file):
@@ -823,9 +962,14 @@ class TestVQERunner:
                 ansatz_reps=3,
                 ansatz_type='EfficientSU2',
                 default_shots=1024,
+                no_analytic=False,
                 convergence_threshold=1e-6,
                 seed=None,
                 init_strategy='random',
+                # Defaults to None at the VQERunner/VQESolver level; the CLI supplies
+                # DEFAULTS['max_evaluations']. This test constructs the runner directly, so the
+                # ceiling is unset here even though convergence_threshold is set.
+                max_evaluations=None,
                 # hf_data is now always passed (EP needs it structurally); ANY because
                 # it wraps a Mock nuclear_repulsion_energy that can't be reconstructed here.
                 hf_data=ANY,

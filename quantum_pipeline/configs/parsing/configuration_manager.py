@@ -1,7 +1,7 @@
 import argparse
 import json
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -120,7 +120,7 @@ class ConfigurationManager:
         basis_set = args.basis
         optimizer = args.optimizer
         backend_local = 'api' if args.ibm else 'local'
-        current_date = datetime.now().strftime('%Y%m%d')
+        current_date = datetime.now(timezone.utc).strftime('%Y%m%d')
 
         file_path = f'{file_name}-{basis_set}-{optimizer}-{backend_local}-{current_date}.json'
         self.config_path = Path(settings.RUN_CONFIGS, file_path)

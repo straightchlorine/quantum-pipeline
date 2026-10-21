@@ -278,9 +278,12 @@ The constructor defaults differ from the CLI: when you omit them it uses the
 `COBYLA` optimizer (CLI default is `L-BFGS-B`) and `ansatz_reps=3` (CLI default is
 2). The constructor samples 1024 shots by default (`default_shots=1024`), and a
 gradient optimizer such as `L-BFGS-B` refuses sampled shots. `default_shots=None` gives
-exact expectation values, which is what the CLI does when you leave out `--shots`. Pass these explicitly to
-reproduce a CLI run. For the full constructor
-signature, see the [source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py).
+exact expectation values, which is what the CLI does when you leave out `--shots`.
+`max_evaluations` defaults to `None`, no evaluation ceiling, while the CLI's
+`--max-evaluations` defaults to 30000.
+
+Pass these explicitly to reproduce a CLI run. For the full constructor signature,
+see the [source](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py).
 
 ## Next steps
 

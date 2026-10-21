@@ -201,6 +201,22 @@ def test_fast_path_stops_at_max_iterations(h2_cell, backend_config):
     assert float(result.minimum) == min(float(row.result) for row in result.iteration_list)
 
 
+def test_fast_path_stops_at_max_evaluations_under_convergence(h2_cell, backend_config):
+    """--convergence leaves max_iterations None, so max_evaluations is the only bound. One
+    analytic objective call is one evaluation and one row, so the run stops after exactly 5."""
+    solver = _fast_solver(
+        h2_cell.qubit_op,
+        backend_config,
+        max_iterations=None,
+        convergence_threshold=1e-12,
+        max_evaluations=5,
+    )
+    result = solver.via_statevector()
+
+    assert len(result.iteration_list) == 5
+    assert result.success is False
+
+
 @pytest.mark.parametrize(
     'overrides, expect_fast',
     [
@@ -210,6 +226,9 @@ def test_fast_path_stops_at_max_iterations(h2_cell, backend_config):
         ({'default_shots': 1024, 'optimizer': 'COBYLA'}, False),
         # Sampled shots with a gradient optimizer: only the shots clause rejects this row.
         ({'default_shots': 1024, 'optimizer': 'L-BFGS-B'}, False),
+        # --no-analytic rejects an otherwise-eligible row: the benchmark CPU-Aer lane must
+        # measure the Aer exact path, not the analytic statevector path that replaces it.
+        ({'default_shots': None, 'optimizer': 'L-BFGS-B', 'no_analytic': True}, False),
     ],
 )
 def test_gate_selects_the_path(overrides, expect_fast, backend_config):
@@ -267,6 +286,19 @@ def test_gate_rejects_unset_local(backend_config):
 def test_gate_rejects_gpu_request(backend_config):
     """backend_config.gpu=True with default_shots=None and L-BFGS-B stays on the Aer path (D2)."""
     solver = _fast_solver(TWO_QUBIT_OP, replace(backend_config, gpu=True))
+    assert solver._fast_path_eligible() is False
+
+    via_statevector, via_aer, via_ibmq = _route(solver, MagicMock(spec=AerBackend))
+    via_aer.assert_called_once()
+    via_statevector.assert_not_called()
+    via_ibmq.assert_not_called()
+
+
+def test_no_analytic_forces_the_aer_path(backend_config):
+    """no_analytic=True on an otherwise-eligible configuration dispatches to via_aer, not
+    via_statevector. This is the benchmark's CPU-Aer lane: without the opt-out the same flags
+    would silently run the analytic path instead."""
+    solver = _fast_solver(TWO_QUBIT_OP, backend_config, no_analytic=True)
     assert solver._fast_path_eligible() is False
 
     via_statevector, via_aer, via_ibmq = _route(solver, MagicMock(spec=AerBackend))

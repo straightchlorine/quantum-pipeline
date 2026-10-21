@@ -19,7 +19,7 @@ For how Airflow fits into the overall architecture, see
 All Airflow containers share a base image built from
 [`docker/airflow/Dockerfile`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/Dockerfile)
 on top of `apache/airflow:3.1.8`. Services are defined in
-[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml#L269)
+[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml)
 using a shared `x-airflow-common` anchor.
 
 | Service | Container | Command | Purpose |
@@ -128,17 +128,33 @@ catalog and S3 configuration is loaded from `spark-defaults.conf`.
 
 ## DAG Overview
 
-| DAG | Schedule | Trigger | SLA | Source |
-|-----|----------|---------|-----|--------|
-| `quantum_feature_processing` | Daily | Automatic | 1h 30m | [`quantum_processing_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py) |
-| `quantum_ml_feature_processing` | Daily | After upstream | 45m | [`quantum_ml_feature_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_ml_feature_dag.py) |
-| `vqe_batch_generation` | None | Manual | - | [`vqe_batch_generation_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/vqe_batch_generation_dag.py) |
-| `r2_sync` | None (configurable) | Manual or after ML processing | - | [`r2_sync_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/r2_sync_dag.py) |
+The three processing DAGs are chained by assets.
+
+Each DAG declares an asset as an outlet on its task, and Airflow marks the asset
+updated only when that task succeeds. The next DAG lists the asset as its schedule,
+so it starts when the upstream task succeeds, with no sensor holding a worker slot
+and no dates to match.
+
+The earlier sensor setup matched on logical date, and a daily timedelta schedule
+stamps each run with the exact time the scheduler created it, so two independently
+scheduled DAGs never shared one.
+
+Changing one DAG's schedule no longer affects the others. In the Airflow UI the
+assets appear under their URIs, `s3://features/warehouse/quantum_features` and
+`s3://features/warehouse/quantum_features/ml_features`.
+
+
+| DAG | Schedule | Trigger | Source |
+|-----|----------|---------|--------|
+| `quantum_feature_processing` | Daily | Automatic | [`quantum_processing_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py) |
+| `quantum_ml_feature_processing` | Asset | After upstream asset update | [`quantum_ml_feature_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_ml_feature_dag.py) |
+| `vqe_batch_generation` | None | Manual | [`vqe_batch_generation_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/vqe_batch_generation_dag.py) |
+| `r2_sync` | Asset | After ML feature asset update | [`r2_sync_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/r2_sync_dag.py) |
 
 ```mermaid
 graph LR
-    A["quantum_feature_processing<br/>(daily)"] --> B["quantum_ml_feature_processing<br/>(daily)"]
-    B --> C["r2_sync<br/>(manual)"]
+    A["quantum_feature_processing<br/>(daily)"] --> B["quantum_ml_feature_processing<br/>(on asset)"]
+    B --> C["r2_sync<br/>(on asset)"]
     D["vqe_batch_generation<br/>(manual)"] -.->|"produces data for"| A
 ```
 
@@ -151,11 +167,12 @@ that are not yet in the tables (see
 
 | Parameter | Value |
 |-----------|-------|
-| `schedule` | `timedelta(days=1)` |
+| `schedule` | `@daily` (midnight UTC) |
+| `max_active_runs` | `1` (concurrent runs race on the shared Spark jar cache) |
+| `outlets` | `s3://features/warehouse/quantum_features` (updated on success) |
 | `retries` | `3` (with exponential backoff) |
 | `retry_delay` | `timedelta(minutes=20)` |
 | `execution_timeout` | 2 hours |
-| `sla` | 1 hour 30 minutes |
 
 
 ## DAG 2: quantum_ml_feature_processing
@@ -163,25 +180,24 @@ that are not yet in the tables (see
 Joins 5 of the normalized Iceberg tables (`vqe_iterations`, `vqe_results`,
 `molecules`, `performance_metrics`, `ansatz_info`) into two ML-ready feature
 tables: `ml_iteration_features` (per-iteration) and `ml_run_summary` (per-run
-aggregates). Waits for DAG 1 via `ExternalTaskSensor`. The tables are
+aggregates). It is scheduled on the asset DAG 1 updates on success, so it runs
+as soon as DAG 1 finishes, whatever DAG 1's own schedule is. The tables are
 append-only; see
 [Spark Processing - Write semantics](spark-processing.md#write-semantics).
 
 ```mermaid
 graph LR
-    A["wait_for_quantum_feature_processing<br/>(ExternalTaskSensor)"] --> B["run_ml_feature_processing<br/>(SparkSubmitOperator)"]
+    A["s3://features/warehouse/quantum_features<br/>(updated by DAG 1)"] -.->|"triggers"| B["run_ml_feature_processing<br/>(SparkSubmitOperator)"]
 ```
 
 | Parameter | Value |
 |-----------|-------|
-| `schedule` | `timedelta(days=1)` |
+| `schedule` | asset `s3://features/warehouse/quantum_features` |
+| `max_active_runs` | `1` |
+| `outlets` | `s3://features/warehouse/quantum_features/ml_features` (updated on success) |
 | `retries` | `2` (with exponential backoff) |
 | `retry_delay` | `timedelta(minutes=15)` |
 | `execution_timeout` | 1 hour |
-| `ExternalTaskSensor mode` | `reschedule` (frees worker slot while waiting) |
-| `poke_interval` | 60 seconds |
-| `ExternalTaskSensor timeout` | 3600 seconds (1 hour) |
-| `sla` | 45 minutes |
 
 ## DAG 3: vqe_batch_generation
 
@@ -212,7 +228,7 @@ Syncs ML feature Parquet files from Garage to Cloudflare R2 using `rclone`.
 
 ```mermaid
 graph LR
-    A["wait_for_ml_feature_processing<br/>(ExternalTaskSensor)"] --> B["rclone_health_check<br/>(PythonOperator)"]
+    A["s3://features/warehouse/quantum_features/ml_features<br/>(updated by DAG 2)"] -.->|"triggers"| B["rclone_health_check<br/>(PythonOperator)"]
     B --> C["sync_ml_iteration_features<br/>(PythonOperator)"]
     B --> D["sync_ml_run_summary<br/>(PythonOperator)"]
 ```
@@ -224,19 +240,17 @@ graph LR
 
 | Parameter | Value |
 |-----------|-------|
-| `schedule` | `None` (set `R2_SYNC_SCHEDULE` Airflow Variable to override) |
+| `schedule` | asset `s3://features/warehouse/quantum_features/ml_features`; can also be triggered manually |
 | `transfers` | `8` parallel rclone transfers (configurable via `R2_SYNC_TRANSFERS`) |
 | `checkers` | `4` parallel rclone checkers (configurable via `R2_SYNC_CHECKERS`) |
 
 Rclone remote configuration is injected through environment variables in
-`docker-compose.ml.yaml`. The Garage remote uses the same S3 credentials as the
-rest of the pipeline and points rclone at Garage's S3 API on port `3901` (the
-same endpoint Spark and Redpanda Connect use), not the RPC port. The R2 remote
-requires `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`.
-
-!!! note
-    The `r2_sync_dag.py` docstring shows the Garage endpoint as port `3900`,
-    which is stale. The compose file sets it to the S3 API port `3901`.
+`docker-compose.ml.yaml`. The source remote (named `garage`) uses the same S3
+credentials, `S3_ENDPOINT` and `S3_REGION` as the rest of the pipeline, by default
+the compose Garage's S3 API at `http://garage:3901`. The R2 remote requires
+`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`. If you do not
+sync to R2, keep `r2_sync` paused in the Airflow UI, otherwise it fails at the
+health check after every ML feature run.
 
 ## Related Documentation
 
@@ -250,4 +264,4 @@ requires `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`.
 
 - [Apache Airflow Documentation](https://airflow.apache.org/docs/apache-airflow/stable/)
 - [SparkSubmitOperator](https://airflow.apache.org/docs/apache-airflow-providers-apache-spark/stable/_api/airflow/providers/apache_spark/operators/spark_submit/index.html)
-- [ExternalTaskSensor](https://airflow.apache.org/docs/apache-airflow/stable/_api/airflow/sensors/external_task/index.html)
+- [Asset-aware scheduling](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/asset-scheduling.html)

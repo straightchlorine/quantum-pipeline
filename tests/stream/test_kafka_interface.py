@@ -107,3 +107,59 @@ class TestVQEKafkaProducer:
 
         with pytest.raises(KafkaProducerError):
             VQEKafkaProducer(mock_config)
+
+
+class TestProducerMessageLimits:
+    """The two kafka-python size ceilings a converged VQE result runs into.
+
+    kafka-python rejects a record larger than `max_request_size` (default 1 MiB) AND one
+    larger than `buffer_memory` (default 32 MiB) - producer/kafka.py raises
+    MessageSizeTooLargeError for either. A converged result is one row per energy
+    evaluation at ~2 KB per row, i.e. tens of MB, so raising only one of the two leaves the
+    send failing at the other.
+    """
+
+    KAFKA_PYTHON_MAX_REQUEST_SIZE = 1_048_576
+    KAFKA_PYTHON_BUFFER_MEMORY = 33_554_432
+
+    @staticmethod
+    def _config() -> Mock:
+        config = Mock(spec=ProducerConfig)
+        config.servers = ['localhost:9092']
+        config.topic = 'experiment.vqe'
+        config.kafka_retries = 5
+        config.acks = 'all'
+        config.max_request_size = 134_217_728
+        config.buffer_memory = 134_217_728
+        return config
+
+    def test_limits_reach_kafka_producer(self):
+        """Both limits must arrive as producer kwargs, not just live on the config object."""
+        with (
+            patch('quantum_pipeline.stream.kafka_interface.KafkaProducer') as mock_kp,
+            patch('quantum_pipeline.stream.kafka_interface.KafkaSecurity') as mock_security,
+            patch('quantum_pipeline.stream.kafka_interface.SchemaRegistry'),
+            patch('quantum_pipeline.stream.kafka_interface.VQEDecoratedResultInterface'),
+        ):
+            mock_security.return_value.build_security_config.return_value = {}
+            VQEKafkaProducer(self._config())
+
+        kwargs = mock_kp.call_args.kwargs
+        assert kwargs['max_request_size'] == 134_217_728
+        assert kwargs['buffer_memory'] == 134_217_728
+
+    def test_defaults_clear_the_kafka_python_ceilings(self):
+        config = ProducerConfig.from_dict({})
+
+        assert config.max_request_size > self.KAFKA_PYTHON_MAX_REQUEST_SIZE
+        assert config.buffer_memory > self.KAFKA_PYTHON_BUFFER_MEMORY
+        # A record must fit the buffer as well as the request, so the buffer cannot be smaller.
+        assert config.buffer_memory >= config.max_request_size
+
+    def test_config_round_trips_through_dict(self):
+        config = ProducerConfig.from_dict({'max_request_size': 4096, 'buffer_memory': 8192})
+
+        assert config.max_request_size == 4096
+        assert config.buffer_memory == 8192
+        assert config.to_dict()['max_request_size'] == 4096
+        assert config.to_dict()['buffer_memory'] == 8192

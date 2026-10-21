@@ -13,7 +13,7 @@ maintainers = [
 ]
 
 version = "2.4.0"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 readme = "README.md"
 
@@ -27,6 +27,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: POSIX :: Linux"
 ]
 
@@ -34,7 +36,10 @@ dependencies = [
     # Quantum computing
     "qiskit>=1.4.2",
     "qiskit-ibm-runtime>=0.37.0",
-    "qiskit-aer>=0.15.1",
+    # <0.18: 0.18.0 bundles a different libgomp than pyscf's wheel, and loading both
+    # fails with "cannot allocate memory in static TLS block" (CI, Python 3.11)
+    # TODO: fix this
+    "qiskit-aer>=0.15.1,<0.18",
     "qiskit-nature>=0.7.2",
     "qiskit-qasm3-import>=0.6.0",
     "pyscf>=2.8.0",
@@ -183,7 +188,8 @@ filterwarnings = [
 
 [tool.coverage.run]
 source = ["quantum_pipeline"]
-omit = ["tests/*"]
+# ml/ is experimental; kept out of the total for the time being
+omit = ["tests/*", "quantum_pipeline/ml/*"]
 branch = true
 parallel = true
 concurrency = ["multiprocessing"]

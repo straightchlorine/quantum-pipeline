@@ -213,3 +213,19 @@ def test_dump_file_name_marks_local_backend(config_manager, sample_args, tmp_pat
     sample_args.ibm = True
     config_manager.dump(sample_args, {})
     assert '-api-' in config_manager.config_path.name
+
+
+def test_max_evaluations_round_trips_through_dump_and_load(
+    config_manager, sample_args, tmp_path, monkeypatch
+):
+    from quantum_pipeline.configs import settings
+
+    monkeypatch.setattr(settings, 'RUN_CONFIGS', tmp_path)
+    sample_args.load = None
+    sample_args.dump = True
+    sample_args.max_evaluations = 1234
+
+    config_manager.get_config(sample_args)
+    loaded = config_manager.load(str(config_manager.config_path))
+
+    assert loaded['max_evaluations'] == 1234

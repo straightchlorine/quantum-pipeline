@@ -49,6 +49,7 @@ by
 | Simulation | `--ibm` | flag | `false` | Use IBM Quantum backend (disables local Aer) |
 | Simulation | `--min-qubits` | int | `None` | Minimum qubit count (IBM only) |
 | VQE | `--max-iterations` | int | `100` | Maximum VQE iterations |
+| VQE | `--max-evaluations` | int | `30000` | Hard ceiling on energy evaluations; the pipeline's own bound under `--convergence` |
 | VQE | `--convergence` | flag | `false` | Enable convergence-based stopping |
 | VQE | `--threshold` | float | `1e-6` | Convergence threshold (Hartree) |
 | VQE | `--optimizer` | choice | `L-BFGS-B` | Optimization algorithm |
@@ -58,6 +59,7 @@ by
 | Output | `--log-level` | choice | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 | Backend | `--shots` | int | none (exact) | Sample with this many shots (must be positive); without it the run is exact |
 | Backend | `--exact` | flag | `false` | Exact expectation values; already the default without `--shots`, overrides `--shots` |
+| Backend | `--no-analytic` | flag | `false` | Keep the Aer exact path where the analytic path would apply; for benchmarking |
 | Backend | `--optimization-level` | int | `3` | Circuit optimization level (0-3) |
 | Features | `--report` | flag | `false` | Generate PDF report |
 | Features | `--dump` | flag | `false` | Save config to JSON |
@@ -108,7 +110,9 @@ quantum-pipeline --file data/molecules.json
 ### `--molecule-index`
 
 Process only the molecule at this 0-based index. Without this flag, all
-molecules in the file are processed sequentially.
+molecules in the file are processed sequentially. The streamed result carries
+the molecule's position in the file as its `molecule_id`, so a run with
+`--molecule-index 3` is recorded as molecule 3.
 
 ```bash
 quantum-pipeline -f data/molecules.json --molecule-index 1
@@ -172,6 +176,30 @@ The limit is enforced at two levels: the optimizer config sets `maxiter` in
 the scipy options dict, and the `compute_energy()` callback raises
 `MaxFunctionEvalsReachedError` as a hard stop.
 
+### `--max-evaluations`
+
+Hard ceiling on energy evaluations. Default: `30000`. Without `--convergence`,
+`--max-iterations` (default 100) is the limit unless you raise it above
+`--max-evaluations`; the smaller of the two applies.
+
+Under [`--convergence`](#-convergence-and-threshold) it is the pipeline's own
+bound on evaluations.
+
+A convergence run otherwise bounds optimizer steps only, and on the Aer path
+a gradient optimizer spends about one evaluation per parameter on every step.
+
+Depending on the optimizer, a molecule with about a hundred parameters can reach
+hundreds of thousands of evaluations or more. That implies days of computing and
+(most likely) a result too large to stream.
+
+With the ceiling the run stops after the given number of evaluations, returns
+the best energy seen so far, logs that the limit was reached, and is recorded
+with success set to false.
+
+Each evaluation is one recorded row, so the ceiling also bounds the size of the
+streamed record; see
+[Kafka record size](../deployment/docker-compose.md#kafka-record-size).
+
 ### `--convergence` and `--threshold`
 
 Enable convergence-based stopping. When `--convergence` is set, the optimizer
@@ -188,7 +216,8 @@ runs until the energy change between iterations falls below `--threshold`
     If `--convergence` is enabled and `--max-iterations` is left at the default
     (100), the entry point sets `max_iterations` to `None` and uses the
     threshold instead. If you pass a non-default `--max-iterations` as well, it
-    is ignored and a warning is logged; the threshold decides when the run stops.
+    is ignored and a warning is logged; the threshold decides when the run stops,
+    and [`--max-evaluations`](#-max-evaluations) caps the evaluations.
 
 ### `--optimizer`
 
@@ -263,6 +292,18 @@ for timings. Every other exact run, including any with a gradient-free optimizer
 takes the Aer exact path, which estimates gradients by finite differences. An
 exact noisy run (a `--noise` run without `--shots`) also needs
 `--simulation-method density_matrix`.
+
+### `--no-analytic`
+
+Keeps the Aer exact path even when the analytic path described under
+[`--exact`](#-exact) would apply. The run is still exact and gives the same
+energies, to about 1e-13 Ha, but gradients come from finite differences, so it
+takes many more evaluations.
+
+Use it to benchmark the Aer exact CPU lane that the analytic path replaces.
+It has no effect on runs that were not eligible for the analytic path.
+
+Newton-CG needs the analytic path, so it refuses to run with `--no-analytic` and exits with code 2.
 
 ### `--optimization-level`
 

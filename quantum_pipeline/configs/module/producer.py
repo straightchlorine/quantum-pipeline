@@ -15,6 +15,8 @@ class ProducerConfig:
     kafka_retries: int = 5
     acks: str = 'all'
     timeout: int = 10
+    max_request_size: int = 134217728
+    buffer_memory: int = 134217728
 
     def to_dict(self) -> dict:
         data = asdict(self)
@@ -32,4 +34,6 @@ class ProducerConfig:
             kafka_retries=data.get('kafka_retries', DEFAULTS['kafka']['internal_retries']),
             acks=data.get('acks', DEFAULTS['kafka']['acks']),
             timeout=data.get('timeout', DEFAULTS['kafka']['timeout']),
+            max_request_size=data.get('max_request_size', DEFAULTS['kafka']['max_request_size']),
+            buffer_memory=data.get('buffer_memory', DEFAULTS['kafka']['buffer_memory']),
         )

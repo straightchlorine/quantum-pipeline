@@ -27,7 +27,7 @@ The GPU image is built on CUDA 12.6.3. For detailed installation steps, see the
 ## GPU Configuration
 
 GPU behavior is controlled through the backend defaults in
-[`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py#L22).
+[`defaults.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/defaults.py).
 The top-level `gpu` flag (default `False`) turns acceleration on, and the `gpu_opts`
 dictionary holds the options passed to Qiskit Aer:
 
@@ -42,7 +42,7 @@ dictionary holds the options passed to Qiskit Aer:
 
 When GPU mode is enabled, `gpu_opts` is unpacked into Qiskit Aer's `AerSimulator`
 alongside the simulation method and any noise model
-([`solver.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/solver.py#L109)).
+([`solver.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/solver.py)).
 
 ### Command-Line GPU Activation
 

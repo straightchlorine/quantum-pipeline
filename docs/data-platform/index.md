@@ -34,7 +34,7 @@ ML feature tables. For the full component-by-component architecture, see
 
     ---
 
-    Four DAGs handle feature processing, ML materialization, batch generation,
+    Four DAGs handle feature processing, the ML feature tables, batch generation,
     and R2 cloud sync. CeleryExecutor with Redis broker and PostgreSQL metadata.
 
     [:octicons-arrow-right-24: Airflow Orchestration](airflow-orchestration.md)

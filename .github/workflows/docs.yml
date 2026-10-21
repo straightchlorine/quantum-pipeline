@@ -28,18 +28,17 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - name: Set up Python and PDM
+        uses: pdm-project/setup-pdm@544d7237314ee09c256785bd360f6b30add38b37 # v4.6
         with:
           python-version: "3.12"
 
-      - name: Cache pip
+      - name: Cache PDM packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-mkdocs-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-mkdocs-
+          path: ~/.cache/pdm
+          key: ${{ runner.os }}-pdm-${{ hashFiles('pdm.lock') }}
+          restore-keys: ${{ runner.os }}-pdm-
 
       - name: Install system dependencies
         run: |
@@ -53,10 +52,10 @@ jobs:
             libz-dev
 
       - name: Install dependencies
-        run: pip install ".[docs]"
+        run: pdm install --check --frozen-lockfile -G docs
 
       - name: Build documentation
-        run: mkdocs build --strict
+        run: pdm run mkdocs build --strict
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

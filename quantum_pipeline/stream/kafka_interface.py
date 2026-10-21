@@ -46,6 +46,10 @@ class VQEKafkaProducer:
                 value_serializer=lambda v: v,
                 retries=self.config.kafka_retries,
                 acks=self.config.acks,
+                # converged result is far larger than the kafka-python defaults (1 MiB / 32 MiB)
+                # raises MessageSizeTooLargeError in case it exceeds such numbers.
+                max_request_size=self.config.max_request_size,
+                buffer_memory=self.config.buffer_memory,
                 **security_config,
             )
         except NoBrokersAvailable as e:

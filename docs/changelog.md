@@ -10,6 +10,117 @@ Release notes for Quantum Pipeline, starting from version 1.4.0.
 For earlier versions, see the [GitHub releases](https://github.com/straightchlorine/quantum-pipeline/releases).
 
 ---
+## [2.5.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.5.0)
+
+### Breaking changes
+
+`--convergence` runs now stop after 30000 energy evaluations, the default of the
+new `--max-evaluations` flag. To let a convergence run go further, pass a larger
+`--max-evaluations`.
+
+The `R2_SYNC_SCHEDULE` Airflow Variable no longer exists. `r2_sync` now runs
+after every successful `quantum_ml_feature_processing` run, which follows the
+daily processing run.
+
+If you do not sync to Cloudflare R2, keep `r2_sync` paused in the Airflow UI;
+otherwise it fails every day at the rclone health check.
+
+The Spark configuration is now generated from
+[`compose/spark-defaults.conf.template`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/spark-defaults.conf.template)
+by `just setup`, and the tracked `compose/spark-defaults.conf` is gone. After
+upgrading, run `just setup` once before `just up`. Without the generated file,
+Docker mounts an empty directory in its place and Spark does not start.
+
+### Evaluation ceiling
+
+New flag `--max-evaluations` sets a hard ceiling on energy evaluations, default
+30000; a run that reaches it returns the best energy seen so far. See
+[`--max-evaluations`](usage/configuration.md#-max-evaluations).
+
+### Kafka record size
+
+A converged run streams one record of tens of MB, which the Kafka default of
+1 MiB rejected. The producer now sends records up to 128 MiB and the compose
+broker accepts them; see
+[Kafka record size](deployment/docker-compose.md#kafka-record-size).
+
+### Storage
+
+`S3_ENDPOINT` in `.env` can now name an external S3 service. `just setup` checks
+that it answers and creates the four buckets there; if it does not answer, setup
+points `.env` back at the compose Garage and configures that instead. Redpanda
+Connect and MLflow follow `S3_ENDPOINT` and `S3_REGION` and no longer depend on
+the compose Garage.
+
+A new one-shot `kafka-init` service creates the `_schemas` topic (with the
+`compact` cleanup policy Schema Registry requires) and the results topic before
+anything connects. The broker now keeps its data on the `kafka-data` volume.
+Before, topics were lost whenever the broker container was recreated, so records
+not yet consumed are lost when the broker is recreated during this upgrade.
+
+### Benchmarking
+
+New flag `--no-analytic` keeps the Aer exact path when the analytic statevector
+path would otherwise apply. Results stay exact and the energies agree to about
+1e-13 Ha, but gradients come from finite differences. It is meant for
+benchmarking the lane that the analytic path replaces.
+
+### Data
+
+A run with `--molecule-index` now streams the molecule's position in the file as
+its `molecule_id`. Before, the id was always 0 for a single selected molecule,
+so runs of different molecules shared an id.
+
+The `vqe_results` and `performance_metrics` Iceberg tables have a new
+`container_type` column, read from the performance snapshot. It tells GPU lanes
+apart, because both cards report the same Aer backend name. It is empty (NULL)
+for runs without performance monitoring, and `unknown` when monitoring ran
+without `CONTAINER_TYPE` set.
+
+### Airflow
+
+`quantum_ml_feature_processing` and `r2_sync` are now scheduled on assets that
+the upstream DAG updates on success, instead of waiting on an
+`ExternalTaskSensor`. The sensor matched on logical date, and a daily timedelta
+schedule stamps each run with the exact time the scheduler created it, so two
+independently scheduled DAGs never shared one. `quantum_feature_processing` now
+runs on an `@daily` schedule and, like `quantum_ml_feature_processing`, allows
+one run at a time because concurrent runs raced on the shared Spark jar cache.
+
+The success email from `quantum_feature_processing` was removed together with
+its callback.
+
+### Dependencies
+
+The lock moved up to qiskit 2.5.2, qiskit-nature 0.8.0, scipy 1.18.1, numpy 2.5.4 and
+pyscf 2.14.0, the versions the images and CI were already resolving. Both Docker images
+now install from `docker/requirements.txt`, a hashed export of the lock, instead of
+resolving ranges at build time, so the lock, the images and CI agree.
+
+### Python versions
+
+The package is now tested on Python 3.10 to 3.14. The lock and the Docker images pin
+the resolution for Python 3.12 and newer, which is also what the thesis numbers are
+measured on. Python 3.10 and 3.11 are supported through the dependency ranges and
+checked in CI. The ml extra needs Python 3.11 or newer because of scikit-learn.
+
+### Fixes
+
+Feature tables no longer gain a duplicate row on every processing run for rows
+with an empty key column. The check for new records now compares keys null-safe,
+so an empty key matches an existing empty key.
+
+Appends to the feature tables accept the new rows in a different column order
+than the table's.
+
+Timestamps are now in UTC: the date in the `--dump` file name, the timestamp of
+the performance snapshot, and the `processing_date` of the ML feature tables.
+
+The first `just setup` on a fresh install no longer aborts when the Garage key
+does not exist yet.
+
+---
+
 ## [2.4.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.4.0)
 
 ### Breaking changes

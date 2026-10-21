@@ -18,8 +18,10 @@ output:
   aws_s3:
     bucket: raw-results
     path: experiments/experiment.vqe/${!count("s3_objects")}-${!timestamp_unix_nano()}.json
-    endpoint: http://garage:3901
-    region: garage
+    # Resolved from the environment so the sink follows S3_ENDPOINT
+    # (the compose Garage by default, an external S3 service when .env says so).
+    endpoint: ${S3_ENDPOINT:http://garage:3901}
+    region: ${S3_REGION:garage}
     force_path_style_urls: true
     credentials:
       id: ${S3_ACCESS_KEY}

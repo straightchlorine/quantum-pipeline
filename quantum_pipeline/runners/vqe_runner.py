@@ -59,10 +59,12 @@ class VQERunner(Runner):
         basis_set: str = 'sto3g',
         max_iterations: int | None = 100,
         convergence_threshold: float | None = None,
+        max_evaluations: int | None = None,
         optimizer: str = 'COBYLA',
         ansatz_reps: int = 3,
         ansatz_type: str = 'EfficientSU2',
         default_shots: int | None = 1024,
+        no_analytic: bool = False,
         seed: int | None = None,
         init_strategy: str = 'random',
         report: bool = False,
@@ -80,7 +82,9 @@ class VQERunner(Runner):
         self.ansatz_type = ansatz_type
         self.optimizer = optimizer
         self.default_shots = default_shots
+        self.no_analytic = no_analytic
         self.convergence_threshold = convergence_threshold
+        self.max_evaluations = max_evaluations
         self.seed = seed
         self.init_strategy = init_strategy
         # TODO: validate the optimizer name (and other config) here so a config error fails
@@ -200,9 +204,12 @@ class VQERunner(Runner):
                 ansatz_reps=self.ansatz_reps,
                 ansatz_type=self.ansatz_type,
                 default_shots=self.default_shots,
+                no_analytic=self.no_analytic,
                 convergence_threshold=self.convergence_threshold,
                 seed=self.seed,
                 init_strategy=self.init_strategy,
+                # ceiling on objective calls (see VQESolver._enforce_eval_limit)
+                max_evaluations=self.max_evaluations,
                 # 'hf' init needs hf_data; ExcitationPreserving requires it structurally.
                 # Other ansatze never read it.
                 hf_data=hf_data,
@@ -434,12 +441,16 @@ class VQERunner(Runner):
                     f'molecule-index {self.molecule_index} out of range '
                     f'(file has {len(self.molecules)} molecules)'
                 )
-            self.molecules = [self.molecules[self.molecule_index]]
-            self.molecule_names = [self.molecule_names[self.molecule_index]]
+            # molecule_id stays the molecule's position in the file
+            # (for identification in the result + metrics)
+            selected = [self.molecule_index]
+        else:
+            selected = list(range(len(self.molecules)))
 
         try:
             with self.performance_monitor:
-                for molecule_id, molecule in enumerate(self.molecules):
+                for molecule_id in selected:
+                    molecule = self.molecules[molecule_id]
                     self.logger.info(f'Processing molecule {molecule_id + 1}:\n\n{molecule}\n')
                     try:
                         decorated_result = self._process_molecule(molecule_id, molecule)
@@ -473,11 +484,11 @@ class VQERunner(Runner):
             self.generate_report()
             self.report_gen.generate_report()
 
-        # Surface failures loudly. Streaming failures win the exception type because
-        # the job must be retried for them; solver failures are appended to the same
         # message so they are not lost when both happened in one run.
+        # streaming failures are higher priority - jobs are retried for them;
+        # if both happen - solver message is appended
         failed_msg = (
-            f'{len(self._failed)} of {len(self.molecules)} molecules failed '
+            f'{len(self._failed)} of {len(selected)} molecules failed '
             f'(indices {self._failed}); {len(self.run_results)} results completed.'
         )
         if self._undelivered:

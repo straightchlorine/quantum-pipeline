@@ -9,6 +9,7 @@ static
 # ignore main env file and generated configs with secrets
 .env
 compose/garage.toml
+compose/spark-defaults.conf
 
 # ignore generated wheel files
 *.whl

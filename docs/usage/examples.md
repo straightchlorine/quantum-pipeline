@@ -75,7 +75,8 @@ quantum-pipeline \
 
 GPU acceleration offloads statevector operations to the NVIDIA GPU. The `cc-pvdz` basis set provides
 higher accuracy but needs significantly more qubits (e.g. 48 for H\(_2\)O).
-Convergence mode runs until the energy change falls below the threshold.
+Convergence mode runs until the energy change falls below the threshold or until
+[`--max-evaluations`](configuration.md#-max-evaluations) (default 30000) is reached.
 With `--gpu` the run uses the Aer exact path, not the analytic path.
 
 The `--init-strategy hf` flag pre-optimizes the parameters against Hartree-Fock data, so the optimizer
@@ -136,7 +137,10 @@ quantum-pipeline \
     --optimizer L-BFGS-B
 ```
 
-The optimizer runs until the energy change between consecutive iterations falls below the threshold. The number of iterations depends on the molecule, basis set and optimizer; thesis H\(_2\) runs with L-BFGS-B took about 650 iterations.
+The optimizer runs until the energy change between consecutive iterations falls below the threshold,
+or until [`--max-evaluations`](configuration.md#-max-evaluations) (default 30000) is reached.
+The number of iterations depends on the molecule, basis set and optimizer;
+thesis H\(_2\) runs with L-BFGS-B took about 650 iterations.
 
 ### Threshold guidelines
 
@@ -146,7 +150,7 @@ The optimizer runs until the energy change between consecutive iterations falls 
 | `1e-6` | Standard (1 microHartree) | General runs |
 | `1e-8` | High precision (10 nanoHartree) | Publication-quality research |
 
-If `--convergence` is set, `--max-iterations` is ignored (with a warning if it was set to a non-default value); the threshold decides when the run stops.
+If `--convergence` is set, `--max-iterations` is ignored (with a warning if it was set to a non-default value); the threshold decides when the run stops, or [`--max-evaluations`](configuration.md#-max-evaluations) (default 30000) if it is reached first.
 
 For L-BFGS-B, the convergence threshold is passed as `ftol` and `gtol` in the options dict. For COBYLA and other optimizers, it is passed as the global `tol` parameter to `scipy.optimize.minimize`.
 

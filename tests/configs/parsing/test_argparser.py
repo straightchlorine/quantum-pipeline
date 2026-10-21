@@ -424,6 +424,45 @@ class TestArgparserEdgeCases:
         with pytest.raises(SystemExit):
             argparser.parser.parse_args(['--file', 'molecule.json', '--max-iterations', '3.14'])
 
+    def test_max_evaluations_default(self, argparser):
+        """--max-evaluations defaults to the value in DEFAULTS.
+
+        It is the ceiling that bounds an --convergence run, which otherwise has no
+        evaluation budget at all (max_iterations is mutually exclusive with the
+        convergence threshold).
+        """
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert args.max_evaluations == DEFAULTS['max_evaluations']
+
+    def test_max_evaluations_explicit(self, argparser):
+        args = argparser.parser.parse_args(
+            ['--file', 'molecule.json', '--max-evaluations', '1234']
+        )
+        assert args.max_evaluations == 1234
+        assert isinstance(args.max_evaluations, int)
+
+    def test_max_evaluations_combines_with_convergence(self, argparser):
+        """The point of the flag: it is settable alongside --convergence.
+
+        --max-iterations is ignored when --convergence is given (cli.py nulls it), so
+        without this flag an --convergence run has no evaluation ceiling.
+        """
+        args = argparser.parser.parse_args(
+            ['--file', 'molecule.json', '--convergence', '--max-evaluations', '5000']
+        )
+        assert args.convergence is True
+        assert args.max_evaluations == 5000
+
+    def test_max_evaluations_rejects_non_positive(self, argparser):
+        for bad in ('0', '-1'):
+            with pytest.raises(SystemExit):
+                argparser.parser.parse_args(['--file', 'molecule.json', '--max-evaluations', bad])
+
+    def test_max_evaluations_rejects_non_integer(self, argparser):
+        for bad in ('invalid', '3.14'):
+            with pytest.raises(SystemExit):
+                argparser.parser.parse_args(['--file', 'molecule.json', '--max-evaluations', bad])
+
     def test_threshold_zero(self, argparser):
         """Test convergence threshold with zero value."""
         args = argparser.parser.parse_args(['--file', 'molecule.json', '--threshold', '0'])
@@ -899,3 +938,17 @@ class TestSeedArgument:
         """Test that negative seed values are accepted."""
         args = argparser.parser.parse_args(['--file', 'molecule.json', '--seed', '-1'])
         assert args.seed == -1
+
+
+class TestNoAnalyticArgument:
+    """Tests for the --no-analytic CLI argument (benchmark-only opt-out)."""
+
+    def test_no_analytic_default_off(self, argparser):
+        """Test that --no-analytic defaults to False, so the analytic path stays automatic."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json'])
+        assert args.no_analytic is False
+
+    def test_no_analytic_store_true(self, argparser):
+        """Test that --no-analytic is a store_true flag."""
+        args = argparser.parser.parse_args(['--file', 'molecule.json', '--no-analytic'])
+        assert args.no_analytic is True

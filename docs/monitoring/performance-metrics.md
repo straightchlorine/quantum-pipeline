@@ -158,7 +158,7 @@ Monitoring is configured via environment variables (or constructor parameters, w
 | `MONITORING_EXPORT_FORMAT` | `prometheus` | `json`, `prometheus`, or `both` |
 | `CONTAINER_TYPE` | `unknown` | Label for the container (set automatically in Docker) |
 
-Constructor parameters take priority over environment variables, which take priority over `settings.py` defaults. See the [`PerformanceMonitor.__init__`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/monitoring/performance_monitor.py#L46) method for details.
+Constructor parameters take priority over environment variables, which take priority over `settings.py` defaults. See the [`PerformanceMonitor.__init__`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/monitoring/performance_monitor.py) method for details.
 
 ### Enabling Monitoring
 

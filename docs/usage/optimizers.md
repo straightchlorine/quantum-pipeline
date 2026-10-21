@@ -21,7 +21,7 @@ By the variational principle, the computed energy is always an upper bound on
 the true ground state energy.
 
 The pipeline offers the 10 optimizers listed in
-[`settings.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L4).
+[`settings.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py).
 Each one is configured in
 [`optimizer_config.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py).
 
@@ -36,7 +36,7 @@ quantum-pipeline -f data/molecules.json --optimizer L-BFGS-B
 Each configured optimizer has a class that controls the `options` dict and
 `tol` parameter passed to `scipy.optimize.minimize`, plus parameter validation.
 The
-[`OptimizerConfigFactory.create_config()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L233)
+[`OptimizerConfigFactory.create_config()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py)
 method picks the right class. It accepts `max_iterations` and
 `convergence_threshold`, which are mutually exclusive. At the CLI,
 `--convergence` takes precedence over `--max-iterations`.
@@ -51,7 +51,7 @@ for high-dimensional problems.
 
 - **Type**: Quasi-Newton (gradient-based)
 - **Default maxiter**: 15,000
-- **Config class**: [`LBFGSBConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L50)
+- **Config class**: [`LBFGSBConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py)
 
 | Mode | Triggered by | Behavior |
 |------|-------------|----------|
@@ -70,7 +70,7 @@ functions well.
 
 - **Type**: Derivative-free
 - **Default maxiter**: 1,000
-- **Config class**: [`COBYLAConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L94)
+- **Config class**: [`COBYLAConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py)
 
 Uses the global `tol` parameter for convergence (not options-level). Warns if
 `max_iterations < num_parameters + 2`, which is the minimum COBYLA needs for
@@ -83,7 +83,7 @@ programming subproblems.
 
 - **Type**: Sequential quadratic programming
 - **Default maxiter**: 100
-- **Config class**: [`SLSQPConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L130)
+- **Config class**: [`SLSQPConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py)
 
 Sets `ftol` in options when convergence threshold is provided. Also passes the
 threshold as global `tol`.
@@ -103,7 +103,7 @@ than with its defaults, but it may still stop before `maxiter`. Otherwise the co
 ### Generic Configs
 
 The remaining 6 configured optimizers use
-[`GenericConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py#L163),
+[`GenericConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/optimizer_config.py),
 which passes `maxiter` (or `maxfun` for TNC) into the options dict and returns
 `convergence_threshold` as the global `tol`.
 
@@ -160,7 +160,9 @@ When you pass `--max-iterations N`, the limit is enforced in two ways:
    and raises `MaxFunctionEvalsReachedError` when exceeded.
 
 If `--convergence` is set, `--max-iterations` is ignored (with a warning if it
-was set to a non-default value); the threshold decides when the run stops. (`OptimizerConfig` itself
+was set to a non-default value); the threshold decides when the run stops, and
+[`--max-evaluations`](configuration.md#-max-evaluations) (default 30000) is the
+pipeline's own bound on evaluations. (`OptimizerConfig` itself
 raises a `ValueError` if constructed directly with both values.)
 
 ## Performance Notes

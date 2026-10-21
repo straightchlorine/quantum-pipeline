@@ -73,7 +73,7 @@ Click on any question to expand the answer.
 ## Installation
 
 ??? question "Which Python version is required?"
-    Quantum Pipeline requires Python 3.12.
+    Python 3.10 to 3.14. Installing from source with PDM, and the Docker images, use Python 3.12 or newer; on 3.10 and 3.11 install with pip. The ml extra needs 3.11 or newer.
 
     During development `uv` was extensively used to ensure proper versioning.
     Alternatives include `conda`, `pyenv` and similar tools to ensure correct Python version.
@@ -97,7 +97,7 @@ Click on any question to expand the answer.
     on your machine.
 
 ??? question "What are the required system dependencies?"
-    Python 3.12 for the package. Docker and Docker Compose are only needed for the container images and the full platform. For GPU support: NVIDIA drivers and the NVIDIA Container Toolkit.
+    Python 3.10 to 3.14 for the package (see above). Docker and Docker Compose are only needed for the container images and the full platform. For GPU support: NVIDIA drivers and the NVIDIA Container Toolkit.
     All scientific computing dependencies are managed through pip.
 
 ## Usage
