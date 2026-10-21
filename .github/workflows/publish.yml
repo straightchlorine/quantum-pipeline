@@ -1,7 +1,13 @@
-name: Publish
+name: Release
 
-# Release pipeline, triggered by pushing a tag.
-# The GPU image is NOT built here - see publish-docker-gpu.yml.
+# Release pipeline, triggered by pushing a version tag. I
+# In order:
+# CI on the tagged commit
+#   -> verify tag
+#     -> package, CPU image and GPU image
+#       -> PyPI
+#         -> GitHub release
+#           -> docs.
 
 on:
   push:
@@ -19,7 +25,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   verify-tag:
+    name: Verify tag
+    needs: [ci]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,6 +61,7 @@ jobs:
           fi
 
   build-image:
+    name: CPU image
     needs: [verify-tag]
     runs-on: ubuntu-latest
     environment: docker
@@ -107,6 +122,7 @@ jobs:
 
   # Informational only for now.
   scan-image:
+    name: Scan CPU image
     needs: [build-image]
     runs-on: ubuntu-latest
     permissions:
@@ -146,6 +162,7 @@ jobs:
           category: trivy-release
 
   sign-and-attest:
+    name: Sign & attest CPU image
     needs: [build-image]
     runs-on: ubuntu-latest
     environment: docker
@@ -203,7 +220,22 @@ jobs:
           subject-name: index.docker.io/${{ github.repository }}
           subject-digest: ${{ needs.build-image.outputs.digest }}
 
+  gpu-image:
+    name: GPU image
+    needs: [verify-tag]
+    uses: ./.github/workflows/publish-docker-gpu.yml
+    with:
+      version: ${{ github.ref_name }}
+    # A ceiling for the called jobs, each of which sets its own narrower set.
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
+
   build-dist:
+    name: Build package
     needs: [verify-tag]
     runs-on: ubuntu-latest
     steps:
@@ -228,7 +260,8 @@ jobs:
           path: dist/
 
   publish-pypi:
-    needs: [build-dist]
+    name: Publish to PyPI
+    needs: [build-dist, build-image, sign-and-attest, gpu-image]
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -248,7 +281,8 @@ jobs:
           packages-dir: dist/
 
   github-release:
-    needs: [sign-and-attest, publish-pypi]
+    name: GitHub release
+    needs: [publish-pypi]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -265,6 +299,13 @@ jobs:
           name: quantum-pipeline-${{ github.ref_name }}.spdx.json
           path: sbom/
 
+      # Uploaded by the called GPU workflow, so it belongs to this run.
+      - name: Retrieve the GPU image SBOM
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: quantum-pipeline-${{ github.ref_name }}-gpu.spdx.json
+          path: sbom/
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -274,3 +315,12 @@ jobs:
             --verify-tag \
             --generate-notes \
             dist/* sbom/*
+
+  docs:
+    name: Deploy docs
+    needs: [github-release]
+    uses: ./.github/workflows/docs.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
