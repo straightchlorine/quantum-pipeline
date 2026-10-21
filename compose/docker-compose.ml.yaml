@@ -117,6 +117,10 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # Image defaults log.dirs to /tmp/kraft-combined-logs, inside the container.
+      # Without this override every recreate started with empty topics, despite
+      # kafka-data being mounted.
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
@@ -148,6 +152,31 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
 
+  # Introduces two topics with the expected settings before anything connects.
+  #
+  # With auto-create on, the first client that touches `_schemas` makes it with
+  # the default `delete` cleanup policy. Schema Registry then refuses to start
+  # ("Expected cleanup.policy to be 'compact'").
+  kafka-init:
+    image: apache/kafka:${KAFKA_VERSION:-4.2.0}
+    container_name: ml-kafka-init
+    restart: "no"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        T=/opt/kafka/bin/kafka-topics.sh
+        $$T --bootstrap-server kafka:9092 --create --if-not-exists --topic ${SCHEMA_REGISTRY_TOPIC:-_schemas} \
+          --partitions 1 --replication-factor 1 --config cleanup.policy=compact
+        $$T --bootstrap-server kafka:9092 --create --if-not-exists --topic ${KAFKA_TOPIC:-experiment.vqe} \
+          --partitions 1 --replication-factor 1
+        $$T --bootstrap-server kafka:9092 --describe --topic ${SCHEMA_REGISTRY_TOPIC:-_schemas} | head -1
+    networks:
+      - quantum-net
+
   schema-registry:
     image: confluentinc/cp-schema-registry:${SCHEMA_REGISTRY_VERSION:-8.2.0}
     container_name: ml-schema-registry
@@ -155,6 +184,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "${KAFKA_SERVERS:-kafka:9092}"
       SCHEMA_REGISTRY_KAFKASTORE_TOPIC: "${SCHEMA_REGISTRY_TOPIC:-_schemas}"
@@ -182,6 +213,8 @@ services:
     environment:
       S3_ACCESS_KEY: "${S3_ACCESS_KEY}"
       S3_SECRET_KEY: "${S3_SECRET_KEY}"
+      S3_ENDPOINT: "${S3_ENDPOINT:-http://garage:3901}"
+      S3_REGION: "${S3_REGION:-garage}"
     volumes:
       - ./redpanda-connect.yaml:/connect.yaml:ro
     command: run /connect.yaml
@@ -198,8 +231,8 @@ services:
         condition: service_healthy
       schema-registry:
         condition: service_healthy
-      garage:
-        condition: service_healthy
+        # No dependency on the compose Garage:
+        # the sink writes to S3_ENDPOINT, which may be an external store.
 
   # --- garage (s3-compatible storage) ---
 
@@ -429,14 +462,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      garage:
-        condition: service_healthy
+        # artifacts go to S3_ENDPOINT (see MLFLOW_S3_ENDPOINT_URL)
     ports:
       - "${MLFLOW_PORT:-5000}:5000"
     environment:
       MLFLOW_BACKEND_STORE_URI: "postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@postgres/mlflow"
       MLFLOW_ARTIFACTS_DESTINATION: "s3://mlflow-artifacts/"
-      MLFLOW_S3_ENDPOINT_URL: "http://garage:3901"
+      MLFLOW_S3_ENDPOINT_URL: "${S3_ENDPOINT:-http://garage:3901}"
       AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
       MLFLOW_S3_IGNORE_TLS: "true"

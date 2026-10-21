@@ -1,9 +1,9 @@
-# Spark configuration for Quantum ML pipeline
-# Credentials are provided via AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY env vars
-# (read by the default S3A credential chain — no explicit provider class needed)
+# Rendered by scripts/ml-setup.sh into compose/spark-defaults.conf (ignored).
+# This template should be edited instead of the rendered file.
 #
-# AQE (spark.sql.adaptive.enabled) defaults to true since Spark 3.2 — no explicit
-# config needed.
+# Spark configuration for Quantum ML pipeline:
+# Credentials are provided via AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY env vars
+# (read by the default S3A credential chain - explicit provider class needed).
 #
 # Spark master/worker use ~/.ivy2 by default (mapped to spark-ivy-cache volume).
 # Airflow overrides spark.jars.ivy via --conf in SparkSubmitOperator.
@@ -22,8 +22,8 @@ spark.sql.catalog.quantum_catalog                       org.apache.iceberg.spark
 spark.sql.catalog.quantum_catalog.type                  hadoop
 spark.sql.catalog.quantum_catalog.warehouse             s3a://features/warehouse/
 spark.sql.catalog.quantum_catalog.io-impl               org.apache.iceberg.hadoop.HadoopFileIO
-spark.hadoop.fs.s3a.endpoint                            http://garage:3901
-spark.hadoop.fs.s3a.endpoint.region                     garage
+spark.hadoop.fs.s3a.endpoint                            ${S3_ENDPOINT}
+spark.hadoop.fs.s3a.endpoint.region                     ${S3_REGION}
 spark.hadoop.fs.s3a.impl                                org.apache.hadoop.fs.s3a.S3AFileSystem
 spark.hadoop.fs.s3a.path.style.access                   true
 spark.hadoop.fs.s3a.connection.ssl.enabled              false

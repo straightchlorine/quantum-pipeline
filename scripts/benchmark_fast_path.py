@@ -1,11 +1,15 @@
 """Benchmark the analytic-gradient fast path against the Aer exact path.
 
-Times one energy+gradient call on the fast path and one energy call on Aer for four molecules
-(4, 10, 12 and 14 qubits). The Aer step is estimated as n_params + 1 energy calls, and the
-Hartree-Fock point is checked to be stationary. Run from the repository root, one thread per run:
-    OMP_NUM_THREADS=1 pdm run python scripts/benchmark_fast_path.py [--output PATH] [--molecules PATH]
-It writes benchmarks/fast_path/<date>-<git sha>.json with the per-molecule rows and a
-grid_extrapolation in core-hours.
+Times one energy+gradient call on the fast path and one energy call on Aer, for
+four molecules. The Aer step is estimated as n_params + 1 energy calls, and
+the Hartree-Fock point is checked to be stationary.
+
+Run from the repository root, one thread per run:
+    OMP_NUM_THREADS=1 pdm run python scripts/benchmark_fast_path.py
+        [--output PATH] [--molecules PATH]
+
+It writes benchmarks/fast_path/<utc date>-<git sha>.json with the per-molecule
+rows and a grid_extrapolation in core-hours.
 """
 
 import argparse
@@ -14,7 +18,7 @@ import os
 import subprocess
 import timeit
 from collections.abc import Callable
-from datetime import date
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +43,7 @@ from quantum_pipeline.configs.constants import EP_INIT_JITTER
 from quantum_pipeline.drivers.molecule_loader import load_molecule, load_molecule_names
 from quantum_pipeline.mappers import JordanWignerMapper
 
-# Qubit count after freezing the core and mapping -> (molecule, freeze core).
+# Qubit count after core freezing and mapping, keyed by (molecule, freeze core).
 # build_problem checks the count.
 TIERS = {
     4: ('H2', False),
@@ -55,12 +59,13 @@ ANSATZ_REPS = 3
 HF_GRAD_TOL = 1e-12
 CPU_COUNT = os.cpu_count() or 1
 
-# Core-hour grid: optimizer steps per trajectory, trajectories, and the smallest tier included.
+# Core-hour grid: steps per trajectory, trajectory count and the smallest tier.
 # The 4-qubit tier is overhead-bound, so it stays out.
 GRID_STEPS = 300
 GRID_TRAJECTORIES = 2600
 GRID_MIN_QUBITS = 10
-# A 1-minute load average below this share of the CPU count counts as a quiet host.
+
+# A 1-minute load average below this share of the CPU count means a quiet host.
 QUIESCENT_LOAD_SHARE = 0.25
 
 # Built once so its circuit cache is warm, as in the solver.
@@ -68,8 +73,8 @@ GRAD = ReverseEstimatorGradient()
 
 
 def best_of(fn: Callable[[], object], repeat: int = 10) -> float:
-    # Minimum, not mean: scheduler noise only adds time. number=1 because one call takes
-    # milliseconds.
+    # Minimum, not mean:
+    # scheduler noise only adds time. number=1 - one call takes milliseconds.
     return min(timeit.repeat(fn, repeat=repeat, number=1))
 
 
@@ -152,16 +157,18 @@ def measure_tier(
     problem, mapper, qop = build_problem(name, freeze, expected_qubits, molecules)
 
     ansatz = EfficientSU2(qop.num_qubits, reps=ANSATZ_REPS)
-    # One fixed parameter vector per molecule, so timings do not depend on a lucky draw.
+
+    # One fixed parameter vector per molecule; timings don't get lucky.
     x = 2 * np.pi * np.random.default_rng(42).random(ansatz.num_parameters)
     t_energy_s = best_of(lambda: Statevector(ansatz.assign_parameters(x)).expectation_value(qop))
     t_energy_grad_s = best_of(lambda: energy_and_grad(ansatz, qop, x))
     t_aer_eval_s = time_aer(ansatz, qop, x)
+
     # One exact-path optimizer step: one energy call per parameter plus the base point.
     aer_step_s = t_aer_eval_s * (ansatz.num_parameters + 1)
 
-    # ExcitationPreserving as built in VQESolver._build_ansatz. Its XX+YY gates are translated
-    # before differentiation, so one call costs more than for EfficientSU2.
+    # ExcitationPreserving as built in VQESolver._build_ansatz.
+    # XX+YY gates are translated before differentiation, so one call costs more than for EfficientSU2.
     hf_circuit = build_hf_initial_state(
         HFData(
             num_particles=problem.num_particles,
@@ -261,10 +268,9 @@ def main() -> None:
     rows = [measure_tier(name, freeze, n, molecules, meta) for n, (name, freeze) in TIERS.items()]
     extrapolation = grid_extrapolation(rows)
 
-    # <date>-<sha>.json: a rerun on the same day and commit overwrites the earlier file.
-    out_path = args.output or (
-        Path('benchmarks/fast_path') / f'{date.today():%Y-%m-%d}-{meta["git_sha"]}.json'
-    )
+    # <utc date>-<sha>.json: a rerun on the same day and commit overwrites the earlier file.
+    date_tag = f'{datetime.now(timezone.utc).date():%Y-%m-%d}'
+    out_path = args.output or Path('benchmarks/fast_path') / f'{date_tag}-{meta["git_sha"]}.json'
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {'rows': rows, 'grid_extrapolation': extrapolation}
     out_path.write_text(json.dumps(payload, indent=2) + '\n')
