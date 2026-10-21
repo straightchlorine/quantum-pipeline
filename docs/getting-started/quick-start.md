@@ -158,7 +158,8 @@ See [Configuration](../usage/configuration.md) for the full parameter reference.
 ## Convergence-based optimization
 
 When `--convergence` is enabled, the default iteration limit (100) is dropped and the optimizer
-runs until the threshold is met.
+runs until the threshold is met or until [`--max-evaluations`](../usage/configuration.md#-max-evaluations) (default 30000)
+is reached.
 
 If `--convergence` is set, `--max-iterations` is ignored, with a warning if it was
 set to a non-default value.

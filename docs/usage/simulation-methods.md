@@ -22,7 +22,7 @@ The default is `statevector`. For GPU-accelerated workloads, `tensor_network` is
 For full details on each method, GPU options, and backend parameters, see the
 [AerSimulator API reference](https://qiskit.github.io/qiskit-aer/stubs/qiskit_aer.AerSimulator.html).
 The supported methods are defined in
-[`quantum_pipeline/configs/settings.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py#L27).
+[`quantum_pipeline/configs/settings.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/settings.py).
 
 ## Available Methods
 

@@ -1,13 +1,13 @@
 ---
 title: "Installation: PyPI, Source and Docker"
-description: "Install Quantum Pipeline from PyPI, from source with PDM or pip, or in Docker, and check the Python 3.12 and optional NVIDIA GPU requirements before running."
+description: "Install Quantum Pipeline from PyPI, from source with PDM or pip, or in Docker, and check the Python 3.10 to 3.14 and optional NVIDIA GPU requirements before running."
 ---
 
 # Installation
 
 ## Prerequisites
 
-- **Python**: 3.12 (the only supported version)
+- **Python**: 3.10 to 3.14. Installing from source with PDM, and the Docker images, use Python 3.12 or newer; on 3.10 and 3.11 install with pip. The ml extra needs 3.11 or newer.
 - **OS**: Linux (tested). macOS and Windows (WSL2) are untested; may work for CPU-only use.
 - **Optional**: NVIDIA GPU with CUDA for GPU acceleration
 
@@ -97,8 +97,8 @@ monitoring exporters and MLflow. The stack is defined in
 [`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml).
 
 The fastest way to get started is the setup script. It generates `.env` with
-random secrets, configures Garage (S3 storage), creates buckets, and sets up
-access keys:
+random secrets, renders the Spark configuration, configures Garage (S3 storage),
+creates buckets, and sets up access keys:
 
 ```bash
 # git clone https://github.com/straightchlorine/quantum-pipeline.git
@@ -118,8 +118,12 @@ just up
 just down
 ```
 
-If `.env` already exists, it skips what is already configured. Otherwise copy
-`.env.ml.example` to `.env` and fill in the values yourself before running `just up`.
+If `.env` already exists, it skips what is already configured. You can also copy
+`.env.ml.example` to `.env` and fill in the values yourself, but `just setup` (or
+`bash scripts/ml-setup.sh`) is still required before `just up`: it renders the Spark
+configuration the stack mounts. To use an external S3 service instead of the compose
+Garage, set `S3_ENDPOINT` and its credentials in `.env` before running it; see
+[External S3 storage](../deployment/docker-compose.md#external-s3-storage).
 
 Services started:
 

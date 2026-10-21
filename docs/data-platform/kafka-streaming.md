@@ -30,7 +30,7 @@ Replication factors are 1 since there is only one broker. The internal listener
 listener is exposed for development access from the host.
 
 The full Kafka service definition is in
-[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml#L104).
+[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml).
 
 | Listener | Port | Purpose |
 |----------|------|---------|
@@ -45,14 +45,14 @@ versioning. The default compatibility mode is `BACKWARD`. The registry stores
 schemas on the internal `_schemas` topic.
 
 The service definition is in
-[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml#L136).
+[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml).
 
 For details on compatibility modes, see the
 [Schema Registry documentation](https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html).
 
 ## Producer Configuration
 
-[`VQEKafkaProducer`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/kafka_interface.py#L20)
+[`VQEKafkaProducer`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/kafka_interface.py)
 wraps `kafka-python-ng`'s `KafkaProducer`, adding Avro serialization and a
 two-level retry mechanism. On initialization it builds the security config,
 connects to Schema Registry, and sets up the
@@ -66,6 +66,8 @@ serializer.
 | `retries` | `3` | Application-level retries in `_send_with_retry()`, with configurable `retry_delay` (default 2s) |
 | `acks` | `all` | Acknowledgment level required from brokers |
 | `timeout` | `10` | Timeout in seconds for each `send().get()` call |
+| `max_request_size` | `134217728` (128 MiB) | Largest request the producer sends; the `kafka-python-ng` default of 1 MiB rejects a converged run. See [Kafka record size](../deployment/docker-compose.md#kafka-record-size) |
+| `buffer_memory` | `134217728` (128 MiB) | Producer buffer; a record larger than it is rejected too, so it matches `max_request_size`. See [Kafka record size](../deployment/docker-compose.md#kafka-record-size) |
 
 There are two retry layers: `kafka_retries` is passed to the `KafkaProducer`
 constructor for low-level retries. `retries` controls the outer application

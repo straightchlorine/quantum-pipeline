@@ -11,14 +11,14 @@ Component-by-component breakdown of the stack.
 
 The simulation module runs VQE using Qiskit Aer (or IBM Quantum). It is
 structured around ABC base classes
-([`Runner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/runner.py#L6),
-[`Solver`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/solver.py#L13),
-[`Mapper`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/mappers/mapper.py#L4))
+([`Runner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/runner.py),
+[`Solver`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/solver.py),
+[`Mapper`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/mappers/mapper.py))
 with concrete implementations:
 
-- [`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L24) - orchestrates the full pipeline per molecule
-- [`VQESolver`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py#L47) - ansatz construction, circuit preparation, optimization loop
-- [`JordanWignerMapper`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/mappers/jordan_winger_mapper.py#L14) - fermionic-to-qubit operator mapping
+- [`VQERunner`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py) - orchestrates the full pipeline per molecule
+- [`VQESolver`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/solvers/vqe_solver.py) - ansatz construction, circuit preparation, optimization loop
+- [`JordanWignerMapper`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/mappers/jordan_winger_mapper.py) - fermionic-to-qubit operator mapping
 
 By default `VQERunner.run()` processes every molecule in the input file. Passing
 `--molecule-index` restricts a run to a single molecule. That single-molecule
@@ -71,10 +71,10 @@ sequenceDiagram
 
 | Method | What it does |
 |--------|-------------|
-| [`_process_molecule()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L289) | Full VQE execution for a single molecule  |
-| [`_collect_hf_deviation_metrics()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L228) | Compares VQE energy against the HF reference; values are None when no reference exists |
-| [`_build_metrics_data()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L266) | Constructs the metrics dict for Prometheus export |
-| [`_stream_result()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py#L371) | Sends a decorated VQE result to Kafka |
+| [`_process_molecule()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py) | Full VQE execution for a single molecule  |
+| [`_collect_hf_deviation_metrics()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py) | Compares VQE energy against the HF reference; values are None when no reference exists |
+| [`_build_metrics_data()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py) | Constructs the metrics dict for Prometheus export |
+| [`_stream_result()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/runners/vqe_runner.py) | Sends a decorated VQE result to Kafka |
 
 ### Data Collected Per Simulation
 
@@ -89,7 +89,7 @@ The result structure is documented in [Serialization - Schema Structure](seriali
 ### Metrics Export
 
 Each simulation container exports metrics to Prometheus PushGateway via
-[`PerformanceMonitor`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/monitoring/performance_monitor.py#L32):
+[`PerformanceMonitor`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/monitoring/performance_monitor.py):
 
 ```mermaid
 graph LR
@@ -150,9 +150,9 @@ sequenceDiagram
 ```
 
 Producer configuration is in
-[`ProducerConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/producer.py#L9)
+[`ProducerConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/producer.py)
 (servers, topic, retries, acks, timeout). Security options (SSL, SASL) are in
-[`SecurityConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/security.py#L60).
+[`SecurityConfig`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/configs/module/security.py).
 
 
 ## Garage Storage
@@ -196,7 +196,7 @@ s3://raw-results/
 File names follow `{counter}-{timestamp_unix_nano}.json`. The default Redpanda
 Connect config writes every file flat under the topic directory, with no
 Hive-style partitioning (see the `path` template in
-[`compose/redpanda-connect.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/redpanda-connect.yaml#L20)).
+[`compose/redpanda-connect.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/redpanda-connect.yaml)).
 
 Iceberg feature tables (written by Spark):
 
@@ -256,10 +256,10 @@ graph LR
 
 | DAG | Schedule | What it does | Source |
 |-----|----------|-------------|--------|
-| `quantum_feature_processing` | Daily | Reads raw data from Garage, transforms into 9 normalized Iceberg tables | [`quantum_processing_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py) |
-| `quantum_ml_feature_processing` | Daily | Joins 5 of the normalized tables into 2 ML-ready feature tables. Waits for upstream via `ExternalTaskSensor` | [`quantum_ml_feature_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_ml_feature_dag.py) |
+| `quantum_feature_processing` | Daily at midnight UTC | Reads raw data from Garage, transforms into 9 normalized Iceberg tables | [`quantum_processing_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py) |
+| `quantum_ml_feature_processing` | On asset | Joins 5 of the normalized tables into 2 ML-ready feature tables. Starts when `quantum_feature_processing` succeeds | [`quantum_ml_feature_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_ml_feature_dag.py) |
 | `vqe_batch_generation` | Manual | Builds Docker images, runs batch VQE generation script. Trigger conf: `{"tier": N}` | [`vqe_batch_generation_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/vqe_batch_generation_dag.py) |
-| `r2_sync` | Manual by default, or set the `R2_SYNC_SCHEDULE` Airflow Variable | Waits for `quantum_ml_feature_processing` via an `ExternalTaskSensor`, health-checks rclone, then syncs ML feature Parquet from Garage to Cloudflare R2 | [`r2_sync_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/r2_sync_dag.py) |
+| `r2_sync` | On asset | Starts when `quantum_ml_feature_processing` succeeds, health-checks rclone, then syncs ML feature Parquet from Garage to Cloudflare R2 | [`r2_sync_dag.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/r2_sync_dag.py) |
 
 ### Execution Flow
 
@@ -272,7 +272,7 @@ sequenceDiagram
     participant G as Garage
     participant I as Iceberg
 
-    Note over S: Daily at 00:00
+    Note over S: Daily at 00:00 UTC
     S->>SSO: quantum_feature_processing
 
     SSO->>SM: Submit PySpark job
@@ -286,8 +286,8 @@ sequenceDiagram
     SW->>SM: Done
     SSO->>S: Task success
 
-    Note over S: quantum_ml_feature_processing
-    S->>SSO: ExternalTaskSensor satisfied
+    Note over S: quantum_ml_feature_processing (asset updated)
+    S->>SSO: Asset updated, start run_ml_feature_processing
     SSO->>SM: Submit ML feature job
     SM->>SW: Join normalized tables
     SW->>I: Write ml_iteration_features + ml_run_summary

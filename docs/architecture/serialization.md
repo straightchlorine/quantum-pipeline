@@ -65,7 +65,7 @@ On the producer side, each serialization interface builds its Avro schema from
 its `schema` property and registers it with the registry on every access.
 Registration is idempotent, so generation lives in the interface, not in the
 registry. The registry's
-[`get_schema()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/utils/schema_registry.py#L89)
+[`get_schema()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/utils/schema_registry.py)
 lookup only reads an existing schema: it checks the in-memory cache first, then
 the Confluent Schema Registry, and raises `KeyError` if neither has it. It never
 generates. See the
@@ -75,7 +75,7 @@ for details on the registry API.
 ## Schema Structure
 
 The top-level message is a
-[`VQEDecoratedResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/structures/vqe_observation.py#L64),
+[`VQEDecoratedResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/structures/vqe_observation.py),
 composed from nested types. Each type has its own Avro interface class in
 [`stream/serialization/interfaces/vqe.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py).
 
@@ -170,7 +170,7 @@ graph LR
 | `molecule_data.masses` | array of double (nullable) | Atomic masses |
 
 For the full Avro JSON schema definitions, see the interface classes in
-[`stream/serialization/interfaces/vqe.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py#L436).
+[`stream/serialization/interfaces/vqe.py`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py).
 
 ## Schema Evolution
 
@@ -210,7 +210,7 @@ Messages use the
 a magic byte (`0x00`), a 4-byte schema ID, then the Avro binary payload.
 
 **Producer side** -
-[`to_avro_bytes()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py#L86)
+[`to_avro_bytes()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py)
 on `AvroInterfaceBase`:
 
 1. Parses the schema dict into an Avro schema object
@@ -228,19 +228,19 @@ on `AvroInterfaceBase`:
 ## Type Conversion
 
 Avro does not natively support NumPy types or complex numbers. The
-[`AvroInterfaceBase`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py#L26)
+[`AvroInterfaceBase`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py)
 handles conversion in both directions:
 
 - **NumPy to Avro**:
-  [`_convert_to_primitives()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py#L56)
+  [`_convert_to_primitives()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py)
   converts `ndarray` to lists, NumPy ints/floats to Python native types.
 - **Avro to NumPy**:
-  [`_convert_to_numpy()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py#L70)
+  [`_convert_to_numpy()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py)
   converts lists back to `ndarray`.
 - **Complex numbers**: Hamiltonian coefficients are complex-valued.
-  [`_serialize_hamiltonian()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py#L235)
+  [`_serialize_hamiltonian()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py)
   splits each coefficient into `real` and `imaginary` fields.
-  [`_deserialize_hamiltonian()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py#L253)
+  [`_deserialize_hamiltonian()`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/stream/serialization/interfaces/vqe.py)
   reconstructs `complex` values from these fields.
 
 ## References

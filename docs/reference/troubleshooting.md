@@ -258,7 +258,11 @@ spark.driver.memory=2g
 
 **Solution:**
 
-Verify that the following Spark configuration values match your Garage setup:
+The endpoint and region in `compose/spark-defaults.conf` are filled in from
+`S3_ENDPOINT` and `S3_REGION` in `.env` when `just setup` renders the file. After
+changing either, run `just setup` again and recreate the Spark and Airflow
+containers. Verify that the following Spark configuration values match your
+object store:
 
 ```properties
 spark.hadoop.fs.s3a.endpoint = http://garage:3901
@@ -279,7 +283,7 @@ docker compose ps garage
 
 ### DAG Not Visible in Web UI
 
-**Symptom:** The [`quantum_feature_processing`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py#L44) DAG does not appear in the Airflow web interface.
+**Symptom:** The [`quantum_feature_processing`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/airflow/quantum_processing_dag.py) DAG does not appear in the Airflow web interface.
 
 **Solution:** Verify the DAG file exists (`docker compose exec airflow-apiserver ls /opt/airflow/dags/`), check for import errors in **Admin > DAG Import Errors**, and force a rescan with `docker compose exec airflow-scheduler airflow dags reserialize`.
 

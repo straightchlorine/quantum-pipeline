@@ -22,11 +22,11 @@ The compose file is at
 It defines:
 
 - **Simulation containers** - Quantum Pipeline GPU and CPU containers (in the `batch` profile, started by Airflow DAGs)
-- **Streaming layer** - Apache Kafka (KRaft mode), Schema Registry, Redpanda Connect (S3 sink to Garage)
+- **Streaming layer** - Apache Kafka (KRaft mode), Schema Registry, Redpanda Connect (S3 sink)
 - **Processing layer** - Spark master and worker
 - **Orchestration** - Airflow 3.x with CeleryExecutor: API server, scheduler, DAG processor, Celery worker, triggerer, with PostgreSQL and Redis
-- **Storage** - Garage v2.2.0 S3-compatible object storage
-- **ML tracking** - MLflow experiment tracking server (backed by PostgreSQL + Garage)
+- **Storage** - Garage v2.2.0 S3-compatible object storage, or an external S3 service named by `S3_ENDPOINT`
+- **ML tracking** - MLflow experiment tracking server (backed by PostgreSQL + S3)
 - **Monitoring exporters** - StatsD exporter, PostgreSQL exporter, Redis exporter, NVIDIA GPU exporter
 
 Port mappings and dependencies are listed in the service tables below.
@@ -54,19 +54,29 @@ cd quantum-pipeline
 
 ### Step 2: Configure Environment
 
-Run the first-time setup script, which generates secrets and Garage configuration:
+Run the first-time setup script, which generates secrets, the Spark configuration
+and the object storage setup:
 
 ```bash
 just setup
 ```
 
-This creates a `.env` file from `.env.ml.example` and generates the required secrets.
-You can also do it manually:
+This creates a `.env` file from `.env.ml.example`, generates the required
+secrets, renders `compose/spark-defaults.conf` and creates the buckets. By default
+it configures the compose Garage. To use an existing S3 service instead, create
+`.env` first, set `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY` and `S3_SECRET_KEY`
+in it, then run `just setup`; see
+[External S3 storage](#external-s3-storage).
+
+You can also create `.env` manually:
 
 ```bash
 cp .env.ml.example .env
 chmod 600 .env
 ```
+
+`just setup` (or `bash scripts/ml-setup.sh`) is still required afterwards: it
+fills in the secrets and renders the Spark configuration the stack mounts.
 
 Edit `.env` to set credentials, resource limits, and service ports. See the
 [Environment Variables](environment-variables.md) reference for all options.
@@ -109,12 +119,40 @@ docker compose --env-file .env -f compose/docker-compose.ml.yaml ps
 | Service | Image | Port(s) | Description |
 |---|---|---|---|
 | `kafka` | `apache/kafka:4.2.0` | 9092 (internal), 9094 (external) | Message broker with KRaft mode |
+| `kafka-init` | `apache/kafka:4.2.0` | - | One-shot: creates the `_schemas` and results topics, then exits |
 | `schema-registry` | `confluentinc/cp-schema-registry:8.2.0` | 8081 | Avro schema management |
-| `redpanda-connect` | `docker.redpanda.com/redpandadata/connect` | 4195 (HTTP API: health, metrics) | S3 sink streaming from Kafka to Garage |
+| `redpanda-connect` | `docker.redpanda.com/redpandadata/connect` | 4195 (HTTP API: health, metrics) | S3 sink streaming from Kafka to object storage (`S3_ENDPOINT`) |
 
 Kafka runs in KRaft mode (no ZooKeeper). Schema Registry manages Avro schemas.
 Redpanda Connect replaces the older Kafka Connect + S3 Sink connector setup, streaming
-data from Kafka topics directly to Garage (S3).
+data from Kafka topics directly to object storage (the compose Garage by default).
+
+#### Kafka record size
+
+A converged run streams its result as one record with a row per energy
+evaluation. That record often reaches tens of MB. Kafka default of 1 MiB would
+reject it, so the broker accepts records up to 136 MiB and requests up to 256 MiB.
+
+The producer sends up to 128 MiB: `max_request_size` and `buffer_memory` both
+default to that, and the broker allows 8 MiB more for batch overhead. The limits
+are set with `KAFKA_MESSAGE_MAX_BYTES`, `KAFKA_REPLICA_FETCH_MAX_BYTES` and
+`KAFKA_SOCKET_REQUEST_MAX_BYTES`; see
+[Environment Variables](environment-variables.md#kafka-configuration). A broker
+keeps its old limits until its container is recreated.
+
+Redpanda Connect's Kafka client rejects any single broker response above 100 MiB
+and author is not aware of any settings for it, so the sink cannot write records
+approaching that size to storage.
+
+#### Kafka topics and data directory
+
+A one-shot `kafka-init` service creates the two topics before anything connects:
+`_schemas` with the `compact` cleanup policy the Schema Registry requires, and the
+results topic. Without it the first client to touch `_schemas` would create it with the
+default `delete` policy and the registry would refuse to start. The broker also keeps its
+log directory on the `kafka-data` volume (`KAFKA_LOG_DIRS`), so topics survive a recreate
+of the container; the image's default directory is inside the container and is lost
+with it.
 
 #### Alternative: Confluent Kafka Connect
 
@@ -133,7 +171,9 @@ docker compose --env-file .env \
 The override adds two services: `kafka-connect` (port 8083) which installs the S3
 connector plugin on startup, and `kafka-connect-init` which registers the
 `garage-sink` connector pointing at the `raw-results` bucket. Both depend on Kafka,
-Schema Registry, and Garage being healthy.
+Schema Registry, and Garage being healthy. The connector writes to the compose
+Garage (`http://garage:3901`) whatever `S3_ENDPOINT` says, so it does not work
+with external S3 storage.
 
 ### Processing Services
 
@@ -167,10 +207,28 @@ separate rclone configuration file.
 |---|---|---|---|
 | `garage` | `dxflrs/garage:v2.2.0` | 3901 (S3 API), 3903 (admin) | S3-compatible object storage |
 
-Garage stores raw VQE results, feature datasets, and Iceberg warehouse data. Buckets
-are configured during `just setup`. The S3 endpoint is `http://garage:3901` from
-within the Docker network. The admin API on port 3903 exposes cluster status and
+The object store holds raw VQE results, feature datasets, Iceberg warehouse data
+and MLflow artifacts. Buckets are created during `just setup`. With the default
+`S3_ENDPOINT` this is the compose Garage, reachable at `http://garage:3901` from
+within the Docker network. Its admin API on port 3903 exposes cluster status and
 metrics that can be scraped by Prometheus.
+
+#### External S3 storage
+
+`S3_ENDPOINT` in `.env` can name any S3 service instead of the compose Garage.
+`just setup` checks that the endpoint answers and creates the four buckets there
+with the key from `.env`, which must be allowed to create buckets. If the
+endpoint does not answer, setup points `S3_ENDPOINT` back at the compose Garage
+and configures that instead.
+
+The Spark configuration, Airflow, the Redpanda Connect sink and MLflow all read
+`S3_ENDPOINT` and `S3_REGION`. The compose Garage is still started by `just up`
+(Spark depends on it) but nothing uses it, and its configuration file is not
+generated in this mode. Stop it with
+`docker compose --env-file .env -f compose/docker-compose.ml.yaml stop garage`,
+or start only the services you need by name. The
+[Kafka Connect alternative](#alternative-confluent-kafka-connect) always writes to
+the compose Garage.
 
 ### ML Tracking
 
@@ -178,8 +236,8 @@ metrics that can be scraped by Prometheus.
 |---|---|---|---|
 | `mlflow` | `ghcr.io/mlflow/mlflow:v3.10.1-full` | 5000 | Experiment tracking and artifact storage |
 
-MLflow uses PostgreSQL for the backend store and Garage (S3) for artifact storage
-(`s3://mlflow-artifacts/`).
+MLflow uses PostgreSQL for the backend store and the object store at
+`S3_ENDPOINT` for artifact storage (`s3://mlflow-artifacts/`).
 
 ### Monitoring Exporters
 
@@ -237,13 +295,17 @@ The deployment uses named Docker volumes for persistent data:
 Bind mounts provide access to project files: DAG definitions (`docker/airflow/`),
 Spark configuration (`compose/spark-defaults.conf`), Garage configuration
 (`compose/garage.toml`), Redpanda Connect config (`compose/redpanda-connect.yaml`),
-simulation data (`data/`), and output (`gen/`).
+simulation data (`data/`), and output (`gen/`). The Spark and Garage files are
+rendered by `just setup` from their `.template` siblings, so the S3 endpoint and
+region in them follow `S3_ENDPOINT` and `S3_REGION` from `.env`. Without the
+rendered `compose/spark-defaults.conf`, Docker mounts an empty directory in its
+place and Spark does not start.
 
 ## Justfile Commands
 
 | Command | Description |
 |---|---|
-| `just setup` | First-time setup: generates secrets, Garage config, `.env` file |
+| `just setup` | First-time setup: `.env` file, secrets, Spark config, object storage and buckets |
 | `just up` | Start the compose stack |
 | `just down` | Force-remove running batch containers, then stop the stack (includes `--profile batch`) |
 | `just logs [service]` | Tail compose logs (all services, or a specific one) |

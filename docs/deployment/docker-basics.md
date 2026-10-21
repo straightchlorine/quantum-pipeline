@@ -24,7 +24,7 @@ repository.
 
 ### CPU Image
 
-The CPU image is a container based on Python 3.12 (Debian Trixie). It installs 
+The CPU image is a container based on Python 3.12 (Debian Trixie). It installs
 the Quantum Pipeline package and its dependencies. The `data/` directory with
 sample molecule files is included, so you can run simulations immediately with
 `--file data/molecules.json`.
@@ -32,6 +32,11 @@ sample molecule files is included, so you can run simulations immediately with
 Both images run as root by default but work under any `--user`: the working
 directory `/usr/src/quantum_pipeline`, where `gen/` and `run_configs/` are written,
 is writable by every user. A bind-mounted `gen/` must be writable by that user too.
+
+Both images install their Python dependencies from
+[`docker/requirements.txt`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/requirements.txt),
+which is generated from `pdm.lock`, so every build runs the same versions as the
+lock.
 
 ### GPU Image
 
@@ -57,7 +62,7 @@ One image therefore covers:
 | Blackwell | via PTX |
 
 Pascal P100 (6.0) and anything older is not covered. You do not need to rebuild
-for your GPU. A local build for a single architecture is optional: it significantly 
+for your GPU. A local build for a single architecture is optional: it is significantly
 faster, but only useful on your own machine.
 
 ### Spark Image

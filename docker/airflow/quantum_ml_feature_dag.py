@@ -55,6 +55,7 @@ with DAG(
             'S3_WAREHOUSE_URL': S3_WAREHOUSE_URL,
         },
         execution_timeout=timedelta(hours=1),
+        # TODO: delete; Airflow 3 removed SLAs and only warns on sla= (Deadline Alerts replace it in 3.1+)
         sla=timedelta(minutes=45),
         # asset updated only on success - schedules r2_sync
         outlets=[ML_FEATURES_ASSET],

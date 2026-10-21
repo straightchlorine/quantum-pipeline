@@ -41,9 +41,9 @@ quantum_catalog                         -- Iceberg catalog
 
 ## Catalog Configuration
 
-Configured via
-[`compose/spark-defaults.conf`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/spark-defaults.conf),
-mounted into Spark containers:
+Configured via `compose/spark-defaults.conf`, which `just setup` renders from
+[`compose/spark-defaults.conf.template`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/spark-defaults.conf.template)
+and which is mounted into Spark containers:
 
 | Configuration | Value | Description |
 |---------------|-------|-------------|
@@ -54,13 +54,14 @@ mounted into Spark containers:
 
 ## S3A Configuration
 
-Spark reaches Garage through the Hadoop S3A filesystem driver, also in
-`spark-defaults.conf`:
+Spark reaches the object store through the Hadoop S3A filesystem driver, also in
+`spark-defaults.conf`. The endpoint and region are filled in from `S3_ENDPOINT`
+and `S3_REGION` in `.env` when `just setup` renders the file:
 
 | Setting | Value |
 |---------|-------|
-| Endpoint | `http://garage:3901` |
-| Region | `garage` |
+| Endpoint | `S3_ENDPOINT` (default `http://garage:3901`) |
+| Region | `S3_REGION` (default `garage`) |
 | Path-style access | `true` |
 | SSL | `false` |
 | Fast upload | `true` |
@@ -124,7 +125,7 @@ Garage (v2.2.0) provides S3-compatible storage for raw JSON data and processed
 Parquet feature tables. It replaced MinIO from v1.x.
 
 The Garage service is defined in
-[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml#L191)
+[`compose/docker-compose.ml.yaml`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/docker-compose.ml.yaml)
 and configured via
 [`compose/garage.toml.template`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/compose/garage.toml.template)
 (uses env var substitution for secrets).

@@ -50,6 +50,7 @@ with DAG(
             'S3_WAREHOUSE_URL': S3_WAREHOUSE_URL,
         },
         execution_timeout=timedelta(hours=2),
+        # TODO: delete; Airflow 3 removed SLAs and only warns on sla= (Deadline Alerts replace it in 3.1+)
         sla=timedelta(hours=1, minutes=30),
         # asset updated only on success - schedules quantum_ml_feature_processing
         outlets=[QUANTUM_FEATURES_ASSET],

@@ -75,9 +75,9 @@ For the full execution sequence and component details, see [System Design](syste
 ### Output
 
 Each molecule produces a
-[`VQEDecoratedResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/structures/vqe_observation.py#L64)
+[`VQEDecoratedResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/structures/vqe_observation.py)
 containing timing data, molecule metadata, and a nested
-[`VQEResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/structures/vqe_observation.py#L41)
+[`VQEResult`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/quantum_pipeline/structures/vqe_observation.py)
 with initial parameters, the full iteration history, optimal parameters, and
 convergence info. This is the unit of data that flows through the rest of the
 pipeline.
@@ -115,7 +115,7 @@ Apache Airflow orchestrates batch processing through a chain of DAGs.
 ```mermaid
 graph LR
     SCHEDULE[Airflow Scheduler] --> SPARK1[Spark: normalize raw data]
-    SPARK1 --> SPARK2[Spark: materialize ML features]
+    SPARK1 --> SPARK2[Spark: build ML feature tables]
     SPARK2 --> SYNC[rclone: sync to R2]
 
     style SCHEDULE fill:#90caf9,color:#0d47a1
@@ -127,8 +127,8 @@ graph LR
 **DAG chain**:
 
 1. `quantum_feature_processing`: daily Spark job that reads raw data from Garage, transforms it into 9 normalized Iceberg tables
-2. `quantum_ml_feature_processing`: daily Spark job that joins 5 of the normalized tables into 2 ML-ready feature tables (waits for upstream DAG via `ExternalTaskSensor`)
-3. `r2_sync`: rclone sync of ML feature Parquet from Garage to Cloudflare R2. It runs on manual trigger by default, or on the schedule set in the `R2_SYNC_SCHEDULE` Airflow Variable, and gates itself behind an `ExternalTaskSensor` that waits for `quantum_ml_feature_processing` before a health check and the two sync tasks
+2. `quantum_ml_feature_processing`: Spark job that joins 5 of the normalized tables into 2 ML-ready feature tables (starts when the upstream DAG updates its asset)
+3. `r2_sync`: rclone sync of ML feature Parquet from Garage to Cloudflare R2. It starts when `quantum_ml_feature_processing` updates its asset, then runs a health check and the two sync tasks
 
 A fourth DAG, `vqe_batch_generation`, handles building simulation Docker images and running batch VQE generation (manual trigger only).
 
