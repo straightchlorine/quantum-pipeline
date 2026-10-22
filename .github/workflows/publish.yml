@@ -311,9 +311,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # the docs changelog anchors each version without dots
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
+            --notes "Changelog: https://docs.qp.piotrkrzysztof.dev/changelog/#${GITHUB_REF_NAME//./}" \
             --generate-notes \
             dist/* sbom/*
 
