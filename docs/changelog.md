@@ -10,6 +10,35 @@ Release notes for Quantum Pipeline, starting from version 1.4.0.
 For earlier versions, see the [GitHub releases](https://github.com/straightchlorine/quantum-pipeline/releases).
 
 ---
+## [2.5.1](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.5.1)
+
+Security patch release. Includes pinned dependencies and the Docker images.
+
+### Breaking changes
+
+The GPU image no longer takes a `CUDA_VERSION` build argument. Its CUDA 12.6.3 base
+image is pinned by tag and digest in the GPU Dockerfile. To build against another CUDA
+12 toolkit, change the tag and the digest on the base image line there and rebuild.
+A `--build-arg CUDA_VERSION` passed to the build is now ignored.
+
+### Docker images
+
+The Spark 4.0.2 and CUDA 12.6.3 base images are now pinned by digest, like the CPU
+and GPU runtime bases, so a rebuild uses the same base until the pin is updated.
+The Airflow image is unchanged.
+
+The CPU and GPU images install their locked dependencies and the Aer build tools with
+hash checking; a package that differs from the recorded one fails the build. The
+build backend pip fetches to build the project and conan's build tools are not
+hash-checked yet.
+
+### Maintenance
+
+The hashed Docker requirements files, `docker/requirements.txt` and
+`docker/aer-build-requirements.txt`, are now generated with PDM;
+`just exports` regenerates them.
+
+---
 ## [2.5.0](https://github.com/straightchlorine/quantum-pipeline/releases/tag/2.5.0)
 
 ### Breaking changes

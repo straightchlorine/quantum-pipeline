@@ -1,0 +1,22 @@
+# Build-only environment for the aer wheel build in docker/Dockerfile.gpu.
+#
+# just relock refreshes the lock, just exports regenerates the export
+
+[project]
+name = "aer-build"
+version = "0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # [build-system] requires of qiskit-aer 0.17.2
+    "setuptools",
+    "wheel",
+    "scikit-build>=0.11.0",
+    "cmake!=3.17.1,!=3.17.0",
+    "ninja",
+    "pybind11>2.6",
+    # conan 1.x needs urllib3 < 2; aer's CMake runs it
+    "conan<2.0.0",
+]
+
+[tool.pdm]
+distribution = false

@@ -1,0 +1,138 @@
+name: Build images
+
+# Builds, smoke-tests and scans the CPU and GPU images on pull requests
+# that change them or their deps. Nothing is pushed.
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - ".github/workflows/build-images.yml"
+      - ".dockerignore"
+      - "docker/Dockerfile.cpu"
+      - "docker/Dockerfile.gpu"
+      - "docker/requirements.txt"
+      - "docker/aer-build-requirements.txt"
+      - "pyproject.toml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cpu:
+    name: CPU image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build CPU image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./docker/Dockerfile.cpu
+          push: false
+          load: true
+          tags: quantum-pipeline:pr-cpu
+
+      - name: Smoke-test the image
+        run: >-
+          docker run --rm --user 1000:1000 quantum-pipeline:pr-cpu --file data/molecules.json --molecule-index 0 --max-iterations 2 #magic___^_^___line
+      # Report only; the weekly scan of the published images
+      # TODO: make it enforce
+      - name: Scan image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: quantum-pipeline:pr-cpu
+          format: table
+          output: trivy.txt
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "0"
+          timeout: 15m
+
+      - name: Add the scan to the job summary
+        run: |
+          {
+            echo "### Trivy: CPU image"
+            echo '```'
+            cat trivy.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  gpu:
+    name: GPU image
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # same as the release build: the CUDA devel image and the Aer build do not fit otherwise
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+        with:
+          preinstalled-runtimes: true
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: true
+          large-packages: false
+          swap-storage: false # keep swap, the Aer compile is memory-hungry
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # read-only: a pull request writes no cache and pushes nothing.
+      - name: Build GPU image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./docker/Dockerfile.gpu
+          push: false
+          load: true
+          tags: quantum-pipeline:pr-gpu
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-gpu
+
+      # The release's smoke test (publish-docker-gpu.yml), run before anything is pushed.
+      - name: Smoke-test the image
+        run: |
+          docker run --rm --entrypoint bash quantum-pipeline:pr-gpu -c '
+            set -euo pipefail
+            aer_dir="$(python -c "import os, qiskit_aer; print(os.path.dirname(qiskit_aer.__file__))")"
+            if find "$aer_dir" -name "*.so" -exec ldd {} + | grep "not found"; then exit 1; fi
+            python -m quantum_pipeline --help > /dev/null'
+
+      # Report only; the weekly scan of the published images
+      # TODO: make it enforce
+      - name: Scan image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: quantum-pipeline:pr-gpu
+          format: table
+          output: trivy.txt
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "0"
+          timeout: 40m
+
+      - name: Add the scan to the job summary
+        run: |
+          {
+            echo "### Trivy: GPU image"
+            echo '```'
+            cat trivy.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

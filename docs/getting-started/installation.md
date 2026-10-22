@@ -37,6 +37,12 @@ pdm install
 pip install -e .
 ```
 
+Install PDM first. A plain PDM install gives the runtime dependencies only;
+the groups below add the test, lint and documentation tools.
+
+The justfile in the repository root wraps the common commands, such as install,
+test and quality.
+
 ## Docker
 
 Pre-built images are available on Docker Hub. A run without `--shots` is exact:

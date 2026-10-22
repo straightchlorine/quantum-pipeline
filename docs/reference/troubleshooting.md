@@ -165,7 +165,7 @@ If you are unsure, check the [NVIDIA CUDA GPUs page](https://developer.nvidia.co
 
 ### CUDA Not Available
 
-For CUDA setup issues (`RuntimeError: CUDA is not available`) or driver version mismatches (`CUDA driver version is insufficient`), see [GPU Acceleration](../deployment/gpu-acceleration.md) for complete setup and troubleshooting instructions. The GPU image requires a host driver that supports CUDA 12 (525 or newer).
+A `--gpu` run that stops with `No CUDA device available!` was started without `--gpus`, or the host lacks the NVIDIA Container Toolkit or a recent enough driver. One that stops with `no kernel image is available` runs an image not compiled for this GPU. See [GPU Acceleration](../deployment/gpu-acceleration.md) for the requirements and the `CUDA_ARCH` table.
 
 ### GPU Out of Memory
 

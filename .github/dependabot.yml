@@ -1,30 +1,7 @@
-# pdm.lock is the source of truth.
-# Dependabot cannot read or update it, so the pip entry below watches docker/requirements.txt.
-# It's a hashed export of the lock, from which the Dockerfiles install from.
+# pdm.lock is the source of truth; Dependabot cannot read it, so pip is not watched here.
 version: 2
 
 updates:
-  - package-ecosystem: pip
-    directory: /docker
-    schedule:
-      interval: weekly
-      day: monday
-    cooldown:
-      default-days: 7
-    groups:
-      minor-and-patch:
-        update-types:
-          - patch
-          - minor
-      major:
-        update-types:
-          - major
-    reviewers:
-      - straightchlorine
-    labels:
-      - dependencies
-    open-pull-requests-limit: 10
-
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -40,8 +17,6 @@ updates:
       major:
         update-types:
           - major
-    reviewers:
-      - straightchlorine
     labels:
       - ci
     open-pull-requests-limit: 5
@@ -55,17 +30,27 @@ updates:
       day: monday
     cooldown:
       default-days: 7
-    reviewers:
-      - straightchlorine
     labels:
       - docker
     open-pull-requests-limit: 5
     ignore:
       # CUDA 13 drops the Pascal cards.
+      # TODO: introduce a proper cloud image, installing full gpu support for modern cards
+      # A 12.x minor changes the toolkit and the driver floor the docs state.
       - dependency-name: nvidia/cuda
         update-types:
           - version-update:semver-major
-      # Airflow majors need the DAG migration.
+          - version-update:semver-minor
+      # Airflow 3.1.8 and Spark 4.0.2 (matching the GPU host) are held
+      # TODO: test more modern versions of each
       - dependency-name: apache/airflow
+      - dependency-name: apache/spark
+      # CPU and GPU images stay on Python 3.12 / Ubuntu 24.04 LTS
+      # (the GPU venv is copied between stages built on the same Python)
+      - dependency-name: python
+        update-types:
+          - version-update:semver-minor
+      - dependency-name: ubuntu
         update-types:
           - version-update:semver-major
+          - version-update:semver-minor
