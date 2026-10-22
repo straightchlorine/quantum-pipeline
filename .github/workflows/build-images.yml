@@ -1,6 +1,7 @@
 name: Build images
 
-# Builds the CPU and GPU images on pull requests that change them or their deps.
+# Builds, smoke-tests and scans the CPU and GPU images on pull requests
+# that change them or their deps. Nothing is pushed.
 
 on:
   pull_request:
@@ -40,6 +41,34 @@ jobs:
           context: .
           file: ./docker/Dockerfile.cpu
           push: false
+          load: true
+          tags: quantum-pipeline:pr-cpu
+
+      - name: Smoke-test the image
+        run: >-
+          docker run --rm --user 1000:1000 quantum-pipeline:pr-cpu --file data/molecules.json --molecule-index 0 --max-iterations 2 #magic___^_^___line
+      # Report only; the weekly scan of the published images
+      # TODO: make it enforce
+      - name: Scan image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: quantum-pipeline:pr-cpu
+          format: table
+          output: trivy.txt
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "0"
+          timeout: 15m
+
+      - name: Add the scan to the job summary
+        run: |
+          {
+            echo "### Trivy: CPU image"
+            echo '```'
+            cat trivy.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   gpu:
     name: GPU image
@@ -84,3 +113,26 @@ jobs:
             aer_dir="$(python -c "import os, qiskit_aer; print(os.path.dirname(qiskit_aer.__file__))")"
             if find "$aer_dir" -name "*.so" -exec ldd {} + | grep "not found"; then exit 1; fi
             python -m quantum_pipeline --help > /dev/null'
+
+      # Report only; the weekly scan of the published images
+      # TODO: make it enforce
+      - name: Scan image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: quantum-pipeline:pr-gpu
+          format: table
+          output: trivy.txt
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          exit-code: "0"
+          timeout: 40m
+
+      - name: Add the scan to the job summary
+        run: |
+          {
+            echo "### Trivy: GPU image"
+            echo '```'
+            cat trivy.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
