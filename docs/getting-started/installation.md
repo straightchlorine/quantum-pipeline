@@ -163,8 +163,6 @@ Install extra groups with PDM or pip:
 
 With pip, use `pip install -e ".[dev]"`, `pip install -e ".[docs]"`, or `pip install -e ".[ml]"`.
 
-Groups can be combined, for example the dev and docs groups together.
-
 After installing `docs`, run `mkdocs serve` and open `http://127.0.0.1:8000`.
 
 ## Troubleshooting

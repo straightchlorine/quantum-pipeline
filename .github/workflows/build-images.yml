@@ -12,8 +12,7 @@ on:
       - "docker/Dockerfile.gpu"
       - "docker/requirements.txt"
       - "docker/aer-build-requirements.txt"
-      - "docker/aer/**"
-      - "pdm.lock"
+      - "pyproject.toml"
 
 permissions:
   contents: read
@@ -73,4 +72,15 @@ jobs:
           context: .
           file: ./docker/Dockerfile.gpu
           push: false
+          load: true
+          tags: quantum-pipeline:pr-gpu
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-gpu
+
+      # The release's smoke test (publish-docker-gpu.yml), run before anything is pushed.
+      - name: Smoke-test the image
+        run: |
+          docker run --rm --entrypoint bash quantum-pipeline:pr-gpu -c '
+            set -euo pipefail
+            aer_dir="$(python -c "import os, qiskit_aer; print(os.path.dirname(qiskit_aer.__file__))")"
+            if find "$aer_dir" -name "*.so" -exec ldd {} + | grep "not found"; then exit 1; fi
+            python -m quantum_pipeline --help > /dev/null'

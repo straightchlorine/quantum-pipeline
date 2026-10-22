@@ -52,15 +52,8 @@ The CUDA toolkit image is pinned by tag and digest in the GPU Dockerfile. To use
 different CUDA 12 toolkit, change both the tag and the digest on the base image line
 and rebuild.
 
-The CUDA toolkit is inside the image, so the CUDA toolkit installed on your machine
-does not matter. The host needs only an NVIDIA driver (525.60.13 or newer, the
-minimum NVIDIA lists for CUDA 12.x) and the NVIDIA Container Toolkit.
-
-GPUs newer than the compiled architectures run through PTX, which needs a driver
-at least as new as the image's CUDA - 560 or newer.
-
-In order to utilise the GPU setup run containers with `--gpus`; without it the
-pipeline stops with `No CUDA device available!` and does not fall back to the CPU.
+Host requirements (driver, NVIDIA Container Toolkit, `--gpus`) are in
+[GPU Acceleration](gpu-acceleration.md#prerequisites).
 
 From 2.3.0, the `straightchlorine/quantum-pipeline:gpu` image on Docker Hub is
 built for compute capabilities `6.1 7.0 8.0 9.0+PTX`. Code built for X.y runs on

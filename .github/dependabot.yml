@@ -36,19 +36,15 @@ updates:
     ignore:
       # CUDA 13 drops the Pascal cards.
       # TODO: introduce a proper cloud image, installing full gpu support for modern cards
+      # A 12.x minor changes the toolkit and the driver floor the docs state.
       - dependency-name: nvidia/cuda
         update-types:
           - version-update:semver-major
+          - version-update:semver-minor
       # Airflow 3.1.8 and Spark 4.0.2 (matching the GPU host) are held
       # TODO: test more modern versions of each
       - dependency-name: apache/airflow
-        update-types:
-          - version-update:semver-major
-          - version-update:semver-minor
       - dependency-name: apache/spark
-        update-types:
-          - version-update:semver-major
-          - version-update:semver-minor
       # CPU and GPU images stay on Python 3.12 / Ubuntu 24.04 LTS
       # (the GPU venv is copied between stages built on the same Python)
       - dependency-name: python

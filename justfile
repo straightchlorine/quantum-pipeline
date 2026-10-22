@@ -249,7 +249,6 @@ exports DEST="docker":
     set -euo pipefail
     export PDM_USE_VENV=false
     dest=$(realpath -m "{{DEST}}")
-    mkdir -p "$dest"
     pdm export -G default -f requirements -o "$dest/requirements.txt"
     cd docker/aer
     trap 'rm -f .pdm-python' EXIT
@@ -274,13 +273,13 @@ check-locks:
     trap 'rm -rf "$tmp" docker/aer/.pdm-python' EXIT
     bad=0
     fail() { echo "[ FAIL ] $1 is out of sync, fix with: $2"; bad=1; }
-    pdm lock --check >/dev/null 2>&1 || fail pdm.lock "pdm lock && just exports"
-    (cd docker/aer && pdm lock --check >/dev/null 2>&1) || fail docker/aer/pdm.lock "pdm lock -p docker/aer && just exports"
-    just exports "$tmp" >/dev/null 2>&1
+    pdm lock --check >/dev/null || fail pdm.lock "pdm lock && just exports"
+    (cd docker/aer && pdm lock --check >/dev/null) || fail docker/aer/pdm.lock "pdm lock -p docker/aer && just exports"
+    just exports "$tmp" >/dev/null || { echo "[ FAIL ] export failed, see the pdm error above"; exit 1; }
     diff -q "$tmp/requirements.txt" docker/requirements.txt >/dev/null || fail docker/requirements.txt "just exports"
     diff -q "$tmp/aer-build-requirements.txt" docker/aer-build-requirements.txt >/dev/null || fail docker/aer-build-requirements.txt "just exports"
     arg=$(sed -n 's/^ARG AER_VERSION="\(.*\)"$/\1/p' docker/Dockerfile.gpu)
-    pin=$(sed -n 's/^qiskit-aer==\([^;]*\);.*/\1/p' docker/requirements.txt)
+    pin=$(sed -n 's/^qiskit-aer==\([^; ]*\)[; ].*/\1/p' docker/requirements.txt)
     [ -n "$arg" ] && [ "$arg" = "$pin" ] || fail "AER_VERSION in docker/Dockerfile.gpu ($arg vs qiskit-aer $pin)" "just bump-aer <version>"
     [ "$bad" = 0 ] && echo "[  OK  ] locks, exports and AER_VERSION are in sync"
     exit "$bad"

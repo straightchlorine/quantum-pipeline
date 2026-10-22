@@ -65,7 +65,7 @@ WORKDIR /tmp/build
 
 # exported from pdm.lock: just exports
 COPY docker/requirements.txt ./
-RUN grep -q "^qiskit-aer==${AER_VERSION};" requirements.txt || { echo "AER_VERSION=${AER_VERSION} does not match qiskit-aer in docker/requirements.txt (pdm.lock); change both" >&2; exit 1; } && \
+RUN grep -q "^qiskit-aer==${AER_VERSION}[; ]" requirements.txt || { echo "AER_VERSION=${AER_VERSION} does not match qiskit-aer in docker/requirements.txt (pdm.lock); change both" >&2; exit 1; } && \
     pip install --no-cache-dir --require-hashes -r requirements.txt && \
     pip install --no-cache-dir --force-reinstall --no-deps /tmp/qiskit-aer/dist/*.whl
 

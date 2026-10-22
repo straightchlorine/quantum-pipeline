@@ -34,7 +34,9 @@ jobs:
           version: "2.29.2" # keep equal to ci.yml
 
       - name: Install just
-        run: pip install rust-just==1.59.0
+        run: |
+          printf 'rust-just==1.59.0 --hash=sha256:3ee47f26e3aff917107602d57a08ede20df447f78dc4f9ceb08e57a883c56eb9\n' > "$RUNNER_TEMP/just.txt"
+          pip install --require-hashes -r "$RUNNER_TEMP/just.txt"
 
       # pdm list --freeze reads the installed environment, --no-sync leaves it empty,
       # so the pins are read from the locks through unhashed exports.

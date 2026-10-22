@@ -23,12 +23,14 @@ A `--build-arg CUDA_VERSION` passed to the build is now ignored.
 
 ### Docker images
 
-Every base image is pinned by digest: Spark 4.0.2 and the CUDA 12.6.3 toolkit
-image of the GPU build. A rebuild now uses the same base until the pin is updated.
+The Spark 4.0.2 and CUDA 12.6.3 base images are now pinned by digest, like the CPU
+and GPU runtime bases, so a rebuild uses the same base until the pin is updated.
+The Airflow image is unchanged.
 
-Every Python install in the images checks package hashes: the CPU and GPU runtime
-installs and the throwaway environment that builds the Aer wheel for the GPU image.
-A package that differs from the recorded one fails the build.
+The CPU and GPU images install their locked dependencies and the Aer build tools with
+hash checking; a package that differs from the recorded one fails the build. The
+build backend pip fetches to build the project and conan's build tools are not
+hash-checked yet.
 
 ### Maintenance
 

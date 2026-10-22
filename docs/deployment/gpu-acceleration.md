@@ -13,7 +13,10 @@ configuration, and performance characteristics of GPU-accelerated execution.
 
 GPU acceleration requires an NVIDIA GPU (compute capability 6.1 or newer), NVIDIA
 drivers 525 or newer (CUDA 12), NVIDIA Container Toolkit (1.14+), and Docker Engine (24.0+).
-The GPU image is built on CUDA 12.6.3. For detailed installation steps, see the
+The CUDA 12.6.3 toolkit ships inside the GPU image, so the CUDA installed on the host does
+not matter; GPUs newer than 9.0 run through PTX and need driver 560 or newer. Start GPU
+containers with `--gpus`: without it a `--gpu` run stops with `No CUDA device available!`
+and does not fall back to the CPU. For detailed installation steps, see the
 [NVIDIA Container Toolkit installation guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
 !!! note "cuQuantum and Volta+ Features"
