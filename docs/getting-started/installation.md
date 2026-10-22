@@ -37,6 +37,12 @@ pdm install
 pip install -e .
 ```
 
+Install PDM first. A plain PDM install gives the runtime dependencies only;
+the groups below add the test, lint and documentation tools.
+
+The justfile in the repository root wraps the common commands, such as install,
+test and quality.
+
 ## Docker
 
 Pre-built images are available on Docker Hub. A run without `--shots` is exact:
@@ -156,6 +162,8 @@ Install extra groups with PDM or pip:
 | `ml` | `pdm install -G ml` | scikit-learn, xgboost, mlflow, jupyterlab, seaborn, pyspark |
 
 With pip, use `pip install -e ".[dev]"`, `pip install -e ".[docs]"`, or `pip install -e ".[ml]"`.
+
+Groups can be combined, for example the dev and docs groups together.
 
 After installing `docs`, run `mkdocs serve` and open `http://127.0.0.1:8000`.
 

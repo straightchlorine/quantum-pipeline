@@ -11,9 +11,12 @@ images, building from source, and running containers.
 
 ## Available Images
 
-All images are published to Docker Hub under the
+The CPU and GPU images are published to Docker Hub under the
 [`straightchlorine/quantum-pipeline`](https://hub.docker.com/r/straightchlorine/quantum-pipeline)
-repository.
+repository and to
+[GHCR](https://github.com/straightchlorine/quantum-pipeline/pkgs/container/quantum-pipeline)
+as `ghcr.io/straightchlorine/quantum-pipeline`, with the same tags.
+
 
 | Image Tag | Base Image | Purpose |
 |---|---|---|
@@ -33,18 +36,31 @@ Both images run as root by default but work under any `--user`: the working
 directory `/usr/src/quantum_pipeline`, where `gen/` and `run_configs/` are written,
 is writable by every user. A bind-mounted `gen/` must be writable by that user too.
 
-Both images install their Python dependencies from
-[`docker/requirements.txt`](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/requirements.txt),
-which is generated from `pdm.lock`, so every build runs the same versions as the
-lock.
+The CPU and GPU images install their Python dependencies from hashed requirements
+files exported from the PDM lock files, so builds run the exact locked versions.
+See the [Docker README](https://codeberg.org/piotrkrzysztof/quantum-pipeline/src/branch/master/docker/README.md)
+for more detailed overview of the image builds.
 
 ### GPU Image
 
 The GPU image compiles Qiskit Aer from source with the CUDA Thrust backend
 (CUDA 12.6.3) and ships it on Ubuntu 24.04: Aer carries its own CUDA runtime
 and the NVIDIA Container Toolkit provides the driver, so no CUDA or cuDNN base is
-needed. The host driver must support CUDA 12 (driver 525 or newer). cuStateVec and
-the `tensor_network` simulation method are not built in.
+needed. cuStateVec and the `tensor_network` simulation method are not built in.
+
+The CUDA toolkit image is pinned by tag and digest in the GPU Dockerfile. To use a
+different CUDA 12 toolkit, change both the tag and the digest on the base image line
+and rebuild.
+
+The CUDA toolkit is inside the image, so the CUDA toolkit installed on your machine
+does not matter. The host needs only an NVIDIA driver (525.60.13 or newer, the
+minimum NVIDIA lists for CUDA 12.x) and the NVIDIA Container Toolkit.
+
+GPUs newer than the compiled architectures run through PTX, which needs a driver
+at least as new as the image's CUDA - 560 or newer.
+
+In order to utilise the GPU setup run containers with `--gpus`; without it the
+pipeline stops with `No CUDA device available!` and does not fall back to the CPU.
 
 From 2.3.0, the `straightchlorine/quantum-pipeline:gpu` image on Docker Hub is
 built for compute capabilities `6.1 7.0 8.0 9.0+PTX`. Code built for X.y runs on
@@ -118,10 +134,6 @@ docker build -t quantum-pipeline:gpu -f docker/Dockerfile.gpu .
 # GPU for a single architecture (faster, local use)
 docker build -t quantum-pipeline:gpu -f docker/Dockerfile.gpu \
   --build-arg CUDA_ARCH="6.1" .
-
-# A different CUDA 12 toolkit (the driver must support CUDA 12)
-docker build -t quantum-pipeline:gpu -f docker/Dockerfile.gpu \
-  --build-arg CUDA_ARCH="6.1" --build-arg CUDA_VERSION="12.4.1" .
 
 # Airflow (with custom Docker GID)
 docker build -t quantum-pipeline-airflow -f docker/airflow/Dockerfile \

@@ -75,8 +75,7 @@ Click on any question to expand the answer.
 ??? question "Which Python version is required?"
     Python 3.10 to 3.14. Installing from source with PDM, and the Docker images, use Python 3.12 or newer; on 3.10 and 3.11 install with pip. The ml extra needs 3.11 or newer.
 
-    During development `uv` was extensively used to ensure proper versioning.
-    Alternatives include `conda`, `pyenv` and similar tools to ensure correct Python version.
+    The project is managed with PDM. Alternatives that give you the right interpreter, such as conda, pyenv or uv work as well.
     See the [Installation](../getting-started/installation.md) guide for detailed setup instructions.
 
 ??? question "Can I use Quantum Pipeline on Windows?"

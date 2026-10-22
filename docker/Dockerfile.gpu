@@ -1,45 +1,49 @@
-# CUDA toolkit qiskit-aer is compiled with.
+# =============================================================================
+# CUDA toolkit qiskit-aer is compiled with (12.6.3, pinned by digest).
 #
 # Aer links the CUDA runtime.
-# Host driver must support this major version. 12.x is kept, for wider compatibility; 
+# Host driver must support this major version. 12.x is kept, for wider compatibility;
 # version 13.x drops Pascal support.
-ARG CUDA_VERSION="12.6.3"
-
-# =============================================================================
+#
 # Build the CUDA toolchain to compile qiskit-aer for GPU, plus the venv.
 # =============================================================================
-FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu24.04 AS builder
+FROM nvidia/cuda:12.6.3-devel-ubuntu24.04@sha256:392c0df7b577ecae17a17f6ba7f2009c217bb4422f8431c053ae9af61a8c148a AS builder
 
 # GPU generations aer is compiled for.
 #
 # A build for X.y runs on every X.z with z >= y, and 9.0+PTX lets the driver
 # compile for anything newer.
 #
-# To build for a singe arch:
+# To build for a single arch:
 #   docker build --build-arg CUDA_ARCH="6.1" .
 
 # To confirm arch:
 #  nvidia-smi --query-gpu=compute_cap --format=csv
 ARG CUDA_ARCH="6.1 7.0 8.0 9.0+PTX"
+# Must equal qiskit-aer in pdm.lock (checked in the runtime venv step).
 ARG AER_VERSION="0.17.2"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates git cmake ninja-build build-essential \
+    ca-certificates git build-essential \
     python3.12-venv python3-dev libopenblas-dev liblapack-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Compile aer. Side venv, so that it does not reach the image.
+#
+# Hashed build tools only; runtime deps come from the image venv.
+# Exported from docker/aer/pdm.lock by `just exports`.
+# --
 # NOTE: currently no cuQuantum support (cuStateVec, tensor_network). Needs
-# sm_70+ and - DAER_PYTHON_CUDA_ROOT with the cuquantum-cu12 wheels in the
+# sm_70+ and -DAER_PYTHON_CUDA_ROOT with the cuquantum-cu12 wheels in the
 # image venv.
+#
 # TODO: provide that before cloud rollout
+COPY docker/aer-build-requirements.txt /tmp/aer-build-requirements.txt
 RUN python3.12 -m venv /opt/aerbuild && \
     git clone --depth 1 --branch ${AER_VERSION} https://github.com/Qiskit/qiskit-aer /tmp/qiskit-aer && \
-    /opt/aerbuild/bin/pip install --no-cache-dir qiskit-aer && \
-    /opt/aerbuild/bin/pip uninstall -y qiskit-aer && \
-    /opt/aerbuild/bin/pip install --no-cache-dir -r /tmp/qiskit-aer/requirements-dev.txt pybind11
+    /opt/aerbuild/bin/pip install --no-cache-dir --require-hashes -r /tmp/aer-build-requirements.txt
 
 WORKDIR /tmp/qiskit-aer
 
@@ -59,10 +63,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /tmp/build
 
-# from pdm.lock; with each relock regenerate like this:
-#   pdm export -G default -f requirements -o docker/requirements.txt
+# exported from pdm.lock: just exports
 COPY docker/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt && \
+RUN grep -q "^qiskit-aer==${AER_VERSION};" requirements.txt || { echo "AER_VERSION=${AER_VERSION} does not match qiskit-aer in docker/requirements.txt (pdm.lock); change both" >&2; exit 1; } && \
+    pip install --no-cache-dir --require-hashes -r requirements.txt && \
     pip install --no-cache-dir --force-reinstall --no-deps /tmp/qiskit-aer/dist/*.whl
 
 COPY pyproject.toml README.md LICENSE ./

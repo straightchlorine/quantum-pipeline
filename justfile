@@ -12,7 +12,7 @@ install:
 
 # Install core dependencies only (no dev tools)
 install-core:
-    pdm install -G core
+    pdm install
     echo "[  OK  ] Core dependencies installed"
 
 # First-time stack setup (secrets, Garage config) - run once
@@ -223,7 +223,7 @@ build:
     @ls -lh dist/
 
 # Bump the version in pyproject.toml and the package
-bump-version VERSION:
+bump-version VERSION: check-locks
     [[ "{{VERSION}}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "[ FAIL ] usage: just bump-version X.Y.Z"; exit 1; }
     sed -i 's/^version = ".*"/version = "{{VERSION}}"/' pyproject.toml
     sed -i "s/^__version__ = '.*'/__version__ = '{{VERSION}}'/" quantum_pipeline/__init__.py
@@ -243,11 +243,60 @@ clean:
     rm -rf .coverage .coverage.* htmlcov/ .mypy_cache/ build/ dist/ *.egg-info gen/ run_configs/
     echo "[  OK  ] Cleaned"
 
-# Generate requirements.txt from pdm.lock
-requirements:
-    pdm export -o requirements.txt --no-hashes
-    pdm export -d -o requirements-dev.txt --no-hashes
-    echo "[  OK  ] Requirements files updated"
+# Export the hashed requirements for the Docker images.
+exports DEST="docker":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export PDM_USE_VENV=false
+    dest=$(realpath -m "{{DEST}}")
+    mkdir -p "$dest"
+    pdm export -G default -f requirements -o "$dest/requirements.txt"
+    cd docker/aer
+    trap 'rm -f .pdm-python' EXIT
+    pdm export -f requirements -o "$dest/aer-build-requirements.txt"
+
+# Move every dependency to its newest allowed version (qiskit-aer stays at the override).
+relock:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export PDM_USE_VENV=false
+    pdm update -G :all --no-sync
+    (cd docker/aer && trap 'rm -f .pdm-python' EXIT && pdm update --no-sync)
+    just exports
+    just check-locks
+
+# Offline sync check should be done before tagging.
+check-locks:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    export PDM_USE_VENV=false
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp" docker/aer/.pdm-python' EXIT
+    bad=0
+    fail() { echo "[ FAIL ] $1 is out of sync, fix with: $2"; bad=1; }
+    pdm lock --check >/dev/null 2>&1 || fail pdm.lock "pdm lock && just exports"
+    (cd docker/aer && pdm lock --check >/dev/null 2>&1) || fail docker/aer/pdm.lock "pdm lock -p docker/aer && just exports"
+    just exports "$tmp" >/dev/null 2>&1
+    diff -q "$tmp/requirements.txt" docker/requirements.txt >/dev/null || fail docker/requirements.txt "just exports"
+    diff -q "$tmp/aer-build-requirements.txt" docker/aer-build-requirements.txt >/dev/null || fail docker/aer-build-requirements.txt "just exports"
+    arg=$(sed -n 's/^ARG AER_VERSION="\(.*\)"$/\1/p' docker/Dockerfile.gpu)
+    pin=$(sed -n 's/^qiskit-aer==\([^;]*\);.*/\1/p' docker/requirements.txt)
+    [ -n "$arg" ] && [ "$arg" = "$pin" ] || fail "AER_VERSION in docker/Dockerfile.gpu ($arg vs qiskit-aer $pin)" "just bump-aer <version>"
+    [ "$bad" = 0 ] && echo "[  OK  ] locks, exports and AER_VERSION are in sync"
+    exit "$bad"
+
+# Move qiskit-aer to VERSION: override, GPU image ARG, pdm.lock, docker/requirements.txt
+bump-aer VERSION:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export PDM_USE_VENV=false
+    curl -fsS -o /dev/null "https://pypi.org/pypi/qiskit-aer/{{VERSION}}/json" || { echo "[ FAIL ] qiskit-aer {{VERSION}} is not on PyPI, nothing changed"; exit 1; }
+    sed -i 's/^qiskit-aer = ".*"/qiskit-aer = "=={{VERSION}}"/' pyproject.toml
+    sed -i 's/^ARG AER_VERSION=".*"/ARG AER_VERSION="{{VERSION}}"/' docker/Dockerfile.gpu
+    pdm update qiskit-aer --no-sync
+    just exports
+    just check-locks
+    echo "[ NOTE ] rebuild and test the GPU image before tagging; widen qiskit-aer in [project] dependencies if {{VERSION}} is outside its range."
 
 # --- help ---
 
@@ -296,4 +345,7 @@ help:
     @echo "Other:"
     @echo "  just build            Build wheel + sdist"
     @echo "  just clean            Remove caches and artifacts"
-    @echo "  just requirements     Export requirements.txt"
+    @echo "  just relock           Update all locks to the newest allowed versions + exports"
+    @echo "  just exports          Regenerate the Docker requirements exports"
+    @echo "  just check-locks      Check locks, exports and AER_VERSION are in sync"
+    @echo "  just bump-aer VER     Move qiskit-aer to VER everywhere"

@@ -80,6 +80,7 @@ The [installation guide](https://docs.qp.piotrkrzysztof.dev/getting-started/inst
 Full docs at <https://docs.qp.piotrkrzysztof.dev>. Build them locally with:
 
 ```bash
+pdm install -G docs
 pdm run mkdocs serve
 ```
 

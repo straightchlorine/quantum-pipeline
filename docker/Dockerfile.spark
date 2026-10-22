@@ -1,4 +1,4 @@
-FROM apache/spark:4.0.2-python3
+FROM apache/spark:4.0.2-python3@sha256:87e5d6062e955a045b68376bbf97487d5057ecd8f4f896fb0590339981645de3
 
 USER root
 

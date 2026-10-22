@@ -40,8 +40,30 @@ Airflow container with docker-ce-cli, buildx, rclone, and the DAG
 scripts pre-installed. Used by `docker-compose.ml.yaml`.
 
 ```bash
-docker build -f docker/airflow/Dockerfile -t quantum-pipeline-airflow .
+docker build -t quantum-pipeline-airflow docker/airflow
 ```
+
+## Pinned dependency files
+
+The CPU and GPU images install their Python packages from hashed requirements files,
+each generated with PDM:
+
+- `requirements.txt` - exported from the root `pdm.lock` (Python 3.12 and newer).
+  Used by the CPU and GPU images.
+- `aer-build-requirements.txt` - exported from `aer/pyproject.toml` and
+  `aer/pdm.lock`. Build tools only for the Aer wheel in `Dockerfile.gpu`;
+  the Aer version is the `AER_VERSION` build argument there.
+
+Each export has its own lock: `pdm.lock` and `aer/pdm.lock`. From the repository root:
+
+- `just relock` moves everything to the newest allowed versions.
+- `just exports` regenerates both files after a manual `pdm add`, `update` or `lock`.
+- `just bump-aer X.Y.Z` moves the Aer version everywhere (the
+  `[tool.pdm.resolution.overrides]` pin, `AER_VERSION`, `pdm.lock` and
+  `requirements.txt`); rebuild the GPU image afterwards.
+- `just check-locks` verifies offline that the locks, both exports and `AER_VERSION`
+  agree. It runs on every PR and push to master (the required `lint` check) and on every
+  release tag, because the release calls CI on the tagged commit.
 
 ## Compose stacks
 
