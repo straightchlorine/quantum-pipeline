@@ -226,6 +226,9 @@ jobs:
     uses: ./.github/workflows/publish-docker-gpu.yml
     with:
       version: ${{ github.ref_name }}
+    # The called job reads the docker environment's secrets only when they are inherited
+    # (passing them by name resolves in this job, which has no environment).
+    secrets: inherit # zizmor: ignore[secrets-inherit] same-repo workflow at the same commit
     # A ceiling for the called jobs, each of which sets its own narrower set.
     permissions:
       contents: write
