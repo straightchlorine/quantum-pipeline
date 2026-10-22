@@ -1,6 +1,8 @@
 name: Weekly relock
 
-# Relocks pdm.lock, regenerates docker/requirements.txt and opens a pull request.
+# Relocks pdm.lock (all groups) and docker/aer/pdm.lock (Aer build tools),
+# regenerates both Docker exports, checks them and opens a pull request with
+# updates.
 
 on:
   schedule:
@@ -18,6 +20,8 @@ jobs:
   relock:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      PDM_USE_VENV: "false" # keeps pdm from creating a virtualenv for docker/aer
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -27,26 +31,37 @@ jobs:
         uses: pdm-project/setup-pdm@544d7237314ee09c256785bd360f6b30add38b37 # v4.6
         with:
           python-version: "3.12"
+          version: "2.29.2" # keep equal to ci.yml
+
+      - name: Install just
+        run: pip install rust-just==1.59.0
 
       # pdm list --freeze reads the installed environment, --no-sync leaves it empty,
-      # so the pins are read from the lock through an unhashed export.
+      # so the pins are read from the locks through unhashed exports.
       - name: Record current pins
-        run: >
-          pdm export -f requirements --no-hashes -G default -G dev | grep -v '^#' > "$RUNNER_TEMP/pins-before.txt" #magic___^_^___line
-      - name: Relock
-        run: pdm update -G default -G dev --no-sync
+        run: |
+          pdm export -f requirements --no-hashes -G :all | grep -v '^#' > "$RUNNER_TEMP/pins-before.txt"
+          pdm export -p docker/aer -f requirements --no-hashes | grep -v '^#' > "$RUNNER_TEMP/aer-before.txt"
 
-      - name: Export hashed requirements for the Docker images
-        run: pdm export -G default -f requirements -o docker/requirements.txt
+      # for pr to be open - it needs to be in sync
+      - name: Relock, export and check
+        run: just relock
 
       - name: Diff pins
         run: |
-          pdm export -f requirements --no-hashes -G default -G dev | grep -v '^#' > "$RUNNER_TEMP/pins-after.txt"
+          pdm export -f requirements --no-hashes -G :all | grep -v '^#' > "$RUNNER_TEMP/pins-after.txt"
+          pdm export -p docker/aer -f requirements --no-hashes | grep -v '^#' > "$RUNNER_TEMP/aer-after.txt"
           {
-            echo "Changed pins in pdm.lock (default and dev groups):"
+            echo "Changed pins in pdm.lock (all groups):"
             echo
             echo '```diff'
             diff -u "$RUNNER_TEMP/pins-before.txt" "$RUNNER_TEMP/pins-after.txt" | tail -n +3 || true
+            echo '```'
+            echo
+            echo "Changed pins in docker/aer/pdm.lock (Aer build tools):"
+            echo
+            echo '```diff'
+            diff -u "$RUNNER_TEMP/aer-before.txt" "$RUNNER_TEMP/aer-after.txt" | tail -n +3 || true
             echo '```'
           } > "$RUNNER_TEMP/pins-diff.md"
           cat "$RUNNER_TEMP/pins-diff.md"
@@ -54,7 +69,7 @@ jobs:
       - name: Open or update the PR
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ secrets.DEPS_PR_TOKEN }}
+          token: ${{ secrets.RELOCK_TOKEN }}
           branch: deps/weekly-relock
           title: "chore(deps): weekly relock"
           commit-message: "chore(deps): weekly relock"
@@ -62,5 +77,7 @@ jobs:
           add-paths: |
             pdm.lock
             docker/requirements.txt
+            docker/aer/pdm.lock
+            docker/aer-build-requirements.txt
           body-path: ${{ runner.temp }}/pins-diff.md
           delete-branch: true

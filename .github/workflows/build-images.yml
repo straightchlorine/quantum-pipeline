@@ -1,0 +1,76 @@
+name: Build images
+
+# Builds the CPU and GPU images on pull requests that change them or their deps.
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - ".github/workflows/build-images.yml"
+      - ".dockerignore"
+      - "docker/Dockerfile.cpu"
+      - "docker/Dockerfile.gpu"
+      - "docker/requirements.txt"
+      - "docker/aer-build-requirements.txt"
+      - "docker/aer/**"
+      - "pdm.lock"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cpu:
+    name: CPU image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build CPU image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./docker/Dockerfile.cpu
+          push: false
+
+  gpu:
+    name: GPU image
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # same as the release build: the CUDA devel image and the Aer build do not fit otherwise
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@ceedf095f4ec1a097402bc6bd80831f2e1a6fde6 # v2.0.0
+        with:
+          preinstalled-runtimes: true
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: true
+          large-packages: false
+          swap-storage: false # keep swap, the Aer compile is memory-hungry
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # read-only: a pull request writes no cache and pushes nothing.
+      - name: Build GPU image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./docker/Dockerfile.gpu
+          push: false
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-gpu

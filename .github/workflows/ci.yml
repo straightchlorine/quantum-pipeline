@@ -26,10 +26,12 @@ jobs:
         with:
           persist-credentials: false
 
+      # keep the pdm version equal to deps-update.yml (both byte-compare exports)
       - name: Set up Python 3.12 and PDM
         uses: pdm-project/setup-pdm@544d7237314ee09c256785bd360f6b30add38b37 # v4.6
         with:
           python-version: "3.12"
+          version: "2.29.2"
 
       - name: Cache PDM packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -42,6 +44,11 @@ jobs:
         # --frozen-lockfile stops the lockfile being rewritten against pyproject
         # --check fails if the lockfile is stale
         run: pdm install --check --frozen-lockfile -G dev
+
+      - name: Verify locks, exports and AER_VERSION are in sync
+        run: |
+          pip install rust-just==1.59.0
+          just check-locks
 
       - name: Lint with ruff
         run: pdm run ruff check .
