@@ -77,7 +77,7 @@ The [installation guide](https://docs.qp.piotrkrzysztof.dev/getting-started/inst
 
 ## Documentation
 
-Full docs at <https://docs.qp.piotrkrzysztof.dev>. Build them locally with:
+Docs at <https://docs.qp.piotrkrzysztof.dev>. Build them locally with:
 
 ```bash
 pdm install -G docs
